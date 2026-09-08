@@ -101,6 +101,11 @@ class Environment:
         self.drones = self._build_drones()
         self.task_generator = self.data_source.build_task_source()
 
+        # 禁飞区配置自检：机巢/仓库/机队初始位置若落在禁飞区内，
+        # 其进出航线必然无解（绕飞折点也连不上），这里提前明确告警，
+        # 避免用户改完配置只看到"完成率莫名下降"却查不到原因。
+        self._validate_no_fly_layout()
+
         # 机巢泊位竞争状态（创新点2）：有限泊位 + 动态优先级仲裁排队
         self._nest_waiting = {s.station_id: [] for s in self.charging_stations}
         self.total_swap_sessions = 0          # 换电总次数（机巢周转口径）
@@ -193,6 +198,25 @@ class Environment:
 
         # print(get_building_location_by_name( self.high_buildings, "衷和楼"))
         print(f"加载了 {len(self.high_buildings)} 个具有高度信息的建筑物")
+
+    def _validate_no_fly_layout(self):
+        """禁飞区布局自检：固定设施落入禁飞区会让航线无解，提前告警。"""
+        if not self.no_fly:
+            return
+        conflicts = []
+        for s in self.charging_stations:
+            if self.no_fly.contains(s.x, s.y):
+                conflicts.append(f"机巢 station_{s.station_id} ({s.x:.1f}, {s.y:.1f})")
+        if self.no_fly.contains(WAREHOUSE_POS[0], WAREHOUSE_POS[1]):
+            conflicts.append(f"仓库 ({WAREHOUSE_POS[0]:.1f}, {WAREHOUSE_POS[1]:.1f})")
+        for d in self.drones:
+            if self.no_fly.contains(d.x, d.y):
+                conflicts.append(f"无人机 {d.drone_id} 初始位 ({d.x:.1f}, {d.y:.1f})")
+        if conflicts:
+            print("[禁飞区] 警告：以下固定设施落在禁飞区内，其进出航线将无解，"
+                  "请调整 no_fly_zones 或设施坐标：")
+            for c in conflicts:
+                print(f"          - {c}")
 
     def _build_charging_stations(self):
         """从数据源构建机巢（换电站）列表；数据源为空时退回配置默认站。"""
@@ -812,6 +836,10 @@ class Environment:
 
             # is_free 转换兜底：无人机变为空闲时清理剩余分配记录
             if not self._prev_free_status.get(i, True) and drone.is_free:
+                # 航线已跑空 → 任务链与载重一并归零（drone.update() 已把
+                # current_load 清零，这里显式同步 chain_len，避免计数残留
+                # 把后续顺路接入永久挡在门外）
+                self.drone_chain_len[i] = 0
                 if i in self.drone_assignments:
                     assignments = self.drone_assignments[i]
                     if isinstance(assignments, list):
@@ -1358,17 +1386,99 @@ class Environment:
                 return False
         return True
 
-    def plan_route_around_buildings(self, start_pos, end_pos):
+    # ----------- 禁飞区绕飞（独立几何计算，不依赖建筑 A*）-----------
+
+    def _zone_detour_points(self, zone, clearance=30.0):
+        """在单个禁飞区外沿生成绕飞候选点（四边中点 + 四角）。
+
+        clearance 是在禁飞区包围盒之外再外扩的距离，保证候选点一定落在区外，
+        且与区外其它点之间有可飞空间。
+        """
+        minx, miny, maxx, maxy = zone.geometry.bounds
+        cx, cy = (minx + maxx) / 2.0, (miny + maxy) / 2.0
+        w = (maxx - minx) / 2.0 + clearance
+        h = (maxy - miny) / 2.0 + clearance
+        raw = [
+            (cx - w, cy), (cx + w, cy), (cx, cy - h), (cx, cy + h),              # 四边中点
+            (cx - w, cy - h), (cx + w, cy - h), (cx - w, cy + h), (cx + w, cy + h),  # 四角
+        ]
+        # 剔除仍落在任何禁飞区内的点（多区相邻时可能发生）
+        return [p for p in raw if not self.no_fly.contains(p[0], p[1])]
+
+    def _plan_no_fly_detour(self, start_pos, end_pos):
+        """为被禁飞区阻挡的直飞段规划绕飞折线，返回不含起点的航点列表（末点为终点）。
+
+        与建筑 A* 的关键区别：**只用禁飞区几何做判定**。
+        此前把禁飞区采样点混进建筑可见图，一旦起降点被建筑物包围
+        （任务点常位于楼宇附近），A* 整体失败并 fallback 直穿禁飞区，
+        导致禁飞区形同虚设。这里独立计算，保证硬约束一定被满足。
+        """
+        blockers = [z for z in self.no_fly.zones
+                    if z.intersects_line(start_pos, end_pos)]
+        if not blockers:
+            return None
+
+        cands = []
+        for z in blockers:
+            cands.extend(self._zone_detour_points(z))
+        if not cands:
+            return None
+
+        best_len, best_pts = None, None
+
+        # ① 单折点绕行
+        for p in cands:
+            if (self.no_fly.path_blocked(start_pos, p)
+                    or self.no_fly.path_blocked(p, end_pos)):
+                continue
+            total = (self.heuristic(start_pos, p) + self.heuristic(p, end_pos))
+            if best_len is None or total < best_len:
+                best_len, best_pts = total, [p]
+
+        # ② 双折点绕行（单折点绕不过去时，例如需要绕过区的对角）
+        if best_pts is None:
+            for p1 in cands:
+                if self.no_fly.path_blocked(start_pos, p1):
+                    continue
+                for p2 in cands:
+                    if p1 is p2 or self.no_fly.path_blocked(p1, p2):
+                        continue
+                    if self.no_fly.path_blocked(p2, end_pos):
+                        continue
+                    total = (self.heuristic(start_pos, p1)
+                             + self.heuristic(p1, p2)
+                             + self.heuristic(p2, end_pos))
+                    if best_len is None or total < best_len:
+                        best_len, best_pts = total, [p1, p2]
+
+        return best_pts + [end_pos] if best_pts else None
+
+    def plan_route_around_buildings(self, start_pos, end_pos, _depth=0):
         """
         Plans a route from start_pos to end_pos avoiding buildings using A* algorithm.
+
+        两级约束：
+          1. **禁飞区（硬约束）**：先用独立几何绕飞，保证绝不穿越；
+          2. **建筑物（软约束）**：再用 A* 可见图绕行；找不到时允许直穿并告警。
         """
+        # 1) 禁飞区：独立绕飞，不受建筑可见图连通性影响
+        if self.no_fly.path_blocked(start_pos, end_pos):
+            self.total_no_fly_detours += 1
+            detour = self._plan_no_fly_detour(start_pos, end_pos)
+            if detour and _depth < 3:
+                # 折线各段再各自做建筑绕行后拼接（段已不碰禁飞区，不会递归进本分支）
+                route, prev = [], start_pos
+                for p in detour:
+                    route.extend(self.plan_route_around_buildings(prev, p, _depth + 1))
+                    prev = p
+                return route
+            print(f"警告：无法规划避开禁飞区的路径 {start_pos} → {end_pos}，"
+                  f"将尝试穿越（请检查禁飞区是否把起降点完全包围）")
+
+        # 2) 建筑绕行
         # Check if direct path is possible (stricter check)
         if self.is_path_clear(start_pos, end_pos):
             return [end_pos]
-
-        # 直线被禁飞区拦截：记一次绕飞（用于观测禁飞区对航线的影响强度）
-        if self.no_fly.path_blocked(start_pos, end_pos):
-            self.total_no_fly_detours += 1
 
         # Try A* pathfinding
         path = self.a_star_pathfinding(start_pos, end_pos)

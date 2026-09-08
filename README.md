@@ -142,7 +142,8 @@ python ab_chain_test.py --policies pso ga --episodes 1 --episode-steps 1200
 }
 ```
 
-禁飞区与建筑物同等参与 `is_path_clear()` 判定，A\* 可见图补充外沿采样点实现真绕飞；
+禁飞区是**硬约束**，采用**独立于建筑 A\* 的几何绕飞**（在区外沿生成绕飞折点），
+保证绝不穿越；建筑仍走 A\* 可见图绕行（软约束，失败时允许直穿并告警）；
 落在禁飞区内的取送货点会被自动过滤，避免生成不可达任务污染完成率。
 实现见 `frontend/no_fly_zone.py`。
 

@@ -265,10 +265,12 @@ class GAOptimizer:
                     # 交换
                     chromosome[i], chromosome[j] = chromosome[j], chromosome[i]
                 elif op < 0.8:
-                    # 插入：把 j 位置基因抽出来插到 i 前面
+                    # 插入：把 j 位置基因抽出来插到 i 处
+                    # 注意：移除 j 后，原索引 > j 的位置整体左移一位，
+                    # 因此 i > j 时目标下标要减 1，否则插入点会偏后一位。
                     gene = int(chromosome[j])
                     others = [int(x) for k, x in enumerate(chromosome) if k != j]
-                    pos = i if i < j else i
+                    pos = i if i < j else max(0, i - 1)
                     others.insert(pos, gene)
                     chromosome[:] = np.array(others, dtype=int)
                 else:
