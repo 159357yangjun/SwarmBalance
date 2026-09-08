@@ -78,6 +78,9 @@ class GAOptimizer:
             w_dist=float(chain_config.get('w_dist', 0.01)),
             w_new_chain=float(chain_config.get('w_new_chain', -30.0)),
             tardy_tolerance=float(chain_config.get('tardy_tolerance', 600.0)),
+            local_search=bool(chain_config.get('local_search', True)),
+            local_search_iters=int(chain_config.get('local_search_iters', 6)),
+            relocate_between=bool(chain_config.get('relocate_between', True)),
         )
         self.w_unassigned = float(chain_config.get('w_unassigned', 1e4))
         self.population_size = max(2, int(population_size))

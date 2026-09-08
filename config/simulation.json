@@ -47,8 +47,14 @@
         "probability": 0.6,
         "radius": 80,
         "centers": [
-          [359190.428233, 3462301.042575],
-          [358744.300499, 3462283.547369]
+          [
+            359190.428233,
+            3462301.042575
+          ],
+          [
+            358744.300499,
+            3462283.547369
+          ]
         ]
       }
     }
@@ -87,11 +93,29 @@
     "priority_max": 3,
     "deadline_offset_min": 900,
     "deadline_offset_max": 3600,
-    "warehouse_pos": [357600.574872369, 3462308.772003661],
+    "warehouse_pos": [
+      357600.574872369,
+      3462308.772003661
+    ],
     "weight_brackets": [
-      { "min": 1, "max": 2, "probability": 0.55, "note": "外卖/小件包裹（美团轻载）" },
-      { "min": 3, "max": 10, "probability": 0.35, "note": "标准快递包裹（顺丰ARK40）" },
-      { "min": 11, "max": 25, "probability": 0.10, "note": "重货/应急物资（大疆FlyCart30）" }
+      {
+        "min": 1,
+        "max": 2,
+        "probability": 0.55,
+        "note": "外卖/小件包裹（美团轻载）"
+      },
+      {
+        "min": 3,
+        "max": 10,
+        "probability": 0.35,
+        "note": "标准快递包裹（顺丰ARK40）"
+      },
+      {
+        "min": 11,
+        "max": 25,
+        "probability": 0.1,
+        "note": "重货/应急物资（大疆FlyCart30）"
+      }
     ],
     "sla_reference_speed": 14.0,
     "sla_base_seconds": 420,
@@ -138,11 +162,36 @@
     }
   },
   "charging_stations": [
-    { "station_id": 0, "x": 357600.0, "y": 3462308.0, "swap_time_seconds": 180 },
-    { "station_id": 1, "x": 358744.0, "y": 3462283.0, "swap_time_seconds": 180 },
-    { "station_id": 2, "x": 359190.0, "y": 3462301.0, "swap_time_seconds": 180 },
-    { "station_id": 3, "x": 359365.0, "y": 3463070.0, "swap_time_seconds": 180 },
-    { "station_id": 4, "x": 358639.0, "y": 3462878.0, "swap_time_seconds": 180 }
+    {
+      "station_id": 0,
+      "x": 357600.0,
+      "y": 3462308.0,
+      "swap_time_seconds": 180
+    },
+    {
+      "station_id": 1,
+      "x": 358744.0,
+      "y": 3462283.0,
+      "swap_time_seconds": 180
+    },
+    {
+      "station_id": 2,
+      "x": 359190.0,
+      "y": 3462301.0,
+      "swap_time_seconds": 180
+    },
+    {
+      "station_id": 3,
+      "x": 359365.0,
+      "y": 3463070.0,
+      "swap_time_seconds": 180
+    },
+    {
+      "station_id": 4,
+      "x": 358639.0,
+      "y": 3462878.0,
+      "swap_time_seconds": 180
+    }
   ],
   "nest": {
     "berths": 2,
@@ -159,7 +208,10 @@
       {
         "name": "医院应急通道",
         "type": "circle",
-        "center": [358300.0, 3462500.0],
+        "center": [
+          358300.0,
+          3462500.0
+        ],
         "radius": 150.0,
         "enabled": true
       },
@@ -167,10 +219,22 @@
         "name": "管制空域A",
         "type": "polygon",
         "points": [
-          [358950.0, 3462750.0],
-          [359150.0, 3462750.0],
-          [359150.0, 3462950.0],
-          [358950.0, 3462950.0]
+          [
+            358950.0,
+            3462750.0
+          ],
+          [
+            359150.0,
+            3462750.0
+          ],
+          [
+            359150.0,
+            3462950.0
+          ],
+          [
+            358950.0,
+            3462950.0
+          ]
         ],
         "enabled": true
       }

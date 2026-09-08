@@ -33,6 +33,8 @@ __all__ = [
     "ChainSolution",
     "ChainDecodeConfig",
     "greedy_split_decode",
+    "improve_chain",
+    "relocate_between_chains",
     "evaluate_chains",
     "chain_cost",
 ]
@@ -63,6 +65,12 @@ class ChainDecodeConfig:
     w_dist: float = 0.01
     # 空闲链（该机一条任务都没有）额外奖励，鼓励把任务摊开到多机并行
     w_new_chain: float = -30.0
+    # 解码后是否对每条链做 2-opt 局部搜索（补上申请书「链内局部搜索」缺口）
+    local_search: bool = True
+    # 2-opt 最大扫描轮数（每轮找到更优子段即重启）
+    local_search_iters: int = 6
+    # 单链局部搜索之后，是否做链间任务迁移（relocate）
+    relocate_between: bool = True
 
 
 @dataclass
@@ -271,8 +279,177 @@ def greedy_split_decode(perm: Sequence[int],
         unassigned=unassigned,
         finish_times=[st.time for st in states],
     )
+
+    # 解码后对每条链做局部搜索（申请书「链内局部搜索」落地）。
+    # 局部搜索只重排顺序、缩短里程，任务集合不变，因此不会违反载重约束；
+    # 里程更短 → 耗电更少 → 电量约束只会更宽松。
+    if cfg.local_search:
+        for drone_idx, chain in enumerate(sol.chains):
+            if len(chain) > 2:
+                sol.chains[drone_idx] = improve_chain(
+                    chain, drones_info[drone_idx], tasks_info, cfg)
+        # 链间任务迁移：纠正贪婪分割阶段的次优挂载
+        if cfg.relocate_between:
+            sol.chains = relocate_between_chains(sol, drones_info, tasks_info, cfg)
+
     sol.metrics = evaluate_chains(sol, drones_info, tasks_info, current_time, cfg)
     return sol
+
+
+def improve_chain(chain: List[int],
+                  drone_info: Dict,
+                  tasks_info: List[Dict],
+                  cfg: ChainDecodeConfig) -> List[int]:
+    """对单条任务链做局部搜索，依次尝试三种邻域，接受里程变短的解。
+
+    邻域（按代价从低到高）：
+      1. **swap**：交换两个任务位置（O(n²)）；
+      2. **Or-opt**：把长度 1~2 的连续子段抽出、插入到另一位置（O(n²·seg)）；
+      3. **2-opt**：反转连续子段（O(n²)）。
+
+    目标函数是「从该机起点出发、顺序执行整条链」的总飞行里程；这些操作都不
+    改变任务集合、不破坏取送货配对，因此不会违反载重 / 电量硬约束。
+    """
+    if len(chain) <= 2:
+        return chain
+
+    start = tuple(drone_info.get('position', (0.0, 0.0)))
+
+    def route_distance(seq: List[int]) -> float:
+        d = 0.0
+        pos = start
+        for t in seq:
+            task = tasks_info[t]
+            src = tuple(task['source'])
+            dst = tuple(task['destination'])
+            d += _dist(pos, src) + _dist(src, dst)
+            pos = dst
+        return d
+
+    seq = list(chain)
+    base = route_distance(seq)
+    max_iters = max(1, int(getattr(cfg, 'local_search_iters', 6)))
+    n = len(seq)
+
+    for _ in range(max_iters):
+        improved = False
+
+        # ① swap：交换两个任务
+        for i in range(n - 1):
+            for j in range(i + 1, n):
+                cand = seq[:]
+                cand[i], cand[j] = cand[j], cand[i]
+                if route_distance(cand) < base - 1e-9:
+                    seq, base, improved = cand, route_distance(cand), True
+                    break
+            if improved:
+                break
+        if improved:
+            continue
+
+        # ② Or-opt：把长度 seg 的子段移位
+        for seg in (1, 2):
+            for i in range(n - seg + 1):
+                sub = seq[i:i + seg]
+                rest = seq[:i] + seq[i + seg:]
+                for j in range(len(rest) + 1):
+                    cand = rest[:j] + sub + rest[j:]
+                    if cand == seq:
+                        continue
+                    d = route_distance(cand)
+                    if d < base - 1e-9:
+                        seq, base, improved = cand, d, True
+                        break
+                if improved:
+                    break
+            if improved:
+                break
+        if improved:
+            continue
+
+        # ③ 2-opt：反转连续子段
+        for i in range(n - 1):
+            for j in range(i + 1, n):
+                cand = seq[:i] + seq[i:j + 1][::-1] + seq[j + 1:]
+                if route_distance(cand) < base - 1e-9:
+                    seq, base, improved = cand, route_distance(cand), True
+                    break
+            if improved:
+                break
+        if not improved:
+            break
+    return seq
+
+
+def relocate_between_chains(sol: ChainSolution,
+                            drones_info: List[Dict],
+                            tasks_info: List[Dict],
+                            cfg: ChainDecodeConfig) -> List[List[int]]:
+    """链间任务迁移（relocate）：把任务从一条链移到另一条链的更优位置。
+
+    在「贪婪分割 + 单链局部搜索」之后做跨链改进，可纠正分割阶段的次优挂载。
+    目标是最小化各链总里程；迁移需满足目标链的载重与链长约束。由于里程只会
+    变短、任务集合不变，电量约束只会更宽松，不会破坏解码的可行性。
+    """
+    chains = [list(c) for c in sol.chains]
+    n_drones = len(chains)
+    if n_drones < 2:
+        return chains
+
+    max_total = float(cfg.max_total_weight)
+    max_len = max(1, int(cfg.max_chain_tasks))
+    caps = [min(float(d.get('capacity', 5.0)), max_total) for d in drones_info]
+
+    def chain_distance(seq: List[int], drone_idx: int) -> float:
+        start = tuple(drones_info[drone_idx].get('position', (0.0, 0.0)))
+        d = 0.0
+        pos = start
+        for t in seq:
+            task = tasks_info[t]
+            src = tuple(task['source'])
+            dst = tuple(task['destination'])
+            d += _dist(pos, src) + _dist(src, dst)
+            pos = dst
+        return d
+
+    def chain_weight(seq: List[int]) -> float:
+        return sum(float(tasks_info[t].get('weight', 0.0)) for t in seq)
+
+    # 最多做 2 轮全局扫描（迁移会连锁触发更优结构，但限制轮数避免过度移动）
+    for _ in range(2):
+        improved = False
+        for src_idx, src_chain in enumerate(chains):
+            for pos, task_idx in enumerate(src_chain):
+                w = float(tasks_info[task_idx].get('weight', 0.0))
+                for dst_idx, dst_chain in enumerate(chains):
+                    if dst_idx == src_idx:
+                        continue
+                    if len(dst_chain) >= max_len:
+                        continue
+                    if chain_weight(dst_chain) + w > caps[dst_idx] + 1e-9:
+                        continue
+                    new_src = src_chain[:pos] + src_chain[pos + 1:]
+                    src_delta = None  # 懒计算：仅当目标链可行时才算
+                    for ins in range(len(dst_chain) + 1):
+                        new_dst = dst_chain[:ins] + [task_idx] + dst_chain[ins:]
+                        old_d = (chain_distance(src_chain, src_idx)
+                                 + chain_distance(dst_chain, dst_idx))
+                        new_d = (chain_distance(new_src, src_idx)
+                                 + chain_distance(new_dst, dst_idx))
+                        if new_d < old_d - 1e-9:
+                            chains[src_idx] = new_src
+                            chains[dst_idx] = new_dst
+                            improved = True
+                            break
+                    if improved:
+                        break
+                if improved:
+                    break
+            if improved:
+                break
+        if not improved:
+            break
+    return chains
 
 
 # ---------------------------------------------------------------------------

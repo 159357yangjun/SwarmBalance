@@ -22,7 +22,7 @@ from fastapi.responses import HTMLResponse, JSONResponse
 from pydantic import BaseModel
 
 _PROJECT_ROOT = Path(__file__).resolve().parents[1]
-for _p in (str(_PROJECT_ROOT),):
+for _p in (str(_PROJECT_ROOT), str(_PROJECT_ROOT / "frontend")):
     if _p not in sys.path:
         sys.path.insert(0, _p)
 
@@ -35,7 +35,10 @@ _SIM_JSON = _PROJECT_ROOT / "config" / "simulation.json"
 _ALG_YAML = _PROJECT_ROOT / "backend_si" / "config.yaml"
 
 _session: Optional[SimSession] = None
-_lock = threading.Lock()
+# RLock（可重入）：既用于 _session 的单例创建（双重检查锁），也用于保护
+# 仿真状态的读写。FastAPI 同步路由默认跑在线程池，多个请求会并发，
+# 若不锁住 step/reset/snapshot，两个标签页或"边步进边重置"会互相干扰状态。
+_lock = threading.RLock()
 
 
 def _get_session() -> SimSession:
@@ -71,6 +74,49 @@ class ConfigPatch(BaseModel):
     patch: Dict[str, Any]
 
 
+class EvaluateRequest(BaseModel):
+    policy: str = "ga"
+    episodes: int = 1
+    episode_steps: int = 600
+    seed: int = 100
+
+
+# 评测任务状态（后台线程 + 前端轮询）
+_eval_state: Dict[str, Any] = {
+    "running": False,
+    "progress": "",
+    "result": None,
+    "error": None,
+}
+
+
+def _run_evaluate(policy: str, episodes: int, episode_steps: int, seed: int) -> None:
+    """后台线程：跑完整评测（复用 evaluate_metrics 的逻辑）。"""
+    from evaluate_metrics import run_one_episode
+    from metrics_schema import to_output_metrics, mean_metrics
+
+    osm_path = str(_PROJECT_ROOT / "frontend" / "data" / "map" / "part_of_yangpu.osm")
+    _eval_state.update(running=True, progress=f"准备评测 {policy}", result=None, error=None)
+    try:
+        rows = []
+        for ep in range(max(1, episodes)):
+            _eval_state["progress"] = f"评测中 {ep + 1}/{episodes}（{policy}）"
+            ep_seed = seed + ep + 1
+            stats = run_one_episode(osm_path, episode_steps, policy, ep_seed)
+            rows.append(to_output_metrics(stats))
+        mean = mean_metrics(rows)
+        _eval_state["result"] = {
+            k: (round(float(v), 4) if isinstance(v, (int, float)) else v)
+            for k, v in mean.items()
+        }
+        _eval_state["progress"] = "评测完成"
+    except Exception as exc:  # noqa: BLE001
+        _eval_state["error"] = str(exc)
+        _eval_state["progress"] = "评测失败"
+    finally:
+        _eval_state["running"] = False
+
+
 # ---------------------------------------------------------------------------
 # 页面
 # ---------------------------------------------------------------------------
@@ -93,7 +139,8 @@ def algorithms():
 
 @app.get("/api/snapshot")
 def snapshot():
-    return JSONResponse(_get_session().snapshot())
+    with _lock:
+        return JSONResponse(_get_session().snapshot())
 
 
 @app.post("/api/reset")
@@ -101,7 +148,8 @@ def reset(req: ResetRequest):
     if req.algorithm not in ALGORITHMS:
         raise HTTPException(status_code=400, detail=f"未知算法: {req.algorithm}")
     try:
-        snap = _get_session().reset(algorithm=req.algorithm, seed=req.seed)
+        with _lock:
+            snap = _get_session().reset(algorithm=req.algorithm, seed=req.seed)
     except RuntimeError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
     return JSONResponse(snap)
@@ -109,19 +157,22 @@ def reset(req: ResetRequest):
 
 @app.post("/api/step")
 def step():
-    return JSONResponse(_get_session().step())
+    with _lock:
+        return JSONResponse(_get_session().step())
 
 
 @app.post("/api/rebuild")
 def rebuild():
     """写回 simulation.json 后调用：热重载配置并重建 Environment。"""
-    return JSONResponse(_get_session().rebuild())
+    with _lock:
+        return JSONResponse(_get_session().rebuild())
 
 
 @app.get("/api/map")
 def map_static():
     """静态地图几何：边界 + 建筑轮廓(含高度)，供 3D 视图一次性加载。"""
-    return JSONResponse(_get_session().map_static())
+    with _lock:
+        return JSONResponse(_get_session().map_static())
 
 
 # ---------------------------------------------------------------------------
@@ -140,9 +191,10 @@ def save_config(req: ConfigPatch):
     """深合并写回 simulation.json（不丢失未提及字段），不自动重建。"""
     if not _SIM_JSON.exists():
         raise HTTPException(status_code=404, detail="simulation.json 不存在")
-    cfg = json.loads(_SIM_JSON.read_text(encoding="utf-8"))
-    cfg = _deep_merge(cfg, req.patch)
-    _SIM_JSON.write_text(json.dumps(cfg, ensure_ascii=False, indent=2), encoding="utf-8")
+    with _lock:
+        cfg = json.loads(_SIM_JSON.read_text(encoding="utf-8"))
+        cfg = _deep_merge(cfg, req.patch)
+        _SIM_JSON.write_text(json.dumps(cfg, ensure_ascii=False, indent=2), encoding="utf-8")
     return {"ok": True, "config": cfg}
 
 
@@ -161,11 +213,12 @@ def save_scheduler_config(req: ConfigPatch):
     import yaml
     if not _ALG_YAML.exists():
         raise HTTPException(status_code=404, detail="config.yaml 不存在")
-    with open(_ALG_YAML, "r", encoding="utf-8") as f:
-        cfg = yaml.safe_load(f) or {}
-    cfg = _deep_merge(cfg, req.patch)
-    with open(_ALG_YAML, "w", encoding="utf-8") as f:
-        yaml.safe_dump(cfg, f, allow_unicode=True, sort_keys=False)
+    with _lock:
+        with open(_ALG_YAML, "r", encoding="utf-8") as f:
+            cfg = yaml.safe_load(f) or {}
+        cfg = _deep_merge(cfg, req.patch)
+        with open(_ALG_YAML, "w", encoding="utf-8") as f:
+            yaml.safe_dump(cfg, f, allow_unicode=True, sort_keys=False)
     return {"ok": True, "config": cfg}
 
 
@@ -201,6 +254,8 @@ def compare():
         return {"rows": [], "columns": []}
 
     data = pd.concat(frames, ignore_index=True)
+    # 每个算法取「最后一次实验」的行做快速对比；正式的多回合均值汇总请用
+    # results/plot_compare_metrics.py（那里对多个 episode 求均值）。
     data = data.drop_duplicates("算法", keep="last").reset_index(drop=True)
     # 只保留数值列 + 算法列，去掉总步数/完成任务数等冗余
     drop_cols = {"总步数", "完成任务数", "生成任务数", "换电总次数"}
@@ -218,3 +273,67 @@ def compare():
         for k in list(r.keys()):
             r[k] = _clean(r[k])
     return {"rows": rows, "columns": keep_cols}
+
+
+# ---------------------------------------------------------------------------
+# 评测 API（把命令行 evaluate_metrics.py 搬进控制台）
+# ---------------------------------------------------------------------------
+
+@app.post("/api/evaluate")
+def evaluate(req: EvaluateRequest):
+    """启动一次完整评测（后台线程），返回后前端轮询 /api/evaluate/status。"""
+    if req.policy not in ALGORITHMS:
+        raise HTTPException(status_code=400, detail=f"未知算法: {req.policy}")
+    if _eval_state["running"]:
+        raise HTTPException(status_code=409, detail="已有评测在运行，请稍候")
+    threading.Thread(
+        target=_run_evaluate,
+        args=(req.policy, req.episodes, req.episode_steps, req.seed),
+        daemon=True,
+    ).start()
+    return {"ok": True}
+
+
+@app.get("/api/evaluate/status")
+def evaluate_status():
+    return _eval_state
+
+
+# ---------------------------------------------------------------------------
+# 出图 + 自检 API（把命令行 plot_compare_metrics.py / unittest 搬进控制台）
+# ---------------------------------------------------------------------------
+
+@app.post("/api/plot")
+def generate_plot():
+    """跑 results/plot_compare_metrics.py 生成对比图（子进程，避免 matplotlib 状态污染）。"""
+    script = _PROJECT_ROOT / "results" / "plot_compare_metrics.py"
+    if not script.exists():
+        raise HTTPException(status_code=404, detail="plot_compare_metrics.py 不存在")
+    import subprocess
+    try:
+        result = subprocess.run(
+            [sys.executable, str(script)],
+            cwd=str(_PROJECT_ROOT),
+            capture_output=True, text=True, timeout=180,
+        )
+    except subprocess.TimeoutExpired:
+        return {"ok": False, "output": "生成超时（>180s）"}
+    out = (result.stdout + result.stderr)[-2000:]
+    return {"ok": result.returncode == 0, "output": out}
+
+
+@app.post("/api/selftest")
+def selftest():
+    """跑最小单测集（tests/test_chain_codec + test_no_fly），返回结果。"""
+    import subprocess
+    try:
+        result = subprocess.run(
+            [sys.executable, "-m", "unittest",
+             "tests.test_chain_codec", "tests.test_no_fly", "-v"],
+            cwd=str(_PROJECT_ROOT),
+            capture_output=True, text=True, timeout=120,
+        )
+    except subprocess.TimeoutExpired:
+        return {"ok": False, "output": "自检超时（>120s）"}
+    out = (result.stdout + result.stderr)[-3000:]
+    return {"ok": result.returncode == 0, "output": out}

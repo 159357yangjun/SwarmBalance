@@ -7,48 +7,9 @@ import math
 from collections import defaultdict
 from drone import Drone    
 
-def load_map_data(osm_file_path):
-    """加载地图数据"""
-    # print("Loading map data...")
-    # 读取路网 relations
-    graph = ox.graph_from_xml(osm_file_path)
-    # 将经纬度坐标投影为米制坐标
-    graph = ox.project_graph(graph)
 
-    # 读取建筑 - 使用新的 API，并投影到相同 CRS
-    buildings = ox.features_from_xml(osm_file_path, tags={'building': True})
-    if hasattr(buildings, 'to_crs') and graph.graph.get('crs') is not None:
-        buildings = buildings.to_crs(graph.graph['crs'])
-    
-    # 提取道路并分类
-    roads_by_type = defaultdict(list)
-    major_road_types = {
-        'motorway', 'motorway_link',
-        'trunk', 'trunk_link',
-        'primary', 'primary_link',
-        'secondary', 'secondary_link',
-        'tertiary', 'tertiary_link'
-    }
-    for u, v, data in graph.edges(data=True):
-        road_type = data.get('highway', 'residential')
-        
-        if isinstance(road_type, list):  # 修复：处理可能的列表类型
-            road_type = road_type[0] if road_type else 'residential'
-
-        # 只保留主干道路，过滤掉小型道路（如 residential、service、footway 等）
-        if road_type not in major_road_types:
-            continue
-        
-        if 'geometry' in data:
-            geom = data['geometry']
-        else:
-            node1 = graph.nodes[u]
-            node2 = graph.nodes[v]
-            geom = LineString([(node1['x'], node1['y']), (node2['x'], node2['y'])])
-        
-        roads_by_type[road_type].append(geom)
-    
-    # 提取建筑高度信息
+def _parse_buildings(buildings):
+    """把投影后的建筑 GeoDataFrame 解析成含高度的列表。"""
     buildings_with_height = []
     for idx, building in buildings.iterrows():
         height = building.get('height', None)
@@ -75,18 +36,73 @@ def load_map_data(osm_file_path):
                 height_val = None
         else:
             height_val = None
-        
+
         buildings_with_height.append({
             'geometry': building.geometry,
             'height': height_val,
             'id': idx,
             'tags': building
         })
-    
-    ubidings_with_height = buildings_with_height
-    # print(f"Loaded: {len(roads_by_type)} road types, {len(ubidings_with_height)} buildings")
-    # print(f"Buildings with height info: {sum(1 for b in ubidings_with_height if b['height'])}")
-    return roads_by_type, ubidings_with_height
+    return buildings_with_height
+
+
+def _load_roads(graph):
+    """从投影后的路网图提取主干道路几何（供可视化画路）。"""
+    roads_by_type = defaultdict(list)
+    major_road_types = {
+        'motorway', 'motorway_link',
+        'trunk', 'trunk_link',
+        'primary', 'primary_link',
+        'secondary', 'secondary_link',
+        'tertiary', 'tertiary_link'
+    }
+    for u, v, data in graph.edges(data=True):
+        road_type = data.get('highway', 'residential')
+
+        if isinstance(road_type, list):  # 修复：处理可能的列表类型
+            road_type = road_type[0] if road_type else 'residential'
+
+        # 只保留主干道路，过滤掉小型道路（如 residential、service、footway 等）
+        if road_type not in major_road_types:
+            continue
+
+        if 'geometry' in data:
+            geom = data['geometry']
+        else:
+            node1 = graph.nodes[u]
+            node2 = graph.nodes[v]
+            geom = LineString([(node1['x'], node1['y']), (node2['x'], node2['y'])])
+
+        roads_by_type[road_type].append(geom)
+    return roads_by_type
+
+
+def load_buildings(osm_file_path):
+    """只加载建筑数据（仿真环境专用，跳过昂贵的路网解析+投影）。
+
+    返回 buildings_with_height 列表（与 load_map_data 的第二返回值同构）。
+
+    投影说明：`ox.project_gdf` 会把建筑自动投影到所在区域的 UTM 带，与
+    `ox.project_graph` 对同一份地图选择的 UTM 带一致，因此坐标口径与
+    `config/positions.json`、机巢坐标完全对齐。
+    """
+    buildings = ox.features_from_xml(osm_file_path, tags={'building': True})
+    if hasattr(buildings, 'to_crs'):
+        buildings = ox.project_gdf(buildings)
+    return _parse_buildings(buildings)
+
+
+def load_map_data(osm_file_path):
+    """加载完整地图数据（路网 + 建筑）。可视化（map_drawer）使用。"""
+    graph = ox.graph_from_xml(osm_file_path)
+    graph = ox.project_graph(graph)
+    crs = graph.graph.get('crs') if hasattr(graph, 'graph') else None
+    roads_by_type = _load_roads(graph)
+    buildings = ox.features_from_xml(osm_file_path, tags={'building': True})
+    if hasattr(buildings, 'to_crs') and crs is not None:
+        buildings = buildings.to_crs(crs)
+    buildings_with_height = _parse_buildings(buildings)
+    return roads_by_type, buildings_with_height
 
 
 def get_building_location_by_name(buildings_with_height, name, exact=True):

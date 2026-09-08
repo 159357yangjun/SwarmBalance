@@ -55,6 +55,17 @@
   #compare { width: 100%; height: 240px; }
   .hint { color: var(--muted); font-size: 12px; line-height: 1.6; }
 
+  /* 评测结果表 */
+  .eval-table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+  .eval-table td { padding: 6px 8px; border-bottom: 1px solid var(--border); font-size: 13px; }
+  .eval-table td.k { color: var(--muted); }
+  .eval-table td.v { text-align: right; font-variant-numeric: tabular-nums; }
+
+  /* 命令输出块（出图/自检结果） */
+  .cmd-out { margin-top: 10px; padding: 10px; background: #f6f7f9; border: 1px solid var(--border);
+    border-radius: 8px; font-family: ui-monospace, Consolas, monospace; font-size: 12px;
+    white-space: pre-wrap; word-break: break-all; max-height: 260px; overflow: auto; }
+
   /* 配置模态 */
   .modal-mask { position: fixed; inset: 0; background: rgba(0,0,0,.4); display: flex; align-items: center; justify-content: center; z-index: 100; }
   .modal { width: 560px; max-height: 86vh; overflow: auto; background: #fff; border-radius: 12px; padding: 20px; }
@@ -114,6 +125,7 @@
     <div class="side" data-page-node-id="Isx49LZxEMTzLZ1GxuX533">
       <div class="tabs" data-page-node-id="QerBZVj9ggNjJeEszNBKvX">
         <button class="btn" :class="{active:tab==='metrics'}" @click="tab='metrics'" data-page-node-id="SwzOsDsYLAAprzGHmn3Ppm">指标</button>
+        <button class="btn" :class="{active:tab==='evaluate'}" @click="tab='evaluate'" data-page-node-id="EvalTabBtn">评测</button>
         <button class="btn" :class="{active:tab==='compare'}" @click="switchTabCompare" data-page-node-id="ABUWbVtozXox3fxaPR5PK6">对比</button>
       </div>
 
@@ -154,6 +166,43 @@
         </div>
         <div class="hint" data-page-node-id="Cc6NJZ0rfBMPg5ST89vWL2">数据来自 results/compare/*.csv 各算法最近一次评测结果。可点击「刷新」重新读取。</div>
         <button class="btn" @click="loadCompare" data-page-node-id="7u0mMZ9EVyBuahwl3TiQdZ">刷新对比数据</button>
+        <button class="btn" @click="generatePlot" :disabled="plotBusy" data-page-node-id="GenPlotBtn">{{ plotBusy ? '生成中…' : '生成对比图' }}</button>
+        <pre v-if="plotOutput" class="cmd-out" data-page-node-id="PlotOut">{{ plotOutput }}</pre>
+      </template>
+
+      <template v-if="tab==='evaluate'" data-page-node-id="EvalPanel">
+        <div class="chart-box" data-page-node-id="EvalBox">
+          <div class="h" data-page-node-id="EvalTitle">一键评测（替代命令行 evaluate_metrics.py）</div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px" data-page-node-id="EvalCtrls">
+            <select v-model="evalPolicy" style="height:28px" data-page-node-id="EvalPolicy">
+              <option v-for="a in algorithms" :key="a" :value="a" data-page-node-id="EvalPolOpt">{{a}}</option>
+            </select>
+            <select v-model="evalEpisodes" style="height:28px" data-page-node-id="EvalEps">
+              <option :value="1">1 回合</option>
+              <option :value="3">3 回合</option>
+              <option :value="5">5 回合</option>
+            </select>
+            <select v-model="evalSteps" style="height:28px" data-page-node-id="EvalSteps">
+              <option :value="600">600 步</option>
+              <option :value="1200">1200 步</option>
+              <option :value="2000">2000 步</option>
+            </select>
+            <button class="btn" @click="startEvaluate" :disabled="evalState.running" data-page-node-id="EvalStart">{{ evalState.running ? '评测中…' : '开始评测' }}</button>
+          </div>
+          <div v-if="evalState.progress" class="hint" data-page-node-id="EvalProg">{{ evalState.progress }}</div>
+          <div v-if="evalState.error" class="hint" style="color:#c0392b" data-page-node-id="EvalErr">失败：{{ evalState.error }}</div>
+          <table v-if="evalState.result" class="eval-table" data-page-node-id="EvalResult">
+            <tbody>
+              <tr v-for="(v,k) in evalState.result" :key="k"><td class="k">{{k}}</td><td class="v">{{v}}</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="hint" data-page-node-id="EvalHint">评测在后台线程运行，结果取多个回合的均值并写入 results/compare/*.csv，随后可到「对比」页查看图表。</div>
+        <div class="chart-box" data-page-node-id="SelfTestBox">
+          <div class="h" data-page-node-id="SelfTestTitle">自检（跑单元测试）</div>
+          <button class="btn" @click="runSelftest" :disabled="selftestBusy" data-page-node-id="SelfTestBtn">{{ selftestBusy ? '运行中…' : '运行自检' }}</button>
+          <pre v-if="selftestOutput" class="cmd-out" data-page-node-id="SelfTestOut">{{ selftestOutput }}</pre>
+        </div>
       </template>
     </div>
   </div>
@@ -206,10 +255,16 @@ createApp({
   data() {
     return {
       algorithm: 'greedy', seed: 100, playing: false, speed: 1, speeds: [1,2,4,8],
+      algorithms: ['greedy', 'pso', 'ga', 'ortools'],
+      evalPolicy: 'ga', evalEpisodes: 1, evalSteps: 600,
+      evalState: { running:false, progress:'', result:null, error:null }, evalTimer: null,
+      plotBusy: false, plotOutput: '',
+      selftestBusy: false, selftestOutput: '',
       loading: true, view: '2d', tab: 'metrics', showConfig: false,
       snap: { step:0, time:0, done:false, stats:{ completed:0,generated:0,completion_rate:0,timeout_rate:0,avg_delay:0,energy:0,nest_turnover:0,berth_utilization:0,swap_sessions:0,utilization:0,empty_load_ratio:0,flight_distance:0,chain_insertions:0,no_fly_detours:0 }, drones:[],nests:[],tasks:[],map:{bounds:[0,0,1000,1000]} },
       trajectories: [], trend: [], timer: null, chart: null, compareChart: null,
       compareRows: [], compareColumns: [], compareMetric: '',
+      _stepping: false, error: '',
       mapStatic: { bounds:[0,0,1000,1000], buildings: [] },
       cfg: { num_drones:10, total_tasks:60, light:5, standard:3, heavy:2, peak:0.7, berths:2, arbitration:'priority', deadline_min:900, episode_max:3600 },
       algo: { pso_particles:20, pso_iter:30, ga_pop:60, ga_gen:40, ortools_t:2.0, buffer:15 },
@@ -260,14 +315,62 @@ createApp({
       this.applySnap(snap);
     },
     async stepOnce() {
-      const snap = await this.api('/api/step', { method:'POST' });
-      this.applySnap(snap);
-      if (snap.done && this.playing) this.stopPlay();
+      // 防重入：上一次 step 请求未返回前跳过本次，避免高倍速下请求堆积乱序
+      if (this._stepping) return;
+      this._stepping = true;
+      try {
+        const snap = await this.api('/api/step', { method:'POST' });
+        this.applySnap(snap);
+        if (snap.done && this.playing) this.stopPlay();
+      } catch (e) {
+        this.stopPlay();
+        this.error = (e && e.message) || '步进失败';
+        console.error('step 失败：', e);
+      } finally {
+        this._stepping = false;
+      }
     },
     togglePlay() { this.playing ? this.stopPlay() : this.startPlay(); },
     startPlay() { this.playing = true; this.timer = setInterval(() => this.stepOnce(), this.baseInterval); },
     stopPlay() { this.playing = false; if (this.timer) { clearInterval(this.timer); this.timer = null; } },
     setSpeed(s) { this.speed = s; if (this.playing) { this.stopPlay(); this.startPlay(); } },
+    async startEvaluate() {
+      this.evalState = { running:false, progress:'', result:null, error:null };
+      try {
+        await this.api('/api/evaluate', { method:'POST', headers:{'Content-Type':'application/json'},
+          body: JSON.stringify({ policy:this.evalPolicy, episodes:this.evalEpisodes,
+                                 episode_steps:this.evalSteps, seed:this.seed }) });
+      } catch (e) {
+        this.evalState.error = (e && e.message) || '启动评测失败';
+        return;
+      }
+      this.pollEvaluate();
+    },
+    async pollEvaluate() {
+      let st;
+      try { st = await this.api('/api/evaluate/status'); }
+      catch (e) { this.evalState.error = (e && e.message) || '查询评测状态失败'; return; }
+      this.evalState = st;
+      if (st.running) { this.evalTimer = setTimeout(() => this.pollEvaluate(), 1000); }
+    },
+    async generatePlot() {
+      this.plotBusy = true; this.plotOutput = '';
+      try {
+        const r = await this.api('/api/plot', { method:'POST' });
+        this.plotOutput = r.output || (r.ok ? '对比图已生成，位于 results/compare/plots/' : '生成失败');
+      } catch (e) {
+        this.plotOutput = (e && e.message) || '生成对比图失败';
+      } finally { this.plotBusy = false; }
+    },
+    async runSelftest() {
+      this.selftestBusy = true; this.selftestOutput = '运行中…';
+      try {
+        const r = await this.api('/api/selftest', { method:'POST' });
+        this.selftestOutput = r.output || (r.ok ? '自检通过' : '自检失败');
+      } catch (e) {
+        this.selftestOutput = (e && e.message) || '自检失败';
+      } finally { this.selftestBusy = false; }
+    },
     onAlgorithmChange() {},
     onResize() { if (this.view === '2d') this.draw2d(); else if (this.threeState) this.resize3d(); this.drawChart(); this.drawCompare(); },
 

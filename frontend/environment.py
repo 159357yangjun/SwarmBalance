@@ -1,4 +1,3 @@
-import osmnx as ox
 import numpy as np
 import heapq
 import time
@@ -8,11 +7,8 @@ import math
 from drone import Drone, BATTERY_CONSUMPTION_BASE, BATTERY_LOAD_PENALTY_FACTOR, HETERO_ENABLED, BATTERY_LOW_THRESHOLD
 from charging_station import ChargingStation, DEFAULT_CHARGING_STATIONS
 from config.config_loder import get_shared_config
-# from test import OptimizedMapViewer
-from tools.osm import load_map_data, get_building_location_by_name, get_global_bounds
+from tools.osm import load_buildings, get_building_location_by_name, get_global_bounds
 from data_source import build_data_source
-from map_drawer import OptimizedMapViewer
-from map_drawer_3d import MapViewer3D
 from task import WAREHOUSE_POS
 from seed_interface import apply_seed
 from no_fly_zone import get_no_fly_zones, reset_no_fly_zones
@@ -83,7 +79,7 @@ def build_fleet_drone_types(num_drones):
 
 class Environment:
     def __init__(self, osm_file_path, visualize=False, episode_max_steps=DEFAULT_EPISODE_MAX_STEPS, data_source=None):
-        _, buildings_with_height = load_map_data(osm_file_path)
+        buildings_with_height = load_buildings(osm_file_path)
 
         self.global_bounds = get_global_bounds(buildings_with_height)
 
@@ -187,12 +183,10 @@ class Environment:
 
         self.viewer = None
         if visualize:
-            vis_mode = str(VIS_CFG.get("mode", "3d")).lower()
-            if vis_mode == "2d":
-                self.viewer = OptimizedMapViewer(osm_file_path)
-            else:
-                self.viewer = MapViewer3D(osm_file_path)
-            self.viewer.set_on_add_drone(self.add_drone)
+            # 桌面 pygame 可视化已退役（被 Web 控制台的 Three.js 取代），
+            # 这里优雅降级：不弹窗口、不报错，仅打印一次提示。
+            print("[提示] 桌面 pygame 可视化已移除，请用 Web 控制台查看 3D："
+                  "python -m console.run --open")
 
         self._episode_seed = None
 

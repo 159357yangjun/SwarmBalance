@@ -5,6 +5,7 @@
 **异构无人机集群三维协同调度仿真平台**
 
 [![Python](https://img.shields.io/badge/python-3.10-blue.svg)](https://www.python.org/)
+[![Version](https://img.shields.io/badge/version-0.2.0-orange.svg)](CHANGELOG.md)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20Linux%20%7C%20macOS-lightgrey.svg)](README.md)
 [![Algorithms](https://img.shields.io/badge/algorithms-5%20families-orange.svg)](README.md)
@@ -26,7 +27,7 @@
 | **顺路接入** | 在途无人机按绕行半径 / 载重 / 电量 / 时间窗约束，把下一单直接挂到当前航线 |
 | **禁飞区约束** | 支持圆形与多边形禁飞区（含安全余量），接入 A\* 路径规划实现真绕飞 |
 | **机巢地面资源** | 有限泊位 + 动态优先级仲裁（电量紧迫度 + 等待时长 + 任务紧迫度），整组换电 180 秒 |
-| **双形态可视化** | 原生 pygame 三维软件投影窗口 + 浏览器 Web 控制台（FastAPI + Vue3 + Three.js） |
+| **一体化可视化** | Web 控制台（FastAPI + Vue3 + Three.js）：3D 视图、指标看板、一键评测、出图、自检，双击「启动控制台.bat」即用 |
 | **真实数据接入** | 随机 / CSV / GeoJSON / 企业 REST 网关四种数据源，可插拔 |
 
 ---
@@ -74,13 +75,13 @@ Episode 1 (seed=101): 完成率=0.7667, 超时率=0.0435, 平均时延=0.4565,
 ### 打开可视化
 
 ```bash
-# 原生桌面窗口（pygame 三维视图，鼠标拖拽旋转 / 滚轮缩放）
-cd frontend
-python run_visual.py --algo greedy
-
-# 或浏览器控制台
-python -m console.run          # 然后打开 http://127.0.0.1:8765/
+# Windows：直接双击「启动控制台.bat」一键启动并自动打开浏览器
+# 或命令行：
+python -m console.run --open
 ```
+
+浏览器控制台内置「指标 / 评测 / 对比」三个面板：单步与播放、切算法、改配置、
+一键跑评测出指标、生成对比图、运行自检，均可点按钮完成，无需再敲命令行。
 
 ---
 
@@ -165,8 +166,6 @@ SwarmBalance/
 │  ├─ no_fly_zone.py           # 禁飞区约束
 │  ├─ data_source.py           # 数据源抽象（random/csv/geojson/enterprise）
 │  ├─ metrics_schema.py        # 统一指标落盘 schema（单一事实来源）
-│  ├─ map_drawer_3d.py         # 三维软件投影可视化
-│  ├─ run_visual.py            # 桌面可视化入口
 │  ├─ evaluate_metrics.py      # 四算法统一评测入口
 │  ├─ ab_chain_test.py         # 任务链开/关 A/B 对照
 │  └─ greedy/                  # 贪心调度器
@@ -287,6 +286,9 @@ python results/plot_compare_metrics.py
 |---|---|
 | [`算法口径说明.md`](算法口径说明.md) | 申请书承诺算法与代码实现范围的对应关系、公平性保障、术语修正 |
 | [`可视化操作平台完善计划书.md`](可视化操作平台完善计划书.md) | Web 控制台的架构设计与分阶段路线 |
+| [`技术栈升级方案.md`](技术栈升级方案.md) | Python 3.10→3.12 / osmnx 1.9.4→2.x 的迁移清单 |
+| [`项目自评报告.md`](项目自评报告.md) | 各模块自评分、问题清单与改进路线图 |
+| [`结项演示与验收指南.md`](结项演示与验收指南.md) | 答辩演示脚本、报告提纲、评审问答与提交清单 |
 | `backend_si/README.md` | PSO 调度器参数与双通道机制详解 |
 
 ---
@@ -303,9 +305,10 @@ python results/plot_compare_metrics.py
 
 ## ⚠️ 已知局限
 
-- 任务链目前只在**航线尾部追加**，未实现 VRP 最优插入与 2-opt / Or-opt 链内局部搜索；
+- 任务链的**链内顺序**已由「贪婪分割 + 局部搜索（swap / Or-opt / 2-opt）+ 链间
+  relocate 迁移」确定，但链间迁移用「总里程」作目标、非 makespan 最优，且未做
+  最优插入（cheapest insertion）与更精细的链间交换；
 - 顺路接入的绕行判定用**绝对半径**（默认 1500 米，约为本地图跨度 55%），换地图需重新标定；
-- 排列编码的解码是一次贪心扫描，未做链间任务交换等解码后局部改进；
 - 禁飞区为静态配置，未实现时变管制，也未耦合气象与通信丢包；
 - `frontend/nest.py` 的机巢仲裁类未被 `environment.py` 引用，属冗余死代码（待清理）；
 - 仿真为离散时间步，未模拟天气、通信丢包等真实低空约束。

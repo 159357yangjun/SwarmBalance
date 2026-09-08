@@ -170,10 +170,26 @@ class PSOOptimizer:
         self.global_best_fitness = float('-inf')
         self.fitness_history = []
     
+    # 距离缓存：evaluate_fitness 在 PSO/GA 每粒子每迭代反复计算同一批
+    # 任务 source/dest 与机巢/仓库之间的距离，查表可显著降低适应度评估开销。
+    # 坐标取 2 位小数（米 → 厘米）做 key，既容忍浮点抖动又不丢精度。
+    _DIST_CACHE: Dict[Tuple, float] = {}
+    _DIST_CACHE_MAX = 200_000
+
     @staticmethod
     def euclidean_distance(pos1: Tuple[float, float], pos2: Tuple[float, float]) -> float:
-        """计算欧氏距离"""
-        return math.sqrt((pos1[0] - pos2[0])**2 + (pos1[1] - pos2[1])**2)
+        """计算欧氏距离（带查表缓存）。"""
+        x1, y1 = round(float(pos1[0]), 2), round(float(pos1[1]), 2)
+        x2, y2 = round(float(pos2[0]), 2), round(float(pos2[1]), 2)
+        key = (x1, y1, x2, y2) if (x1, y1) <= (x2, y2) else (x2, y2, x1, y1)
+        cache = PSOOptimizer._DIST_CACHE
+        d = cache.get(key)
+        if d is None:
+            if len(cache) >= PSOOptimizer._DIST_CACHE_MAX:
+                cache.clear()  # 防内存无界增长
+            d = math.hypot(x1 - x2, y1 - y2)
+            cache[key] = d
+        return d
     
     def calculate_travel_time(self, distance: float, speed: float = 200.0) -> float:
         """
@@ -265,6 +281,9 @@ class PSOOptimizer:
                 # 超载场景：evaluate_fitness 会模拟返仓卸货，这里同步把载重清零再装新货
                 cur_load[chosen] = weight
             cur_pos[chosen] = tuple(task['destination'])
+            # 送达后卸货：此前漏了这一句，cur_load 只增不减，导致贪心滚动状态
+            # 越来越"满"，后续任务被错误判为超载兜底，污染 warm-start 起点质量
+            cur_load[chosen] = max(0.0, cur_load[chosen] - weight)
 
         return assignment
 

@@ -1,175 +1,67 @@
-# PSOScheduler 配置文件
-# 加载入口：backend_si/pso_scheduler.py:PSOScheduler.__init__
-# 调用方法：PSOScheduler(num_drones=N)               -> 用本文件
-#         PSOScheduler(num_drones=N, config_path=…) -> 用其他配置文件
-
-# ---------------------------------------------------------------
-# 随机数种子
-# ---------------------------------------------------------------
-seed: 0  # 设置为固定值以保证实验可复现；设为 null 则使用随机种子
-
-# ---------------------------------------------------------------
-# 双通道外层分配
-# ---------------------------------------------------------------
+seed: 0
 dual_channel:
-  # buffer 中任务数 >= 此阈值时才触发批量优化（真积压才批量，避免抢跑）
   buffer_size_threshold: 15
-
-  # buffer 中任一任务的剩余时间 < 此值时触发批量优化（紧急兜底接力）
   emergency_ttl: 40
-
-  # buffer 中最早任务停留超过此时间步数时触发批量优化（饥饿兜底）
   buffer_timeout: 120
-
-  # 空闲机即时抽取 buffer：每步让"空闲+空队列"的无人机就近抓 buffer 任务（当步派发），
-  # 消除"空闲机干等 flush"的分配延迟。只有竞争（待分配任务 > 空闲机）时才把多余任务
-  # 留给 PSO 批量优化。设 false 退回纯双通道行为（用于 A/B 对比）。
   eager_idle_dispatch: true
   eager_match_weight: 0.6
   eager_distance_weight: 0.4
-  # 空闲机抓取评分中的"最小松弛紧急度"权重与窗口：优先抢救即将超时的任务
   eager_urgency_weight: 0.3
   eager_urgency_window: 100
-  # 顺路接入（任务链）：在途机若链条未满且绕行可接受，就直接把队头任务挂到它
-  # 当前航线上，省掉"送完回巢/待命 → 再出发"的空驶段。对应申请书
-  # 「执行完前序任务后顺路接入新任务」。设 false 退回旧行为（A/B 对比用）。
   opportunistic_chain: true
-  # 顺路接入的绕行半径（米）：新任务取货点到航线末端超过此值就不接入。
-  # 与 config/simulation.json 的 task_chain.max_detour_m 保持一致。
-  # 注意：本仿真地图跨度约 2.7 km，半径给太小（如 500m）会导致机制永不触发。
   chain_detour_m: 1500.0
-
-# ---------------------------------------------------------------
-# PSO 算法核心参数（PSOOptimizer 使用）
-# ---------------------------------------------------------------
 pso:
-  # 粒子数量
   num_particles: 20
-  # 最大迭代次数
   max_iterations: 30
-  # 惯性权重 w
   inertia: 0.7
-  # 个体学习因子 c1
   cognitive: 1.5
-  # 社会学习因子 c2
   social: 1.5
-  # velocity 每个分量的绝对值上限（方案 A 偏好矩阵编码用）
   v_max: 4.0
-  # position 偏好分每个分量的绝对值上限（防数值发散）
   pos_max: 5.0
-  # Warm-start（启发式播种）：用批量贪心解作为部分粒子起点 + 初始全局最优，
-  # 加速收敛并保证 PSO 结果不劣于贪心。设为 false 退回纯随机初始化（用于 A/B 对比）
   warm_start: true
-  # 播种粒子数：1 个精确贪心 + 其余在其邻域加噪；其余粒子保持随机以维持多样性
   warm_start_seeds: 3
-
-# ---------------------------------------------------------------
-# 遗传算法（GA）核心参数（GAOptimizer 使用）
-# 与 PSO 共享同一套 fitness_weights / battery 物理口径，保证公平对比
-# ---------------------------------------------------------------
 ga:
-  # 编码方式：
-  #   permutation（默认）= 排列编码 + 贪婪分割解码，输出"每机一条有序任务链"
-  #                        —— 对应申请书「任务链优化引擎 / 排列编码 + 贪婪分割解码」
-  #   assignment         = 分配矩阵编码（只优化任务→无人机，与 PSO 同构），
-  #                        保留用于「链式解码到底带来多少增益」的 A/B 对照
   encoding: permutation
-  # 种群规模
   population_size: 60
-  # 进化代数
   generations: 40
-  # 交叉概率
   crossover_rate: 0.85
-  # 变异概率（每个基因位独立判定）
   mutation_rate: 0.15
-  # 精英保留比例
   elite_rate: 0.1
-  # 锦标赛选择规模
   tournament_size: 3
-  # Warm-start：用批量贪心解播种初始种群（保证结果不劣于贪心）
   warm_start: true
-  # 容量硬违约惩罚系数（每超载 1kg 的适应度扣分；fitness ∈ [0,1]）
   capacity_penalty: 0.3
-
-# ---------------------------------------------------------------
-# OR-Tools 经典求解器基线（CP-SAT）
-# 项目书「集成 OR-Tools 求解器作为经典 VRP 降维求解的性能参照」。
-# 与 PSO / GA 共用同一套双通道事件驱动框架与动态贪心排序，仅批量分配器不同。
-# ---------------------------------------------------------------
 ortools:
-  # 每次批量分配的求解时间上限（秒）。超过则取当前最优可行解。
-  # 仿真每步都可能触发 flush，时间给太大会拖慢整轮评测。
-  time_limit_seconds: 2.0
-  # 目标权重：minimize makespan_weight * makespan + tardiness_weight * Σ超时量
-  # 与申请书"以最小化总任务完成时间为目标"一致，makespan 为主目标。
+  time_limit_seconds: 2
   makespan_weight: 1
   tardiness_weight: 1
-  # CP-SAT 并行搜索线程数
   num_workers: 4
-
-# ---------------------------------------------------------------
-# 任务链：排列编码 → 贪婪分割解码的参数
-# 与 config/simulation.json 的 task_chain 段对应（那里的参数作用于仿真环境，
-# 这里的参数作用于优化器内部的解码推演，两者应保持一致的物理口径）
-# ---------------------------------------------------------------
 chain:
-  # 单条任务链最多串几个任务（与 environment 的拒单上限对齐，避免解码结果被环境拒）
   max_chain_tasks: 3
-  # 单链载重上限（= environment.multi_task_max_total_weight）
   max_total_weight: 30.0
-  # 电量安全余量：链条预估耗电不得超过 当前电量 × (1 - reserve)
   battery_reserve: 0.1
-  # 一次换电耗时（秒）
   swap_time_seconds: 180
-  # 解码增量代价权重：cost = Δ时间 + w_tardy × Δ超时 + w_dist × Δ里程
   w_tardy: 2.0
   w_dist: 0.01
-  # 启用一条空链的额外代价（负值 = 鼓励摊开并行度）
   w_new_chain: -30.0
-  # 单个任务超时超过此秒数视为不可挂载
   tardy_tolerance: 600.0
-  # 无可行挂载点（未被解码分配）的任务重罚系数
   w_unassigned: 10000.0
-
-# ---------------------------------------------------------------
-# 适应度函数权重（多目标加权求和；PSO 内部已对每项归一化到 [0,1]）
-# ---------------------------------------------------------------
+  local_search: true
+  local_search_iters: 6
+  relocate_between: true
 fitness_weights:
-  on_time_rate: 0.6   # 准时率
-  avg_delay: 0.3      # 平均时延
-  energy: 0.1         # 能耗
-
-# ---------------------------------------------------------------
-# 内层动态贪心评分权重
-# 评分 = priority*w_p + urgency*w_u - distance*w_d
-# 在每架无人机送完一次货后，对其剩余任务队列按此评分动态重排
-# ---------------------------------------------------------------
+  on_time_rate: 0.6
+  avg_delay: 0.3
+  energy: 0.1
 dynamic_greedy:
-  # 任务优先级权重（priority ∈ [1, 5]，越大越优先）
   priority: 10.0
-  # 紧迫度权重（urgency = 1 / max(1, remaining_time)）
   urgency: 1000.0
-  # 距离惩罚权重（从无人机当前位置到任务起点的欧氏距离）
   distance: 1.0
-
-# ---------------------------------------------------------------
-# 无人机物理参数（与 frontend/drone.py 保持一致）
-# ---------------------------------------------------------------
 drone:
-  capacity: 10      # 最大载重（兜底值，异构机型以 observation 逐机覆盖）
-  speed: 17.0       # 飞行速度（米/秒，兜底值，以 observation 逐机覆盖）
-  time_step: 1.0    # 1 个 env-step 对应的真实秒数（与 frontend/drone.py 中
-                    # DRONE_TIME_STEP 一致）；fitness 用它把"米/秒"和"Wh/秒"换算
-                    # 成 env-step 量纲，使累计时间与 deadline / current_time 同口径
-
-# ---------------------------------------------------------------
-# 电量与充电参数（与 frontend/drone.py 中的 BATTERY_* 常量保持一致）
-# 适应度函数会按本节参数模拟实际耗电；当电量低于 low_threshold 时，
-# 仿真中会插入一次充电站往返（飞行耗电 + 充电耗时），影响完成时间
-# 与 normalized_energy。
-# ---------------------------------------------------------------
+  capacity: 10
+  speed: 17.0
+  time_step: 1.0
 battery:
-  capacity: 1600.0           # 电池容量（Wh），仅当 observation 未给出时作为兜底
-  consumption_base: 0.06     # 单位距离基础耗电（Wh/米，兜底，以 observation 逐机覆盖）
-  load_penalty_factor: 0.33  # 满载相对空载的耗电增量比例（兜底，以 observation 逐机覆盖）
-  low_threshold: 0.2         # 低电量阈值（占容量比例），低于此值触发去充电站
+  capacity: 1600.0
+  consumption_base: 0.06
+  load_penalty_factor: 0.33
+  low_threshold: 0.2

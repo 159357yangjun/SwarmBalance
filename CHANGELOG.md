@@ -2,6 +2,60 @@
 
 本项目采用语义化版本号（Semantic Versioning）。
 
+## [0.2.0] - 2026-09-08
+
+> 大版本：任务链局部搜索与链间迁移落地、禁飞区独立绕飞修复、控制台成为唯一入口
+> （一键启动 + 内置评测/出图/自检）、退役 pygame 桌面可视化、补齐单元测试与开源文档。
+
+### 新增
+
+- **2-opt 链内局部搜索**（`chain_codec.improve_chain`）：解码后对每条任务链做
+  swap + Or-opt 移位 + 2-opt 反转三种邻域的局部改进，缩短总里程；补齐申请书
+  「链内局部搜索」缺口，`chain.local_search` 可开关（用于 A/B 对照）
+- **链间任务迁移**（`chain_codec.relocate_between_chains`）：单链局部搜索之后，
+  把任务从一条链移到另一条链的更优位置（受载重/链长约束），纠正贪婪分割的
+  次优挂载，`chain.relocate_between` 可开关
+- **一键启动**：`启动控制台.bat` 双击即启动控制台并自动打开浏览器
+  （`console.run` 新增 `--open` 参数）
+- **控制台内置评测**：新增「评测」页，在界面上选算法/回合数/步数点「开始评测」，
+  后台线程运行并实时返回指标（替代命令行 `evaluate_metrics.py`），
+  后端 `/api/evaluate` + `/api/evaluate/status` 接口
+- **控制台内置出图与自检**：「对比」页新增「生成对比图」按钮（替代
+  `plot_compare_metrics.py`），「评测」页新增「运行自检」按钮（替代
+  `python -m unittest`），后端 `/api/plot` + `/api/selftest` 接口（子进程隔离执行）
+
+### 性能优化
+
+- **距离查表缓存**（`PSOOptimizer.euclidean_distance`）：适应度评估中反复计算的
+  任务/机巢/仓库距离改为查表，坐标取 2 位小数做 key，上限 20 万条自动清空
+- **仿真环境跳过路网解析**：`load_map_data` 拆分为 `load_buildings`（环境专用，
+  不再解析+投影整张路网图）与 `load_map_data`（可视化专用）；此前每个
+  `Environment` 实例都白付路网解析代价，而环境根本不用路网
+
+### 测试
+
+- 新增 `tests/test_chain_codec.py` 与 `tests/test_no_fly.py`（unittest，零额外依赖）：
+  覆盖任务链解码的任务守恒 / 无重复 / 链长载重约束、局部搜索的任务集合不变与
+  里程不增、禁飞区的包含 / 安全余量 / 线段相交 / 开关
+
+### 修复
+
+- **解码缩进 bug（严重）**：`greedy_split_decode` 的 `if best_state is None` 缩进
+  错误跑到了 for 循环外，导致整个循环只提交最后一个任务、其余全部丢弃（GA 排列
+  模式只派 1 单）。由运行验证发现，已修复
+- **建筑加载解包 bug**：`environment.py` 按 `load_map_data` 双返回值解包
+  `load_buildings`（只返回单值），运行时 `ValueError`，已修复
+- **控制台并发竞态（后端）**：`SimSession` 全局单例只锁了创建、没锁读写，
+  `step`/`reset`/`snapshot`/`rebuild`/`map` 及两个配置写接口全部加 `RLock` 保护，
+  避免双标签页或"边步进边重置"时仿真状态互相干扰
+- **控制台步进竞态（前端）**：高倍速下 `setInterval` 会在上一次 step 请求
+  未返回时就发下一次，请求堆积乱序。加 `_stepping` 防重入标志，并为
+  `stepOnce` 补 try-catch（失败时停播并提示，不再让异常打断定时器）
+- **贪心分配载重只增不减**：`_greedy_assignment` 装货后从不卸货，导致滚动载重
+  状态越来越"满"，后续任务被误判超载，污染 GA/PSO warm-start 起点质量
+- 删除 `environment.py` 顶层无用的 `import osmnx as ox`
+- 清理 `tools/osm.py` 拼写错误的死变量 `ubidings_with_height`
+
 ## [0.1.0] - 2026-09-08
 
 首个对外发布的版本，覆盖项目申请书承诺的核心仿真能力与算法对比框架。
