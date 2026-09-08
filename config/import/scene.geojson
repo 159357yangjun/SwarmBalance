@@ -1,0 +1,55 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "properties": { "role": "drone", "drone_id": "drone_0", "drone_type": "light_express" },
+      "geometry": { "type": "Point", "coordinates": [357600.574872369, 3462308.772003661] }
+    },
+    {
+      "type": "Feature",
+      "properties": { "role": "drone", "drone_id": "drone_1", "drone_type": "light_express" },
+      "geometry": { "type": "Point", "coordinates": [357600.574872369, 3462308.772003661] }
+    },
+    {
+      "type": "Feature",
+      "properties": { "role": "drone", "drone_id": "drone_2", "drone_type": "standard_cargo" },
+      "geometry": { "type": "Point", "coordinates": [357600.574872369, 3462308.772003661] }
+    },
+    {
+      "type": "Feature",
+      "properties": { "role": "drone", "drone_id": "drone_3", "drone_type": "heavy_cargo" },
+      "geometry": { "type": "Point", "coordinates": [357600.574872369, 3462308.772003661] }
+    },
+    {
+      "type": "Feature",
+      "properties": { "role": "nest", "nest_id": "nest_0", "charging_power": 50, "swap_time_seconds": 180 },
+      "geometry": { "type": "Point", "coordinates": [357600.0, 3462308.0] }
+    },
+    {
+      "type": "Feature",
+      "properties": { "role": "nest", "nest_id": "nest_1", "charging_power": 50, "swap_time_seconds": 180 },
+      "geometry": { "type": "Point", "coordinates": [358744.0, 3462283.0] }
+    },
+    {
+      "type": "Feature",
+      "properties": { "role": "task", "task_id": "task_1", "weight": 1, "volume": 0, "category": "normal", "priority": 2, "deadline": 550 },
+      "geometry": { "type": "LineString", "coordinates": [[357600.574872369, 3462308.772003661], [358744.300499, 3462283.547369]] }
+    },
+    {
+      "type": "Feature",
+      "properties": { "role": "task", "task_id": "task_2", "weight": 2, "volume": 1, "category": "normal", "priority": 1, "deadline": 600 },
+      "geometry": { "type": "LineString", "coordinates": [[357600.574872369, 3462308.772003661], [359190.428233, 3462301.042575]] }
+    },
+    {
+      "type": "Feature",
+      "properties": { "role": "task", "task_id": "task_9", "weight": 1, "volume": 0, "category": "urgent", "priority": 3, "deadline": 280 },
+      "geometry": { "type": "LineString", "coordinates": [[357600.574872369, 3462308.772003661], [358744.300499, 3462283.547369]] }
+    },
+    {
+      "type": "Feature",
+      "properties": { "role": "task", "task_id": "task_11", "weight": 15, "volume": 3, "category": "bulk", "priority": 2, "deadline": 900 },
+      "geometry": { "type": "LineString", "coordinates": [[357600.574872369, 3462308.772003661], [359190.428233, 3462301.042575]] }
+    }
+  ]
+}

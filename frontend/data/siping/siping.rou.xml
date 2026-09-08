@@ -1,0 +1,4 @@
+<routes>
+    <!-- Define a vehicle type that matches the edge permissions -->
+    <vType id="bicycle_type" vClass="bicycle" accel="0.8" decel="4.5" sigma="0.5" length="1.6" minGap="1" maxSpeed="5.56" color="1,1,0"  guiShape="bus"/>
+</routes>

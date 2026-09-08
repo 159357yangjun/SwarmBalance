@@ -1,0 +1,6 @@
+<configuration>
+    <input>
+       <net-file value="siping.net.xml" />
+       <route-files value="siping.rou.xml" />
+    </input>
+</configuration>

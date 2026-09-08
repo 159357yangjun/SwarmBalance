@@ -1,0 +1,107 @@
+{
+  "artifacts": [],
+  "command": "my_main",
+  "experiment": {
+    "base_dir": "C:\\\u8bfe\u7a0b\\\u5927\u4e09\u4e0b\\\u4e13\u4e1a\u65b9\u5411\u7efc\u5408\u9879\u76ee\\drone-scheduling\\backend_wx\\pymarl-master\\src",
+    "dependencies": [
+      "numpy==1.26.4",
+      "pyyaml==6.0.3",
+      "sacred==0.8.4",
+      "torch==2.1.0"
+    ],
+    "mainfile": "main.py",
+    "name": "pymarl",
+    "repositories": [
+      {
+        "commit": "00ab27c0fd5d90b3c953efb0b3539c6f3da655f0",
+        "dirty": true,
+        "url": "https://github.com/JieniTurtle/drone-scheduling"
+      },
+      {
+        "commit": "00ab27c0fd5d90b3c953efb0b3539c6f3da655f0",
+        "dirty": true,
+        "url": "https://github.com/JieniTurtle/drone-scheduling"
+      },
+      {
+        "commit": "00ab27c0fd5d90b3c953efb0b3539c6f3da655f0",
+        "dirty": true,
+        "url": "https://github.com/JieniTurtle/drone-scheduling"
+      }
+    ],
+    "sources": [
+      [
+        "main.py",
+        "_sources\\main_15d24fc94dfa4dd49460e8c23a71c3a8.py"
+      ],
+      [
+        "run.py",
+        "_sources\\run_3517b753c08811de1da52e6c4404d6a1.py"
+      ],
+      [
+        "utils\\logging.py",
+        "_sources\\logging_9589a3d14b72bc48a227a2841de9482e.py"
+      ]
+    ]
+  },
+  "heartbeat": "2026-06-07T14:19:51.682190",
+  "host": {
+    "ENV": {},
+    "cpu": "13th Gen Intel(R) Core(TM) i9-13900H",
+    "gpus": {
+      "driver_version": "596.49",
+      "gpus": [
+        {
+          "model": "NVIDIA GeForce RTX 3090",
+          "persistence_mode": false,
+          "total_memory": 24576
+        }
+      ]
+    },
+    "hostname": "\u6c34\u624b155",
+    "os": [
+      "Windows",
+      "Windows-10-10.0.26200-SP0"
+    ],
+    "python_version": "3.10.20"
+  },
+  "meta": {
+    "command": "my_main",
+    "config_updates": {
+      "unique_task_assignment": false
+    },
+    "named_configs": [],
+    "options": {
+      "--beat-interval": null,
+      "--capture": null,
+      "--comment": null,
+      "--debug": false,
+      "--enforce_clean": false,
+      "--file_storage": null,
+      "--force": false,
+      "--help": false,
+      "--id": null,
+      "--loglevel": null,
+      "--mongo_db": null,
+      "--name": null,
+      "--pdb": false,
+      "--print-config": false,
+      "--priority": null,
+      "--queue": false,
+      "--s3": null,
+      "--sql": null,
+      "--tiny_db": null,
+      "--unobserved": false,
+      "COMMAND": null,
+      "UPDATE": [
+        "unique_task_assignment=False"
+      ],
+      "help": false,
+      "with": true
+    }
+  },
+  "resources": [],
+  "result": null,
+  "start_time": "2026-06-07T13:47:16.225594",
+  "status": "INTERRUPTED",
+  "stop_time": "2026-06-07T14:19:51.690808"
+}

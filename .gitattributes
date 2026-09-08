@@ -1,0 +1,25 @@
+# 统一行尾符：避免 Windows / macOS / Linux 队友互相覆盖导致 diff 满屏
+* text=auto
+
+# 源码与配置统一 LF
+*.py      text eol=lf
+*.md      text eol=lf
+*.json    text eol=lf
+*.yaml    text eol=lf
+*.yml     text eol=lf
+*.csv     text eol=lf
+*.txt     text eol=lf
+*.html    text eol=lf
+*.osm     text eol=lf
+*.geojson text eol=lf
+
+# Windows 批处理必须 CRLF，否则无法执行
+*.bat     text eol=crlf
+*.cmd     text eol=crlf
+
+# 二进制文件：禁止任何行尾转换，否则会损坏
+*.png     binary
+*.jpg     binary
+*.doc     binary
+*.docx    binary
+*.pdf     binary

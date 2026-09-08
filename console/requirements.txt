@@ -1,0 +1,5 @@
+# 可视化控制台后端依赖（在 .venv310 中安装）
+fastapi>=0.110
+uvicorn>=0.27
+# pydantic 随 fastapi 安装；如需显式控制版本可加：
+# pydantic>=2.6

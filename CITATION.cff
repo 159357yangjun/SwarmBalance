@@ -1,0 +1,27 @@
+cff-version: 1.2.0
+title: "SwarmBalance 群智优衡：异构无人机集群三维协同调度仿真平台"
+message: "若本项目对你的研究有帮助，请引用本软件。"
+type: software
+authors:
+  - name: "群智优衡（SwarmBalance）项目团队"
+    affiliation: "北华大学"
+repository-code: "https://github.com/<your-org>/SwarmBalance"
+url: "https://github.com/<your-org>/SwarmBalance"
+abstract: >-
+  面向城市低空物流配送场景的异构无人机集群协同调度仿真平台。构建任务生成、
+  无人机运动、载重与电量约束、机巢整组换电、泊位动态优先级仲裁、禁飞区约束
+  与三维可视化的完整仿真闭环，并在同一物理口径下横向对比贪心、粒子群、
+  遗传算法（排列编码 + 贪婪分割解码的任务链调度）、OR-Tools CP-SAT 经典求解器
+  以及多智能体强化学习五类方法。
+keywords:
+  - 无人机调度
+  - 低空物流
+  - 异构机队
+  - 任务链调度
+  - 粒子群优化
+  - 遗传算法
+  - OR-Tools
+  - 多智能体强化学习
+  - 禁飞区
+  - 仿真平台
+license: MIT

@@ -1,0 +1,229 @@
+{
+  "action_selector": "epsilon_greedy",
+  "agent": "rnn",
+  "agent_output_type": "q",
+  "batch_size": 8,
+  "batch_size_run": 1,
+  "buffer_cpu_only": true,
+  "buffer_size": 5000,
+  "checkpoint_path": "",
+  "critic_lr": 0.0003,
+  "double_q": true,
+  "env": "env_drone",
+  "env_args": {},
+  "epsilon_anneal_time": 50000,
+  "epsilon_finish": 0.05,
+  "epsilon_start": 1.0,
+  "evaluate": false,
+  "gamma": 0.99,
+  "grad_norm_clip": 10,
+  "huber_delta": 1.0,
+  "label": "default_label",
+  "learner": "q_learner",
+  "learner_log_interval": 5000,
+  "load_step": 0,
+  "local_results_path": "results",
+  "log_interval": 10000,
+  "lr": 0.0003,
+  "mac": "basic_mac",
+  "mixer": "vdn",
+  "name": "vdn",
+  "noop_action": 0,
+  "obs_agent_id": true,
+  "obs_last_action": true,
+  "optim_alpha": 0.99,
+  "optim_eps": 1e-05,
+  "repeat_id": 1,
+  "rnn_hidden_dim": 64,
+  "runner": "episode",
+  "runner_log_interval": 5000,
+  "save_model": true,
+  "save_model_interval": 10000,
+  "save_replay": false,
+  "seed": 100,
+  "t_max": 200000,
+  "target_update_interval": 200,
+  "test_greedy": true,
+  "test_interval": 10000,
+  "test_nepisode": 1,
+  "unique_task_assignment": true,
+  "use_cuda": true,
+  "use_huber_loss": true,
+  "use_tensorboard": false,
+  "shared_simulation_json": {
+    "environment": {
+      "episode_max_steps": 2000,
+      "num_drones": 10,
+      "print_route_debug": false,
+      "allow_multi_task": true,
+      "max_obs_tasks": 8,
+      "multi_task_max_total_weight": 5.0,
+      "greedy": {
+        "max_assignments_per_step": 12,
+        "candidate_limit": 8,
+        "accept_probability": 1.0,
+        "min_battery_ratio": 0.0,
+        "max_active_drones_ratio": 1.0
+      },
+      "reward_step": -0.01,
+      "reward_priority_1": 100.0,
+      "reward_priority_2": 150.0,
+      "reward_priority_3": 200.0,
+      "penalty_late_rate": -0.01,
+      "overdue_initial_penalty": -30.0,
+      "overdue_step_penalty": -0.1,
+      "priority_delay_penalty_weight_1": 1.0,
+      "priority_delay_penalty_weight_2": 1.5,
+      "priority_delay_penalty_weight_3": 2.2
+    },
+    "task_generation": {
+      "mode": "realistic",
+      "same_source_prob": 0.3,
+      "constant": {
+        "max_unassigned_tasks": 5,
+        "initial_task_count": 5
+      },
+      "realistic": {
+        "total_tasks": 60,
+        "initial_task_count": 12,
+        "peak_steps_per_task": 10,
+        "off_peak_steps_per_task": 14,
+        "peak_probability": 0.85,
+        "cycle_length": 500,
+        "interval_scale": 1.0,
+        "interval_variance_ratio": 0.2,
+        "hotspot": {
+          "enabled": true,
+          "probability": 0.6,
+          "radius": 80,
+          "centers": [
+            [
+              359190.428233,
+              3462301.042575
+            ],
+            [
+              358744.300499,
+              3462283.547369
+            ]
+          ]
+        }
+      }
+    },
+    "qmix_reward": {
+      "completion_bonus": 2.0,
+      "backlog_penalty": 0.02,
+      "invalid_action_penalty": 0.5,
+      "overdue_step_penalty": 0.2,
+      "idle_penalty": 0.02,
+      "uncompleted_penalty": 30.0,
+      "completion_rate_bonus": 100.0,
+      "priority_delay_weight_1": 1.0,
+      "priority_delay_weight_2": 1.5,
+      "priority_delay_weight_3": 2.2,
+      "urgency_backlog_base": 0.25,
+      "overdue_severity_scale": 100.0,
+      "terminal_delay_penalty": 0.08,
+      "reward_scale": 0.02,
+      "reward_clip": 5.0
+    },
+    "qmix_assignment_repair": {
+      "enabled": true,
+      "priority_weight": 2.0,
+      "urgency_weight": 5.0,
+      "source_distance_weight": 1.5,
+      "route_distance_weight": 0.5
+    },
+    "task": {
+      "positions_file": "../config/positions.json",
+      "weight_min": 1,
+      "weight_max": 4,
+      "priority_min": 1,
+      "priority_max": 3,
+      "deadline_offset_min": 200,
+      "deadline_offset_max": 300,
+      "warehouse_pos": [
+        357600.574872369,
+        3462308.772003661
+      ]
+    },
+    "charging_stations": [
+      {
+        "station_id": 0,
+        "x": 356000.0,
+        "y": 3463000.0,
+        "charging_power": 50
+      },
+      {
+        "station_id": 1,
+        "x": 356500.0,
+        "y": 3462400.0,
+        "charging_power": 50
+      },
+      {
+        "station_id": 2,
+        "x": 357200.0,
+        "y": 3463000.0,
+        "charging_power": 50
+      },
+      {
+        "station_id": 3,
+        "x": 358000.0,
+        "y": 3462400.0,
+        "charging_power": 50
+      },
+      {
+        "station_id": 4,
+        "x": 358744.0,
+        "y": 3462500.0,
+        "charging_power": 50
+      },
+      {
+        "station_id": 5,
+        "x": 359190.0,
+        "y": 3462500.0,
+        "charging_power": 50
+      },
+      {
+        "station_id": 6,
+        "x": 356500.0,
+        "y": 3462700.0,
+        "charging_power": 50
+      },
+      {
+        "station_id": 7,
+        "x": 357600.0,
+        "y": 3462700.0,
+        "charging_power": 50
+      },
+      {
+        "station_id": 8,
+        "x": 358500.0,
+        "y": 3462750.0,
+        "charging_power": 50
+      },
+      {
+        "station_id": 9,
+        "x": 359000.0,
+        "y": 3462200.0,
+        "charging_power": 50
+      }
+    ],
+    "drone": {
+      "battery_capacity": 15000.0,
+      "battery_consumption_base": 0.5,
+      "battery_load_penalty_factor": 0.3,
+      "battery_low_threshold": 0.2,
+      "speed": 200.0,
+      "time_step": 0.1,
+      "carrying_capacity": 5
+    },
+    "metrics": {
+      "compare_dir": "results/compare",
+      "frontend_greedy_file": "frontend_greedy_metrics.csv",
+      "frontend_generation_file": "frontend_generation_metrics.csv",
+      "backend_si_file": "backend_si_metrics.csv",
+      "backend_wx_file": "backend_wx_metrics.csv"
+    }
+  },
+  "shared_simulation_json_path": "..\\..\\config\\simulation.json"
+}

@@ -1,0 +1,16 @@
+# PSO / GA / OR-Tools 调度器依赖包
+numpy>=1.20.0
+matplotlib>=3.3.0
+
+# 配置加载必需（config.yaml / backend_si/config.yaml 解析）
+# 注：此前遗漏，实际运行 pso_scheduler.py 会直接 ImportError
+pyyaml>=5.4.0
+
+# OR-Tools 经典求解器基线（CP-SAT）
+# 项目书承诺「集成 OR-Tools 求解器作为经典 VRP 降维求解的性能参照」。
+# 未安装时 ortools_scheduler.py 仍可导入，运行会给出明确安装提示。
+ortools>=9.5.0
+
+# 可选：用于性能分析
+# pandas>=1.2.0
+# seaborn>=0.11.0
