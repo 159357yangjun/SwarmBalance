@@ -5,8 +5,8 @@ type: software
 authors:
   - name: "群智优衡（SwarmBalance）项目团队"
     affiliation: "北华大学"
-repository-code: "https://github.com/<your-org>/SwarmBalance"
-url: "https://github.com/<your-org>/SwarmBalance"
+repository-code: "https://gitee.com/acgvgh/swarm-balance"
+url: "https://gitee.com/acgvgh/swarm-balance"
 abstract: >-
   面向城市低空物流配送场景的异构无人机集群协同调度仿真平台。构建任务生成、
   无人机运动、载重与电量约束、机巢整组换电、泊位动态优先级仲裁、禁飞区约束

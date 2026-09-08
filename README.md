@@ -39,7 +39,7 @@
 > geopandas 组合问题，3.13 直接装不上。推荐 3.10.11。
 
 ```bash
-git clone <你的仓库地址>.git
+git clone https://gitee.com/acgvgh/swarm-balance.git
 cd SwarmBalance
 
 # 1) 创建虚拟环境
@@ -324,7 +324,7 @@ python results/plot_compare_metrics.py
   title  = {SwarmBalance 群智优衡: 异构无人机集群三维协同调度仿真平台},
   author = {群智优衡项目团队},
   year   = {2026},
-  url    = {https://github.com/<your-org>/SwarmBalance}
+  url    = {https://gitee.com/acgvgh/swarm-balance}
 }
 ```
 
