@@ -11,9 +11,9 @@ from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT))
-sys.path.insert(0, str(PROJECT_ROOT / "frontend"))
+sys.path.insert(0, str(PROJECT_ROOT / "simulation"))
 
-from no_fly_zone import NoFlyZone, NoFlyZoneSet  # noqa: E402
+from simulation.no_fly_zone import NoFlyZone, NoFlyZoneSet  # noqa: E402
 from shapely.geometry import Point, Polygon  # noqa: E402
 
 

@@ -89,13 +89,13 @@ python -m console.run --open
 
 | 方法 | 定位 | 编码 / 求解 | 代码位置 |
 |---|---|---|---|
-| **Greedy** | 基线 | 距离 + 优先级 + 紧迫度 + 电量 + 载荷 实时打分 | `frontend/greedy/` |
-| **PSO** | 群体智能 | 偏好矩阵编码，粒子群批量优化 + 事件驱动 | `backend_si/pso_scheduler.py` |
-| **GA** | 群体智能（主推） | **排列编码 + 贪婪分割解码** / 分配矩阵（可切换） | `backend_si/ga_scheduler.py`、`chain_codec.py` |
-| **OR-Tools** | 经典求解器基线 | CP-SAT，0/1 分配，目标 `makespan + Σ超时量` | `backend_si/ortools_scheduler.py` |
+| **Greedy** | 基线 | 距离 + 优先级 + 紧迫度 + 电量 + 载荷 实时打分 | `scheduling/greedy/` |
+| **PSO** | 群体智能 | 偏好矩阵编码，粒子群批量优化 + 事件驱动 | `scheduling/pso_scheduler.py` |
+| **GA** | 群体智能（主推） | **排列编码 + 贪婪分割解码** / 分配矩阵（可切换） | `scheduling/ga_scheduler.py`、`chain_codec.py` |
+| **OR-Tools** | 经典求解器基线 | CP-SAT，0/1 分配，目标 `makespan + Σ超时量` | `scheduling/ortools_scheduler.py` |
 | **MARL** | 强化学习扩展 | PyMARL：IQL / VDN / QMIX（含 `-U` 改进版） | `backend_wx/pymarl-master/` |
 
-**GA 的两种编码**（`backend_si/config.yaml` 的 `ga.encoding` 切换）：
+**GA 的两种编码**（`scheduling/config.yaml` 的 `ga.encoding` 切换）：
 
 | 编码 | 染色体 | 解码 | 遗传算子 | 用途 |
 |---|---|---|---|---|
@@ -146,40 +146,41 @@ python ab_chain_test.py --policies pso ga --episodes 1 --episode-steps 1200
 禁飞区是**硬约束**，采用**独立于建筑 A\* 的几何绕飞**（在区外沿生成绕飞折点），
 保证绝不穿越；建筑仍走 A\* 可见图绕行（软约束，失败时允许直穿并告警）；
 落在禁飞区内的取送货点会被自动过滤，避免生成不可达任务污染完成率。
-实现见 `frontend/no_fly_zone.py`。
+实现见 `simulation/no_fly_zone.py`。
 
 ---
 
-## 🗂 项目结构
+## 🗂 项目结构（四大模块）
 
 ```text
 SwarmBalance/
-├─ config/
-│  ├─ simulation.json          # 仿真环境、任务、无人机、禁飞区、任务链配置
-│  ├─ positions.json           # 任务位置数据
-│  └─ import/                  # CSV / GeoJSON 真实数据样例
-├─ frontend/                   # 仿真环境与评估入口
+├─ simulation/                 # ① 仿真环境：物理规则、约束、数据
 │  ├─ environment.py           # 仿真环境、指标统计、A* 路径规划
 │  ├─ drone.py                 # 无人机运动、电量（换电）与载重
 │  ├─ task.py                  # 任务模型与任务生成器
 │  ├─ charging_station.py      # 机巢（换电站）模型
 │  ├─ no_fly_zone.py           # 禁飞区约束
 │  ├─ data_source.py           # 数据源抽象（random/csv/geojson/enterprise）
-│  ├─ metrics_schema.py        # 统一指标落盘 schema（单一事实来源）
-│  ├─ evaluate_metrics.py      # 四算法统一评测入口
-│  ├─ ab_chain_test.py         # 任务链开/关 A/B 对照
-│  └─ greedy/                  # 贪心调度器
-├─ backend_si/                 # 群体智能调度器（PSO / GA / OR-Tools）
+│  ├─ tools/osm.py             # OSM 地图加载
+│  └─ data/                    # OSM 地图数据
+├─ scheduling/                 # ② 调度算法：PSO / GA / OR-Tools / 贪心
 │  ├─ pso_scheduler.py         # PSO 优化器 + 事件驱动调度框架
 │  ├─ ga_scheduler.py          # GA 优化器（排列 / 分配双编码）
-│  ├─ chain_codec.py           # 排列编码 → 贪婪分割解码
+│  ├─ chain_codec.py           # 排列编码 → 贪婪分割解码 + 局部搜索
 │  ├─ ortools_scheduler.py     # CP-SAT 基线
+│  ├─ greedy/                  # 贪心调度器
 │  └─ config.yaml              # 算法超参
-├─ backend_wx/pymarl-master/   # 多智能体强化学习（IQL / VDN / QMIX）
-├─ console/                    # Web 可视化控制台（FastAPI + Vue3 + Three.js）
-├─ results/
-│  ├─ compare/                 # 各算法统一指标 CSV
+├─ marl/                       # ③ 强化学习（PyMARL：IQL / VDN / QMIX）
+├─ app/                        # ④ 可视化与评测
+│  ├─ console/                 # Web 控制台（FastAPI + Vue3 + Three.js）
+│  ├─ evaluate_metrics.py      # 四算法统一评测入口
+│  ├─ metrics_schema.py        # 统一指标落盘 schema（单一事实来源）
 │  └─ plot_compare_metrics.py  # 指标汇总、归一化评分与绘图
+├─ scripts/                    # 调试/实验脚本（非核心）
+├─ config/                     # 全局配置（simulation.json 等）
+├─ results/                    # 实验数据 CSV 与对比图
+├─ tests/                      # 单元测试
+├─ docs/                       # 项目文档（模块划分、自评、结项指南等）
 └─ paper/                      # 课程论文、插图与 Overleaf 工程
 ```
 
@@ -221,7 +222,7 @@ env = Environment("data/map/part_of_yangpu.osm", data_source=ds)
 
 - `coord_system="lonlat"` 时自动用 pyproj 把 WGS84 经纬度投影为 UTM 平面坐标（米）；
 - `live=true` 每步轮询接口并按订单号去重，对应真实订单持续到达；
-- 无网关时可运行 `frontend/mock_enterprise_api.py` + `run_enterprise_demo.py` 预览。
+- 无网关时可运行 `scripts/mock_enterprise_api.py` + `run_enterprise_demo.py` 预览。
 
 ---
 
@@ -244,7 +245,7 @@ env = Environment("data/map/part_of_yangpu.osm", data_source=ds)
 | **No-Fly Detours** | 禁飞区绕飞次数 | 机制生效观测 |
 | Berth Utilization / Nest Turnover / Avg Berth Wait | 机巢泊位利用率、周转率、排队等待 | 视运营目标 |
 
-指标列定义集中在 `frontend/metrics_schema.py`（单一事实来源），所有评测入口共用同一份表头，
+指标列定义集中在 `app/metrics_schema.py`（单一事实来源），所有评测入口共用同一份表头，
 新增指标只需改这一处。表头不兼容时会自动备份旧 CSV，不会静默覆盖历史实验结果。
 
 ---
@@ -289,7 +290,7 @@ python results/plot_compare_metrics.py
 | [`技术栈升级方案.md`](技术栈升级方案.md) | Python 3.10→3.12 / osmnx 1.9.4→2.x 的迁移清单 |
 | [`项目自评报告.md`](项目自评报告.md) | 各模块自评分、问题清单与改进路线图 |
 | [`结项演示与验收指南.md`](结项演示与验收指南.md) | 答辩演示脚本、报告提纲、评审问答与提交清单 |
-| `backend_si/README.md` | PSO 调度器参数与双通道机制详解 |
+| `scheduling/README.md` | PSO 调度器参数与双通道机制详解 |
 
 ---
 
@@ -310,7 +311,7 @@ python results/plot_compare_metrics.py
   最优插入（cheapest insertion）与更精细的链间交换；
 - 顺路接入的绕行判定用**绝对半径**（默认 1500 米，约为本地图跨度 55%），换地图需重新标定；
 - 禁飞区为静态配置，未实现时变管制，也未耦合气象与通信丢包；
-- `frontend/nest.py` 的机巢仲裁类未被 `environment.py` 引用，属冗余死代码（待清理）；
+- `simulation/nest.py` 的机巢仲裁类未被 `environment.py` 引用，属冗余死代码（待清理）；
 - 仿真为离散时间步，未模拟天气、通信丢包等真实低空约束。
 
 ---
