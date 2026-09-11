@@ -1492,7 +1492,20 @@ createApp({
           Math.cos(t)*Math.cos(p)*r);
         camera.lookAt(0, 0, 0);
       };
+      // 按需渲染：仅在状态变化 / 交互时请求一帧，空闲时不再常驻 60fps 重绘（显著降低 CPU/GPU 占用）
+      st.disposed = false;
+      st.renderPending = false;
+      st.requestRender = () => {
+        if (st.disposed || st.renderPending) return;
+        st.renderPending = true;
+        st.raf = requestAnimationFrame(() => {
+          st.renderPending = false;
+          if (st.disposed) return;
+          if (this.view === '3d' && this.threeState === st) st.renderer.render(st.scene, st.camera);
+        });
+      };
       st.updateCamera();
+      st.requestRender();
 
       el.addEventListener('mousedown', e => { st.mouse.down = true; st.mouse.dragged = false; st.mouse.x = e.clientX; st.mouse.y = e.clientY; });
       st.onMouseMove = e => {
@@ -1501,7 +1514,7 @@ createApp({
         if (Math.abs(dx)+Math.abs(dy) > 2) st.mouse.dragged = true;
         st.theta -= dx*0.005; st.phi += dy*0.005;
         st.phi = Math.max(0.2, Math.min(1.4, st.phi));
-        st.mouse.x = e.clientX; st.mouse.y = e.clientY; st.updateCamera();
+        st.mouse.x = e.clientX; st.mouse.y = e.clientY; st.updateCamera(); st.requestRender();
       };
       st.onMouseUp = () => { st.mouse.down = false; };
       window.addEventListener('mousemove', st.onMouseMove);
@@ -1509,7 +1522,7 @@ createApp({
       el.addEventListener('wheel', e => {
         e.preventDefault();
         st.radius = Math.max(1200, Math.min(20000, st.radius * (1 + e.deltaY*0.001)));
-        st.updateCamera();
+        st.updateCamera(); st.requestRender();
       }, { passive:false });
       st.renderer.domElement.addEventListener('click', e => {
         if (st.mouse.dragged) { st.mouse.dragged = false; return; }
@@ -1523,13 +1536,6 @@ createApp({
         else this.clearSelection();
       });
 
-      st.disposed = false;
-      const loop = () => {
-        if (st.disposed) return;
-        if (this.view==='3d' && this.threeState===st) st.renderer.render(st.scene, st.camera);
-        st.raf = requestAnimationFrame(loop);
-      };
-      loop();
     },
     destroy3d() {
       const st=this.threeState; if(!st) return;
@@ -1550,6 +1556,7 @@ createApp({
       if (!el || !st) return;
       st.renderer.setSize(el.clientWidth, el.clientHeight);
       st.camera.aspect = el.clientWidth/el.clientHeight; st.camera.updateProjectionMatrix();
+      if (st.requestRender) st.requestRender();
     },
     draw3d() {
       const st = this.threeState; if (!st) return;
@@ -1589,6 +1596,7 @@ createApp({
         const dst = new THREE.Mesh(st.taskDotGeo, st.taskMat.dst); dst.position.copy(d); dst.userData={entityType:'task',entityId:String(t.id)}; tg.add(dst);
         if(this.selection.type==='task' && String(this.selection.id)===String(t.id)){ src.scale.setScalar(1.6); dst.scale.setScalar(1.6); }
       });
+      if (st.requestRender) st.requestRender();
     },
 
     // ============ 运行中新增任务 ============
