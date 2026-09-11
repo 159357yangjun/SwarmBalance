@@ -41,7 +41,7 @@
   .legend .dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 5px; }
   .loading { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: var(--muted); background: rgba(255,255,255,.7); z-index: 10; }
 
-  .side { width: 340px; display: flex; flex-direction: column; gap: 12px; min-height: 0; }
+  .side { width: 340px; display: flex; flex-direction: column; gap: 12px; min-height: 0; overflow-y: auto; }
   .tabs { display: flex; gap: 6px; }
   .tabs .btn { flex: 1; }
   .cards { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
@@ -202,7 +202,7 @@
 </style>
 </head>
 <body data-page-node-id="Ua4Bz8YMekShkdxtCoSHta">
-<div id="app" v-cloak data-page-node-id="ZvBi2G7GcqaCsFPXQmgfBD">
+<div id="app" class="app" v-cloak data-page-node-id="ZvBi2G7GcqaCsFPXQmgfBD">
   <div class="topbar" data-page-node-id="MA6CgM40XHMAOgvYmnWO9m">
     <div class="title" data-page-node-id="yEGYtTCQwSanMto2AT2nOj">群智优衡 · 三维协同调度指挥台</div>
     <label data-page-node-id="mDnnukRtbxNwd8s9nKdxNw">算法</label>
@@ -1379,7 +1379,15 @@ createApp({
     // ============ 3D ============
     switchView(v) {
       this.view = v;
-      this.$nextTick(() => { if (v === '3d' && !this.threeState) this.init3d(); this.render(); });
+      this.$nextTick(() => {
+        if (v === '3d' && !this.threeState) {
+          // #c3d 刚从 v-show=false 变为可见，浏览器尚未完成布局；
+          // 延迟到下一事件循环再 init，避免 clientWidth/clientHeight 错误。
+          setTimeout(() => { this.init3d(); this.draw3d(); }, 0);
+        } else {
+          this.render();
+        }
+      });
     },
     center3d() {
       const b = this.mapStatic.bounds; return { x:(b[0]+b[2])/2, y:(b[1]+b[3])/2 };
@@ -1388,7 +1396,10 @@ createApp({
       const el = document.getElementById('c3d'); if (!el || !window.THREE) return;
       const THREE = window.THREE;
       const st = { center: this.center3d(), theta: 0.7, phi: 1.05, radius: 4000, mouse:{down:false,x:0,y:0} };
-      this.threeState = st;
+      // 关键：threeState 若为响应式，Three 的 scene/camera/renderer 会被 Vue Proxy 包裹，
+      // 导致渲染循环里 `this.threeState === st` 恒为 false（Proxy !== 原始对象），render 永不执行 → 黑屏。
+      // 用 markRaw 让 Three 对象脱离响应式。
+      this.threeState = Vue.markRaw(st);
 
       const scene = new THREE.Scene(); scene.background = new THREE.Color(0xf0f2f5);
       const camera = new THREE.PerspectiveCamera(55, el.clientWidth/el.clientHeight, 1, 200000);
@@ -1440,10 +1451,10 @@ createApp({
 
       // 无人机占位（每组一个 mesh，运行时更新位置）
       const dmesh = [];
-      const dgeo = new THREE.SphereGeometry(10, 16, 16);
+      const dgeo = new THREE.SphereGeometry(24, 16, 16);
       this.snap.drones.forEach((d,i) => {
         const m = new THREE.Mesh(dgeo, new THREE.MeshLambertMaterial({ color: STATE_COLOR[d.state]||'#888' }));
-        m.position.set(d.x-c.x, 35, -(d.y-c.y)); m.userData={entityType:'drone',entityId:String(d.id)}; scene.add(m); dmesh.push(m);
+        m.position.set(d.x-c.x, 40, -(d.y-c.y)); m.userData={entityType:'drone',entityId:String(d.id)}; scene.add(m); dmesh.push(m);
       });
 
       // 无人机历史轨迹线（每架机一条，运行时刷新顶点）
@@ -1467,6 +1478,12 @@ createApp({
       st.scene = scene; st.camera = camera; st.renderer = renderer; st.dmesh = dmesh; st.nmesh = nmesh;
       st.trailLines = trailLines; st.taskGroup = taskGroup; st.taskMat = taskMat; st.taskDotGeo = taskDotGeo;
       st.raycaster = new THREE.Raycaster(); st.pointer = new THREE.Vector2(); st.mouse.dragged = false;
+
+      // 监听容器尺寸变化，自动修正 renderer / camera，防止 flex 布局挤压导致画面变黑
+      st.resizeObserver = new ResizeObserver(() => {
+        if (this.threeState === st && this.view === '3d') this.resize3d();
+      });
+      st.resizeObserver.observe(el);
       st.updateCamera = () => {
         const t = st.theta, p = st.phi, r = st.radius;
         camera.position.set(
@@ -1518,6 +1535,7 @@ createApp({
       const st=this.threeState; if(!st) return;
       st.disposed=true;
       if(st.raf) cancelAnimationFrame(st.raf);
+      if(st.resizeObserver) { st.resizeObserver.disconnect(); st.resizeObserver = null; }
       if(st.onMouseMove) window.removeEventListener('mousemove', st.onMouseMove);
       if(st.onMouseUp) window.removeEventListener('mouseup', st.onMouseUp);
       try {
@@ -1538,7 +1556,7 @@ createApp({
       const c = st.center;
       this.snap.drones.forEach((d,i) => {
         const m = st.dmesh[i]; if (!m) return;
-        const alt = (d.state === 'busy') ? 45 : (d.state==='to_nest' ? 28 : 5);
+        const alt = (d.state === 'busy') ? 64 : (d.state==='to_nest' ? 46 : 28);
         m.position.set(d.x-c.x, alt, -(d.y-c.y));
         m.material.color.set(STATE_COLOR[d.state] || '#888');
         m.scale.setScalar(this.selection.type==='drone' && String(this.selection.id)===String(d.id) ? 1.65 : 1);

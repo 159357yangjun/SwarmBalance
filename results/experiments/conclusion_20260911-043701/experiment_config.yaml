@@ -1,0 +1,68 @@
+name: 标准结项实验
+description: 面向大创结项：四算法横向对比，并用 Greedy 与主推 GA 做任务规模、任务密度、机巢泊位、异构配比敏感性分析。
+base:
+  seed: 100
+  episode_steps: 3600
+  repeats: 5
+algorithms:
+- greedy
+- ortools
+- ga
+- pso
+experiments:
+  algorithm_comparison:
+    enabled: true
+    repeats: 5
+  task_scale:
+    enabled: true
+    algorithms:
+    - greedy
+    - ga
+    values:
+    - 30
+    - 60
+    - 90
+    repeats: 2
+  task_density:
+    enabled: true
+    algorithms:
+    - greedy
+    - ga
+    values:
+    - name: 高密度
+      interval_scale: 0.7
+    - name: 常规密度
+      interval_scale: 1.0
+    - name: 低密度
+      interval_scale: 1.4
+    repeats: 2
+  nest_berths:
+    enabled: true
+    algorithms:
+    - greedy
+    - ga
+    values:
+    - 1
+    - 2
+    - 4
+    repeats: 2
+  fleet_mix:
+    enabled: true
+    algorithms:
+    - greedy
+    - ga
+    repeats: 2
+    values:
+    - name: 均衡机队
+      light_express: 5
+      standard_cargo: 3
+      heavy_cargo: 2
+    - name: 轻载偏多
+      light_express: 7
+      standard_cargo: 2
+      heavy_cargo: 1
+    - name: 重载偏多
+      light_express: 3
+      standard_cargo: 3
+      heavy_cargo: 4
+_preset_key: conclusion

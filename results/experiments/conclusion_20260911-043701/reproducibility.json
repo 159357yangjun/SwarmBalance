@@ -1,0 +1,71 @@
+{
+  "schema_version": 1,
+  "project": "SwarmBalance",
+  "project_version": "1.0.0",
+  "generated_at_utc": "2026-09-11T08:37:01+00:00",
+  "preset": "conclusion",
+  "plan_count": 68,
+  "algorithms": [
+    "ga",
+    "greedy",
+    "ortools",
+    "pso"
+  ],
+  "runtime": {
+    "python": "3.10.11 (tags/v3.10.11:7d4cc5a, Apr  5 2023, 00:38:17) [MSC v.1929 64 bit (AMD64)]",
+    "python_executable": "C:\\Users\\yyyy\\AppData\\Roaming\\TRAE SOLO CN\\ModularData\\ai-agent\\work-mode-projects\\6a91893e4cc261f69a0a52a0\\.venv310\\Scripts\\python.exe",
+    "platform": "Windows-10-10.0.26100-SP0",
+    "machine": "AMD64",
+    "processor": "AMD64 Family 25 Model 117 Stepping 2, AuthenticAMD"
+  },
+  "packages": {
+    "numpy": "1.26.4",
+    "pandas": "2.2.3",
+    "matplotlib": "3.10.9",
+    "PyYAML": "6.0.3",
+    "networkx": "3.3",
+    "shapely": "2.0.7",
+    "osmnx": "1.9.4",
+    "ortools": "9.14.6206",
+    "fastapi": "0.141.1",
+    "uvicorn": "0.52.4",
+    "pygame": "2.6.1"
+  },
+  "git_commit": "fcc7c5fddecb0098d89d30efb4126f3803e21633",
+  "core_source_sha256": {
+    "backend_si/ga_scheduler.py": "e416860321285db5cd6e35819af8a8417c136995652ef9759662e14686c12aaa",
+    "backend_si/chain_codec.py": "ed9663dbbdace169c574d126a7e5bea4148179a9b29abcc5a0170624843057e7",
+    "backend_si/matching.py": "bf0dfc44d244cfc97a1fc7a66d8439697c51ca450cdca5c2a939ad127cb8198a",
+    "backend_si/fitness_evaluator.py": "3258ab72552319b87966faf0051c4ba71e6161e2b47a02f8cb354402f876ccff",
+    "frontend/environment.py": "e9c663855740d485ec500c499df18776c5c7153fed71fabf8a4b829fad3d65b3",
+    "frontend/metrics_schema.py": "d039ae2c31091f43391ce8a72fc54e59519783cabb7d648088d33bd65b0c943f",
+    "experiments/runner.py": "32ca9a98463ac1b82a82f234fd84c5594770b7bc925dbcc93d95dec4fcee9df8",
+    "experiments/worker.py": "85627fa77d7922c965fa1cbfad9b5552f08234ab470e8bab77516ebdcf4142f6"
+  },
+  "inputs": {
+    "preset": {
+      "path": "C:\\Users\\yyyy\\AppData\\Roaming\\TRAE SOLO CN\\ModularData\\ai-agent\\work-mode-projects\\6a91893e4cc261f69a0a52a0\\drone-scheduling\\experiments\\presets\\conclusion.yaml",
+      "sha256": "435229b1c39ce7dc84b20ad4548b39240d28625a751666567fed06fd6c70c531"
+    },
+    "simulation_config": {
+      "path": "C:\\Users\\yyyy\\AppData\\Roaming\\TRAE SOLO CN\\ModularData\\ai-agent\\work-mode-projects\\6a91893e4cc261f69a0a52a0\\drone-scheduling\\config\\simulation.json",
+      "sha256": "548579a24ac1b2084795ce2cd693eda8763a9c212d2a028b84bdd64908ff4888"
+    },
+    "algorithm_config": {
+      "path": "C:\\Users\\yyyy\\AppData\\Roaming\\TRAE SOLO CN\\ModularData\\ai-agent\\work-mode-projects\\6a91893e4cc261f69a0a52a0\\drone-scheduling\\backend_si\\config.yaml",
+      "sha256": "14cec500ec4060148cef9a653ee34b3ab2cd445a05093799b00ebcefe8f9caa1"
+    },
+    "osm": {
+      "path": "C:\\Users\\yyyy\\AppData\\Roaming\\TRAE SOLO CN\\ModularData\\ai-agent\\work-mode-projects\\6a91893e4cc261f69a0a52a0\\drone-scheduling\\frontend\\data\\map\\part_of_yangpu.osm",
+      "sha256": "72c3ef9ca19c804387bc2985d3a2dd76a772fc28fc9add8872b003419e78a65b"
+    }
+  },
+  "environment_flags": {
+    "SWARM_BALANCE_SIM_CONFIG": null
+  },
+  "notes": [
+    "同一实验条件下不同算法使用相同 Seed。",
+    "每个 episode 使用独立 simulation.json 副本并在独立子进程执行。",
+    "该清单用于复现实验环境，不代表结果具有统计显著性。"
+  ]
+}

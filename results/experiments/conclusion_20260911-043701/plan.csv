@@ -1,0 +1,69 @@
+﻿序号,实验,变量,取值,算法,重复,Seed,配置补丁
+1,algorithm_comparison,场景,default,greedy,1,101,{}
+2,algorithm_comparison,场景,default,ortools,1,101,{}
+3,algorithm_comparison,场景,default,ga,1,101,{}
+4,algorithm_comparison,场景,default,pso,1,101,{}
+5,algorithm_comparison,场景,default,greedy,2,102,{}
+6,algorithm_comparison,场景,default,ortools,2,102,{}
+7,algorithm_comparison,场景,default,ga,2,102,{}
+8,algorithm_comparison,场景,default,pso,2,102,{}
+9,algorithm_comparison,场景,default,greedy,3,103,{}
+10,algorithm_comparison,场景,default,ortools,3,103,{}
+11,algorithm_comparison,场景,default,ga,3,103,{}
+12,algorithm_comparison,场景,default,pso,3,103,{}
+13,algorithm_comparison,场景,default,greedy,4,104,{}
+14,algorithm_comparison,场景,default,ortools,4,104,{}
+15,algorithm_comparison,场景,default,ga,4,104,{}
+16,algorithm_comparison,场景,default,pso,4,104,{}
+17,algorithm_comparison,场景,default,greedy,5,105,{}
+18,algorithm_comparison,场景,default,ortools,5,105,{}
+19,algorithm_comparison,场景,default,ga,5,105,{}
+20,algorithm_comparison,场景,default,pso,5,105,{}
+21,task_scale,任务规模,30,greedy,1,10101,"{""task_generation"": {""realistic"": {""total_tasks"": 30}}}"
+22,task_scale,任务规模,30,ga,1,10101,"{""task_generation"": {""realistic"": {""total_tasks"": 30}}}"
+23,task_scale,任务规模,30,greedy,2,10102,"{""task_generation"": {""realistic"": {""total_tasks"": 30}}}"
+24,task_scale,任务规模,30,ga,2,10102,"{""task_generation"": {""realistic"": {""total_tasks"": 30}}}"
+25,task_scale,任务规模,60,greedy,1,10101,"{""task_generation"": {""realistic"": {""total_tasks"": 60}}}"
+26,task_scale,任务规模,60,ga,1,10101,"{""task_generation"": {""realistic"": {""total_tasks"": 60}}}"
+27,task_scale,任务规模,60,greedy,2,10102,"{""task_generation"": {""realistic"": {""total_tasks"": 60}}}"
+28,task_scale,任务规模,60,ga,2,10102,"{""task_generation"": {""realistic"": {""total_tasks"": 60}}}"
+29,task_scale,任务规模,90,greedy,1,10101,"{""task_generation"": {""realistic"": {""total_tasks"": 90}}}"
+30,task_scale,任务规模,90,ga,1,10101,"{""task_generation"": {""realistic"": {""total_tasks"": 90}}}"
+31,task_scale,任务规模,90,greedy,2,10102,"{""task_generation"": {""realistic"": {""total_tasks"": 90}}}"
+32,task_scale,任务规模,90,ga,2,10102,"{""task_generation"": {""realistic"": {""total_tasks"": 90}}}"
+33,task_density,任务密度,高密度,greedy,1,15101,"{""task_generation"": {""realistic"": {""interval_scale"": 0.7}}}"
+34,task_density,任务密度,高密度,ga,1,15101,"{""task_generation"": {""realistic"": {""interval_scale"": 0.7}}}"
+35,task_density,任务密度,高密度,greedy,2,15102,"{""task_generation"": {""realistic"": {""interval_scale"": 0.7}}}"
+36,task_density,任务密度,高密度,ga,2,15102,"{""task_generation"": {""realistic"": {""interval_scale"": 0.7}}}"
+37,task_density,任务密度,常规密度,greedy,1,15101,"{""task_generation"": {""realistic"": {""interval_scale"": 1.0}}}"
+38,task_density,任务密度,常规密度,ga,1,15101,"{""task_generation"": {""realistic"": {""interval_scale"": 1.0}}}"
+39,task_density,任务密度,常规密度,greedy,2,15102,"{""task_generation"": {""realistic"": {""interval_scale"": 1.0}}}"
+40,task_density,任务密度,常规密度,ga,2,15102,"{""task_generation"": {""realistic"": {""interval_scale"": 1.0}}}"
+41,task_density,任务密度,低密度,greedy,1,15101,"{""task_generation"": {""realistic"": {""interval_scale"": 1.4}}}"
+42,task_density,任务密度,低密度,ga,1,15101,"{""task_generation"": {""realistic"": {""interval_scale"": 1.4}}}"
+43,task_density,任务密度,低密度,greedy,2,15102,"{""task_generation"": {""realistic"": {""interval_scale"": 1.4}}}"
+44,task_density,任务密度,低密度,ga,2,15102,"{""task_generation"": {""realistic"": {""interval_scale"": 1.4}}}"
+45,nest_berths,机巢泊位数,1,greedy,1,20101,"{""nest"": {""berths"": 1}}"
+46,nest_berths,机巢泊位数,1,ga,1,20101,"{""nest"": {""berths"": 1}}"
+47,nest_berths,机巢泊位数,1,greedy,2,20102,"{""nest"": {""berths"": 1}}"
+48,nest_berths,机巢泊位数,1,ga,2,20102,"{""nest"": {""berths"": 1}}"
+49,nest_berths,机巢泊位数,2,greedy,1,20101,"{""nest"": {""berths"": 2}}"
+50,nest_berths,机巢泊位数,2,ga,1,20101,"{""nest"": {""berths"": 2}}"
+51,nest_berths,机巢泊位数,2,greedy,2,20102,"{""nest"": {""berths"": 2}}"
+52,nest_berths,机巢泊位数,2,ga,2,20102,"{""nest"": {""berths"": 2}}"
+53,nest_berths,机巢泊位数,4,greedy,1,20101,"{""nest"": {""berths"": 4}}"
+54,nest_berths,机巢泊位数,4,ga,1,20101,"{""nest"": {""berths"": 4}}"
+55,nest_berths,机巢泊位数,4,greedy,2,20102,"{""nest"": {""berths"": 4}}"
+56,nest_berths,机巢泊位数,4,ga,2,20102,"{""nest"": {""berths"": 4}}"
+57,fleet_mix,异构机队配比,均衡机队,greedy,1,30101,"{""environment"": {""num_drones"": 10}, ""heterogeneous"": {""fleet_mix"": {""light_express"": 5, ""standard_cargo"": 3, ""heavy_cargo"": 2}}}"
+58,fleet_mix,异构机队配比,均衡机队,ga,1,30101,"{""environment"": {""num_drones"": 10}, ""heterogeneous"": {""fleet_mix"": {""light_express"": 5, ""standard_cargo"": 3, ""heavy_cargo"": 2}}}"
+59,fleet_mix,异构机队配比,均衡机队,greedy,2,30102,"{""environment"": {""num_drones"": 10}, ""heterogeneous"": {""fleet_mix"": {""light_express"": 5, ""standard_cargo"": 3, ""heavy_cargo"": 2}}}"
+60,fleet_mix,异构机队配比,均衡机队,ga,2,30102,"{""environment"": {""num_drones"": 10}, ""heterogeneous"": {""fleet_mix"": {""light_express"": 5, ""standard_cargo"": 3, ""heavy_cargo"": 2}}}"
+61,fleet_mix,异构机队配比,轻载偏多,greedy,1,30101,"{""environment"": {""num_drones"": 10}, ""heterogeneous"": {""fleet_mix"": {""light_express"": 7, ""standard_cargo"": 2, ""heavy_cargo"": 1}}}"
+62,fleet_mix,异构机队配比,轻载偏多,ga,1,30101,"{""environment"": {""num_drones"": 10}, ""heterogeneous"": {""fleet_mix"": {""light_express"": 7, ""standard_cargo"": 2, ""heavy_cargo"": 1}}}"
+63,fleet_mix,异构机队配比,轻载偏多,greedy,2,30102,"{""environment"": {""num_drones"": 10}, ""heterogeneous"": {""fleet_mix"": {""light_express"": 7, ""standard_cargo"": 2, ""heavy_cargo"": 1}}}"
+64,fleet_mix,异构机队配比,轻载偏多,ga,2,30102,"{""environment"": {""num_drones"": 10}, ""heterogeneous"": {""fleet_mix"": {""light_express"": 7, ""standard_cargo"": 2, ""heavy_cargo"": 1}}}"
+65,fleet_mix,异构机队配比,重载偏多,greedy,1,30101,"{""environment"": {""num_drones"": 10}, ""heterogeneous"": {""fleet_mix"": {""light_express"": 3, ""standard_cargo"": 3, ""heavy_cargo"": 4}}}"
+66,fleet_mix,异构机队配比,重载偏多,ga,1,30101,"{""environment"": {""num_drones"": 10}, ""heterogeneous"": {""fleet_mix"": {""light_express"": 3, ""standard_cargo"": 3, ""heavy_cargo"": 4}}}"
+67,fleet_mix,异构机队配比,重载偏多,greedy,2,30102,"{""environment"": {""num_drones"": 10}, ""heterogeneous"": {""fleet_mix"": {""light_express"": 3, ""standard_cargo"": 3, ""heavy_cargo"": 4}}}"
+68,fleet_mix,异构机队配比,重载偏多,ga,2,30102,"{""environment"": {""num_drones"": 10}, ""heterogeneous"": {""fleet_mix"": {""light_express"": 3, ""standard_cargo"": 3, ""heavy_cargo"": 4}}}"
