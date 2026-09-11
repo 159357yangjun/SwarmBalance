@@ -2,6 +2,8 @@ cff-version: 1.2.0
 title: "SwarmBalance 群智优衡：异构无人机集群三维协同调度仿真平台"
 message: "若本项目对你的研究有帮助，请引用本软件。"
 type: software
+version: "1.0.0"
+date-released: 2026-09-11
 authors:
   - name: "群智优衡（SwarmBalance）项目团队"
     affiliation: "北华大学"

@@ -1,0 +1,1768 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-page-node-id="OQQMVb9ncw7rm8JOJ4CfUd">
+<head data-page-node-id="pKkMcTU9dDvL2vtlXjr0qM">
+<meta charset="UTF-8" data-page-node-id="zAgHIL4UZs5G1FXYOIy3IC">
+<meta name="viewport" content="width=device-width, initial-scale=1.0" data-page-node-id="FizhhgGtTeCt51SxoGnMs3">
+<title>群智优衡 · 三维协同调度指挥台</title>
+<script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
+<style>
+  :root {
+    --bg: #f5f6f8; --panel: #ffffff; --border: #e4e7ec;
+    --text: #1f2329; --muted: #86909c; --accent: #2f6fed;
+    --idle: #52c41a; --busy: #1890ff; --charging: #faad14; --waiting: #fa8c16; --offline:#6b7280;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif; background: var(--bg); color: var(--text); font-size: 14px; }
+  .app { display: flex; flex-direction: column; height: 100vh; }
+  .topbar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 10px 16px; background: var(--panel); border-bottom: 1px solid var(--border); }
+  .topbar .title { font-size: 16px; font-weight: 600; margin-right: 6px; }
+  .topbar label { color: var(--muted); font-size: 12px; }
+  select, input[type=number], input[type=text] { height: 30px; padding: 0 8px; border: 1px solid var(--border); border-radius: 6px; font-size: 13px; background: #fff; color: var(--text); }
+  .btn { height: 30px; padding: 0 13px; display:inline-flex; align-items:center; justify-content:center; box-sizing:border-box; text-decoration:none; border: 1px solid var(--border); border-radius: 6px; background: #fff; cursor: pointer; font-size: 13px; color: var(--text); transition: all .15s; }
+  .btn:hover { border-color: var(--accent); color: var(--accent); }
+  .btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .btn:disabled { opacity: .45; cursor: not-allowed; }
+  .speed-group { display: flex; }
+  .speed-group .btn { border-radius: 0; border-left: none; }
+  .speed-group .btn:first-child { border-left: 1px solid var(--border); border-radius: 6px 0 0 6px; }
+  .speed-group .btn:last-child { border-radius: 0 6px 6px 0; }
+  .speed-group .btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .seg { display: flex; border: 1px solid var(--border); border-radius: 6px; overflow: hidden; }
+  .seg .btn { border: none; border-radius: 0; }
+  .seg .btn.active { background: var(--accent); color: #fff; }
+  .spacer { flex: 1; }
+
+  .main { flex: 1; display: flex; gap: 12px; padding: 12px 16px; min-height: 0; }
+  .canvas-wrap { flex: 1; position: relative; background: var(--panel); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; min-width: 0; }
+  #c2d, #c3d { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+  .legend { position: absolute; left: 12px; bottom: 12px; display: flex; gap: 14px; background: rgba(255,255,255,.9); padding: 6px 12px; border-radius: 8px; border: 1px solid var(--border); font-size: 12px; color: var(--muted); z-index: 5; }
+  .legend .dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 5px; }
+  .loading { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: var(--muted); background: rgba(255,255,255,.7); z-index: 10; }
+
+  .side { width: 340px; display: flex; flex-direction: column; gap: 12px; min-height: 0; }
+  .tabs { display: flex; gap: 6px; }
+  .tabs .btn { flex: 1; }
+  .cards { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .card { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 12px; }
+  .card .k { color: var(--muted); font-size: 12px; }
+  .card .v { font-size: 21px; font-weight: 600; margin-top: 3px; }
+  .card .v small { font-size: 12px; font-weight: 400; color: var(--muted); }
+  .chart-box { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 10px; }
+  .chart-box .h { font-size: 13px; font-weight: 600; margin-bottom: 6px; }
+  #trend { width: 100%; height: 160px; }
+  #compare { width: 100%; height: 240px; }
+  .hint { color: var(--muted); font-size: 12px; line-height: 1.6; }
+  .experiment-box { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 12px; display:flex; flex-direction:column; gap:10px; }
+  .experiment-box .row { display:flex; gap:8px; align-items:center; }
+  .experiment-box select { flex:1; min-width:0; }
+  .progress { height: 9px; border-radius: 99px; background:#eef1f5; overflow:hidden; }
+  .progress > i { display:block; height:100%; background:var(--accent); transition:width .25s; }
+  .status-line { font-size:12px; color:var(--muted); word-break:break-all; line-height:1.55; }
+  .status-good { color:#389e0d; }
+  .status-bad { color:#cf1322; }
+  .scenario-box { background:linear-gradient(135deg,#f7faff,#fff); border:1px solid #dbe7ff; border-radius:10px; padding:11px; display:flex; flex-direction:column; gap:8px; }
+  .scenario-box .row { display:flex; gap:7px; align-items:center; }
+  .scenario-box select { flex:1; min-width:0; }
+  .scenario-title { display:flex; align-items:center; justify-content:space-between; gap:8px; font-weight:600; font-size:13px; }
+  .demo-progress { display:flex; align-items:center; gap:7px; font-size:11px; color:var(--muted); }
+  .demo-progress .bar { flex:1; height:6px; background:#e9eef8; border-radius:99px; overflow:hidden; }
+  .demo-progress .bar i { display:block; height:100%; background:var(--accent); }
+  .health-strip { border:1px solid #e6e9ef; border-radius:9px; padding:8px 10px; display:flex; align-items:flex-start; gap:8px; background:#fff; }
+  .health-dot { width:9px; height:9px; border-radius:50%; margin-top:4px; flex:none; background:#22c55e; box-shadow:0 0 0 3px rgba(34,197,94,.12); }
+  .health-strip.warning .health-dot { background:#f59e0b; box-shadow:0 0 0 3px rgba(245,158,11,.13); }
+  .health-strip.critical .health-dot { background:#ef4444; box-shadow:0 0 0 3px rgba(239,68,68,.13); }
+  .health-main { min-width:0; }
+  .health-main strong { display:block; font-size:12px; }
+  .health-main span { display:block; color:var(--muted); font-size:11px; line-height:1.45; margin-top:2px; }
+  .checkpoint-box { background:#fff; border:1px solid var(--border); border-radius:10px; padding:10px; display:flex; flex-direction:column; gap:7px; }
+  .checkpoint-box .row { display:flex; gap:7px; align-items:center; }
+  .checkpoint-box input { flex:1; min-width:0; }
+  .checkpoint-list { display:flex; flex-direction:column; gap:5px; max-height:122px; overflow:auto; }
+  .checkpoint-row { display:flex; align-items:center; gap:6px; border:1px solid #edf0f4; border-radius:7px; padding:6px 7px; font-size:11px; }
+  .checkpoint-row .meta { flex:1; min-width:0; }
+  .checkpoint-row .meta strong { display:block; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .checkpoint-row .meta span { color:var(--muted); }
+
+  /* 实时调度观察面板 */
+  .dispatch-box { background:var(--panel); border:1px solid var(--border); border-radius:10px; padding:10px; }
+  .dispatch-box .h { font-size:13px; font-weight:600; margin-bottom:8px; display:flex; justify-content:space-between; align-items:center; }
+  .dispatch-scroll { overflow:auto; max-height:220px; display:flex; flex-direction:column; gap:7px; padding-right:2px; }
+  .mini-row { display:flex; gap:6px; flex-wrap:wrap; margin-bottom:8px; }
+  .chip { display:inline-flex; align-items:center; gap:4px; background:#f3f6fb; border:1px solid #e7ebf3; border-radius:99px; padding:3px 7px; font-size:11px; color:#596273; }
+  .drone-row, .nest-row { border:1px solid #edf0f4; border-radius:8px; padding:8px; background:#fcfdff; }
+  .row-head { display:flex; align-items:center; justify-content:space-between; gap:8px; font-size:12px; font-weight:600; }
+  .sub { color:var(--muted); font-size:11px; line-height:1.55; margin-top:4px; }
+  .chain { margin-top:5px; font-size:11px; color:#475467; line-height:1.55; }
+  .chain b { color:var(--accent); font-weight:600; }
+  .event { border-left:3px solid #cbd5e1; padding:5px 7px; background:#fafbfc; border-radius:0 6px 6px 0; font-size:11px; line-height:1.5; }
+  .event.important { border-left-color:#7c3aed; background:#f8f5ff; }
+  .event.warning { border-left-color:#f59e0b; background:#fffbeb; }
+  .event.success { border-left-color:#16a34a; background:#f0fdf4; }
+  .event-time { color:var(--muted); margin-right:5px; }
+  .empty-tip { color:var(--muted); font-size:11px; padding:8px 0; text-align:center; }
+  .preset-actions { display:flex; gap:8px; margin-bottom:10px; }
+  .preset-actions .btn { flex:1; }
+  .task-note { padding:8px 10px; background:#f7f9fc; border-radius:7px; color:var(--muted); font-size:11px; line-height:1.55; margin-top:8px; }
+  .map-pick-banner { position:absolute; left:50%; top:14px; transform:translateX(-50%); z-index:12; background:rgba(31,35,41,.92); color:#fff; border-radius:8px; padding:8px 12px; display:flex; gap:10px; align-items:center; font-size:12px; box-shadow:0 4px 18px rgba(0,0,0,.18); }
+  .map-pick-banner button { background:transparent; color:#fff; border:1px solid rgba(255,255,255,.35); border-radius:5px; padding:2px 7px; cursor:pointer; }
+
+
+  /* 地图对象选择 / 指挥台详情 */
+  .inspector { position:absolute; top:12px; right:12px; z-index:11; width:min(370px,46%); max-height:calc(100% - 74px); overflow:auto; background:rgba(255,255,255,.96); border:1px solid var(--border); border-radius:12px; box-shadow:0 10px 32px rgba(31,35,41,.14); backdrop-filter: blur(8px); }
+  .inspector-head { position:sticky; top:0; z-index:2; display:flex; justify-content:space-between; align-items:flex-start; gap:10px; padding:12px 12px 10px; background:rgba(255,255,255,.97); border-bottom:1px solid #edf0f4; }
+  .inspector-title { display:flex; align-items:center; gap:7px; min-width:0; }
+  .inspector-title strong { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .entity-tag { flex:none; display:inline-flex; align-items:center; padding:2px 6px; border-radius:5px; background:#eef4ff; color:var(--accent); font-size:10px; font-weight:600; }
+  .close-x { width:26px; height:26px; border:0; background:transparent; border-radius:6px; cursor:pointer; color:#667085; font-size:18px; line-height:26px; }
+  .close-x:hover { background:#f2f4f7; color:#1f2329; }
+  .inspector-body { padding:11px 12px 13px; }
+  .entity-status { display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:9px; }
+  .status-pill { display:inline-flex; align-items:center; border-radius:99px; padding:3px 8px; font-size:11px; background:#f2f4f7; color:#475467; }
+  .status-pill.good { background:#edfbea; color:#237804; }
+  .status-pill.warn { background:#fff7e6; color:#ad6800; }
+  .status-pill.busy { background:#e6f4ff; color:#0958d9; }
+  .status-pill.urgent { background:#fff1f0; color:#cf1322; }
+  .kv-grid { display:grid; grid-template-columns:1fr 1fr; gap:7px; }
+  .kv { border:1px solid #edf0f4; background:#fafbfc; border-radius:8px; padding:7px 8px; min-width:0; }
+  .kv .k { color:var(--muted); font-size:10px; }
+  .kv .v { margin-top:2px; font-size:12px; font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .inspector-section { margin-top:11px; padding-top:10px; border-top:1px solid #edf0f4; }
+  .inspector-section .section-head { display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:7px; font-size:12px; font-weight:600; }
+  .select-row { border:1px solid #edf0f4; border-radius:8px; padding:7px 8px; margin-top:6px; cursor:pointer; background:#fff; }
+  .select-row:hover { border-color:#b7cdfa; background:#f7faff; }
+  .select-row.selected { border-color:#8bb1fa; background:#f0f6ff; }
+  .candidate-head { display:flex; justify-content:space-between; align-items:center; gap:8px; font-size:11px; }
+  .score { font-weight:700; color:var(--accent); }
+  .candidate-bad { color:#cf1322; }
+  .candidate-good { color:#389e0d; }
+  .tiny-btn { border:1px solid var(--border); background:#fff; border-radius:6px; height:24px; padding:0 7px; cursor:pointer; font-size:10px; color:#596273; }
+  .tiny-btn:hover { border-color:var(--accent); color:var(--accent); }
+  .tiny-btn.danger { border-color:#ffccc7; color:#cf1322; background:#fff1f0; }
+  .tiny-btn.danger:hover { border-color:#ff7875; color:#a8071a; }
+  .tiny-btn.success { border-color:#b7eb8f; color:#237804; background:#f6ffed; }
+  .incident-actions { display:flex; gap:7px; flex-wrap:wrap; }
+  .incident-actions .tiny-btn { height:28px; padding:0 9px; }
+  .incident-note { margin-top:7px; padding:7px 8px; border-radius:7px; background:#fff7e6; color:#ad6800; font-size:10px; line-height:1.55; }
+  .offline-row { opacity:.72; background:#f7f7f8; }
+  .closed-row { border-color:#ffd6d6; background:#fffafa; }
+  .clickable { cursor:pointer; }
+  .clickable:hover { border-color:#b7cdfa; background:#f7faff; }
+  .event.clickable:hover { border-left-color:var(--accent); }
+  .selection-help { position:absolute; left:12px; top:12px; z-index:6; padding:5px 8px; border-radius:7px; background:rgba(255,255,255,.88); border:1px solid var(--border); color:var(--muted); font-size:10px; pointer-events:none; }
+  @media (max-width: 1050px) { .inspector { width:min(330px,54%); } .side { width:315px; } }
+
+  /* 配置模态 */
+  .modal-mask { position: fixed; inset: 0; background: rgba(0,0,0,.4); display: flex; align-items: center; justify-content: center; z-index: 100; }
+  .modal { width: 560px; max-height: 86vh; overflow: auto; background: #fff; border-radius: 12px; padding: 20px; }
+  .modal h3 { font-size: 15px; margin-bottom: 12px; }
+  .modal .group { margin-bottom: 14px; }
+  .modal .group-title { font-size: 13px; font-weight: 600; color: var(--accent); margin-bottom: 8px; border-left: 3px solid var(--accent); padding-left: 8px; }
+  .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .field { display: flex; flex-direction: column; gap: 4px; }
+  .field label { font-size: 12px; color: var(--muted); }
+  .field input, .field select { height: 30px; border: 1px solid var(--border); border-radius: 6px; padding: 0 8px; font-size: 13px; }
+  .modal .actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 16px; }
+  .scene-list { display:flex; flex-direction:column; gap:8px; }
+  .scene-row { border:1px solid var(--border); border-radius:8px; padding:8px; background:#fbfcfe; }
+  .scene-row-head { display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:7px; font-size:12px; font-weight:600; }
+  .scene-row-grid { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:7px; }
+  .scene-row-grid .field input, .scene-row-grid .field select { width:100%; }
+  .scene-toolbar { display:flex; gap:7px; flex-wrap:wrap; margin-top:8px; }
+  .scene-warning { padding:8px 10px; border-radius:7px; background:#fff7e6; color:#ad6800; font-size:11px; line-height:1.55; margin-bottom:10px; }
+  .inline-editor { display:grid; grid-template-columns:1fr 1fr; gap:7px; margin-top:8px; }
+  .inline-editor .field input, .inline-editor .field select { width:100%; height:28px; }
+  .stream-state { font-weight:600; }
+  @media (max-width: 800px) { .scene-row-grid { grid-template-columns:1fr 1fr; } }
+
+  /* v0.9 productization / portable runtime */
+  .overview-grid { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+  .overview-item { border:1px solid var(--border); border-radius:9px; padding:9px 10px; background:#fbfcff; }
+  .overview-item .k { color:var(--muted); font-size:10px; margin-bottom:4px; }
+  .overview-item .v { font-size:13px; font-weight:700; line-height:1.35; }
+  .overview-item .sub { color:var(--muted); font-size:10px; margin-top:3px; line-height:1.45; }
+  .advice-box { border:1px solid #dbe7ff; background:#f7faff; border-radius:9px; padding:9px 10px; }
+  .advice-box .h { font-size:12px; font-weight:700; margin-bottom:6px; display:flex; justify-content:space-between; }
+  .advice-row { font-size:11px; line-height:1.55; padding:4px 0; border-top:1px dashed #e6ecf8; }
+  .advice-row:first-of-type { border-top:0; }
+  .scene-library-list { display:flex; flex-direction:column; gap:8px; max-height:360px; overflow:auto; margin-top:8px; }
+  .scene-library-card { border:1px solid var(--border); border-radius:9px; padding:9px 10px; background:#fbfcfe; }
+  .scene-library-head { display:flex; align-items:flex-start; gap:8px; }
+  .scene-library-head .meta { flex:1; min-width:0; }
+  .scene-library-head strong { display:block; font-size:12px; }
+  .scene-library-head span { color:var(--muted); font-size:10px; line-height:1.45; }
+  .scene-library-actions { display:flex; gap:6px; flex-wrap:wrap; margin-top:7px; }
+  .guide-steps { display:flex; flex-direction:column; gap:9px; }
+  .guide-step { border:1px solid var(--border); border-radius:9px; padding:10px 11px; background:#fbfcff; }
+  .guide-step strong { font-size:12px; display:block; margin-bottom:4px; }
+  .guide-step span { color:var(--muted); font-size:11px; line-height:1.55; }
+  .version-badge { font-size:10px; padding:2px 6px; border-radius:999px; background:#eef4ff; color:#315fb3; border:1px solid #d8e5ff; }
+
+</style>
+</head>
+<body data-page-node-id="Ua4Bz8YMekShkdxtCoSHta">
+<div id="app" v-cloak data-page-node-id="ZvBi2G7GcqaCsFPXQmgfBD">
+  <div class="topbar" data-page-node-id="MA6CgM40XHMAOgvYmnWO9m">
+    <div class="title" data-page-node-id="yEGYtTCQwSanMto2AT2nOj">群智优衡 · 三维协同调度指挥台</div>
+    <label data-page-node-id="mDnnukRtbxNwd8s9nKdxNw">算法</label>
+    <select v-model="algorithm" @change="onAlgorithmChange" data-page-node-id="VcWZ08fwdgzYSmhTiY8VRM">
+      <option v-for="a in algorithmOptions" :key="a.key" :value="a.key" :disabled="!a.available">{{ a.label }}{{ a.available ? '' : '（不可用）' }}</option>
+    </select>
+    <label data-page-node-id="r0di1BtPVs5jknz9QzDiwA">Seed</label>
+    <input type="number" v-model.number="seed" style="width:82px" data-page-node-id="LucDPmBqTeUiB4UOL7n7TI">
+    <button class="btn primary" @click="reset" data-page-node-id="JU2iDEFq99z5zovyDHzEiF">重置</button>
+    <button class="btn" @click="togglePlay" data-page-node-id="OUc4LaTereC4DNgOAhMReW">{{ playing ? '暂停' : '播放' }}</button>
+    <button class="btn" @click="stepOnce" :disabled="playing || stepping" data-page-node-id="YTtnlBOIfmnU3lU46AW4bl">单步</button>
+    <div class="speed-group" data-page-node-id="VBhoB1vcQIVszsCROx1sWi">
+      <button v-for="s in speeds" :key="s" class="btn" :class="{active: speed===s}" @click="setSpeed(s)" data-page-node-id="hhk1RmXNrzGfjwCoozpbvg">{{s}}x</button>
+    </div>
+    <div class="seg" data-page-node-id="VsRZZntn9KHBpc9oTNocPO">
+      <button class="btn" :class="{active:view==='2d'}" @click="switchView('2d')" data-page-node-id="YrFK3oIsQyJ3RT9iYZOu4O">2D</button>
+      <button class="btn" :class="{active:view==='3d'}" @click="switchView('3d')" data-page-node-id="YCPFKFHnQ85Dici14dKu13">3D</button>
+    </div>
+    <button class="btn" @click="openConfig" data-page-node-id="koTw7dw5Q5ofgCosoFpuws">配置</button>
+    <button class="btn" @click="openSceneEditor">场景编辑</button>
+    <button class="btn" @click="openSceneLibrary">场景库</button>
+    <button class="btn" @click="showGuide=true">使用引导</button>
+    <button class="btn primary" @click="openTaskModal">＋ 新任务</button>
+    <div class="spacer" data-page-node-id="7aWA7EioGmKzirSBi5ECAU"></div>
+    <span class="version-badge" v-if="appMeta.version">v{{ appMeta.version }}</span>
+    <span class="version-badge" v-if="appMeta.capabilities?.map_backend==='builtin_xml'" title="当前使用项目内置的本地 OSM XML 解析器；正式实验仍建议 Python 3.10 + OSMnx 完整环境">离线便携</span>
+    <span class="hint" data-page-node-id="3eNb4QC3EKuZ9ZrI9sbqEg">步数 {{ snap.step }} · 时间 {{ Number(snap.time||0).toFixed(0) }}s</span>
+  </div>
+
+  <div class="main" data-page-node-id="xbV1IaWBnja9Wb5xUW7bxY">
+    <div class="canvas-wrap" data-page-node-id="5wyhqcDoW5OchxqEvnDE9j">
+      <canvas id="c2d" v-show="view==='2d'" @click="handleMapClick" data-page-node-id="GOoRu5Gy4CLnmR9RJTcnI5"></canvas>
+      <div id="c3d" v-show="view==='3d'" data-page-node-id="WGI6eppnPVQqdoqaCIajlq"></div>
+      <div class="loading" v-if="loading" data-page-node-id="YLs7yTZVydcicGBABtnBTD">正在加载 OSM 地图…</div>
+      <div class="map-pick-banner" v-if="mapPick.active">
+        <span>{{ mapPickPrompt }}</span>
+        <button @click.stop="cancelMapPick">取消取点</button>
+      </div>
+      <div class="selection-help" v-if="!mapPick.active && !selection.type">点击无人机 / 任务 / 机巢查看实时详情</div>
+      <div class="inspector" v-if="selection.type">
+        <div class="inspector-head">
+          <div class="inspector-title"><span class="entity-tag">{{ entityTypeText(selection.type) }}</span><strong>{{ selectionTitle }}</strong></div>
+          <button class="close-x" @click="clearSelection" title="关闭">×</button>
+        </div>
+        <div class="inspector-body" v-if="selectedDrone">
+          <div class="entity-status"><span class="status-pill" :class="droneStatusClass(selectedDrone.state)">{{ droneStateText(selectedDrone.state) }}</span><span class="hint">{{ selectedDrone.type }}</span></div>
+          <div class="kv-grid">
+            <div class="kv"><div class="k">电量</div><div class="v">{{ pct(selectedDrone.battery_ratio) }}</div></div>
+            <div class="kv"><div class="k">速度</div><div class="v">{{ selectedDrone.speed }} m/s</div></div>
+            <div class="kv"><div class="k">当前载重</div><div class="v">{{ selectedDrone.load.toFixed(1) }} / {{ selectedDrone.capacity.toFixed(1) }} kg</div></div>
+            <div class="kv"><div class="k">剩余航线</div><div class="v">{{ Math.round(selectedDrone.remaining_route_m) }} m</div></div>
+            <div class="kv"><div class="k">当前任务</div><div class="v">{{ selectedDrone.executing_task || '无' }}</div></div>
+            <div class="kv"><div class="k">所在 / 等待机巢</div><div class="v">{{ selectedDrone.station_id ?? '—' }}</div></div>
+          </div>
+          <div class="inspector-section">
+            <div class="section-head"><span>当前任务链</span><span class="hint">{{ selectedDrone.chain_len }} 单</span></div>
+            <div v-if="selectedDrone.task_chain && selectedDrone.task_chain.length">
+              <div class="select-row" v-for="t in selectedDrone.task_chain" :key="t.task_id" @click="selectEntity('task', t.task_id)">
+                <div class="candidate-head"><span>#{{ t.order }} {{ t.task_id }}</span><span>P{{ t.priority }}</span></div>
+                <div class="sub">{{ t.category }} · {{ t.weight }}kg · 剩余 {{ t.remaining_time ?? '—' }}s · {{ t.loaded ? '已装载' : '待装载' }}</div>
+              </div>
+            </div>
+            <div class="empty-tip" v-else>当前没有已分配任务</div>
+          </div>
+          <div class="inspector-section" v-if="selectedDrone.swap_remaining > 0">
+            <div class="section-head"><span>换电状态</span><span class="status-pill warn">剩余 {{ selectedDrone.swap_remaining }}s</span></div>
+          </div>
+          <div class="inspector-section">
+            <div class="section-head"><span>运行时控制</span><span class="hint">事故注入</span></div>
+            <div class="incident-actions">
+              <button v-if="!selectedDrone.out_of_service" class="tiny-btn" :disabled="incidentBusy || ['charging','waiting_berth','to_nest'].includes(selectedDrone.state)" @click.stop="requestDroneCharge(selectedDrone)">{{ selectedDrone.state==='to_nest' ? '正在前往机巢' : '调往最近机巢补能' }}</button>
+              <button v-if="!selectedDrone.out_of_service" class="tiny-btn danger" :disabled="incidentBusy" @click.stop="setDroneIncident(selectedDrone, true)">模拟故障停飞</button>
+              <button v-else class="tiny-btn success" :disabled="incidentBusy" @click.stop="setDroneIncident(selectedDrone, false)">恢复上线</button>
+            </div>
+            <div class="incident-note" v-if="selectedDrone.out_of_service">已停飞：{{ selectedDrone.out_of_service_reason || '人工故障注入' }}。未完成任务已回到待调度池，下一步由当前算法重新分配。</div>
+          </div>
+        </div>
+
+        <div class="inspector-body" v-else-if="selectedNest">
+          <div class="entity-status"><span class="status-pill" :class="selectedNest.closed ? 'urgent' : (selectedNest.queue_length ? 'warn' : 'good')">{{ selectedNest.closed ? '临时关闭' : (selectedNest.queue_length ? '存在资源竞争' : '运行正常') }}</span><span class="hint">{{ selectedNest.arbitration==='priority' ? '动态优先级' : 'FIFO' }}</span></div>
+          <div class="kv-grid">
+            <div class="kv"><div class="k">泊位占用</div><div class="v">{{ selectedNest.occupied }} / {{ selectedNest.berths }}</div></div>
+            <div class="kv"><div class="k">排队数量</div><div class="v">{{ selectedNest.queue_length }}</div></div>
+            <div class="kv"><div class="k">单次换电</div><div class="v">{{ selectedNest.swap_time_seconds }} s</div></div>
+            <div class="kv"><div class="k">坐标</div><div class="v">{{ fmtCoord(selectedNest.x, selectedNest.y) }}</div></div>
+          </div>
+          <div class="inspector-section">
+            <div class="section-head"><span>泊位等待队列</span><span class="hint">按当前仲裁顺序</span></div>
+            <div v-if="selectedNest.queue && selectedNest.queue.length">
+              <div class="select-row" v-for="q in selectedNest.queue" :key="q.drone_id" @click="selectEntity('drone', q.drone_id)">
+                <div class="candidate-head"><span>#{{ q.rank }} {{ q.drone_id }}</span><span class="score">P={{ q.priority_score }}</span></div>
+                <div class="sub">电量 {{ pct(q.battery_ratio) }} · 已等待 {{ q.wait_seconds }}s</div>
+              </div>
+            </div>
+            <div class="empty-tip" v-else>{{ selectedNest.closed ? '机巢已关闭，不接收新的泊位请求' : '当前没有无人机等待泊位' }}</div>
+          </div>
+          <div class="inspector-section">
+            <div class="section-head"><span>运行时控制</span><span class="hint">场景事件</span></div>
+            <div class="incident-actions">
+              <button v-if="!selectedNest.closed" class="tiny-btn danger" :disabled="incidentBusy" @click.stop="setNestIncident(selectedNest, true)">临时关闭机巢</button>
+              <button v-else class="tiny-btn success" :disabled="incidentBusy" @click.stop="setNestIncident(selectedNest, false)">重新开放</button>
+            </div>
+            <div class="incident-note" v-if="selectedNest.closed">已关闭：{{ selectedNest.closed_reason || '人工场景事件' }}。新补能请求会绕行到其它开放机巢，正在换电的无人机会完成当前服务。</div>
+          </div>
+        </div>
+
+        <div class="inspector-body" v-else-if="selectedTask">
+          <div class="entity-status"><span class="status-pill" :class="taskStatusClass(selectedTask)">{{ taskStatusText(selectedTask.status) }}</span><span class="hint">{{ selectedTask.category }} · P{{ selectedTask.priority }}</span></div>
+          <div class="kv-grid">
+            <div class="kv"><div class="k">重量 / 体积</div><div class="v">{{ selectedTask.weight }}kg / {{ selectedTask.volume }}m³</div></div>
+            <div class="kv"><div class="k">剩余时限</div><div class="v">{{ selectedTask.remaining_time == null ? '—' : selectedTask.remaining_time + ' s' }}</div></div>
+            <div class="kv"><div class="k">分配无人机</div><div class="v">{{ selectedTask.assigned_drone_id || '尚未分配' }}</div></div>
+            <div class="kv"><div class="k">任务链位置</div><div class="v">{{ selectedTask.chain_order || '—' }}</div></div>
+            <div class="kv"><div class="k">起点</div><div class="v">{{ fmtCoord(selectedTask.source[0], selectedTask.source[1]) }}</div></div>
+            <div class="kv"><div class="k">终点</div><div class="v">{{ fmtCoord(selectedTask.destination[0], selectedTask.destination[1]) }}</div></div>
+          </div>
+          <div class="task-note" v-if="selectedTask.status==='completed'">完成时刻 T={{ selectedTask.completion_time ?? '—' }} · {{ selectedTask.on_time ? '准时送达' : '延迟 ' + (selectedTask.delay ?? 0) + 's' }}</div>
+          <div class="inspector-section" v-if="selectedTask.status==='pending'">
+            <div class="section-head"><span>运行中调整任务</span><span class="hint">下一步立即参与重调度</span></div>
+            <div class="inline-editor">
+              <div class="field"><label>优先级</label><select v-model.number="taskEdit.priority"><option :value="1">P1</option><option :value="2">P2</option><option :value="3">P3 紧急</option></select></div>
+              <div class="field"><label>距截止时间(s)</label><input type="number" min="30" step="30" v-model.number="taskEdit.deadline_offset"></div>
+              <div class="field"><label>重量(kg)</label><input type="number" min="0.1" step="0.1" v-model.number="taskEdit.weight"></div>
+              <div class="field"><label>类别</label><select v-model="taskEdit.category"><option value="normal">普通</option><option value="urgent">紧急</option><option value="emergency">应急</option><option value="bulk">重货</option></select></div>
+            </div>
+            <div class="incident-actions" style="margin-top:7px">
+              <button class="tiny-btn" :disabled="taskEditBusy" @click.stop="saveTaskEdit(selectedTask)">{{ taskEditBusy ? '应用中…' : '应用调整' }}</button>
+              <button class="tiny-btn danger" :disabled="taskEditBusy" @click.stop="promoteTaskEmergency(selectedTask)">一键升为紧急任务</button>
+            </div>
+            <div class="incident-note" v-if="taskEditError">{{ taskEditError }}</div>
+          </div>
+          <div class="inspector-section" v-if="selectedTask.status==='pending'">
+            <div class="section-head"><span>候选无人机解释</span><button class="tiny-btn" @click="loadTaskCandidates(selectedTask.id)">{{ taskCandidatesLoading ? '刷新中…' : '刷新候选' }}</button></div>
+            <div class="task-note" v-if="taskCandidates.note">{{ taskCandidates.note }}</div>
+            <div v-if="taskCandidatesLoading" class="empty-tip">正在评估候选无人机…</div>
+            <div v-else-if="taskCandidates.candidates && taskCandidates.candidates.length">
+              <div class="select-row" v-for="(c,i) in taskCandidates.candidates" :key="c.drone_id" @click="selectEntity('drone', c.drone_id)">
+                <div class="candidate-head"><span>#{{ i+1 }} {{ c.drone_id }} · {{ c.drone_type }}</span><span class="score">匹配 {{ pct(c.match_score || 0) }}</span></div>
+                <div class="sub">ETA {{ c.eta_seconds }}s · 估算距离 {{ Math.round(c.estimated_distance_m || 0) }}m · 电量 {{ pct(c.battery_ratio || 0) }}</div>
+                <div class="sub" :class="c.feasible && c.time_ok ? 'candidate-good' : 'candidate-bad'">{{ c.blockers && c.blockers.length ? c.blockers.join(' / ') : '当前约束下可候选' }}</div>
+              </div>
+            </div>
+            <div class="empty-tip" v-else>暂无候选排名</div>
+          </div>
+          <div class="inspector-section" v-else-if="selectedTask.assigned_drone_id">
+            <div class="section-head"><span>调度结果</span><button class="tiny-btn" @click="selectEntity('drone', selectedTask.assigned_drone_id)">查看无人机</button></div>
+          </div>
+        </div>
+      </div>
+      <div class="legend" data-page-node-id="mGDkcE76m0pDpxFQhIVRpl">
+        <span data-page-node-id="VU8CgJ7oHNMqyI9vhECiww"><i class="dot" style="background:var(--idle)" data-page-node-id="vytutNfBoQ3DYMJntHzhzn"></i>空闲</span>
+        <span data-page-node-id="AVIUIX8glbLFVZBI3lALW4"><i class="dot" style="background:var(--busy)" data-page-node-id="9zLzNEz5F15ZkHM5sPty7g"></i>配送中</span>
+        <span data-page-node-id="zpPlVq12pNGQgLi1YNt5Ji"><i class="dot" style="background:var(--charging)" data-page-node-id="y8xMeqmbi82SSIEo3g2w0m"></i>换电</span>
+        <span data-page-node-id="ai3QmxOerNe0HBM2eyFHEI"><i class="dot" style="background:var(--waiting)" data-page-node-id="w02M20dVVjSdTL0yF7cZi5"></i>等泊位</span>
+        <span><i class="dot" style="background:var(--offline)"></i>停飞</span>
+        <span style="color:var(--muted)" data-page-node-id="OWIybTAS3e6DpoP2hqG55F">△ 机巢</span>
+        <span style="color:var(--muted)" data-page-node-id="PLyECwjADdLWuhXFCXoiGK">○→● 任务起终点</span>
+      </div>
+    </div>
+
+    <div class="side" data-page-node-id="Isx49LZxEMTzLZ1GxuX533">
+      <div class="tabs" data-page-node-id="QerBZVj9ggNjJeEszNBKvX">
+        <button class="btn" :class="{active:tab==='metrics'}" @click="tab='metrics'" data-page-node-id="SwzOsDsYLAAprzGHmn3Ppm">态势</button>
+        <button class="btn" :class="{active:tab==='dispatch'}" @click="tab='dispatch'">调度</button>
+        <button class="btn" :class="{active:tab==='compare'}" @click="switchTabCompare" data-page-node-id="ABUWbVtozXox3fxaPR5PK6">对比</button>
+        <button class="btn" :class="{active:tab==='experiment'}" @click="switchTabExperiment">实验</button>
+      </div>
+
+      <template v-if="tab==='metrics'" data-page-node-id="mA04HdFPoLOvGhtgifIP3Z">
+        <div class="scenario-box">
+          <div class="scenario-title"><span>答辩演示场景</span><span class="hint" v-if="snap.demo?.active">{{ snap.demo.name }}</span></div>
+          <div class="row">
+            <select v-model="scenarioKey">
+              <option v-for="p in scenarioPresets" :key="p.key" :value="p.key">{{ p.name }} · {{ p.algorithm.toUpperCase() }}</option>
+            </select>
+            <button class="btn primary" :disabled="scenarioBusy" @click="applyScenario">{{ scenarioBusy ? '加载中…' : '加载场景' }}</button>
+          </div>
+          <div class="hint" v-if="selectedScenario">{{ selectedScenario.description }}</div>
+          <div v-if="snap.demo?.active" class="demo-progress">
+            <span>{{ snap.demo.cursor }} / {{ snap.demo.total }}</span>
+            <div class="bar"><i :style="{width: (snap.demo.total ? (snap.demo.cursor/snap.demo.total*100) : 0) + '%'}"></i></div>
+            <span>{{ snap.demo.completed ? '剧本完成' : '进行中' }}</span>
+          </div>
+          <div class="task-note" v-if="snap.demo?.active && snap.demo?.next">下一幕：<b>{{ snap.demo.next.label }}</b> · {{ snap.demo.next.note || '执行预设动作' }}</div>
+          <div class="row" v-if="snap.demo?.active || scenarioHasRestore">
+            <button class="btn" v-if="snap.demo?.active && !snap.demo?.completed" :disabled="scenarioBusy" @click="advanceScenario">▶ 执行下一幕</button>
+            <button class="btn" v-if="scenarioHasRestore" :disabled="scenarioBusy" @click="restoreScenario">恢复演示前配置</button>
+          </div>
+          <div class="status-line status-bad" v-if="scenarioError">{{ scenarioError }}</div>
+        </div>
+        <div class="health-strip" :class="snap.health?.level || 'normal'">
+          <i class="health-dot"></i>
+          <div class="health-main"><strong>运行态势：{{ healthLevelText }}</strong><span>{{ snap.health?.summary || '等待状态数据' }}</span></div>
+        </div>
+        <div class="overview-grid">
+          <div class="overview-item"><div class="k">当前调度策略</div><div class="v">{{ algorithm.toUpperCase() }}</div><div class="sub">Seed {{ seed }} · {{ snap.controls?.task_generation_paused ? '人工/存量任务模式' : '自动订单流' }}</div></div>
+          <div class="overview-item"><div class="k">任务压力</div><div class="v">{{ snap.pending_count || 0 }} 待调度 · P3 {{ snap.health?.urgent_pending || 0 }}</div><div class="sub">完成 {{ snap.stats.completed || 0 }} / 生成 {{ snap.stats.generated || 0 }}</div></div>
+          <div class="overview-item"><div class="k">机队资源</div><div class="v">在线 {{ onlineDroneCount }} / {{ (snap.drones||[]).length }}</div><div class="sub">配送 {{ busyDroneCount }} · 低电 {{ snap.health?.low_battery_drones || 0 }} · 停飞 {{ offlineDroneCount }}</div></div>
+          <div class="overview-item"><div class="k">地面资源</div><div class="v">排队 {{ berthQueueCount }} · 关闭 {{ closedNestCount }}</div><div class="sub">泊位利用率 {{ pct(snap.stats.berth_utilization) }}</div></div>
+        </div>
+        <div class="advice-box">
+          <div class="h"><span>操作建议</span><span class="hint">根据当前状态动态生成</span></div>
+          <div class="advice-row" v-for="(a,i) in actionSuggestions" :key="i">{{ a }}</div>
+        </div>
+        <div class="checkpoint-box">
+          <div class="scenario-title"><span>运行态快照</span><span class="hint">当前服务内最多 5 个</span></div>
+          <div class="row">
+            <input type="text" v-model.trim="checkpointName" maxlength="40" placeholder="例如：故障注入前">
+            <button class="btn" :disabled="checkpointBusy" @click="saveCheckpoint">保存当前状态</button>
+          </div>
+          <div class="checkpoint-list" v-if="checkpointRows.length">
+            <div class="checkpoint-row" v-for="c in checkpointRows" :key="c.name">
+              <div class="meta"><strong>{{ c.name }}</strong><span>T={{ Number(c.time||0).toFixed(0) }} · step {{ c.step }} · {{ (c.algorithm||'').toUpperCase() }}</span></div>
+              <button class="tiny-btn" :disabled="checkpointBusy" @click="loadCheckpoint(c.name)">恢复</button>
+              <button class="tiny-btn danger" :disabled="checkpointBusy" @click="deleteCheckpoint(c.name)">删</button>
+            </div>
+          </div>
+          <div class="hint" v-else>可在制造故障、插入紧急任务或参数演示前保存，随后一键回到完全相同的运行节点。</div>
+          <div class="status-line status-bad" v-if="checkpointError">{{ checkpointError }}</div>
+        </div>
+        <div class="cards" data-page-node-id="5XNGRBKs2758yNWHrHq9tW">
+          <div class="card" data-page-node-id="tn3yTGx2ghaaX6I8Bj7mbJ"><div class="k" data-page-node-id="bpFGKgyrMCapIqArX4zEB7">完成率</div><div class="v" data-page-node-id="L4IBiPJXtYlOx1qx3gQZxF">{{ pct(snap.stats.completion_rate) }}</div></div>
+          <div class="card" data-page-node-id="4Hp6G1nLenNqHOcj1jiBNs"><div class="k" data-page-node-id="L4l0MX5ZEQ52DsEOU58TMX">超时率</div><div class="v" data-page-node-id="hndpXj0lmrf2F1ESMxWxOX">{{ pct(snap.stats.timeout_rate) }}</div></div>
+          <div class="card" data-page-node-id="PE9NHMWqBTjCxC52dI7CRW"><div class="k" data-page-node-id="wTxynBDYW3q3LCVMF5uYtm">完成 / 生成</div><div class="v" data-page-node-id="Vc7WnbzuPypFl9aUI7T7eY">{{ snap.stats.completed }}<small data-page-node-id="ek1dJ7Dd2Wc0QNjbkbTLXk"> / {{ snap.stats.generated }}</small></div></div>
+          <div class="card" data-page-node-id="BeHVhRKCGsEA3x17SyiwMt"><div class="k" data-page-node-id="CvP6TQg3GgCsBEFuXVViTG">平均时延</div><div class="v" data-page-node-id="afZiBVdNxDxjBH3q5QW84Q">{{ snap.stats.avg_delay.toFixed(1) }}<small data-page-node-id="59CaTHf1kzYpvS6C2uKqBc"> 步</small></div></div>
+          <div class="card" data-page-node-id="3iBOFEI8EplZUiFaIww1c7"><div class="k" data-page-node-id="usgxEYTRvw38kdmbxjjbdj">机巢周转率</div><div class="v" data-page-node-id="tbQVIKxrw66rcHn7aeBnvO">{{ snap.stats.nest_turnover.toFixed(2) }}</div></div>
+          <div class="card" data-page-node-id="H8MQS3n51nL7gFphCaNAbM"><div class="k" data-page-node-id="kaPZf222DxiH9WfjNnIQFd">泊位利用率</div><div class="v" data-page-node-id="wJxh0OXJ9E4wTNiHzhkenl">{{ pct(snap.stats.berth_utilization) }}</div></div>
+          <div class="card" data-page-node-id="SX9JuzizSAkyBDqy0S7Oi9"><div class="k" data-page-node-id="pUQmMLTYxhozQtRgKzrjTA">累计能耗</div><div class="v" data-page-node-id="FC6sj5AoSs7dMmPEVxdWPn">{{ (snap.stats.energy/1000).toFixed(1) }}<small data-page-node-id="UQMvejP0NzP1ZDbT6P38Jt"> kWh</small></div></div>
+          <div class="card" data-page-node-id="aCovr1OSvkIqMwypbdcPXs"><div class="k" data-page-node-id="AABTpcNPsFGeUXlnpC51VS">换电次数</div><div class="v" data-page-node-id="X135AGq9EzgzLqU6mPt3HC">{{ snap.stats.swap_sessions }}</div></div>
+          <div class="card" data-page-node-id="nfzUtilCard"><div class="k" data-page-node-id="nfzUtilK">机队利用率</div><div class="v" data-page-node-id="nfzUtilV">{{ pct(snap.stats.utilization) }}</div></div>
+          <div class="card" data-page-node-id="nfzEmptyCard"><div class="k" data-page-node-id="nfzEmptyK">空载率</div><div class="v" data-page-node-id="nfzEmptyV">{{ pct(snap.stats.empty_load_ratio) }}</div></div>
+          <div class="card" data-page-node-id="nfzChainCard"><div class="k" data-page-node-id="nfzChainK">顺路接入</div><div class="v" data-page-node-id="nfzChainV">{{ snap.stats.chain_insertions }}<small data-page-node-id="nfzChainS"> 次</small></div></div>
+          <div class="card" data-page-node-id="nfzDetCard"><div class="k" data-page-node-id="nfzDetK">禁飞绕飞</div><div class="v" data-page-node-id="nfzDetV">{{ snap.stats.no_fly_detours }}<small data-page-node-id="nfzDetS"> 次</small></div></div>
+        </div>
+        <div class="chart-box" data-page-node-id="s6dvoTkO4iFkv7cFBBCnaG">
+          <div class="h" data-page-node-id="QjneynkS4KlvtiFfufSeLj">关键指标趋势</div>
+          <div id="trend" data-page-node-id="OOEWN2XNwHMSRGNxzxeej1"></div>
+        </div>
+        <div class="hint" data-page-node-id="E3DgvtBCqDdH2kZPreRFnb">
+          播放支持 1x/2x/5x/10x 批量步进；“＋ 新任务”可在当前状态下注入订单并观察滚动重调度。切算法/改 Seed 后点「重置」。<br data-page-node-id="Lrs0KcntxfNkthIXH061BQ">
+          「配置」可改场景与算法超参，保存后自动重建环境生效。
+        </div>
+      </template>
+
+      <template v-if="tab==='dispatch'">
+        <div class="dispatch-box">
+          <div class="h"><span>实时调度状态</span><span class="hint">{{ algorithm.toUpperCase() }}</span></div>
+          <div class="mini-row">
+            <span class="chip">待调度 {{ snap.pending_count ?? snap.tasks.length }}</span>
+            <span class="chip">配送中 {{ busyDroneCount }}</span>
+            <span class="chip">泊位排队 {{ berthQueueCount }}</span>
+            <span class="chip">任务链 {{ activeChainCount }}</span>
+            <span class="chip" v-if="offlineDroneCount">停飞 {{ offlineDroneCount }}</span>
+            <span class="chip" v-if="closedNestCount">关闭机巢 {{ closedNestCount }}</span>
+            <span class="chip"><span class="stream-state">订单流 {{ snap.controls?.task_generation_paused ? '已暂停' : '自动生成中' }}</span></span>
+          </div>
+          <div class="incident-actions" style="margin:7px 0">
+            <button class="tiny-btn" :disabled="streamBusy" @click="setTaskStream(!snap.controls?.task_generation_paused)">{{ snap.controls?.task_generation_paused ? '恢复自动任务流' : '暂停自动任务流' }}</button>
+            <button class="tiny-btn" @click="openTaskModal">人工插入任务</button>
+          </div>
+          <div class="sub" v-if="snap.tasks.length">最紧任务：{{ snap.tasks.slice().sort((a,b)=>a.remaining_time-b.remaining_time)[0].id }} · 剩余 {{ snap.tasks.slice().sort((a,b)=>a.remaining_time-b.remaining_time)[0].remaining_time }}s</div>
+          <div class="empty-tip" v-else>当前没有等待分配的任务</div>
+        </div>
+
+        <div class="dispatch-box">
+          <div class="h"><span>场景事件注入</span><span class="hint">不中断当前仿真</span></div>
+          <div class="incident-actions">
+            <button class="tiny-btn danger" :disabled="incidentBusy || offlineDroneCount >= snap.drones.length" @click="randomDroneFault">随机无人机故障</button>
+            <button class="tiny-btn danger" :disabled="incidentBusy || snap.nests.length - closedNestCount <= 1" @click="randomNestClose">随机关闭机巢</button>
+            <button class="tiny-btn success" :disabled="incidentBusy || (!offlineDroneCount && !closedNestCount)" @click="restoreAllIncidents">恢复全部</button>
+          </div>
+          <div class="sub">故障机会立即停飞并回收未完成任务；关闭机巢会停止接收新补能请求并触发改道。事件后继续“单步/播放”即可观察真实算法重调度。</div>
+          <div class="incident-note" v-if="incidentError">{{ incidentError }}</div>
+        </div>
+
+        <div class="dispatch-box">
+          <div class="h"><span>待调度任务</span><span class="hint">按剩余时限排序</span></div>
+          <div class="dispatch-scroll" style="max-height:150px">
+            <div class="select-row" v-for="t in pendingTasksSorted.slice(0,8)" :key="t.id" @click="selectEntity('task', t.id)">
+              <div class="candidate-head"><span>{{ t.id }} · {{ t.category }}</span><span :class="t.priority>=3 ? 'candidate-bad' : 'hint'">P{{ t.priority }}</span></div>
+              <div class="sub">{{ t.weight }}kg · 剩余 {{ t.remaining_time ?? '—' }}s<span v-if="t.manual"> · 人工任务</span></div>
+            </div>
+            <div class="empty-tip" v-if="!pendingTasksSorted.length">当前没有等待分配的任务</div>
+          </div>
+        </div>
+
+        <div class="dispatch-box">
+          <div class="h"><span>无人机任务链</span><span class="hint">能力 / 电量 / 链状态</span></div>
+          <div class="dispatch-scroll">
+            <div class="drone-row clickable" :class="{'offline-row':d.out_of_service}" v-for="d in snap.drones" :key="d.id" @click="selectEntity('drone', d.id)">
+              <div class="row-head">
+                <span><i class="dot" :style="{background: STATE_COLOR[d.state] || '#888'}" style="display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:5px"></i>{{ d.id }}</span>
+                <span class="hint">{{ d.type }}</span>
+              </div>
+              <div class="sub">{{ d.out_of_service ? '停飞 · ' : '' }}电量 {{ pct(d.battery_ratio) }} · 载重 {{ d.load.toFixed(1) }}/{{ d.capacity.toFixed(1) }}kg · 剩余航线 {{ Math.round(d.remaining_route_m) }}m</div>
+              <div class="chain" v-if="d.task_chain && d.task_chain.length">
+                <span v-for="(t,i) in d.task_chain" :key="t.task_id"><b>{{ t.task_id }}</b><span v-if="i < d.task_chain.length-1"> → </span></span>
+              </div>
+              <div class="sub" v-else>当前无任务链</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="dispatch-box">
+          <div class="h"><span>机巢资源队列</span><span class="hint">{{ snap.nests.length }} 个机巢</span></div>
+          <div class="dispatch-scroll" style="max-height:170px">
+            <div class="nest-row clickable" :class="{'closed-row':n.closed}" v-for="n in snap.nests" :key="n.id" @click="selectEntity('nest', n.id)">
+              <div class="row-head"><span>机巢 {{ n.id }}<span v-if="n.closed" class="candidate-bad"> · 已关闭</span></span><span>{{ n.occupied }}/{{ n.berths }} 泊位</span></div>
+              <div class="sub" v-if="n.queue && n.queue.length">
+                <div v-for="q in n.queue" :key="q.drone_id">#{{ q.rank }} {{ q.drone_id }} · 电量 {{ pct(q.battery_ratio) }} · 等待 {{ q.wait_seconds }}s · P={{ q.priority_score }}</div>
+              </div>
+              <div class="sub" v-else>无排队 · 空余 {{ n.free_berths }}</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="dispatch-box">
+          <div class="h"><span>调度决策 / 事件日志</span><span class="hint">最近 {{ Math.min(30,(snap.events||[]).length) }} 条</span></div>
+          <div class="dispatch-scroll" style="max-height:240px">
+            <div v-for="e in (snap.events||[]).slice().reverse().slice(0,30)" :key="e.seq" class="event" :class="[e.level, {clickable: eventHasEntity(e)}]" @click="selectFromEvent(e)">
+              <span class="event-time">T={{ e.time }}</span>{{ e.message }}
+            </div>
+            <div class="empty-tip" v-if="!(snap.events||[]).length">暂无事件</div>
+          </div>
+        </div>
+      </template>
+
+      <template v-if="tab==='compare'" data-page-node-id="A6gEjnv2E6sVzFiBhGi5w1">
+        <div class="chart-box" data-page-node-id="MDNaiLaNVYJjWftFYLqXiW">
+          <div class="h" style="display:flex;justify-content:space-between;align-items:center" data-page-node-id="JRFXd5zgUUs4hlvvtZVa6F">
+            多算法对比
+            <select v-model="compareMetric" @change="drawCompare" style="height:28px" data-page-node-id="PHVQAQv2oy7Ip3tt8ZX3jn">
+              <option v-for="c in compareColumns" :key="c" :value="c" data-page-node-id="NffVH6xWcACIKf4ihGqDEh">{{c}}</option>
+            </select>
+          </div>
+          <div id="compare" data-page-node-id="E8AQznnsxavMfUu3uY3sw7"></div>
+        </div>
+        <div class="hint" data-page-node-id="Cc6NJZ0rfBMPg5ST89vWL2">数据来自 results/compare/*.csv 各算法最近一次评测结果。可点击「刷新」重新读取。</div>
+        <button class="btn" @click="loadCompare" data-page-node-id="7u0mMZ9EVyBuahwl3TiQdZ">刷新对比数据</button>
+      </template>
+
+      <template v-if="tab==='experiment'">
+        <div class="experiment-box">
+          <div class="h">一键实验编排</div>
+          <div class="row">
+            <select v-model="experimentPreset">
+              <option v-for="p in experimentPresets" :key="p.key" :value="p.key">{{ p.name }} · {{ p.runs }} 次运行</option>
+            </select>
+            <button class="btn primary" @click="runExperiment" :disabled="experimentRunning">{{ experimentRunning ? '运行中' : '一键运行' }}</button>
+          </div>
+          <div class="hint" v-if="selectedExperimentPreset">{{ selectedExperimentPreset.description }}</div>
+          <div class="progress"><i :style="{width: ((experimentStatus.progress || 0) * 100).toFixed(1) + '%'}"></i></div>
+          <div class="status-line">
+            状态：<span :class="experimentStatus.state==='completed' ? 'status-good' : (experimentStatus.state==='failed' ? 'status-bad' : '')">{{ experimentStateText }}</span><br>
+            进度：{{ experimentStatus.completed_runs || 0 }} / {{ experimentStatus.total_runs || 0 }}<br>
+            当前：{{ experimentStatus.current || '未启动' }}
+          </div>
+          <div class="status-line" v-if="experimentStatus.output_dir">结果目录：{{ experimentStatus.output_dir }}</div>
+          <div class="status-line" v-if="experimentStatus.conclusion_package_available">可归档正式实验：{{ experimentStatus.conclusion_experiment }}</div>
+          <div class="status-line" v-else>尚无通过 v1.0 证据校验的 conclusion 正式实验。</div>
+          <div class="status-line status-bad" v-if="experimentStatus.error">{{ experimentStatus.error }}</div>
+          <div class="row">
+            <button class="btn" @click="loadExperimentStatus">刷新状态</button>
+            <a v-if="experimentStatus.conclusion_package_available" class="btn" href="/api/experiments/package" target="_blank" title="基于最近一次 conclusion 正式实验生成证据归档包">下载结项证据包</a>
+          </div>
+        </div>
+        <div class="hint">
+          这里不会改写当前 simulation.json。批量评测会为每次运行生成隔离配置，并让同一条件下的不同算法使用相同 Seed。正式实验额外生成均值/标准差/中位数、同 Seed 的 GA↔Greedy 描述性配对表，以及 reproducibility.json 环境清单；“下载结项证据包”只打包最近一次 conclusion 正式实验。
+        </div>
+      </template>
+    </div>
+  </div>
+
+  <div class="modal-mask" v-if="showConfig" @click.self="showConfig=false" data-page-node-id="SJhG8jDuiu2fRBIFv1AvSG">
+    <div class="modal" data-page-node-id="Lkvwo8Whjwxt1s0ftqzwTg">
+      <h3 data-page-node-id="XARI3fpUD1vX3G20FYW0VE">仿真配置</h3>
+      <div class="group" data-page-node-id="FOIdOKqT7gQsmd4k0Fj3c0">
+        <div class="group-title" data-page-node-id="5VZvj3WQBlnXQCF26i7WYQ">场景配置（simulation.json）</div>
+        <div class="form-grid" data-page-node-id="StIdZmRG6jFTLFmQ0qApbZ">
+          <div class="field" data-page-node-id="aD5qROPkAePXodp7vJgQDI"><label data-page-node-id="6yiZEqD6GvBFeKFLe6qGdj">机队数量 num_drones</label><input type="number" v-model.number="cfg.num_drones" min="2" max="20" data-page-node-id="PvZUVNOtg4gU0MoREefuM6"></div>
+          <div class="field" data-page-node-id="Qvd2qanH5q8etEyCxflBfR"><label data-page-node-id="lNxHPz3RawHsBZM1Bz7TsY">任务总数 total_tasks</label><input type="number" v-model.number="cfg.total_tasks" min="10" max="200" data-page-node-id="1BxEe28zisDvZn8unWopU4"></div>
+          <div class="field" data-page-node-id="LK07IXYk9lWjCNsTZcFViB"><label data-page-node-id="MvER76VRm4pKEYALsPShIm">轻载机 light_express</label><input type="number" v-model.number="cfg.light" min="0" max="20" data-page-node-id="HQdQWJASrOYDsiQJBGkHFU"></div>
+          <div class="field" data-page-node-id="2vO8R5Yz6BCMlxLBdrGAGF"><label data-page-node-id="Z2n4ft4uptDp75ZsgekGHo">标准机 standard_cargo</label><input type="number" v-model.number="cfg.standard" min="0" max="20" data-page-node-id="UH82DPMhRcILvkHs97WdiF"></div>
+          <div class="field" data-page-node-id="gHb2QVkq732Rb6ctyEUnAe"><label data-page-node-id="SaXIgSX2RBFP2ETn38B9QI">重载机 heavy_cargo</label><input type="number" v-model.number="cfg.heavy" min="0" max="20" data-page-node-id="YGwuCJUVbAItvvHGEsiWQ2"></div>
+          <div class="field" data-page-node-id="eglLCySx7LVXnFDj74cTrg"><label data-page-node-id="St3UvAS9bhamRU5vEA4dDj">高峰概率 peak_probability</label><input type="number" v-model.number="cfg.peak" min="0" max="1" step="0.05" data-page-node-id="pTDZmaEelcPufWorhctX3d"></div>
+          <div class="field" data-page-node-id="kCY3osf1XpmgTP6w3b8VNZ"><label data-page-node-id="r58IH1qtYJ7E8jimNZkkfz">机巢泊位数 berths</label><input type="number" v-model.number="cfg.berths" min="1" max="8" data-page-node-id="GY8ykBF84ZEAMkCEggPTLt"></div>
+          <div class="field" data-page-node-id="wEsWTsDa0RFh4kNBEzLhbj"><label data-page-node-id="zBiXJdsR1ZJ0DohuAWtQAN">仲裁策略</label>
+            <select v-model="cfg.arbitration" data-page-node-id="pT4YQCPVkSRCNfdSrFPv6R"><option value="priority" data-page-node-id="LKltViIGjUv9mtZq2OuTGl">动态优先级</option><option value="fifo" data-page-node-id="3lw9sjgJRTaedXsNzGSWFW">先到先服务</option></select>
+          </div>
+          <div class="field" data-page-node-id="PFCe6O8F4vZo2s874juKjx"><label data-page-node-id="7muoqWJEuVtHnI3OUmneZm">SLA 下限（秒）</label><input type="number" v-model.number="cfg.deadline_min" min="60" max="3600" data-page-node-id="1TeEx2izstHFwXIMatM7hF"></div>
+          <div class="field" data-page-node-id="tGKsKIX5pCAZtgL9l0z8Et"><label data-page-node-id="By4YwYRf5RIFcB1hlx4xcm">回合步数上限</label><input type="number" v-model.number="cfg.episode_max" min="500" max="7200" step="500" data-page-node-id="WEHpz8wM0M5ckGws0AGh7p"></div>
+        </div>
+      </div>
+      <div class="group" data-page-node-id="ANjX32Ym4Cn5DAUn1AsvwK">
+        <div class="group-title" data-page-node-id="AkalLbXz1XCUdoPec5rFtl">算法超参（backend_si/config.yaml）</div>
+        <div class="form-grid" data-page-node-id="fF4G5u02ORQeeffnLfQ083">
+          <div class="field" data-page-node-id="5gLyOXh3VhBKouaMc73X2N"><label data-page-node-id="283DFPAovfKnvVCmR28yyL">PSO 粒子数</label><input type="number" v-model.number="algo.pso_particles" min="5" max="100" data-page-node-id="GpYrCVKIUJyCh1fQ7Fnzs3"></div>
+          <div class="field" data-page-node-id="EVx51Yh4kgKO8XHsloFTOj"><label data-page-node-id="6OvOggCGveUfbalyZFcNju">PSO 迭代次数</label><input type="number" v-model.number="algo.pso_iter" min="5" max="200" data-page-node-id="MRjnpdS0iBNByWwryNoO9F"></div>
+          <div class="field" data-page-node-id="bLDu1CM6mEQleZhN9CLM59"><label data-page-node-id="y4qmN0HPnQFucQKvNuamWg">GA 种群规模</label><input type="number" v-model.number="algo.ga_pop" min="10" max="200" data-page-node-id="MAfbCPg4OF6GAu5TAjBa3s"></div>
+          <div class="field" data-page-node-id="dtxxmAlOCqQv3HLttMCXw7"><label data-page-node-id="ceBwllcTQVb0aYihs71F5H">GA 进化代数</label><input type="number" v-model.number="algo.ga_gen" min="5" max="200" data-page-node-id="qpROnh9yXzFdd7uqU3rV9N"></div>
+          <div class="field" data-page-node-id="CZVyX1fRcmxlBG3FXLM1vc"><label data-page-node-id="BaCHSF1oDPbQvGSd7IZjiV">OR-Tools 求解时限(s)</label><input type="number" v-model.number="algo.ortools_t" min="0.1" max="10" step="0.1" data-page-node-id="SWNdLYdI8D5SCdAA2ChWBX"></div>
+          <div class="field" data-page-node-id="enY2NPTDbFm3wPkm8rMON6"><label data-page-node-id="aKm52nvUHFkPaw5iGkYil3">缓冲触发阈值</label><input type="number" v-model.number="algo.buffer" min="5" max="50" data-page-node-id="04w8NvwOsC1AKQReVd94ql"></div>
+        </div>
+      </div>
+      <div class="status-line status-bad" v-if="configError">{{ configError }}</div>
+      <div class="actions" data-page-node-id="EB56MhHbUDFObRVPnQ0dwP">
+        <button class="btn" :disabled="configBusy" @click="showConfig=false" data-page-node-id="zjHWTLO2K0EQR4gY5KCvE0">取消</button>
+        <button class="btn primary" :disabled="configBusy" @click="saveConfig" data-page-node-id="xCZ9sIVEbQh3WgEKNpI2Th">{{ configBusy ? '校验并重建中…' : '保存并应用' }}</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-mask" v-if="showSceneEditor" @click.self="closeSceneEditor">
+    <div class="modal" style="width:780px">
+      <h3>场景布局编辑器</h3>
+      <div class="scene-warning" v-if="sceneDraft.dataSourceType!=='random'">当前数据源是 {{ sceneDraft.dataSourceType }}。此编辑器只直接修改 simulation.json 的随机场景布局；CSV/GeoJSON 场景请改导入文件。</div>
+      <div class="group">
+        <div class="group-title">机巢网络布局</div>
+        <div class="scene-list">
+          <div class="scene-row" v-for="(n,i) in sceneDraft.nests" :key="'nest-'+i">
+            <div class="scene-row-head"><span>机巢 {{ n.station_id }}</span><span class="hint">{{ fmtCoord(n.x,n.y) }}</span></div>
+            <div class="scene-row-grid">
+              <div class="field"><label>ID</label><input type="number" v-model.number="n.station_id"></div>
+              <div class="field"><label>X</label><input type="number" v-model.number="n.x"></div>
+              <div class="field"><label>Y</label><input type="number" v-model.number="n.y"></div>
+              <div class="field"><label>泊位</label><input type="number" min="1" max="8" v-model.number="n.berths"></div>
+            </div>
+            <div class="scene-toolbar"><button class="tiny-btn" @click="startScenePointPick('move-nest',i)">地图移动</button><button class="tiny-btn danger" :disabled="sceneDraft.nests.length<=1" @click="removeSceneNest(i)">删除</button></div>
+          </div>
+        </div>
+        <div class="scene-toolbar"><button class="btn" @click="startScenePointPick('add-nest')">＋ 在 2D 地图添加机巢</button></div>
+      </div>
+      <div class="group">
+        <div class="group-title">禁飞区</div>
+        <div class="form-grid" style="margin-bottom:8px">
+          <div class="field"><label>总开关</label><select v-model="sceneDraft.noFly.enabled"><option :value="true">启用</option><option :value="false">关闭</option></select></div>
+          <div class="field"><label>安全余量(m)</label><input type="number" min="0" step="5" v-model.number="sceneDraft.noFly.reserve_margin_m"></div>
+          <div class="field"><label>新圆形禁飞区半径(m)</label><input type="number" min="20" step="10" v-model.number="sceneDraft.newZoneRadius"></div>
+        </div>
+        <div class="scene-list">
+          <div class="scene-row" v-for="(z,i) in sceneDraft.noFly.zones" :key="'zone-'+i">
+            <div class="scene-row-head"><span>{{ z.name || ('禁飞区 '+(i+1)) }}</span><span class="hint">{{ z.type }}</span></div>
+            <div class="scene-row-grid">
+              <div class="field"><label>名称</label><input v-model="z.name"></div>
+              <div class="field"><label>启用</label><select v-model="z.enabled"><option :value="true">是</option><option :value="false">否</option></select></div>
+              <div class="field" v-if="z.type==='circle'"><label>半径(m)</label><input type="number" min="10" v-model.number="z.radius"></div>
+              <div class="field" v-if="z.type==='circle'"><label>中心</label><input :value="fmtCoord(z.center?.[0],z.center?.[1])" disabled></div>
+              <div class="field" v-else><label>顶点数</label><input :value="(z.points||[]).length" disabled></div>
+            </div>
+            <div class="scene-toolbar"><button v-if="z.type==='circle'" class="tiny-btn" @click="startScenePointPick('move-zone',i)">地图移动</button><button class="tiny-btn danger" @click="removeSceneZone(i)">删除</button></div>
+          </div>
+        </div>
+        <div class="scene-toolbar"><button class="btn" @click="startScenePointPick('add-zone')">＋ 在 2D 地图添加圆形禁飞区</button></div>
+      </div>
+      <div class="task-note">保存后会热重建当前仿真环境，因此运行状态会重置；算法选择和 Seed 保留。场景编辑用于“设计场景”，运行时任务/故障/补能控制仍在主控制台完成。</div>
+      <div class="status-line status-bad" v-if="sceneError" style="margin-top:8px">{{ sceneError }}</div>
+      <div class="actions"><button class="btn" @click="closeSceneEditor">取消</button><button class="btn primary" :disabled="sceneBusy || sceneDraft.dataSourceType!=='random'" @click="saveSceneLayout">{{ sceneBusy ? '正在重建…' : '保存布局并重建' }}</button></div>
+    </div>
+  </div>
+
+  <div class="modal-mask" v-if="showSceneLibrary" @click.self="showSceneLibrary=false">
+    <div class="modal" style="width:720px">
+      <h3>场景库 · 保存 / 复用 / 导入导出</h3>
+      <div class="task-note">场景库保存“初始配置 + 算法 + Seed”，适合复现实验与答辩场景；运行态快照保存的是仿真进行到某一时刻的动态状态，两者用途不同。</div>
+      <div class="group" style="margin-top:12px">
+        <div class="group-title">保存当前场景</div>
+        <div class="form-grid">
+          <div class="field"><label>场景名称</label><input v-model.trim="sceneLibraryForm.name" maxlength="80" placeholder="例如：应急医疗答辩场景"></div>
+          <div class="field"><label>是否保存算法超参</label><select v-model="sceneLibraryForm.include_scheduler"><option :value="true">保存（推荐）</option><option :value="false">只保存仿真配置</option></select></div>
+        </div>
+        <div class="field" style="margin-top:8px"><label>说明</label><input v-model.trim="sceneLibraryForm.description" maxlength="500" placeholder="记录用途、关键参数或答辩说明"></div>
+        <div class="scene-toolbar"><button class="btn primary" :disabled="sceneLibraryBusy" @click="saveCurrentScene">保存当前场景</button><button class="btn" :disabled="sceneLibraryBusy" @click="triggerSceneImport">导入 JSON</button><input ref="sceneImport" type="file" accept="application/json,.json" style="display:none" @change="importSceneFile"></div>
+      </div>
+      <div class="group">
+        <div class="group-title">已保存场景（{{ sceneLibrary.length }}）</div>
+        <div class="scene-library-list" v-if="sceneLibrary.length">
+          <div class="scene-library-card" v-for="sc in sceneLibrary" :key="sc.scene_id">
+            <div class="scene-library-head"><div class="meta"><strong>{{ sc.name }}</strong><span>{{ sc.description || '无说明' }}<br>{{ sc.algorithm.toUpperCase() }} · Seed {{ sc.seed }} · {{ sc.num_drones }} 架无人机 · {{ sc.nest_count }} 个机巢</span></div></div>
+            <div class="scene-library-actions"><button class="tiny-btn success" :disabled="sceneLibraryBusy" @click="applySavedScene(sc)">应用并重建</button><button class="tiny-btn" :disabled="sceneLibraryBusy" @click="exportSavedScene(sc)">导出 JSON</button><button class="tiny-btn danger" :disabled="sceneLibraryBusy" @click="deleteSavedScene(sc)">删除</button></div>
+          </div>
+        </div>
+        <div class="empty-tip" v-else>暂无保存场景。建议先保存一份“稳定答辩场景”，以后可一键恢复初始配置。</div>
+      </div>
+      <div class="status-line status-good" v-if="sceneLibraryMessage">{{ sceneLibraryMessage }}</div>
+      <div class="status-line status-bad" v-if="sceneLibraryError">{{ sceneLibraryError }}</div>
+      <div class="actions"><button class="btn" @click="showSceneLibrary=false">关闭</button></div>
+    </div>
+  </div>
+
+  <div class="modal-mask" v-if="showGuide" @click.self="closeGuide">
+    <div class="modal" style="width:680px">
+      <h3>群智优衡 · 推荐操作流程</h3>
+      <div class="guide-steps">
+        <div class="guide-step"><strong>1. 先选“场景”，再选“算法”</strong><span>普通使用可从“场景库”或“答辩演示场景”开始；算法切换后点击“重置”让调度器从同一 Seed 重新开始。</span></div>
+        <div class="guide-step"><strong>2. 用播放 / 单步观察真实调度</strong><span>2D/3D 地图、任务链、机巢队列和事件日志都来自同一仿真会话。需要看清一次重规划时，先暂停再点“单步”。</span></div>
+        <div class="guide-step"><strong>3. 运行中制造变化</strong><span>可新增紧急任务、调整待调度任务 SLA、要求无人机补能、制造无人机故障或关闭机巢，随后让当前算法在现有状态上继续决策。</span></div>
+        <div class="guide-step"><strong>4. “快照”和“场景库”不要混用</strong><span>快照恢复动态节点；场景库恢复可分享的初始配置。结构性场景编辑会重建环境，因此重要动态节点请先明确是否需要保留。</span></div>
+        <div class="guide-step"><strong>5. 结项数据去“实验”页</strong><span>交互式仿真负责展示系统能力；一键实验负责重复评测与敏感性分析。两者共用同一环境和调度算法。</span></div>
+      </div>
+      <div class="actions"><button class="btn primary" @click="closeGuide">开始使用</button></div>
+    </div>
+  </div>
+
+  <div class="modal-mask" v-if="showTaskModal" @click.self="showTaskModal=false">
+    <div class="modal" style="width:600px">
+      <h3>运行中新增任务</h3>
+      <div class="preset-actions">
+        <button class="btn" @click="applyTaskPreset('medical')">紧急医疗</button>
+        <button class="btn" @click="applyTaskPreset('bulk')">重货配送</button>
+        <button class="btn" @click="applyTaskPreset('normal')">普通订单</button>
+      </div>
+      <div class="group">
+        <div class="group-title">任务属性</div>
+        <div class="form-grid">
+          <div class="field"><label>任务类别</label><select v-model="taskForm.category"><option value="normal">普通 normal</option><option value="urgent">紧急 urgent</option><option value="emergency">应急 emergency</option><option value="bulk">重货 bulk</option></select></div>
+          <div class="field"><label>优先级（越大越紧急）</label><input type="number" v-model.number="taskForm.priority" min="1" max="3"></div>
+          <div class="field"><label>重量 kg</label><input type="number" v-model.number="taskForm.weight" min="0.1" step="0.1"></div>
+          <div class="field"><label>体积 m³</label><input type="number" v-model.number="taskForm.volume" min="0" step="0.1"></div>
+          <div class="field"><label>距截止时间 秒</label><input type="number" v-model.number="taskForm.deadline_offset" min="30" step="30"></div>
+          <div class="field"><label>位置模式</label><select v-model="taskForm.positionMode"><option value="random">随机合法点（推荐）</option><option value="manual">指定地图坐标（高级）</option></select></div>
+        </div>
+      </div>
+      <div class="group" v-if="taskForm.positionMode==='manual'">
+        <div class="group-title">地图坐标</div>
+        <div class="form-grid">
+          <div class="field"><label>起点 X</label><input type="number" v-model.number="taskForm.source_x"></div>
+          <div class="field"><label>起点 Y</label><input type="number" v-model.number="taskForm.source_y"></div>
+          <div class="field"><label>终点 X</label><input type="number" v-model.number="taskForm.dest_x"></div>
+          <div class="field"><label>终点 Y</label><input type="number" v-model.number="taskForm.dest_y"></div>
+        </div>
+      </div>
+      <div style="display:flex;justify-content:flex-end;margin-top:-4px;margin-bottom:8px"><button class="btn" @click="startMapPick">从 2D 地图点击选择起点 / 终点</button></div>
+      <div class="task-note">加入后不会重置仿真。任务会立即进入当前待调度池；恢复播放或点击“单步”后，当前算法将在现有无人机、电量、任务链和机巢队列状态上重新决策。</div>
+      <div class="status-line status-bad" v-if="taskError" style="margin-top:8px">{{ taskError }}</div>
+      <div class="actions">
+        <button class="btn" @click="showTaskModal=false">取消</button>
+        <button class="btn primary" @click="submitTask" :disabled="taskSubmitting">{{ taskSubmitting ? '正在加入…' : '加入当前仿真' }}</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const { createApp } = Vue;
+const STATE_COLOR = { idle: '#52c41a', busy: '#1890ff', charging: '#faad14', waiting_berth: '#fa8c16', to_nest:'#d97706', offline:'#6b7280' };
+const PALETTE = ['#1890ff','#fa8c16','#52c41a','#eb2f96','#722ed1','#13c2c2','#f5222d','#a0d911','#2f54eb','#faad14'];
+
+createApp({
+  data() {
+    return {
+      algorithm: 'greedy', seed: 100, playing: false, speed: 1, speeds: [1,2,5,10], stepping:false,
+      loading: true, view: '2d', tab: 'metrics', showConfig: false, configBusy:false, configError:'', showTaskModal:false, taskSubmitting:false, taskError:'',
+      showSceneEditor:false, sceneBusy:false, sceneError:'', sceneEditing:false,
+      showSceneLibrary:false, sceneLibraryBusy:false, sceneLibraryError:'', sceneLibraryMessage:'', sceneLibrary:[], sceneLibraryForm:{name:'',description:'',include_scheduler:true},
+      showGuide:false, appMeta:{version:'',name:'',capabilities:{}}, algorithmOptions:[{key:'greedy',label:'Greedy 贪心',available:true},{key:'pso',label:'PSO 粒子群',available:true},{key:'ga',label:'GA 遗传',available:true},{key:'ortools',label:'OR-Tools',available:true}],
+      snap: { step:0, time:0, done:false, controls:{task_generation_paused:false}, events:[], history:[], health:{level:'normal',summary:'等待状态数据'}, demo:{active:false,cursor:0,total:0,next:null,completed:false}, stats:{ completed:0,generated:0,completion_rate:0,timeout_rate:0,avg_delay:0,energy:0,nest_turnover:0,berth_utilization:0,swap_sessions:0,utilization:0,empty_load_ratio:0,flight_distance:0,chain_insertions:0,no_fly_detours:0 }, drones:[],nests:[],tasks:[],map:{bounds:[0,0,1000,1000]} },
+      trajectories: [], trend: [], timer: null, chart: null, compareChart: null,
+      compareRows: [], compareColumns: [], compareMetric: '',
+      experimentPresets: [], experimentPreset: 'quick', experimentStatus: {state:'idle',progress:0,completed_runs:0,total_runs:0}, experimentTimer: null,
+      scenarioPresets: [], scenarioKey: 'medical_peak', scenarioBusy:false, scenarioError:'', scenarioHasRestore:false,
+      checkpointName:'答辩节点', checkpointBusy:false, checkpointError:'',
+      mapStatic: { bounds:[0,0,1000,1000], buildings: [] },
+      cfg: { num_drones:10, total_tasks:60, light:5, standard:3, heavy:2, peak:0.7, berths:2, arbitration:'priority', deadline_min:900, episode_max:3600 },
+      algo: { pso_particles:20, pso_iter:30, ga_pop:60, ga_gen:40, ortools_t:2.0, buffer:15 },
+      taskForm: { category:'urgent', priority:3, weight:1.2, volume:0.2, deadline_offset:300, positionMode:'random', source_x:null, source_y:null, dest_x:null, dest_y:null },
+      taskEdit: {priority:3, deadline_offset:300, weight:1.0, category:'normal'}, taskEditBusy:false, taskEditError:'',
+      streamBusy:false,
+      sceneDraft: { dataSourceType:'random', nests:[], noFly:{enabled:true,reserve_margin_m:0,zones:[]}, newZoneRadius:150 },
+      mapPick: {active:false, mode:'task', stage:'source', source:null, destination:null, index:null},
+      selection: {type:null, id:null},
+      taskCandidates: {task_id:'', candidates:[], note:''}, taskCandidatesLoading:false,
+      incidentBusy:false, incidentError:'',
+      STATE_COLOR,
+      three: null, threeState: null,
+    };
+  },
+  computed: {
+    baseInterval() { return 350; },
+    busyDroneCount() { return (this.snap.drones || []).filter(d => d.state === 'busy').length; },
+    berthQueueCount() { return (this.snap.nests || []).reduce((a,n) => a + (n.queue_length || 0), 0); },
+    activeChainCount() { return (this.snap.drones || []).filter(d => (d.chain_len || 0) > 1).length; },
+    offlineDroneCount() { return (this.snap.drones || []).filter(d => d.out_of_service).length; },
+    closedNestCount() { return (this.snap.nests || []).filter(n => n.closed).length; },
+    taskCatalog() { return this.snap.task_catalog || this.snap.tasks || []; },
+    pendingTasksSorted() { return this.taskCatalog.filter(t => t.status === 'pending').slice().sort((a,b) => (a.remaining_time ?? 1e18) - (b.remaining_time ?? 1e18) || (b.priority||0)-(a.priority||0)); },
+    activeMapTasks() { return this.taskCatalog.filter(t => t.status !== 'completed'); },
+    selectedDrone() { return this.selection.type === 'drone' ? (this.snap.drones || []).find(d => String(d.id) === String(this.selection.id)) || null : null; },
+    selectedNest() { return this.selection.type === 'nest' ? (this.snap.nests || []).find(n => String(n.id) === String(this.selection.id)) || null : null; },
+    selectedTask() { return this.selection.type === 'task' ? this.taskCatalog.find(t => String(t.id) === String(this.selection.id)) || null : null; },
+    selectionTitle() { return this.selectedDrone?.id || (this.selectedNest ? ('机巢 ' + this.selectedNest.id) : this.selectedTask?.id) || '详情'; },
+    mapPickPrompt() {
+      if (!this.mapPick.active) return '';
+      if (this.mapPick.mode==='task') return this.mapPick.stage==='source' ? '请在 2D 地图点击任务起点' : '请继续点击任务终点';
+      if (this.mapPick.mode==='add-nest') return '请在 2D 地图点击新机巢位置';
+      if (this.mapPick.mode==='move-nest') return '请点击机巢的新位置';
+      if (this.mapPick.mode==='add-zone') return '请点击新圆形禁飞区的中心';
+      if (this.mapPick.mode==='move-zone') return '请点击禁飞区的新中心';
+      return '请在地图上取点';
+    },
+    onlineDroneCount() { return (this.snap.drones || []).filter(d => !d.out_of_service).length; },
+    actionSuggestions() {
+      const h=this.snap.health||{}, tips=[];
+      if((h.urgent_pending||0)>0) tips.push(`存在 ${h.urgent_pending} 条 P3 紧急任务：建议暂停自动订单流并单步观察重调度。`);
+      if((h.offline_drones||0)>0) tips.push(`有 ${h.offline_drones} 架无人机停飞：检查回收任务是否已重新分配，必要时恢复资源。`);
+      if((h.closed_nests||0)>0) tips.push(`有 ${h.closed_nests} 个机巢关闭：关注补能改道与剩余开放机巢负载。`);
+      if((h.low_battery_drones||0)>0) tips.push(`有 ${h.low_battery_drones} 架无人机低电：可点选无人机并请求补能。`);
+      if((this.berthQueueCount||0)>0) tips.push(`当前泊位排队 ${this.berthQueueCount}：打开“调度”页查看动态优先级仲裁。`);
+      if(!tips.length) tips.push('系统资源状态平稳。可继续播放，或人工插入紧急任务演示滚动重规划。');
+      return tips.slice(0,3);
+    },
+    selectedScenario() { return this.scenarioPresets.find(p => p.key === this.scenarioKey) || null; },
+    healthLevelText() { return ({normal:'平稳',warning:'关注',critical:'严重'})[this.snap.health?.level] || '未知'; },
+    checkpointRows() { return this.snap.checkpoints || []; },
+    selectedExperimentPreset() { return this.experimentPresets.find(p => p.key === this.experimentPreset) || null; },
+    experimentRunning() { return ['starting','running'].includes(this.experimentStatus.state); },
+    experimentStateText() {
+      const m = {idle:'未启动', starting:'正在启动', running:'运行中', completed:'已完成', completed_with_errors:'完成（部分失败）', failed:'失败', unknown:'状态未知'};
+      return m[this.experimentStatus.state] || this.experimentStatus.state || '未启动';
+    }
+  },
+  methods: {
+    pct(v) { return (Number(v || 0) * 100).toFixed(1) + '%'; },
+    fmtCoord(x,y) { return `${Number(x || 0).toFixed(0)}, ${Number(y || 0).toFixed(0)}`; },
+    entityTypeText(t) { return ({drone:'无人机',nest:'机巢',task:'任务'})[t] || '对象'; },
+    droneStateText(s) { return ({idle:'空闲',busy:'配送中',charging:'换电中',waiting_berth:'等待泊位',to_nest:'前往机巢补能',offline:'故障停飞'})[s] || s || '未知'; },
+    droneStatusClass(s) { return s==='idle' ? 'good' : (s==='offline' ? 'urgent' : (s==='waiting_berth'||s==='charging'||s==='to_nest' ? 'warn' : 'busy')); },
+    taskStatusText(s) { return ({pending:'待调度',assigned:'已分配',in_progress:'执行中',completed:'已完成'})[s] || s || '未知'; },
+    taskStatusClass(t) { if ((t?.priority || 0) >= 3 && t?.status !== 'completed') return 'urgent'; return t?.status==='completed' ? 'good' : (t?.status==='pending' ? 'warn' : 'busy'); },
+    async api(path, opts) {
+      const r = await fetch(path, opts);
+      if (!r.ok) { const e = await r.json().catch(()=>({detail:'请求失败'})); throw new Error(e.detail || r.statusText); }
+      return r.json();
+    },
+
+    async openSceneLibrary() {
+      this.stopPlay(); this.sceneLibraryError=''; this.sceneLibraryMessage=''; this.showSceneLibrary=true;
+      await this.loadSceneLibrary();
+    },
+    async loadSceneLibrary() {
+      try { const d=await this.api('/api/scene-library'); this.sceneLibrary=d.scenes||[]; }
+      catch(e) { this.sceneLibraryError=e.message; }
+    },
+    async saveCurrentScene() {
+      if(this.sceneLibraryBusy) return;
+      if(!this.sceneLibraryForm.name){ this.sceneLibraryError='请先填写场景名称。'; return; }
+      this.sceneLibraryBusy=true; this.sceneLibraryError=''; this.sceneLibraryMessage='';
+      try {
+        const d=await this.api('/api/scene-library',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(this.sceneLibraryForm)});
+        this.sceneLibrary=d.scenes||[]; this.sceneLibraryMessage='已保存当前配置，可随时一键复现。';
+      } catch(e) { this.sceneLibraryError=e.message; }
+      finally { this.sceneLibraryBusy=false; }
+    },
+    async applySavedScene(sc) {
+      if(!sc || this.sceneLibraryBusy) return;
+      this.stopPlay(); this.clearSelection(); this.sceneLibraryBusy=true; this.sceneLibraryError=''; this.sceneLibraryMessage='';
+      try {
+        const snap=await this.api('/api/scene-library/'+encodeURIComponent(sc.scene_id)+'/apply',{method:'POST'});
+        this.algorithm=snap.algorithm; this.seed=snap.seed; this.trajectories=[]; this.trend=[];
+        this.mapStatic=await this.api('/api/map'); this.destroy3d(); this.applySnap(snap); this.showSceneLibrary=false;
+        if(this.view==='3d') this.$nextTick(()=>{this.init3d();this.draw3d();});
+      } catch(e) { this.sceneLibraryError=e.message; }
+      finally { this.sceneLibraryBusy=false; }
+    },
+    async deleteSavedScene(sc) {
+      if(!sc || this.sceneLibraryBusy) return;
+      this.sceneLibraryBusy=true; this.sceneLibraryError=''; this.sceneLibraryMessage='';
+      try { const d=await this.api('/api/scene-library/'+encodeURIComponent(sc.scene_id),{method:'DELETE'}); this.sceneLibrary=d.scenes||[]; this.sceneLibraryMessage='场景已删除。'; }
+      catch(e) { this.sceneLibraryError=e.message; } finally { this.sceneLibraryBusy=false; }
+    },
+    async exportSavedScene(sc) {
+      if(!sc) return;
+      try {
+        const doc=await this.api('/api/scene-library/'+encodeURIComponent(sc.scene_id));
+        const blob=new Blob([JSON.stringify(doc,null,2)],{type:'application/json;charset=utf-8'});
+        const url=URL.createObjectURL(blob), a=document.createElement('a');
+        a.href=url; a.download=(sc.name||'swarm-scene').replace(/[\\/:*?"<>|]/g,'_')+'.json'; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+      } catch(e) { this.sceneLibraryError=e.message; }
+    },
+    triggerSceneImport() { if(this.$refs.sceneImport) this.$refs.sceneImport.click(); },
+    async importSceneFile(ev) {
+      const file=ev?.target?.files?.[0]; if(!file) return;
+      this.sceneLibraryBusy=true; this.sceneLibraryError=''; this.sceneLibraryMessage='';
+      try {
+        if(file.size>2*1024*1024) throw new Error('场景文件过大（上限 2 MiB）');
+        const doc=JSON.parse(await file.text());
+        const d=await this.api('/api/scene-library/import',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({document:doc})});
+        this.sceneLibrary=d.scenes||[]; this.sceneLibraryMessage='导入成功。导入只进入场景库，不会自动覆盖当前仿真。';
+      } catch(e) { this.sceneLibraryError=e.message; }
+      finally { this.sceneLibraryBusy=false; if(ev?.target) ev.target.value=''; }
+    },
+    closeGuide() { this.showGuide=false; try { localStorage.setItem('swarm-guide-seen','1'); } catch(_) {} },
+
+    async saveCheckpoint() {
+      if(this.checkpointBusy) return;
+      this.stopPlay(); this.checkpointBusy=true; this.checkpointError='';
+      try {
+        const r=await this.api('/api/checkpoints',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:this.checkpointName||'答辩节点'})});
+        if(r.snapshot) this.applySnap(r.snapshot);
+      } catch(e) { this.checkpointError=e.message; }
+      finally { this.checkpointBusy=false; }
+    },
+    async loadCheckpoint(name) {
+      if(this.checkpointBusy) return;
+      this.stopPlay(); this.clearSelection(); this.checkpointBusy=true; this.checkpointError='';
+      try {
+        const snap=await this.api('/api/checkpoints/'+encodeURIComponent(name)+'/load',{method:'POST'});
+        this.algorithm=snap.algorithm; this.seed=snap.seed;
+        this.trajectories=Array.isArray(snap.trajectories_restore)?snap.trajectories_restore:[];
+        this.applySnap(snap);
+      } catch(e) { this.checkpointError=e.message; }
+      finally { this.checkpointBusy=false; }
+    },
+    async deleteCheckpoint(name) {
+      if(this.checkpointBusy) return;
+      this.checkpointBusy=true; this.checkpointError='';
+      try {
+        const r=await this.api('/api/checkpoints/'+encodeURIComponent(name),{method:'DELETE'});
+        this.snap={...this.snap,checkpoints:r.checkpoints||[]};
+      } catch(e) { this.checkpointError=e.message; }
+      finally { this.checkpointBusy=false; }
+    },
+
+    async loadScenarios() {
+      try {
+        const d=await this.api('/api/scenarios');
+        this.scenarioPresets=d.presets||[]; this.scenarioHasRestore=!!d.has_restore_point;
+        if(!this.scenarioPresets.find(p=>p.key===this.scenarioKey) && this.scenarioPresets.length) this.scenarioKey=this.scenarioPresets[0].key;
+      } catch(e) { console.warn(e); }
+    },
+    async applyScenario() {
+      if(this.scenarioBusy) return;
+      this.stopPlay(); this.clearSelection(); this.scenarioBusy=true; this.scenarioError='';
+      try {
+        const snap=await this.api('/api/scenarios/apply',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({key:this.scenarioKey})});
+        this.algorithm=snap.algorithm; this.seed=snap.seed; this.trajectories=[]; this.trend=[];
+        this.mapStatic=await this.api('/api/map'); this.destroy3d(); this.applySnap(snap);
+        await this.loadScenarios();
+        if(this.view==='3d') this.$nextTick(()=>{this.init3d();this.draw3d();});
+      } catch(e) { this.scenarioError=e.message; }
+      finally { this.scenarioBusy=false; }
+    },
+    async advanceScenario() {
+      if(this.scenarioBusy) return;
+      this.stopPlay(); this.scenarioBusy=true; this.scenarioError='';
+      try { const snap=await this.api('/api/scenarios/next',{method:'POST'}); this.applySnap(snap); }
+      catch(e) { this.scenarioError=e.message; }
+      finally { this.scenarioBusy=false; }
+    },
+    async restoreScenario() {
+      if(this.scenarioBusy) return;
+      this.stopPlay(); this.clearSelection(); this.scenarioBusy=true; this.scenarioError='';
+      try {
+        const snap=await this.api('/api/scenarios/restore',{method:'POST'});
+        this.algorithm=snap.algorithm; this.seed=snap.seed; this.trajectories=[]; this.trend=[];
+        this.mapStatic=await this.api('/api/map'); this.destroy3d(); this.applySnap(snap); await this.loadScenarios();
+        if(this.view==='3d') this.$nextTick(()=>{this.init3d();this.draw3d();});
+      } catch(e) { this.scenarioError=e.message; }
+      finally { this.scenarioBusy=false; }
+    },
+
+    clearSelection() {
+      this.selection = {type:null, id:null};
+      this.taskCandidates = {task_id:'', candidates:[], note:''};
+      this.render();
+    },
+    async selectEntity(type, id) {
+      if (!type || id == null) return;
+      this.selection = {type, id:String(id)};
+      if (type === 'task') {
+        const t=this.taskCatalog.find(x=>String(x.id)===String(id));
+        if(t){ this.taskEdit={priority:Number(t.priority||1), deadline_offset:Math.max(30,Number(t.remaining_time||300)), weight:Number(t.weight||1), category:t.category||'normal'}; this.taskEditError=''; }
+        await this.loadTaskCandidates(String(id));
+      } else this.taskCandidates = {task_id:'', candidates:[], note:''};
+      this.render();
+    },
+    async loadTaskCandidates(taskId) {
+      const task = this.taskCatalog.find(t => String(t.id) === String(taskId));
+      if (!task || task.status !== 'pending') { this.taskCandidates = {task_id:String(taskId), candidates:[], note:''}; return; }
+      this.taskCandidatesLoading = true;
+      try { this.taskCandidates = await this.api('/api/tasks/' + encodeURIComponent(taskId) + '/candidates?limit=5'); }
+      catch(e) { this.taskCandidates = {task_id:String(taskId), candidates:[], note:e.message}; }
+      finally { this.taskCandidatesLoading = false; }
+    },
+    eventHasEntity(e) { return !!(e?.data && (e.data.task_id != null || e.data.drone_id != null || e.data.nest_id != null)); },
+    selectFromEvent(e) {
+      if (!this.eventHasEntity(e)) return;
+      if (e.data.task_id != null) this.selectEntity('task', e.data.task_id);
+      else if (e.data.drone_id != null) this.selectEntity('drone', e.data.drone_id);
+      else if (e.data.nest_id != null) this.selectEntity('nest', e.data.nest_id);
+    },
+
+    async setTaskStream(paused) {
+      if(this.streamBusy) return;
+      this.streamBusy=true; this.stopPlay();
+      try {
+        const snap=await this.api('/api/task-stream',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({paused:!!paused})});
+        this.applySnap(snap); this.tab='dispatch';
+      } catch(e) { this.incidentError=e.message; }
+      finally { this.streamBusy=false; }
+    },
+    async requestDroneCharge(drone) {
+      if(!drone || this.incidentBusy) return;
+      this.stopPlay(); this.incidentBusy=true; this.incidentError='';
+      try {
+        const snap=await this.api('/api/drones/'+encodeURIComponent(drone.id)+'/charge',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({station_id:null})});
+        this.applySnap(snap); this.tab='dispatch';
+      } catch(e) { this.incidentError=e.message; }
+      finally { this.incidentBusy=false; }
+    },
+    async saveTaskEdit(task) {
+      if(!task || task.status!=='pending' || this.taskEditBusy) return;
+      this.stopPlay(); this.taskEditBusy=true; this.taskEditError='';
+      try {
+        const body={priority:Number(this.taskEdit.priority),deadline_offset:Number(this.taskEdit.deadline_offset),weight:Number(this.taskEdit.weight),category:this.taskEdit.category};
+        const snap=await this.api('/api/tasks/'+encodeURIComponent(task.id),{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+        this.applySnap(snap);
+        await this.loadTaskCandidates(task.id);
+      } catch(e) { this.taskEditError=e.message; }
+      finally { this.taskEditBusy=false; }
+    },
+    async promoteTaskEmergency(task) {
+      if(!task) return;
+      this.taskEdit.priority=3; this.taskEdit.category='emergency'; this.taskEdit.deadline_offset=Math.min(300,Math.max(60,Number(task.remaining_time||300)));
+      await this.saveTaskEdit(task);
+    },
+
+    async setDroneIncident(drone, outOfService) {
+      if (!drone || this.incidentBusy) return;
+      this.stopPlay(); this.incidentBusy = true; this.incidentError = '';
+      try {
+        const snap = await this.api('/api/drones/' + encodeURIComponent(drone.id) + '/incident', {
+          method:'POST', headers:{'Content-Type':'application/json'},
+          body:JSON.stringify({out_of_service:!!outOfService, reason:outOfService?'答辩场景：模拟动力/通信故障':'人工恢复上线'})
+        });
+        this.applySnap(snap); this.tab='dispatch';
+      } catch(e) { this.incidentError = e.message; }
+      finally { this.incidentBusy = false; }
+    },
+    async setNestIncident(nest, closed) {
+      if (!nest || this.incidentBusy) return;
+      this.stopPlay(); this.incidentBusy = true; this.incidentError = '';
+      try {
+        const snap = await this.api('/api/nests/' + encodeURIComponent(nest.id) + '/incident', {
+          method:'POST', headers:{'Content-Type':'application/json'},
+          body:JSON.stringify({closed:!!closed, reason:closed?'答辩场景：模拟机巢维护/资源故障':'人工恢复开放'})
+        });
+        this.applySnap(snap); this.tab='dispatch';
+      } catch(e) { this.incidentError = e.message; }
+      finally { this.incidentBusy = false; }
+    },
+    async randomDroneFault() {
+      const online=(this.snap.drones||[]).filter(d=>!d.out_of_service);
+      if(!online.length) return;
+      const busy=online.filter(d=>d.state==='busy');
+      const pool=busy.length?busy:online;
+      const target=pool[Math.floor(Math.random()*pool.length)];
+      await this.setDroneIncident(target,true);
+      if(target) await this.selectEntity('drone',target.id);
+    },
+    async randomNestClose() {
+      const open=(this.snap.nests||[]).filter(n=>!n.closed);
+      if(open.length<=1) { this.incidentError='至少保留一个开放机巢。'; return; }
+      const ranked=open.slice().sort((a,b)=>(b.queue_length||0)-(a.queue_length||0) || (b.occupied||0)-(a.occupied||0));
+      const target=ranked[0];
+      await this.setNestIncident(target,true);
+      if(target) await this.selectEntity('nest',target.id);
+    },
+    async restoreAllIncidents() {
+      if(this.incidentBusy) return;
+      this.stopPlay(); this.incidentBusy=true; this.incidentError='';
+      try {
+        let snap=this.snap;
+        for(const d of (snap.drones||[]).filter(x=>x.out_of_service)) {
+          snap=await this.api('/api/drones/'+encodeURIComponent(d.id)+'/incident',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({out_of_service:false,reason:'一键恢复'})});
+        }
+        for(const n of (snap.nests||[]).filter(x=>x.closed)) {
+          snap=await this.api('/api/nests/'+encodeURIComponent(n.id)+'/incident',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({closed:false,reason:'一键恢复'})});
+        }
+        this.applySnap(snap); this.tab='dispatch';
+      } catch(e) { this.incidentError=e.message; }
+      finally { this.incidentBusy=false; }
+    },
+
+    async openSceneEditor() {
+      this.stopPlay(); this.sceneError='';
+      try {
+        const cfg=await this.api('/api/config');
+        const fallback=(this.snap.nests||[]).map(n=>({station_id:Number(n.id),x:n.x,y:n.y,berths:n.berths,swap_time_seconds:n.swap_time_seconds,charging_power:50}));
+        const berthDefault=Number(cfg.nest?.berths||2), swapDefault=Number(cfg.nest?.swap_time_seconds||180);
+        const rawNests=JSON.parse(JSON.stringify(cfg.charging_stations||fallback));
+        const nests=rawNests.map((n,i)=>({station_id:Number(n.station_id??i),x:Number(n.x),y:Number(n.y),berths:Number(n.berths??berthDefault),swap_time_seconds:Number(n.swap_time_seconds??swapDefault),charging_power:Number(n.charging_power??50)}));
+        this.sceneDraft={
+          dataSourceType:String(cfg.data_source?.type||'random').toLowerCase(),
+          nests,
+          noFly:JSON.parse(JSON.stringify(cfg.no_fly_zones||{enabled:false,reserve_margin_m:0,zones:[]})),
+          newZoneRadius:150,
+        };
+        if(!Array.isArray(this.sceneDraft.noFly.zones)) this.sceneDraft.noFly.zones=[];
+        this.sceneEditing=true; this.showSceneEditor=true;
+      } catch(e) { this.sceneError=e.message; this.showSceneEditor=true; }
+    },
+    closeSceneEditor() {
+      this.showSceneEditor=false; this.sceneEditing=false;
+      if(this.mapPick.active && this.mapPick.mode!=='task') this.mapPick={active:false,mode:'task',stage:'source',source:null,destination:null,index:null};
+      this.draw2d();
+    },
+    removeSceneNest(i) { if(this.sceneDraft.nests.length>1) this.sceneDraft.nests.splice(i,1); },
+    removeSceneZone(i) { this.sceneDraft.noFly.zones.splice(i,1); },
+    nextSceneNestId() {
+      const nums=this.sceneDraft.nests.map(n=>Number(n.station_id)).filter(Number.isFinite);
+      return nums.length ? Math.max(...nums)+1 : 0;
+    },
+    startScenePointPick(mode,index=null) {
+      this.stopPlay(); this.sceneError=''; this.showSceneEditor=false; this.sceneEditing=true; this.view='2d';
+      this.mapPick={active:true,mode,stage:'point',source:null,destination:null,index};
+      this.$nextTick(()=>this.draw2d());
+    },
+    async saveSceneLayout() {
+      if(this.sceneBusy) return;
+      this.sceneBusy=true; this.sceneError=''; this.stopPlay();
+      try {
+        const stations=this.sceneDraft.nests.map(n=>({station_id:Number(n.station_id),x:Number(n.x),y:Number(n.y),berths:Number(n.berths||1),swap_time_seconds:Number(n.swap_time_seconds||180),charging_power:Number(n.charging_power||50)}));
+        const nf=JSON.parse(JSON.stringify(this.sceneDraft.noFly));
+        nf.reserve_margin_m=Number(nf.reserve_margin_m||0);
+        (nf.zones||[]).forEach(z=>{ z.enabled=!!z.enabled; if(z.type==='circle'){ z.center=[Number(z.center?.[0]),Number(z.center?.[1])]; z.radius=Number(z.radius); } });
+        const snap=await this.api('/api/scene-layout',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({charging_stations:stations,no_fly_zones:nf})});
+        this.showSceneEditor=false; this.sceneEditing=false; this.clearSelection();
+        this.trajectories=[]; this.trend=[]; this.mapStatic=await this.api('/api/map'); this.destroy3d(); this.applySnap(snap);
+        if(this.view==='3d') this.$nextTick(()=>{this.init3d();this.draw3d();});
+      } catch(e) { this.sceneError=e.message; this.showSceneEditor=true; }
+      finally { this.sceneBusy=false; }
+    },
+
+    async init() {
+      try {
+        try { this.appMeta=await this.api('/api/meta'); const rows=this.appMeta?.capabilities?.algorithms; if(Array.isArray(rows)&&rows.length){ this.algorithmOptions=rows; if(!rows.some(a=>a.key===this.algorithm&&a.available)) this.algorithm='greedy'; } } catch(_) {}
+        const snap = await this.api('/api/snapshot');
+        this.algorithm=snap.algorithm||this.algorithm; this.seed=snap.seed??this.seed;
+        this.applySnap(snap);
+        this.mapStatic = await this.api('/api/map');
+        await this.loadScenarios();
+        await this.loadSceneLibrary();
+        try { if(localStorage.getItem('swarm-guide-seen')!=='1') this.showGuide=true; } catch(_) {}
+      } finally { this.loading = false; }
+      this.initChart();
+      window.addEventListener('resize', () => this.onResize());
+    },
+
+    applySnap(snap) {
+      this.snap = snap;
+      snap.drones.forEach(d => {
+        if (!this.trajectories[d.idx]) this.trajectories[d.idx] = [];
+        this.trajectories[d.idx].push([d.x, d.y]);
+      });
+      if(Array.isArray(snap.history) && snap.history.length) this.trend=snap.history.slice();
+      else { this.trend.push({step:snap.step,completion_rate:snap.stats.completion_rate,timeout_rate:snap.stats.timeout_rate,utilization:snap.stats.utilization,pending:snap.pending_count||0}); if(this.trend.length>200)this.trend.shift(); }
+      this.render();
+    },
+
+    render() {
+      if (this.view === '2d') this.draw2d(); else this.draw3d();
+      this.drawChart();
+    },
+
+    async reset() {
+      this.stopPlay();
+      this.clearSelection();
+      const snap = await this.api('/api/reset', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({algorithm:this.algorithm, seed:this.seed}) });
+      this.trajectories = []; this.trend = [];
+      this.applySnap(snap);
+    },
+    async advance(count=1) {
+      if (this.stepping) return;
+      this.stepping = true;
+      try {
+        const snap = await this.api('/api/step?count=' + count, { method:'POST' });
+        this.applySnap(snap);
+        if (snap.done && this.playing) this.stopPlay();
+      } catch(e) {
+        console.error(e); this.stopPlay();
+      } finally { this.stepping = false; }
+    },
+    async stepOnce() { await this.advance(1); },
+    togglePlay() { this.playing ? this.stopPlay() : this.startPlay(); },
+    startPlay() {
+      if (this.snap.done) return;
+      this.playing = true;
+      this.advance(this.speed);
+      this.timer = setInterval(() => this.advance(this.speed), this.baseInterval);
+    },
+    stopPlay() { this.playing = false; if (this.timer) { clearInterval(this.timer); this.timer = null; } },
+    setSpeed(s) { this.speed = s; },
+    onAlgorithmChange() {},
+    onResize() { if (this.view === '2d') this.draw2d(); else if (this.threeState) this.resize3d(); this.drawChart(); this.drawCompare(); },
+
+    // ============ 2D ============
+    project(bounds, x, y, w, h) {
+      const [minx,miny,maxx,maxy] = bounds; const pad = 40;
+      const bw = (maxx-minx)||1, bh = (maxy-miny)||1;
+      const scale = Math.min((w-pad*2)/bw, (h-pad*2)/bh);
+      const ox = (w-bw*scale)/2, oy = (h-bh*scale)/2;
+      return { sx: ox+(x-minx)*scale, sy: oy+(maxy-y)*scale, scale };
+    },
+    unproject(bounds, sx, sy, w, h) {
+      const [minx,miny,maxx,maxy] = bounds; const pad = 40;
+      const bw = (maxx-minx)||1, bh = (maxy-miny)||1;
+      const scale = Math.min((w-pad*2)/bw, (h-pad*2)/bh);
+      const ox = (w-bw*scale)/2, oy = (h-bh*scale)/2;
+      const x = minx + (sx-ox)/scale, y = maxy - (sy-oy)/scale;
+      return [Math.max(minx,Math.min(maxx,x)), Math.max(miny,Math.min(maxy,y))];
+    },
+    startMapPick() {
+      this.stopPlay();
+      this.showTaskModal = false;
+      this.view = '2d';
+      this.mapPick = {active:true, mode:'task', stage:'source', source:null, destination:null, index:null};
+      this.$nextTick(() => this.draw2d());
+    },
+    cancelMapPick() {
+      const wasScene=this.mapPick.mode!=='task';
+      this.mapPick = {active:false, mode:'task', stage:'source', source:null, destination:null, index:null};
+      if(wasScene && this.sceneEditing) this.showSceneEditor=true;
+      this.draw2d();
+    },
+    pointSegmentDistance(px,py,x1,y1,x2,y2) {
+      const vx=x2-x1, vy=y2-y1, wx=px-x1, wy=py-y1;
+      const c1=vx*wx+vy*wy, c2=vx*vx+vy*vy;
+      const t=c2>0 ? Math.max(0,Math.min(1,c1/c2)) : 0;
+      const qx=x1+t*vx, qy=y1+t*vy;
+      return Math.hypot(px-qx,py-qy);
+    },
+    hitTest2d(sx, sy, w, h) {
+      const P=(x,y)=>this.project(this.snap.map.bounds,x,y,w,h);
+      const hits=[];
+      (this.snap.drones||[]).forEach(d=>{ const p=P(d.x,d.y), dist=Math.hypot(sx-p.sx,sy-p.sy); if(dist<=13) hits.push({type:'drone',id:d.id,score:dist}); });
+      (this.snap.nests||[]).forEach(n=>{ const p=P(n.x,n.y), dist=Math.hypot(sx-p.sx,sy-p.sy); if(dist<=14) hits.push({type:'nest',id:n.id,score:dist+1}); });
+      (this.activeMapTasks||[]).forEach(t=>{
+        const a=P(t.source[0],t.source[1]), d=P(t.destination[0],t.destination[1]);
+        const endDist=Math.min(Math.hypot(sx-a.sx,sy-a.sy),Math.hypot(sx-d.sx,sy-d.sy));
+        const lineDist=this.pointSegmentDistance(sx,sy,a.sx,a.sy,d.sx,d.sy);
+        const dist=Math.min(endDist,lineDist+2); if(dist<=9) hits.push({type:'task',id:t.id,score:dist+0.5});
+      });
+      hits.sort((a,b)=>a.score-b.score); return hits[0] || null;
+    },
+    handleMapClick(e) {
+      if (this.view !== '2d') return;
+      const cv = document.getElementById('c2d'); if (!cv) return;
+      const rect = cv.getBoundingClientRect();
+      const sx=e.clientX-rect.left, sy=e.clientY-rect.top;
+      if (!this.mapPick.active) {
+        const hit=this.hitTest2d(sx,sy,cv.clientWidth,cv.clientHeight);
+        if (hit) this.selectEntity(hit.type, hit.id); else this.clearSelection();
+        return;
+      }
+      const pos = this.unproject(this.snap.map.bounds, sx, sy, cv.clientWidth, cv.clientHeight);
+      if(this.mapPick.mode!=='task') {
+        const x=Number(pos[0].toFixed(2)), y=Number(pos[1].toFixed(2)), idx=this.mapPick.index;
+        if(this.mapPick.mode==='add-nest') this.sceneDraft.nests.push({station_id:this.nextSceneNestId(),x,y,berths:2,swap_time_seconds:180,charging_power:50});
+        else if(this.mapPick.mode==='move-nest' && this.sceneDraft.nests[idx]) { this.sceneDraft.nests[idx].x=x; this.sceneDraft.nests[idx].y=y; }
+        else if(this.mapPick.mode==='add-zone') this.sceneDraft.noFly.zones.push({name:'临时管制区'+(this.sceneDraft.noFly.zones.length+1),type:'circle',center:[x,y],radius:Number(this.sceneDraft.newZoneRadius||150),enabled:true});
+        else if(this.mapPick.mode==='move-zone' && this.sceneDraft.noFly.zones[idx]) this.sceneDraft.noFly.zones[idx].center=[x,y];
+        this.mapPick={active:false,mode:'task',stage:'source',source:null,destination:null,index:null};
+        this.showSceneEditor=true; this.draw2d(); return;
+      }
+      if (this.mapPick.stage === 'source') {
+        this.mapPick.source = pos; this.mapPick.stage = 'destination'; this.draw2d();
+      } else {
+        this.mapPick.destination = pos;
+        this.taskForm.positionMode = 'manual';
+        this.taskForm.source_x = Number(this.mapPick.source[0].toFixed(2));
+        this.taskForm.source_y = Number(this.mapPick.source[1].toFixed(2));
+        this.taskForm.dest_x = Number(pos[0].toFixed(2));
+        this.taskForm.dest_y = Number(pos[1].toFixed(2));
+        this.mapPick = {active:false, mode:'task', stage:'source', source:null, destination:null, index:null};
+        this.showTaskModal = true;
+        this.draw2d();
+      }
+    },
+
+    draw2d() {
+      const cv = document.getElementById('c2d'); if (!cv) return;
+      const dpr = window.devicePixelRatio || 1;
+      const w = cv.clientWidth, h = cv.clientHeight;
+      if (!w || !h) return;
+      cv.width = w*dpr; cv.height = h*dpr;
+      const ctx = cv.getContext('2d');
+      ctx.setTransform(dpr,0,0,dpr,0,0);
+      ctx.clearRect(0,0,w,h);
+      ctx.fillStyle = '#fafbfc'; ctx.fillRect(0,0,w,h);
+      const b = this.snap.map.bounds;
+      const P = (x,y) => this.project(b,x,y,w,h);
+
+      // 禁飞区（场景编辑时使用未保存的草稿预览）
+      let zonePreview=this.mapStatic.no_fly_zones || [];
+      if(this.sceneEditing){
+        zonePreview=[];
+        if(this.sceneDraft.noFly?.enabled){
+          (this.sceneDraft.noFly.zones||[]).filter(z=>z.enabled!==false).forEach(z=>{
+            let coords=[];
+            if(z.type==='circle' && z.center){ const r=Number(z.radius||0); for(let k=0;k<36;k++){ const a=Math.PI*2*k/36; coords.push([Number(z.center[0])+Math.cos(a)*r,Number(z.center[1])+Math.sin(a)*r]); } }
+            else if(z.type==='polygon') coords=(z.points||[]).map(p=>[Number(p[0]),Number(p[1])]);
+            if(coords.length>=3) zonePreview.push({name:z.name||'禁飞区',coords});
+          });
+        }
+      }
+      zonePreview.forEach(z => {
+        if(!z.coords?.length) return;
+        ctx.beginPath();
+        z.coords.forEach((pt,i) => { const p = P(pt[0],pt[1]); i===0?ctx.moveTo(p.sx,p.sy):ctx.lineTo(p.sx,p.sy); });
+        ctx.closePath();
+        ctx.fillStyle = 'rgba(239,68,68,0.16)'; ctx.fill();
+        ctx.strokeStyle = '#ef4444'; ctx.lineWidth = 1.4; ctx.setLineDash([5,3]); ctx.stroke(); ctx.setLineDash([]);
+        const c0 = P(z.coords[0][0], z.coords[0][1]);
+        ctx.fillStyle = '#b91c1c'; ctx.font = '10px sans-serif';
+        ctx.fillText(z.name || '禁飞区', c0.sx + 4, c0.sy - 4);
+      });
+
+      ctx.lineWidth = 1; ctx.setLineDash([4,4]);
+      this.activeMapTasks.forEach(t => {
+        const a = P(t.source[0],t.source[1]), d = P(t.destination[0],t.destination[1]);
+        const selected = this.selection.type==='task' && String(this.selection.id)===String(t.id);
+        const base = t.status==='in_progress' ? '#7c3aed' : (t.status==='assigned' ? '#2f6fed' : (t.priority >= 3 ? '#ef4444' : '#d0d5dd'));
+        ctx.strokeStyle = base; ctx.lineWidth = selected ? 3.2 : (t.priority >= 3 ? 1.8 : 1);
+        ctx.beginPath(); ctx.moveTo(a.sx,a.sy); ctx.lineTo(d.sx,d.sy); ctx.stroke();
+      });
+      ctx.setLineDash([]);
+
+      const nestPreview=this.sceneEditing ? (this.sceneDraft.nests||[]).map(n=>({id:n.station_id,x:Number(n.x),y:Number(n.y),closed:false})) : this.snap.nests;
+      nestPreview.forEach(n => {
+        const p = P(n.x,n.y);
+        const selected=!this.sceneEditing && this.selection.type==='nest' && String(this.selection.id)===String(n.id);
+        if(selected){ ctx.strokeStyle='#2f6fed'; ctx.lineWidth=2; ctx.beginPath(); ctx.arc(p.sx,p.sy,12,0,Math.PI*2); ctx.stroke(); }
+        ctx.fillStyle = n.closed ? '#6b7280' : '#faad14'; ctx.beginPath();
+        ctx.moveTo(p.sx,p.sy-7); ctx.lineTo(p.sx+6,p.sy+5); ctx.lineTo(p.sx-6,p.sy+5); ctx.closePath(); ctx.fill();
+        ctx.fillStyle='#8a5a00'; ctx.font='9px sans-serif'; ctx.fillText(String(n.id),p.sx+7,p.sy-5);
+        if(n.closed){ ctx.strokeStyle='#ef4444'; ctx.lineWidth=2; ctx.beginPath(); ctx.moveTo(p.sx-6,p.sy-6); ctx.lineTo(p.sx+6,p.sy+6); ctx.moveTo(p.sx+6,p.sy-6); ctx.lineTo(p.sx-6,p.sy+6); ctx.stroke(); }
+      });
+
+      this.trajectories.forEach((tr,idx) => {
+        if (!tr || tr.length < 2) return;
+        ctx.strokeStyle = PALETTE[idx % PALETTE.length]; ctx.globalAlpha = 0.35; ctx.lineWidth = 1.2;
+        ctx.beginPath();
+        tr.forEach(([x,y],k) => { const p=P(x,y); k===0?ctx.moveTo(p.sx,p.sy):ctx.lineTo(p.sx,p.sy); });
+        ctx.stroke(); ctx.globalAlpha = 1;
+      });
+
+      this.activeMapTasks.forEach(t => {
+        const a = P(t.source[0],t.source[1]), d = P(t.destination[0],t.destination[1]);
+        const selected = this.selection.type==='task' && String(this.selection.id)===String(t.id);
+        const rr = selected ? 6 : (t.priority >= 3 ? 4 : 2.5);
+        ctx.fillStyle = t.manual ? '#7c3aed' : (t.status==='assigned'||t.status==='in_progress' ? '#2f6fed' : '#8a919f'); ctx.beginPath(); ctx.arc(a.sx,a.sy,rr,0,Math.PI*2); ctx.fill();
+        ctx.fillStyle = t.priority >= 3 ? '#dc2626' : (t.status==='assigned'||t.status==='in_progress' ? '#2f6fed' : '#4b5563'); ctx.beginPath(); ctx.arc(d.sx,d.sy,rr,0,Math.PI*2); ctx.fill();
+      });
+
+      // 地图取点中的临时起终点标记
+      const drawPick = (pos, label, color) => {
+        if (!pos) return; const p = P(pos[0],pos[1]);
+        ctx.fillStyle = color; ctx.beginPath(); ctx.arc(p.sx,p.sy,7,0,Math.PI*2); ctx.fill();
+        ctx.fillStyle = '#fff'; ctx.font = 'bold 10px sans-serif'; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText(label,p.sx,p.sy);
+        ctx.textAlign='start'; ctx.textBaseline='alphabetic';
+      };
+      drawPick(this.mapPick.source, 'S', '#16a34a');
+      drawPick(this.mapPick.destination, 'D', '#dc2626');
+
+      this.snap.drones.forEach(d => {
+        const p = P(d.x,d.y);
+        const selected=this.selection.type==='drone' && String(this.selection.id)===String(d.id);
+        if(selected){ ctx.strokeStyle='#2f6fed'; ctx.lineWidth=2.4; ctx.beginPath(); ctx.arc(p.sx,p.sy,11,0,Math.PI*2); ctx.stroke(); }
+        ctx.fillStyle = STATE_COLOR[d.state] || '#888'; ctx.beginPath(); ctx.arc(p.sx,p.sy,selected?6.5:5,0,Math.PI*2); ctx.fill();
+        ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.5; ctx.stroke();
+      });
+    },
+
+    // ============ 3D ============
+    switchView(v) {
+      this.view = v;
+      this.$nextTick(() => { if (v === '3d' && !this.threeState) this.init3d(); this.render(); });
+    },
+    center3d() {
+      const b = this.mapStatic.bounds; return { x:(b[0]+b[2])/2, y:(b[1]+b[3])/2 };
+    },
+    init3d() {
+      const el = document.getElementById('c3d'); if (!el || !window.THREE) return;
+      const THREE = window.THREE;
+      const st = { center: this.center3d(), theta: 0.7, phi: 1.05, radius: 4000, mouse:{down:false,x:0,y:0} };
+      this.threeState = st;
+
+      const scene = new THREE.Scene(); scene.background = new THREE.Color(0xf0f2f5);
+      const camera = new THREE.PerspectiveCamera(55, el.clientWidth/el.clientHeight, 1, 200000);
+      const renderer = new THREE.WebGLRenderer({ antialias:true });
+      renderer.setPixelRatio(window.devicePixelRatio||1);
+      renderer.setSize(el.clientWidth, el.clientHeight);
+      el.appendChild(renderer.domElement);
+
+      scene.add(new THREE.AmbientLight(0xffffff, 0.65));
+      const dir = new THREE.DirectionalLight(0xffffff, 0.85); dir.position.set(3000,5000,2000); scene.add(dir);
+
+      // 地面
+      const b = this.mapStatic.bounds;
+      const gw = (b[2]-b[0])*1.3, gh = (b[3]-b[1])*1.3;
+      const ground = new THREE.Mesh(
+        new THREE.PlaneGeometry(gw, gh),
+        new THREE.MeshLambertMaterial({ color: 0xe8ebef }));
+      ground.rotation.x = -Math.PI/2; ground.position.y = -1; scene.add(ground);
+
+      // 建筑
+      const c = st.center;
+      const bmat = new THREE.MeshLambertMaterial({ color: 0xb9c4d0 });
+      this.mapStatic.buildings.forEach(bd => {
+        const shape = new THREE.Shape();
+        bd.coords.forEach((pt,i) => { const x=pt[0]-c.x, y=pt[1]-c.y; i===0?shape.moveTo(x,y):shape.lineTo(x,y); });
+        const geo = new THREE.ExtrudeGeometry(shape, { depth: bd.height, bevelEnabled:false });
+        const mesh = new THREE.Mesh(geo, bmat);
+        mesh.rotation.x = -Math.PI/2;
+        scene.add(mesh);
+      });
+
+      // 禁飞区（红色半透明棱柱；y 取负与建筑旋转后坐标一致）
+      (this.mapStatic.no_fly_zones || []).forEach(z => {
+        const shape = new THREE.Shape();
+        z.coords.forEach((pt,i) => { const x=pt[0]-c.x, y=pt[1]-c.y; i===0?shape.moveTo(x,y):shape.lineTo(x,y); });
+        const geo = new THREE.ExtrudeGeometry(shape, { depth: 180, bevelEnabled:false });
+        const mesh = new THREE.Mesh(geo, new THREE.MeshLambertMaterial({
+          color: 0xef4444, transparent: true, opacity: 0.28 }));
+        mesh.rotation.x = -Math.PI/2;
+        scene.add(mesh);
+      });
+
+      // 机巢（平面 y 取负：与建筑旋转后坐标一致，避免南北镜像错位）
+      const nmesh = [];
+      this.snap.nests.forEach(n => {
+        const cone = new THREE.Mesh(new THREE.ConeGeometry(14, 40, 6), new THREE.MeshLambertMaterial({ color: n.closed ? 0x6b7280 : 0xfaad14 }));
+        cone.position.set(n.x-c.x, 20, -(n.y-c.y)); cone.userData={entityType:'nest',entityId:String(n.id)}; scene.add(cone); nmesh.push(cone);
+      });
+
+      // 无人机占位（每组一个 mesh，运行时更新位置）
+      const dmesh = [];
+      const dgeo = new THREE.SphereGeometry(10, 16, 16);
+      this.snap.drones.forEach((d,i) => {
+        const m = new THREE.Mesh(dgeo, new THREE.MeshLambertMaterial({ color: STATE_COLOR[d.state]||'#888' }));
+        m.position.set(d.x-c.x, 35, -(d.y-c.y)); m.userData={entityType:'drone',entityId:String(d.id)}; scene.add(m); dmesh.push(m);
+      });
+
+      // 无人机历史轨迹线（每架机一条，运行时刷新顶点）
+      const trailLines = this.snap.drones.map((d,i) => {
+        const line = new THREE.Line(
+          new THREE.BufferGeometry(),
+          new THREE.LineBasicMaterial({ color: PALETTE[i % PALETTE.length], transparent: true, opacity: 0.45 }));
+        line.visible = false; scene.add(line); return line;
+      });
+
+      // 任务起终点（共享材质，运行时重建几何）
+      const taskGroup = new THREE.Group(); scene.add(taskGroup);
+      const taskMat = {
+        line: new THREE.LineBasicMaterial({ color: 0x99a0ab, transparent: true, opacity: 0.5 }),
+        assignedLine: new THREE.LineBasicMaterial({ color: 0x2f6fed, transparent: true, opacity: 0.7 }),
+        src: new THREE.MeshBasicMaterial({ color: 0x52c41a }),
+        dst: new THREE.MeshBasicMaterial({ color: 0xf5222d }),
+      };
+      const taskDotGeo = new THREE.SphereGeometry(8, 8, 8);
+
+      st.scene = scene; st.camera = camera; st.renderer = renderer; st.dmesh = dmesh; st.nmesh = nmesh;
+      st.trailLines = trailLines; st.taskGroup = taskGroup; st.taskMat = taskMat; st.taskDotGeo = taskDotGeo;
+      st.raycaster = new THREE.Raycaster(); st.pointer = new THREE.Vector2(); st.mouse.dragged = false;
+      st.updateCamera = () => {
+        const t = st.theta, p = st.phi, r = st.radius;
+        camera.position.set(
+          Math.sin(t)*Math.cos(p)*r,
+          Math.sin(p)*r,
+          Math.cos(t)*Math.cos(p)*r);
+        camera.lookAt(0, 0, 0);
+      };
+      st.updateCamera();
+
+      el.addEventListener('mousedown', e => { st.mouse.down = true; st.mouse.dragged = false; st.mouse.x = e.clientX; st.mouse.y = e.clientY; });
+      st.onMouseMove = e => {
+        if (!st.mouse.down) return;
+        const dx = e.clientX - st.mouse.x, dy = e.clientY - st.mouse.y;
+        if (Math.abs(dx)+Math.abs(dy) > 2) st.mouse.dragged = true;
+        st.theta -= dx*0.005; st.phi += dy*0.005;
+        st.phi = Math.max(0.2, Math.min(1.4, st.phi));
+        st.mouse.x = e.clientX; st.mouse.y = e.clientY; st.updateCamera();
+      };
+      st.onMouseUp = () => { st.mouse.down = false; };
+      window.addEventListener('mousemove', st.onMouseMove);
+      window.addEventListener('mouseup', st.onMouseUp);
+      el.addEventListener('wheel', e => {
+        e.preventDefault();
+        st.radius = Math.max(1200, Math.min(20000, st.radius * (1 + e.deltaY*0.001)));
+        st.updateCamera();
+      }, { passive:false });
+      st.renderer.domElement.addEventListener('click', e => {
+        if (st.mouse.dragged) { st.mouse.dragged = false; return; }
+        const rect = st.renderer.domElement.getBoundingClientRect();
+        st.pointer.x = ((e.clientX-rect.left)/rect.width)*2-1;
+        st.pointer.y = -((e.clientY-rect.top)/rect.height)*2+1;
+        st.raycaster.setFromCamera(st.pointer, st.camera);
+        const selectable = [...(st.dmesh||[]), ...(st.nmesh||[]), ...(st.taskGroup?.children||[])].filter(o => o.userData?.entityType);
+        const hit = st.raycaster.intersectObjects(selectable, false)[0];
+        if (hit?.object?.userData?.entityType) this.selectEntity(hit.object.userData.entityType, hit.object.userData.entityId);
+        else this.clearSelection();
+      });
+
+      st.disposed = false;
+      const loop = () => {
+        if (st.disposed) return;
+        if (this.view==='3d' && this.threeState===st) st.renderer.render(st.scene, st.camera);
+        st.raf = requestAnimationFrame(loop);
+      };
+      loop();
+    },
+    destroy3d() {
+      const st=this.threeState; if(!st) return;
+      st.disposed=true;
+      if(st.raf) cancelAnimationFrame(st.raf);
+      if(st.onMouseMove) window.removeEventListener('mousemove', st.onMouseMove);
+      if(st.onMouseUp) window.removeEventListener('mouseup', st.onMouseUp);
+      try {
+        st.scene?.traverse(o => { if(o.geometry) o.geometry.dispose?.(); if(o.material && !Array.isArray(o.material)) o.material.dispose?.(); });
+        st.renderer?.dispose();
+        const el=document.getElementById('c3d'); if(el) el.innerHTML='';
+      } catch(e) {}
+      this.threeState=null;
+    },
+    resize3d() {
+      const el = document.getElementById('c3d'), st = this.threeState;
+      if (!el || !st) return;
+      st.renderer.setSize(el.clientWidth, el.clientHeight);
+      st.camera.aspect = el.clientWidth/el.clientHeight; st.camera.updateProjectionMatrix();
+    },
+    draw3d() {
+      const st = this.threeState; if (!st) return;
+      const c = st.center;
+      this.snap.drones.forEach((d,i) => {
+        const m = st.dmesh[i]; if (!m) return;
+        const alt = (d.state === 'busy') ? 45 : (d.state==='to_nest' ? 28 : 5);
+        m.position.set(d.x-c.x, alt, -(d.y-c.y));
+        m.material.color.set(STATE_COLOR[d.state] || '#888');
+        m.scale.setScalar(this.selection.type==='drone' && String(this.selection.id)===String(d.id) ? 1.65 : 1);
+      });
+
+      (st.nmesh || []).forEach((m,i) => { const n=this.snap.nests[i]; if(n){ m.scale.setScalar(this.selection.type==='nest' && String(this.selection.id)===String(n.id) ? 1.55 : 1); m.material.color.set(n.closed ? '#6b7280' : '#faad14'); } });
+
+      // 轨迹线
+      this.trajectories.forEach((tr, i) => {
+        const line = st.trailLines[i]; if (!line) return;
+        if (!tr || tr.length < 2) { line.visible = false; return; }
+        line.visible = true;
+        const pts = tr.map(([x,y]) => new THREE.Vector3(x-c.x, 14, -(y-c.y)));
+        const g = new THREE.BufferGeometry().setFromPoints(pts);
+        if (line.geometry) line.geometry.dispose();
+        line.geometry = g;
+      });
+
+      // 任务起终点（共享材质，重建几何）
+      const tg = st.taskGroup;
+      tg.children.forEach(child => { if (child.geometry) child.geometry.dispose(); });
+      tg.clear();
+      this.activeMapTasks.forEach(t => {
+        const a = new THREE.Vector3(t.source[0]-c.x, 6, -(t.source[1]-c.y));
+        const d = new THREE.Vector3(t.destination[0]-c.x, 6, -(t.destination[1]-c.y));
+        const lineMat = (t.status==='assigned'||t.status==='in_progress') ? st.taskMat.assignedLine : st.taskMat.line;
+        const line = new THREE.Line(new THREE.BufferGeometry().setFromPoints([a,d]), lineMat);
+        tg.add(line);
+        const src = new THREE.Mesh(st.taskDotGeo, st.taskMat.src); src.position.copy(a); src.userData={entityType:'task',entityId:String(t.id)}; tg.add(src);
+        const dst = new THREE.Mesh(st.taskDotGeo, st.taskMat.dst); dst.position.copy(d); dst.userData={entityType:'task',entityId:String(t.id)}; tg.add(dst);
+        if(this.selection.type==='task' && String(this.selection.id)===String(t.id)){ src.scale.setScalar(1.6); dst.scale.setScalar(1.6); }
+      });
+    },
+
+    // ============ 运行中新增任务 ============
+    openTaskModal() {
+      this.stopPlay();
+      this.taskError = '';
+      this.showTaskModal = true;
+    },
+    applyTaskPreset(kind) {
+      const presets = {
+        medical: {category:'urgent', priority:3, weight:1.2, volume:0.2, deadline_offset:300},
+        bulk: {category:'bulk', priority:2, weight:12, volume:2.5, deadline_offset:900},
+        normal: {category:'normal', priority:1, weight:2, volume:0.5, deadline_offset:720},
+      };
+      Object.assign(this.taskForm, presets[kind] || presets.normal);
+      this.taskForm.positionMode = 'random';
+    },
+    async submitTask() {
+      if (this.taskSubmitting) return;
+      this.taskSubmitting = true; this.taskError = '';
+      try {
+        const body = {
+          category: this.taskForm.category, priority: this.taskForm.priority, weight: this.taskForm.weight,
+          volume: this.taskForm.volume, deadline_offset: this.taskForm.deadline_offset,
+        };
+        if (this.taskForm.positionMode === 'manual') {
+          body.source = [this.taskForm.source_x, this.taskForm.source_y];
+          body.destination = [this.taskForm.dest_x, this.taskForm.dest_y];
+        }
+        const snap = await this.api('/api/tasks/inject', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) });
+        this.applySnap(snap);
+        this.showTaskModal = false;
+        this.tab = 'dispatch';
+        const injected=(snap.events||[]).slice().reverse().find(e=>e.kind==='task_injected' && e.data?.task_id);
+        if(injected) this.selectEntity('task', injected.data.task_id);
+      } catch(e) { this.taskError = e.message; }
+      finally { this.taskSubmitting = false; }
+    },
+
+    // ============ 配置 ============
+    async openConfig() {
+      this.configError='';
+      try {
+        const cfg = await this.api('/api/config');
+        const algo = await this.api('/api/scheduler-config');
+        this.cfg.num_drones = cfg.environment?.num_drones ?? 10;
+        this.cfg.total_tasks = cfg.task_generation?.realistic?.total_tasks ?? 60;
+        this.cfg.light = cfg.heterogeneous?.fleet_mix?.light_express ?? 0;
+        this.cfg.standard = cfg.heterogeneous?.fleet_mix?.standard_cargo ?? 0;
+        this.cfg.heavy = cfg.heterogeneous?.fleet_mix?.heavy_cargo ?? 0;
+        this.cfg.peak = cfg.task_generation?.realistic?.peak_probability ?? 0.7;
+        this.cfg.berths = cfg.nest?.berths ?? 2;
+        this.cfg.arbitration = cfg.nest?.arbitration_policy ?? 'priority';
+        this.cfg.deadline_min = cfg.task?.deadline_offset_min ?? 900;
+        this.cfg.episode_max = cfg.environment?.episode_max_steps ?? 3600;
+        this.algo.pso_particles = algo.pso?.num_particles ?? 20;
+        this.algo.pso_iter = algo.pso?.max_iterations ?? 30;
+        this.algo.ga_pop = algo.ga?.population_size ?? 60;
+        this.algo.ga_gen = algo.ga?.generations ?? 40;
+        this.algo.ortools_t = algo.ortools?.time_limit_seconds ?? 2.0;
+        this.algo.buffer = algo.dual_channel?.buffer_size_threshold ?? 15;
+      } catch(e) { console.warn(e); }
+      this.showConfig = true;
+    },
+    async saveConfig() {
+      if(this.configBusy) return;
+      this.configBusy=true; this.configError=''; this.stopPlay();
+      const scenePatch = {
+        environment: { num_drones: this.cfg.num_drones, episode_max_steps: this.cfg.episode_max },
+        heterogeneous: { fleet_mix: { light_express: this.cfg.light, standard_cargo: this.cfg.standard, heavy_cargo: this.cfg.heavy } },
+        task_generation: { realistic: { total_tasks: this.cfg.total_tasks, peak_probability: this.cfg.peak } },
+        task: { deadline_offset_min: this.cfg.deadline_min },
+        nest: { berths: this.cfg.berths, arbitration_policy: this.cfg.arbitration },
+      };
+      const algoPatch = {
+        pso: { num_particles: this.algo.pso_particles, max_iterations: this.algo.pso_iter },
+        ga: { population_size: this.algo.ga_pop, generations: this.algo.ga_gen },
+        ortools: { time_limit_seconds: this.algo.ortools_t },
+        dual_channel: { buffer_size_threshold: this.algo.buffer },
+      };
+      try {
+        await this.api('/api/config', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({patch: scenePatch}) });
+        await this.api('/api/scheduler-config', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({patch: algoPatch}) });
+        const snap = await this.api('/api/rebuild', { method:'POST' });
+        this.trajectories = []; this.trend = [];
+        this.mapStatic = await this.api('/api/map');
+        this.destroy3d();
+        this.applySnap(snap);
+        this.showConfig=false;
+        if (this.view==='3d') this.$nextTick(() => { this.init3d(); this.draw3d(); });
+      } catch(e) { this.configError=e.message; }
+      finally { this.configBusy=false; }
+    },
+
+    // ============ 对比看板 ============
+    async switchTabCompare() {
+      this.tab = 'compare';
+      if (!this.compareRows.length) await this.loadCompare();
+      this.$nextTick(() => this.drawCompare());
+    },
+    async loadCompare() {
+      const d = await this.api('/api/compare');
+      this.compareRows = d.rows; this.compareColumns = d.columns;
+      if (!this.compareMetric || !d.columns.includes(this.compareMetric)) this.compareMetric = d.columns[0] || '';
+      this.$nextTick(() => this.drawCompare());
+    },
+    drawCompare() {
+      if (this.tab !== 'compare') return;
+      if (!this.compareChart) { const el = document.getElementById('compare'); if (el) this.compareChart = echarts.init(el); }
+      if (!this.compareChart) return;
+      const m = this.compareMetric; if (!m) return;
+      const algos = this.compareRows.map(r => r['算法']);
+      const vals = this.compareRows.map(r => r[m] ?? 0);
+      this.compareChart.setOption({
+        grid: { left: 40, right: 12, top: 20, bottom: 30 },
+        xAxis: { type:'category', data: algos, axisLabel:{fontSize:10, rotate:20} },
+        yAxis: { type:'value', axisLabel:{fontSize:10} },
+        tooltip: { trigger:'axis' },
+        series: [{ type:'bar', data: vals, itemStyle:{ color:'#2f6fed' }, barMaxWidth: 40 }]
+      });
+    },
+
+    // ============ 一键实验 ============
+    async switchTabExperiment() {
+      this.tab = 'experiment';
+      if (!this.experimentPresets.length) {
+        try {
+          const d = await this.api('/api/experiments/presets');
+          this.experimentPresets = d.presets || [];
+          if (!this.experimentPresets.find(p => p.key === this.experimentPreset) && this.experimentPresets.length) this.experimentPreset = this.experimentPresets[0].key;
+        } catch(e) { console.warn(e); }
+      }
+      await this.loadExperimentStatus();
+      this.startExperimentPolling();
+    },
+    async runExperiment() {
+      if (this.experimentRunning) return;
+      try {
+        this.stopPlay();
+        this.experimentStatus = await this.api('/api/experiments/start', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({preset:this.experimentPreset}) });
+        this.startExperimentPolling();
+      } catch(e) {
+        this.experimentStatus = {...this.experimentStatus, state:'failed', error:e.message};
+      }
+    },
+    async loadExperimentStatus() {
+      try {
+        const before = this.experimentStatus.state;
+        this.experimentStatus = await this.api('/api/experiments/status');
+        if (['completed','completed_with_errors','failed'].includes(this.experimentStatus.state)) {
+          this.stopExperimentPolling();
+          if (!['completed','completed_with_errors','failed'].includes(before) && this.experimentStatus.state !== 'failed') await this.loadCompare();
+        }
+      } catch(e) { console.warn(e); }
+    },
+    startExperimentPolling() {
+      if (this.experimentTimer) return;
+      this.experimentTimer = setInterval(() => this.loadExperimentStatus(), 1500);
+    },
+    stopExperimentPolling() {
+      if (this.experimentTimer) { clearInterval(this.experimentTimer); this.experimentTimer = null; }
+    },
+
+    // ============ 趋势图 ============
+    initChart() {
+      const el = document.getElementById('trend'); if (el) this.chart = echarts.init(el);
+      this.drawChart();
+    },
+    drawChart() {
+      if (!this.chart) return;
+      const rows=this.trend||[];
+      this.chart.setOption({
+        animation:false, grid:{left:38,right:34,top:28,bottom:25},
+        legend:{top:0,itemWidth:12,itemHeight:6,textStyle:{fontSize:9}},
+        tooltip:{trigger:'axis'},
+        xAxis:{type:'value',name:'步',nameTextStyle:{fontSize:9},axisLabel:{fontSize:9}},
+        yAxis:[
+          {type:'value',min:0,max:1,axisLabel:{fontSize:9,formatter:v=>(v*100)+'%'}},
+          {type:'value',min:0,axisLabel:{fontSize:9},splitLine:{show:false}}
+        ],
+        series:[
+          {name:'完成率',type:'line',data:rows.map(p=>[p.step,p.completion_rate??p.v??0]),showSymbol:false,smooth:true,lineStyle:{width:2}},
+          {name:'超时率',type:'line',data:rows.map(p=>[p.step,p.timeout_rate??0]),showSymbol:false,smooth:true,lineStyle:{width:1.5,type:'dashed'}},
+          {name:'机队利用率',type:'line',data:rows.map(p=>[p.step,p.utilization??0]),showSymbol:false,smooth:true,lineStyle:{width:1.5}},
+          {name:'待调度',type:'line',yAxisIndex:1,data:rows.map(p=>[p.step,p.pending??0]),showSymbol:false,step:'end',lineStyle:{width:1.2}}
+        ]
+      }, true);
+    }
+  },
+  mounted() { this.init(); },
+  beforeUnmount() { this.stopPlay(); this.stopExperimentPolling(); this.destroy3d(); if (this.chart) this.chart.dispose(); if (this.compareChart) this.compareChart.dispose(); }
+}).mount('#app');
+</script>
+</body>
+</html>

@@ -5,7 +5,6 @@
 **异构无人机集群三维协同调度仿真平台**
 
 [![Python](https://img.shields.io/badge/python-3.10-blue.svg)](https://www.python.org/)
-[![Version](https://img.shields.io/badge/version-0.2.0-orange.svg)](CHANGELOG.md)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20Linux%20%7C%20macOS-lightgrey.svg)](README.md)
 [![Algorithms](https://img.shields.io/badge/algorithms-5%20families-orange.svg)](README.md)
@@ -27,7 +26,20 @@
 | **顺路接入** | 在途无人机按绕行半径 / 载重 / 电量 / 时间窗约束，把下一单直接挂到当前航线 |
 | **禁飞区约束** | 支持圆形与多边形禁飞区（含安全余量），接入 A\* 路径规划实现真绕飞 |
 | **机巢地面资源** | 有限泊位 + 动态优先级仲裁（电量紧迫度 + 等待时长 + 任务紧迫度），整组换电 180 秒 |
-| **一体化可视化** | Web 控制台（FastAPI + Vue3 + Three.js）：3D 视图、指标看板、一键评测、出图、自检，双击「启动控制台.bat」即用 |
+| **双形态可视化** | 原生 pygame 三维软件投影窗口 + 浏览器 Web 控制台（FastAPI + Vue3 + Three.js） |
+| **运行中交互调度** | 播放 / 暂停 / 单步 / 1x·2x·5x·10x，支持在当前状态中人工注入普通、重货、紧急任务 |
+| **调度过程可解释** | Web“调度”页实时展示无人机任务链、机巢泊位队列、动态优先级和调度事件日志 |
+| **可点击调度指挥台** | 2D / 3D 地图可直接点无人机、任务、机巢查看实时详情；待调度任务可查看候选无人机能力匹配、ETA 与约束解释 |
+| **运行时场景事件** | 可模拟无人机故障停飞 / 恢复、机巢临时关闭 / 重开；未完成任务自动回收，补能请求自动改道，并继续由当前算法滚动重调度 |
+| **场景布局编辑** | Web 端可直接增删/移动机巢、修改泊位，并用 2D 地图新增/移动圆形禁飞区；保存后安全热重建，失败自动回滚 |
+| **运行时运营控制** | 可暂停/恢复自动订单流、动态修改待调度任务优先级/SLA/重量/类别，并人工调无人机前往开放机巢补能 |
+| **一键答辩演示场景** | 内置应急医疗、机巢拥堵、故障韧性、标准综合四套可复现场景，固定算法/Seed，并提供“下一幕”真实控制剧本 |
+| **运行态快照** | 当前服务内可保存/恢复完整动态节点（无人机/机巢/任务/调度缓存/随机数状态/事件/轨迹/趋势），便于从同一节点重复答辩演示 |
+| **实时态势与趋势** | 服务端记录完成率、超时率、机队利用率、待调度数量历史，并汇总紧急积压、资源故障与低电风险 |
+| **可持久化场景库** | 保存“初始配置 + 算法 + Seed + 可选算法超参”，支持 JSON 导入/导出；与运行态快照分工明确，便于答辩和实验复现 |
+| **启动预检与操作引导** | 启动前检查 Python、关键依赖和配置一致性；Web 首次进入提供操作流程，态势页根据异常状态给出下一步建议 |
+| **科研结果可复现** | 正式批量实验自动保存原始 Seed 级结果、均值/标准差/中位数、GA↔Greedy 同 Seed 描述性配对表和 `reproducibility.json` 环境清单 |
+| **一键结项归档** | `finalize_project.bat` 串联严格发布检查 → 标准结项实验 → 生成带 SHA-256 的结项证据包，Web 实验页也可下载最新正式证据包 |
 | **真实数据接入** | 随机 / CSV / GeoJSON / 企业 REST 网关四种数据源，可插拔 |
 
 ---
@@ -40,7 +52,7 @@
 > geopandas 组合问题，3.13 直接装不上。推荐 3.10.11。
 
 ```bash
-git clone https://gitee.com/acgvgh/swarm-balance.git
+git clone <你的仓库地址>.git
 cd SwarmBalance
 
 # 1) 创建虚拟环境
@@ -75,13 +87,83 @@ Episode 1 (seed=101): 完成率=0.7667, 超时率=0.0435, 平均时延=0.4565,
 ### 打开可视化
 
 ```bash
-# Windows：直接双击「启动控制台.bat」一键启动并自动打开浏览器
-# 或命令行：
-python -m console.run --open
+# 原生桌面窗口（pygame 三维视图，鼠标拖拽旋转 / 滚轮缩放）
+cd frontend
+python run_visual.py --algo greedy
+
+# 或浏览器控制台
+# Windows 推荐：双击 start_console.bat（自动预检并打开浏览器）
+python -m console.run          # 其它平台同样可用，默认自动打开浏览器
 ```
 
-浏览器控制台内置「指标 / 评测 / 对比」三个面板：单步与播放、切算法、改配置、
-一键跑评测出指标、生成对比图、运行自检，均可点按钮完成，无需再敲命令行。
+### 答辩应急：便携 Web 模式
+
+正式实验仍建议使用上面的 Python 3.10 完整环境。如果答辩机临时缺少 OSMnx / pygame / OR-Tools，可以使用：
+
+```bash
+python -m console.run --portable
+```
+
+Windows 直接双击 `start_console_portable.bat`。此模式会使用项目自带 `part_of_yangpu.osm` 的离线 XML 回退解析器；缺少 pygame 时仅关闭桌面窗口，缺少 OR-Tools 时界面会把该算法标记为不可用，Greedy / GA / PSO 与浏览器指挥台仍可运行。**便携模式用于演示兜底，不用于最终论文实验数据。**
+
+发布/答辩前可以先运行真实主链路自检：
+
+```bash
+python -m console.selfcheck
+python release_check.py             # 普通发布检查
+python release_check.py --strict    # Python 3.10 正式环境最终检查
+```
+
+详细说明见 [`离线便携与端到端自检.md`](离线便携与端到端自检.md)。
+
+### v1.0 最终结项流水线
+
+在**正式 Python 3.10 完整环境**中，Windows 可以直接执行：
+
+```bat
+finalize_project.bat
+```
+
+它会依次执行：
+
+1. `python release_check.py --strict`：要求正式依赖与真实主链路全部通过；
+2. `python run_conclusion.py --preset conclusion`：执行标准结项实验；
+3. `python build_conclusion_package.py`：把最新正式实验、配置、复现清单、关键文档与校验和打成证据包。
+
+标准实验除了原有 `algorithm_comparison.csv` 和敏感性分析 CSV，还会生成：
+
+- `algorithm_comparison_stats.csv`：关键指标的均值、样本标准差和中位数；
+- `paired_ga_vs_greedy.csv`：同一 Seed 下 GA 与 Greedy 的描述性配对比较；
+- `reproducibility.json`：Python/平台/关键包版本、输入配置/OSM 哈希、算法列表等复现信息；
+- `summary.md`：明确写出结果解释边界，不把描述性差异表述成统计显著性。
+
+> 若正式结果不支持“GA 在某个指标上更优”，结项报告应如实呈现。项目目标是验证联合调度方法，而不是为了符合预设结论而修改实验口径。
+
+最终验收门槛见 [`结项最终验收清单.md`](结项最终验收清单.md)。
+
+### Web 控制台推荐交互流程
+
+Web 控制台不是“只跑一次结果”的算法跑分页面，而是自由仿真入口：
+
+1. 选择算法和 Seed，点“重置”；
+2. 用“播放 / 暂停 / 单步 / 1x·2x·5x·10x”推进当前仿真；
+3. 点“＋ 新任务”可在**当前运行状态**中加入任务，既可随机生成合法起终点，也可在 2D 地图上依次点击起点和终点；
+4. 在 2D / 3D 地图上直接点击无人机、任务或机巢，打开“调度指挥台”详情；待调度任务会显示候选无人机的能力匹配分、ETA、载重/电量/时限约束解释；
+5. 切到“调度”页查看按时限排序的待调度任务、每架无人机任务链、机巢泊位占用/排队与实时事件，列表和事件都可点击联动地图详情；
+6. 在“场景事件注入”中可随机制造无人机故障或机巢关闭，也可直接点击具体无人机 / 机巢做精确控制；故障机未完成任务回到待调度池，关闭机巢的新补能请求会改道；
+7. 需要控制订单压力时，可在“调度”页暂停/恢复**自动任务流**；点击待调度任务还可现场修改优先级、剩余 SLA、重量和类别，观察下一步分配是否改变；
+8. 点击无人机可执行“调往最近机巢补能”。执行中无人机会先挂起剩余任务航线，经过真实泊位排队/换电后继续原任务；
+9. 顶部“场景编辑”用于**结构性场景设计**：可增删/移动机巢、调整泊位、添加/移动圆形禁飞区。保存后会重建当前环境，因此建议在演示开始前完成布局设计；
+10. 顶部“场景库”可保存当前初始配置，或导入/导出 JSON 场景包。它用于跨启动复现；“运行态快照”用于当前服务进程内恢复某个动态节点；
+11. 态势页可直接加载“应急医疗高峰 / 机巢拥堵 / 故障韧性 / 标准综合”答辩预设，并按“下一幕”逐步执行真实控制动作；首次加载前的配置可以一键恢复；
+12. 在故障、插单或拥堵等关键节点前可保存“运行态快照”，之后恢复到完全相同的动态节点重复演示；结构性场景重建会自动清空旧快照；
+13. 继续“单步/播放”即可观察同一 GA / Greedy / PSO / OR-Tools 在当前状态上的重新调度；需要论文或结项数据时，再进入“实验”页运行标准化批量实验。
+
+人工任务、任务属性调整、订单流开关、人工补能和运行时事故都不会重置环境；它们会刷新 observation，并在下一仿真步参与滚动重调度。**场景布局编辑属于结构性变更，保存后会重建环境并写回 `simulation.json`**，两类操作在系统中明确分开。
+
+> 故障回收采用可复现的简化模型：故障机未完成任务回滚到原任务起点重新入池，不模拟空中货物交接。机巢关闭采用“软关闭”：停止接收新请求，已经开始的换电允许正常完成。
+
+详细演示流程见 [`交互式仿真与答辩演示.md`](交互式仿真与答辩演示.md)。v0.8 的场景库、启动预检与结项口径审计见 [`产品化收口与结项口径审计.md`](产品化收口与结项口径审计.md)。
 
 ---
 
@@ -89,13 +171,13 @@ python -m console.run --open
 
 | 方法 | 定位 | 编码 / 求解 | 代码位置 |
 |---|---|---|---|
-| **Greedy** | 基线 | 距离 + 优先级 + 紧迫度 + 电量 + 载荷 实时打分 | `scheduling/greedy/` |
-| **PSO** | 群体智能 | 偏好矩阵编码，粒子群批量优化 + 事件驱动 | `scheduling/pso_scheduler.py` |
-| **GA** | 群体智能（主推） | **排列编码 + 贪婪分割解码** / 分配矩阵（可切换） | `scheduling/ga_scheduler.py`、`chain_codec.py` |
-| **OR-Tools** | 经典求解器基线 | CP-SAT，0/1 分配，目标 `makespan + Σ超时量` | `scheduling/ortools_scheduler.py` |
+| **Greedy** | 基线 | 距离 + 优先级 + 紧迫度 + 电量 + 载荷 实时打分 | `frontend/greedy/` |
+| **PSO** | 群体智能 | 偏好矩阵编码，粒子群批量优化 + 事件驱动 | `backend_si/pso_scheduler.py` |
+| **GA** | 群体智能（主推） | **排列编码 + 贪婪分割解码** / 分配矩阵（可切换） | `backend_si/ga_scheduler.py`、`chain_codec.py` |
+| **OR-Tools** | 经典求解器基线 | CP-SAT，0/1 分配，目标 `makespan + Σ超时量` | `backend_si/ortools_scheduler.py` |
 | **MARL** | 强化学习扩展 | PyMARL：IQL / VDN / QMIX（含 `-U` 改进版） | `backend_wx/pymarl-master/` |
 
-**GA 的两种编码**（`scheduling/config.yaml` 的 `ga.encoding` 切换）：
+**GA 的两种编码**（`backend_si/config.yaml` 的 `ga.encoding` 切换）：
 
 | 编码 | 染色体 | 解码 | 遗传算子 | 用途 |
 |---|---|---|---|---|
@@ -143,44 +225,44 @@ python ab_chain_test.py --policies pso ga --episodes 1 --episode-steps 1200
 }
 ```
 
-禁飞区是**硬约束**，采用**独立于建筑 A\* 的几何绕飞**（在区外沿生成绕飞折点），
-保证绝不穿越；建筑仍走 A\* 可见图绕行（软约束，失败时允许直穿并告警）；
+禁飞区与建筑物同等参与 `is_path_clear()` 判定，A\* 可见图补充外沿采样点实现真绕飞；
 落在禁飞区内的取送货点会被自动过滤，避免生成不可达任务污染完成率。
-实现见 `simulation/no_fly_zone.py`。
+实现见 `frontend/no_fly_zone.py`。
 
 ---
 
-## 🗂 项目结构（四大模块）
+## 🗂 项目结构
 
 ```text
 SwarmBalance/
-├─ simulation/                 # ① 仿真环境：物理规则、约束、数据
+├─ config/
+│  ├─ simulation.json          # 仿真环境、任务、无人机、禁飞区、任务链配置
+│  ├─ positions.json           # 任务位置数据
+│  └─ import/                  # CSV / GeoJSON 真实数据样例
+├─ frontend/                   # 仿真环境与评估入口
 │  ├─ environment.py           # 仿真环境、指标统计、A* 路径规划
 │  ├─ drone.py                 # 无人机运动、电量（换电）与载重
 │  ├─ task.py                  # 任务模型与任务生成器
 │  ├─ charging_station.py      # 机巢（换电站）模型
 │  ├─ no_fly_zone.py           # 禁飞区约束
 │  ├─ data_source.py           # 数据源抽象（random/csv/geojson/enterprise）
-│  ├─ tools/osm.py             # OSM 地图加载
-│  └─ data/                    # OSM 地图数据
-├─ scheduling/                 # ② 调度算法：PSO / GA / OR-Tools / 贪心
+│  ├─ metrics_schema.py        # 统一指标落盘 schema（单一事实来源）
+│  ├─ map_drawer_3d.py         # 三维软件投影可视化
+│  ├─ run_visual.py            # 桌面可视化入口
+│  ├─ evaluate_metrics.py      # 四算法统一评测入口
+│  ├─ ab_chain_test.py         # 任务链开/关 A/B 对照
+│  └─ greedy/                  # 贪心调度器
+├─ backend_si/                 # 群体智能调度器（PSO / GA / OR-Tools）
 │  ├─ pso_scheduler.py         # PSO 优化器 + 事件驱动调度框架
 │  ├─ ga_scheduler.py          # GA 优化器（排列 / 分配双编码）
-│  ├─ chain_codec.py           # 排列编码 → 贪婪分割解码 + 局部搜索
+│  ├─ chain_codec.py           # 排列编码 → 贪婪分割解码
 │  ├─ ortools_scheduler.py     # CP-SAT 基线
-│  ├─ greedy/                  # 贪心调度器
 │  └─ config.yaml              # 算法超参
-├─ marl/                       # ③ 强化学习（PyMARL：IQL / VDN / QMIX）
-├─ app/                        # ④ 可视化与评测
-│  ├─ console/                 # Web 控制台（FastAPI + Vue3 + Three.js）
-│  ├─ evaluate_metrics.py      # 四算法统一评测入口
-│  ├─ metrics_schema.py        # 统一指标落盘 schema（单一事实来源）
+├─ backend_wx/pymarl-master/   # 多智能体强化学习（IQL / VDN / QMIX）
+├─ console/                    # Web 可视化控制台（FastAPI + Vue3 + Three.js）
+├─ results/
+│  ├─ compare/                 # 各算法统一指标 CSV
 │  └─ plot_compare_metrics.py  # 指标汇总、归一化评分与绘图
-├─ scripts/                    # 调试/实验脚本（非核心）
-├─ config/                     # 全局配置（simulation.json 等）
-├─ results/                    # 实验数据 CSV 与对比图
-├─ tests/                      # 单元测试
-├─ docs/                       # 项目文档（模块划分、自评、结项指南等）
 └─ paper/                      # 课程论文、插图与 Overleaf 工程
 ```
 
@@ -222,7 +304,7 @@ env = Environment("data/map/part_of_yangpu.osm", data_source=ds)
 
 - `coord_system="lonlat"` 时自动用 pyproj 把 WGS84 经纬度投影为 UTM 平面坐标（米）；
 - `live=true` 每步轮询接口并按订单号去重，对应真实订单持续到达；
-- 无网关时可运行 `scripts/mock_enterprise_api.py` + `run_enterprise_demo.py` 预览。
+- 无网关时可运行 `frontend/mock_enterprise_api.py` + `run_enterprise_demo.py` 预览。
 
 ---
 
@@ -245,7 +327,7 @@ env = Environment("data/map/part_of_yangpu.osm", data_source=ds)
 | **No-Fly Detours** | 禁飞区绕飞次数 | 机制生效观测 |
 | Berth Utilization / Nest Turnover / Avg Berth Wait | 机巢泊位利用率、周转率、排队等待 | 视运营目标 |
 
-指标列定义集中在 `app/metrics_schema.py`（单一事实来源），所有评测入口共用同一份表头，
+指标列定义集中在 `frontend/metrics_schema.py`（单一事实来源），所有评测入口共用同一份表头，
 新增指标只需改这一处。表头不兼容时会自动备份旧 CSV，不会静默覆盖历史实验结果。
 
 ---
@@ -281,16 +363,53 @@ python results/plot_compare_metrics.py
 
 ---
 
+
+## 🧪 一键结项实验（不影响自由仿真）
+
+系统仍以交互式仿真控制台为主；批量对比只是独立的实验编排模式。实验运行时会为每个 episode 生成隔离的 `simulation.json` 副本，**不会修改当前主配置**，并保证同一条件下各算法使用相同随机 Seed。
+
+```bash
+# 快速自检：少量 Greedy / GA 运行，先确认链路正常
+python run_conclusion.py --preset quick
+
+# 标准结项：Greedy / OR-Tools / GA / PSO + 三类敏感性分析
+python run_conclusion.py --preset conclusion
+
+# 论文模式：增加重复次数，耗时更长
+python run_conclusion.py --preset paper
+
+# 只看本次会跑哪些组合，不真正启动仿真
+python run_conclusion.py --preset conclusion --dry-run
+```
+
+Windows 也可以直接双击 `run_conclusion.bat`，或在命令行执行 `run_conclusion.bat quick`。Web 控制台右侧新增“**实验**”页签，可选择同样的预设并一键运行；底层与命令行共用 `ExperimentRunner`，不是两套实验逻辑。
+
+结果默认写到 `results/experiments/<preset>_<timestamp>/`，包括：
+
+- `plan.csv`：完整运行计划、Seed 与每组配置补丁；
+- `raw_runs.csv`：每个 episode 的原始指标；
+- `algorithm_comparison.csv`：算法对比均值；
+- `task_density.csv` / `nest_capacity.csv` / `fleet_mix.csv`：三类敏感性分析；
+- `figures/`：自动生成的对比与敏感性图；
+- `summary.md`：可直接用于整理结项报告的实验摘要。
+
+预设配置位于 `experiments/presets/*.yaml`。如要调整重复次数或扫描范围，优先修改/复制 YAML，而不是改实验代码。
+
+---
+
 ## 📚 文档
 
 | 文档 | 内容 |
 |---|---|
 | [`算法口径说明.md`](算法口径说明.md) | 申请书承诺算法与代码实现范围的对应关系、公平性保障、术语修正 |
 | [`可视化操作平台完善计划书.md`](可视化操作平台完善计划书.md) | Web 控制台的架构设计与分阶段路线 |
-| [`技术栈升级方案.md`](技术栈升级方案.md) | Python 3.10→3.12 / osmnx 1.9.4→2.x 的迁移清单 |
-| [`项目自评报告.md`](项目自评报告.md) | 各模块自评分、问题清单与改进路线图 |
-| [`结项演示与验收指南.md`](结项演示与验收指南.md) | 答辩演示脚本、报告提纲、评审问答与提交清单 |
-| `scheduling/README.md` | PSO 调度器参数与双通道机制详解 |
+| `backend_si/README.md` | PSO 调度器参数与双通道机制详解 |
+| [`场景事件与韧性演示.md`](场景事件与韧性演示.md) | 无人机故障、任务回收、机巢关闭/改道与答辩演示流程 |
+| [`场景编辑与运行控制.md`](场景编辑与运行控制.md) | v0.6 场景布局编辑、订单流控制、动态任务调整与人工补能 |
+| [`演示场景与运行态快照.md`](演示场景与运行态快照.md) | v0.7 一键答辩场景、真实“下一幕”剧本、运行态快照与服务端趋势 |
+| [`产品化收口与结项口径审计.md`](产品化收口与结项口径审计.md) | v0.8 场景库、启动预检、配置一致性、代码审计与答辩口径边界 |
+| [`离线便携与端到端自检.md`](离线便携与端到端自检.md) | v0.9 离线 OSM 回退、便携启动、真实端到端自检与发布检查 |
+| [`结项最终验收清单.md`](结项最终验收清单.md) | v1.0 正式环境、系统交互、实验、口径与证据归档的最终验收门槛 |
 
 ---
 
@@ -306,13 +425,13 @@ python results/plot_compare_metrics.py
 
 ## ⚠️ 已知局限
 
-- 任务链的**链内顺序**已由「贪婪分割 + 局部搜索（swap / Or-opt / 2-opt）+ 链间
-  relocate 迁移」确定，但链间迁移用「总里程」作目标、非 makespan 最优，且未做
-  最优插入（cheapest insertion）与更精细的链间交换；
+- v0.9 的内置 OSM XML 回退解析器用于答辩/演示兜底，只解析建筑 way 与主干道路 way，不展开复杂 multipolygon relation；正式论文/结项实验仍以 Python 3.10 + OSMnx 完整环境为准；
+- GA 排列编码已实现贪婪分割后的**链内 swap / 2-opt + 跨链 relocate**局部搜索；当前尚未实现更复杂的 Or-opt、多链交换与自适应大邻域搜索（ALNS）；
 - 顺路接入的绕行判定用**绝对半径**（默认 1500 米，约为本地图跨度 55%），换地图需重新标定；
-- 禁飞区为静态配置，未实现时变管制，也未耦合气象与通信丢包；
-- `simulation/nest.py` 的机巢仲裁类未被 `environment.py` 引用，属冗余死代码（待清理）；
-- 仿真为离散时间步，未模拟天气、通信丢包等真实低空约束。
+- 能力匹配目前采用可解释的载重/速度/续航加权函数，权重仍需通过敏感性实验标定；
+- 禁飞区可在 Web 场景编辑器中重设布局，但仍属于**场景级静态约束**（保存后重建），尚未实现仿真过程中随时间自动出现/消失的时变空域管制；
+- `frontend/nest.py` 的机巢仲裁类未被 `environment.py` 引用，属冗余死代码（待清理）；
+- 仿真为离散时间步；无人机故障是运行时状态事件，未进一步模拟电机退化、定位漂移、风场等连续物理过程。
 
 ---
 
@@ -329,7 +448,7 @@ python results/plot_compare_metrics.py
   title  = {SwarmBalance 群智优衡: 异构无人机集群三维协同调度仿真平台},
   author = {群智优衡项目团队},
   year   = {2026},
-  url    = {https://gitee.com/acgvgh/swarm-balance}
+  url    = {https://github.com/<your-org>/SwarmBalance}
 }
 ```
 

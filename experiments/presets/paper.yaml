@@ -1,0 +1,35 @@
+name: 论文重复实验
+description: 更高重复次数；四算法完整横向扫描，适合需要更稳定均值/方差的数据，耗时明显更长。
+base:
+  seed: 1000
+  episode_steps: 3600
+  repeats: 15
+algorithms: [greedy, ortools, ga, pso]
+experiments:
+  algorithm_comparison:
+    enabled: true
+    repeats: 15
+  task_scale:
+    enabled: true
+    values: [20, 40, 60, 80, 100]
+    repeats: 8
+  task_density:
+    enabled: true
+    values:
+      - {name: 极高密度, interval_scale: 0.55}
+      - {name: 高密度, interval_scale: 0.7}
+      - {name: 常规密度, interval_scale: 1.0}
+      - {name: 低密度, interval_scale: 1.4}
+    repeats: 8
+  nest_berths:
+    enabled: true
+    values: [1, 2, 3, 4]
+    repeats: 8
+  fleet_mix:
+    enabled: true
+    repeats: 8
+    values:
+      - {name: 轻载主导, light_express: 8, standard_cargo: 1, heavy_cargo: 1}
+      - {name: 均衡机队, light_express: 5, standard_cargo: 3, heavy_cargo: 2}
+      - {name: 标准主导, light_express: 3, standard_cargo: 5, heavy_cargo: 2}
+      - {name: 重载主导, light_express: 2, standard_cargo: 3, heavy_cargo: 5}

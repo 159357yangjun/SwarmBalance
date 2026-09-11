@@ -1,0 +1,30 @@
+name: 快速自检
+description: 用少量运行验证实验链路、配置隔离和结果汇总是否正常；适合改完代码后先跑。
+base:
+  seed: 100
+  episode_steps: 1200
+  repeats: 1
+algorithms: [greedy, ga]
+experiments:
+  algorithm_comparison:
+    enabled: true
+  task_scale:
+    enabled: true
+    values: [20, 40]
+    repeats: 1
+  task_density:
+    enabled: true
+    values:
+      - {name: 高密度, interval_scale: 0.7}
+      - {name: 常规密度, interval_scale: 1.0}
+    repeats: 1
+  nest_berths:
+    enabled: true
+    values: [1, 2]
+    repeats: 1
+  fleet_mix:
+    enabled: true
+    repeats: 1
+    values:
+      - {name: 均衡机队, light_express: 5, standard_cargo: 3, heavy_cargo: 2}
+      - {name: 轻载偏多, light_express: 7, standard_cargo: 2, heavy_cargo: 1}
