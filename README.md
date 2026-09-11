@@ -52,8 +52,8 @@
 > geopandas 组合问题，3.13 直接装不上。推荐 3.10.11。
 
 ```bash
-git clone <你的仓库地址>.git
-cd SwarmBalance
+git clone https://gitee.com/acgvgh/swarm-balance.git
+cd swarm-balance
 
 # 1) 创建虚拟环境
 python -m venv .venv310
@@ -95,6 +95,10 @@ python run_visual.py --algo greedy
 # Windows 推荐：双击 start_console.bat（自动预检并打开浏览器）
 python -m console.run          # 其它平台同样可用，默认自动打开浏览器
 ```
+
+> **停止控制台**：在运行它的终端按 `Ctrl+C`；Windows 也可双击 `stop_console.bat`，
+> 它会清理所有 `console.run` 进程并释放 8765 端口。`start_console*.bat` 在启动前会自动清理
+> 占用 8765 的旧实例，避免重复实例互相抢端口导致页面一直加载不出来。
 
 ### 答辩应急：便携 Web 模式
 
@@ -260,11 +264,22 @@ SwarmBalance/
 │  └─ config.yaml              # 算法超参
 ├─ backend_wx/pymarl-master/   # 多智能体强化学习（IQL / VDN / QMIX）
 ├─ console/                    # Web 可视化控制台（FastAPI + Vue3 + Three.js）
+│  ├─ run.py                   # 一键启动入口（启动预检 + 自动打开浏览器）
+│  ├─ server.py                # REST API
+│  ├─ sim_session.py           # 会话状态、快照与场景库
+│  ├─ selfcheck.py             # 真实链路端到端自检
+│  └─ static/index.html        # 单页前端（2D Canvas / 3D Three.js / ECharts）
+├─ experiments/                # 批量实验编排（presets / runner / worker / reporting）
 ├─ results/
-│  ├─ compare/                 # 各算法统一指标 CSV
+│  ├─ compare/                 # 各算法统一指标 CSV 与 plots/
+│  ├─ experiments/             # 一键结项实验输出（<preset>_<timestamp>/）
 │  └─ plot_compare_metrics.py  # 指标汇总、归一化评分与绘图
-└─ paper/                      # 课程论文、插图与 Overleaf 工程
+├─ paper/                      # 课程论文、插图与 Overleaf 工程
+└─ deliverables/               # 结项证据包输出（*.zip 不入库）
 ```
+
+> 根目录另有结项工具链（`release_check.py`、`run_conclusion.py`、`build_conclusion_package.py`、`finalize_project.bat`）、
+> 一键启动脚本（`start_console.bat` / `start_console_portable.bat` / `stop_console.bat`）与项目文档（见文末「文档」索引）。
 
 ---
 
@@ -403,13 +418,16 @@ Windows 也可以直接双击 `run_conclusion.bat`，或在命令行执行 `run_
 |---|---|
 | [`算法口径说明.md`](算法口径说明.md) | 申请书承诺算法与代码实现范围的对应关系、公平性保障、术语修正 |
 | [`可视化操作平台完善计划书.md`](可视化操作平台完善计划书.md) | Web 控制台的架构设计与分阶段路线 |
-| `backend_si/README.md` | PSO 调度器参数与双通道机制详解 |
+| [`调度指挥台说明.md`](调度指挥台说明.md) | 2D/3D 指挥台的点击详情、候选机匹配能力与约束解释 |
+| [`交互式仿真与答辩演示.md`](交互式仿真与答辩演示.md) | 自由仿真与答辩演示的完整操作流程 |
 | [`场景事件与韧性演示.md`](场景事件与韧性演示.md) | 无人机故障、任务回收、机巢关闭/改道与答辩演示流程 |
 | [`场景编辑与运行控制.md`](场景编辑与运行控制.md) | v0.6 场景布局编辑、订单流控制、动态任务调整与人工补能 |
 | [`演示场景与运行态快照.md`](演示场景与运行态快照.md) | v0.7 一键答辩场景、真实“下一幕”剧本、运行态快照与服务端趋势 |
 | [`产品化收口与结项口径审计.md`](产品化收口与结项口径审计.md) | v0.8 场景库、启动预检、配置一致性、代码审计与答辩口径边界 |
 | [`离线便携与端到端自检.md`](离线便携与端到端自检.md) | v0.9 离线 OSM 回退、便携启动、真实端到端自检与发布检查 |
 | [`结项最终验收清单.md`](结项最终验收清单.md) | v1.0 正式环境、系统交互、实验、口径与证据归档的最终验收门槛 |
+| [`结项修改说明.md`](结项修改说明.md) | 结项阶段的修改清单与口径说明 |
+| `frontend/README.md` · `backend_si/README.md` | 仿真环境入口 / PSO 调度器参数与双通道机制详解 |
 
 ---
 
@@ -448,7 +466,7 @@ Windows 也可以直接双击 `run_conclusion.bat`，或在命令行执行 `run_
   title  = {SwarmBalance 群智优衡: 异构无人机集群三维协同调度仿真平台},
   author = {群智优衡项目团队},
   year   = {2026},
-  url    = {https://github.com/<your-org>/SwarmBalance}
+  url    = {https://gitee.com/acgvgh/swarm-balance}
 }
 ```
 

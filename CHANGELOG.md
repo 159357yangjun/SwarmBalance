@@ -1,5 +1,17 @@
 # Changelog
 
+## [Unreleased]
+
+### 控制台修复与运维加固
+
+- 修复 Web 控制台 3D 视图**黑屏**：`threeState` 是 Vue 响应式数据，THREE 的 scene/camera/renderer 被响应式 Proxy 包裹，渲染循环守卫 `threeState === st` 恒为 false（Proxy ≠ 原始对象），`render()` 从未执行。改用 `Vue.markRaw()` 让 Three 对象脱离响应式。
+- 修复 3D **场景被裁**：根元素 `#app` 缺少 `class="app"`，导致 `.app { height:100vh }` 失效、`.main` 被右侧面板撑高到约 1401px，画布(999×1401)超出视口、场景中部落在可视区外。补上 `class="app"`，并给 `.side` 加 `overflow-y: auto`。
+- 提升 3D **无人机可见性**：标记球半径 10 → 24，高度按状态调整为 28/46/64，避免默认视角下仅约 3px 而肉眼不可见。
+- 视图切换改为下一事件循环再初始化 3D，并加 `ResizeObserver` 自适应容器尺寸。
+- `start_console.bat` / `start_console_portable.bat`：虚拟环境改为「项目根 → 上级目录」两级查找（原先只查项目根会 fallback 到系统 Python，导致重复实例抢 8765 端口、页面一直加载不出来），并在启动前自动清理占用 8765 的旧实例。
+- 新增 `stop_console.bat`：一键停止所有 `console.run` 进程并释放 8765 端口。
+- 纳入 `run_conclusion.py --preset conclusion` 的 68 次结项实验输出（`results/experiments/`）。
+
 ## [1.0.0] - 2026-09-11
 
 ### 结项冻结 / Reproducibility
@@ -13,8 +25,6 @@
 - 新增 `VERSION` 和 `结项最终验收清单.md`，版本号进入单一事实来源，交付口径进入冻结阶段。
 - `release_check.py` 扩展为发现全部 `experiments/test_*.py`，并验证结项证据包可构建。
 - 发布包移除本地 `_review/` 申请书解析缓存并加入 `.gitignore`，避免把团队联系电话/邮箱等申请材料个人信息带入公开源码交付。
-
-# 更新日志
 
 ## [0.9.0] - 2026-09-11
 

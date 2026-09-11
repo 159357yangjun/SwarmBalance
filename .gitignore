@@ -3,6 +3,7 @@ __pycache__/
 *.py[cod]
 *.egg-info/
 *.pyo
+.ipynb_checkpoints/
 
 # ================= 编辑器 / IDE =================
 # .idea/ 是个人 IDE 配置（workspace.xml 含本机绝对路径），团队共用会互相覆盖
