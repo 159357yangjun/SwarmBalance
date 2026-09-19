@@ -36,6 +36,7 @@ from console.capabilities import runtime_capabilities  # noqa: E402
 app = FastAPI(title="无人机调度仿真控制台")
 
 _STATIC = Path(__file__).resolve().parent / "static" / "index.html"
+_SPEC = Path(__file__).resolve().parent / "static" / "spec.html"
 _SIM_JSON = _PROJECT_ROOT / "config" / "simulation.json"
 _ALG_YAML = _PROJECT_ROOT / "backend_si" / "config.yaml"
 _SCENE_LIBRARY = SceneLibrary(_PROJECT_ROOT / "config" / "scenes")
@@ -153,6 +154,14 @@ def index():
     if _STATIC.exists():
         return HTMLResponse(_STATIC.read_text(encoding="utf-8"))
     return HTMLResponse("<h1>index.html 缺失</h1>")
+
+
+@app.get("/spec", response_class=HTMLResponse)
+def spec():
+    """设计规范页：把世界逻辑与软件设计规范作为软件内的主要展示对象。"""
+    if _SPEC.exists():
+        return HTMLResponse(_SPEC.read_text(encoding="utf-8"))
+    return HTMLResponse("<h1>spec.html 缺失</h1>")
 
 
 # ---------------------------------------------------------------------------
@@ -750,6 +759,17 @@ def compare():
         return {"rows": [], "columns": []}
 
     data = pd.concat(frames, ignore_index=True)
+    # 先去掉"空跑"行：全零 / 全 NaN 的一行没有任何评测意义。
+    # 否则 one_click_latest.csv 这类全零记录会在下面 keep="last" 时
+    # 覆盖掉同一个算法在其它 CSV 里的真实结果（实测 greedy/ga/pso/ortools 被清零）。
+    num_cols_all = [c for c in data.columns if c != "算法"]
+    numeric = data[num_cols_all].apply(pd.to_numeric, errors="coerce")
+    valid_mask = numeric.abs().sum(axis=1) > 0
+    data = data.loc[valid_mask].reset_index(drop=True)
+    if data.empty:
+        return {"rows": [], "columns": []}
+
+    # 同一算法取最后一条（保留最近一次评测），但只从有效行里取
     data = data.drop_duplicates("算法", keep="last").reset_index(drop=True)
     # 只保留数值列 + 算法列，去掉总步数/完成任务数等冗余
     drop_cols = {"总步数", "完成任务数", "生成任务数", "换电总次数"}

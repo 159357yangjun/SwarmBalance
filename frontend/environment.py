@@ -80,7 +80,10 @@ def build_fleet_drone_types(num_drones):
 
 class Environment:
     def __init__(self, osm_file_path, visualize=False, episode_max_steps=DEFAULT_EPISODE_MAX_STEPS, data_source=None):
-        _, buildings_with_height = load_map_data(osm_file_path)
+        roads_by_type, buildings_with_height = load_map_data(osm_file_path)
+        # 全量建筑与道路：供控制台渲染"真实城市"肌理（此前只暴露高度>20 的高楼）
+        self.roads_by_type = roads_by_type
+        self.all_buildings = buildings_with_height
 
         self.global_bounds = get_global_bounds(buildings_with_height)
 

@@ -623,18 +623,46 @@ class SimSession:
             xs = [d.x for d in self.env.drones] + [s.x for s in self.env.charging_stations]
             ys = [d.y for d in self.env.drones] + [s.y for s in self.env.charging_stations]
             bounds = (min(xs), min(ys), max(xs), max(ys)) if xs else (0, 0, 1000, 1000)
+        # 全量建筑（含无高度标注者按默认层高 12m 处理），形成真实城市肌理
+        src = getattr(self.env, "all_buildings", None) or getattr(self.env, "high_buildings", []) or []
         buildings = []
-        for b in getattr(self.env, "high_buildings", []) or []:
+        for b in src:
             rings = _polygon_rings(b.get("geometry"))
+            try:
+                h = round(float(b.get("height")), 2)
+            except (TypeError, ValueError):
+                h = 12.0
+            if not math.isfinite(h) or h <= 0:
+                h = 12.0
             for ring in rings:
-                if len(ring) >= 3:
-                    buildings.append({
-                        "coords": ring,
-                        "height": round(float(b.get("height") or 20.0), 2),
-                    })
+                pts = []
+                for pt in ring:
+                    try:
+                        x = float(pt[0]); y = float(pt[1])
+                    except (TypeError, ValueError, IndexError):
+                        continue
+                    if math.isfinite(x) and math.isfinite(y):
+                        pts.append([x, y])
+                if len(pts) >= 3:
+                    buildings.append({"coords": pts, "height": h})
+        # 主干道路网络（街景骨架）
+        roads = []
+        for rtype, geoms in (getattr(self.env, "roads_by_type", {}) or {}).items():
+            for g in geoms:
+                pts = []
+                for pt in (getattr(g, "coords", None) or []):
+                    try:
+                        x = float(pt[0]); y = float(pt[1])
+                    except (TypeError, ValueError, IndexError):
+                        continue
+                    if math.isfinite(x) and math.isfinite(y):
+                        pts.append([x, y])
+                if len(pts) >= 2:
+                    roads.append({"type": str(rtype), "coords": pts})
         return {
             "bounds": [float(v) for v in bounds],
             "buildings": buildings,
+            "roads": roads,
             "no_fly_zones": self._no_fly_snapshot(),
         }
 

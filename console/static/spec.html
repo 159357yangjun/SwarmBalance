@@ -1,0 +1,396 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>群智优衡 · 仿真软件设计规范 v1.0</title>
+<style>
+  :root{
+    --bg:#f6f7f9; --panel:#ffffff; --ink:#1a1d21; --ink-2:#4a5057; --ink-3:#8b929b;
+    --line:#e4e7eb; --line-2:#eef1f4;
+    --accent:#2f6fed; --accent-soft:#eaf1fe;
+    --must:#d93838; --must-bg:#fdecec;
+    --never:#b02418; --never-bg:#fbe6e3;
+    --should:#b7791f; --should-bg:#fdf4e3;
+    --may:#5b6b7c; --may-bg:#eef1f4;
+    --ok:#1f8a4c; --ok-bg:#e8f6ee;
+    --warn:#b7791f; --warn-bg:#fdf4e3;
+    --bad:#c0392b; --bad-bg:#fbe6e3;
+    --radius:12px; --maxw:1180px;
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{
+    margin:0; background:var(--bg); color:var(--ink);
+    font-family:"Segoe UI","PingFang SC","Microsoft YaHei",-apple-system,"Helvetica Neue",Arial,sans-serif;
+    font-size:15px; line-height:1.75; -webkit-font-smoothing:antialiased;
+  }
+  a{color:var(--accent); text-decoration:none}
+  a:hover{text-decoration:underline}
+  code{
+    font-family:"JetBrains Mono","Cascadia Code",Consolas,"Courier New",monospace;
+    background:#f1f3f6; border:1px solid var(--line); border-radius:5px;
+    padding:1px 6px; font-size:.88em; color:#364152;
+  }
+
+  /* layout */
+  .wrap{display:flex; max-width:var(--maxw); margin:0 auto; gap:28px; padding:0 24px 80px}
+  nav.toc{
+    position:sticky; top:24px; align-self:flex-start;
+    width:238px; flex:0 0 238px; margin-top:32px;
+    background:var(--panel); border:1px solid var(--line); border-radius:var(--radius);
+    padding:18px 16px; max-height:calc(100vh - 48px); overflow:auto;
+  }
+  nav.toc h4{margin:0 0 10px; font-size:12px; letter-spacing:.12em; color:var(--ink-3); text-transform:uppercase}
+  nav.toc a{display:block; color:var(--ink-2); font-size:13.5px; padding:4px 8px; border-radius:7px; line-height:1.5}
+  nav.toc a:hover{background:var(--accent-soft); color:var(--accent); text-decoration:none}
+  nav.toc a.sub{padding-left:20px; font-size:12.5px; color:var(--ink-3)}
+  main{flex:1; min-width:0; margin-top:32px}
+
+  /* cover */
+  header.cover{
+    background:linear-gradient(135deg,#ffffff 0%,#f2f6ff 100%);
+    border:1px solid var(--line); border-radius:16px; padding:34px 34px 30px; margin-bottom:26px;
+    box-shadow:0 1px 2px rgba(16,24,40,.04);
+  }
+  header.cover .kicker{font-size:12px; letter-spacing:.22em; color:var(--accent); font-weight:600; text-transform:uppercase}
+  header.cover h1{margin:10px 0 6px; font-size:31px; line-height:1.25; letter-spacing:-.01em}
+  header.cover .en{color:var(--ink-3); font-size:14px; margin-bottom:16px}
+  .meta{display:flex; flex-wrap:wrap; gap:8px}
+  .chip{font-size:12.5px; color:var(--ink-2); background:#fff; border:1px solid var(--line);
+    border-radius:999px; padding:4px 12px}
+  .chip b{color:var(--ink)}
+
+  /* sections */
+  section{background:var(--panel); border:1px solid var(--line); border-radius:var(--radius);
+    padding:26px 30px; margin-bottom:20px; box-shadow:0 1px 2px rgba(16,24,40,.03)}
+  h2{font-size:21px; margin:0 0 4px; letter-spacing:-.01em; scroll-margin-top:20px}
+  h2 .no{color:var(--accent); font-variant-numeric:tabular-nums; margin-right:8px}
+  h3{font-size:16px; margin:22px 0 8px; padding-bottom:6px; border-bottom:1px solid var(--line-2)}
+  h4{font-size:14px; margin:16px 0 6px; color:var(--ink-2)}
+  p{margin:8px 0}
+  ul{margin:8px 0; padding-left:22px}
+  li{margin:4px 0}
+  hr{border:none; border-top:1px solid var(--line-2); margin:22px 0}
+
+  /* philosophy */
+  .axioms{display:grid; grid-template-columns:repeat(3,1fr); gap:12px; margin:16px 0}
+  .axiom{background:var(--accent-soft); border:1px solid #d6e2fb; border-radius:10px; padding:14px 16px}
+  .axiom .t{font-weight:700; color:var(--accent); font-size:13.5px; margin-bottom:4px}
+  .axiom .d{font-size:13px; color:var(--ink-2)}
+
+  /* clause */
+  .cl{display:flex; gap:12px; padding:9px 0; border-bottom:1px dashed var(--line-2)}
+  .cl:last-child{border-bottom:none}
+  .cl .id{flex:0 0 92px; color:var(--ink-3); font-size:12.5px; font-family:"Cascadia Code",Consolas,monospace; padding-top:2px}
+  .cl .tx{flex:1}
+  .badge{display:inline-block; font-size:11px; font-weight:700; border-radius:5px; padding:1px 7px;
+    margin-right:6px; vertical-align:1px; letter-spacing:.02em}
+  .b-must{color:var(--must); background:var(--must-bg)}
+  .b-never{color:var(--never); background:var(--never-bg)}
+  .b-should{color:var(--should); background:var(--should-bg)}
+  .b-may{color:var(--may); background:var(--may-bg)}
+
+  /* table */
+  table{width:100%; border-collapse:collapse; margin:12px 0; font-size:13.5px}
+  th,td{border:1px solid var(--line); padding:8px 11px; text-align:left; vertical-align:top}
+  th{background:#f4f6f9; font-weight:600; color:var(--ink-2); font-size:12.5px}
+  tbody tr:nth-child(even){background:#fafbfc}
+  td .st{font-weight:600; font-size:12.5px}
+  .s-ok{color:var(--ok)} .s-warn{color:var(--warn)} .s-bad{color:var(--bad)}
+
+  /* code block */
+  pre{background:#1e2430; color:#d8dee9; border-radius:10px; padding:16px 18px; overflow:auto;
+    font-family:"JetBrains Mono","Cascadia Code",Consolas,monospace; font-size:12.5px; line-height:1.6}
+  pre .c{color:#7d8797}
+
+  /* layer diagram */
+  .layers{display:flex; flex-direction:column; gap:8px; margin:14px 0}
+  .layer{border:1px solid var(--line); border-left:4px solid var(--accent); border-radius:9px;
+    background:#fbfcfe; padding:11px 15px}
+  .layer .lt{font-weight:700; font-size:13.5px}
+  .layer .ld{font-size:12.5px; color:var(--ink-3)}
+
+  .callout{border-left:4px solid var(--accent); background:var(--accent-soft);
+    border-radius:0 9px 9px 0; padding:13px 16px; margin:14px 0; font-size:13.5px; color:var(--ink-2)}
+  .callout.danger{border-left-color:var(--must); background:var(--must-bg)}
+  .callout strong{color:var(--ink)}
+
+  footer{max-width:var(--maxw); margin:0 auto; padding:0 24px 60px; color:var(--ink-3); font-size:12.5px}
+
+  @media (max-width:900px){
+    nav.toc{display:none}
+    .axioms{grid-template-columns:1fr}
+    .wrap{padding:0 14px 60px}
+    section{padding:20px 18px}
+    header.cover{padding:24px 20px}
+  }
+  @media print{
+    nav.toc{display:none} body{background:#fff}
+    section,header.cover{box-shadow:none; break-inside:avoid}
+    a{color:inherit}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <nav class="toc">
+    <h4>目录</h4>
+    <a href="#ch0">第 0 章 · 总则与设计哲学</a>
+    <a href="#ch1">第 1 章 · 世界逻辑规范</a>
+    <a class="sub" href="#wl1">WL-1 时空基准</a>
+    <a class="sub" href="#wl2">WL-2 实体规范</a>
+    <a class="sub" href="#wl3">WL-3 单步推进</a>
+    <a class="sub" href="#wl4">WL-4 需求生成</a>
+    <a class="sub" href="#wl5">WL-5 环境与约束</a>
+    <a class="sub" href="#wl6">WL-6 指标口径</a>
+    <a href="#ch2">第 2 章 · 软件架构规范</a>
+    <a class="sub" href="#sa1">SA-1 分层</a>
+    <a class="sub" href="#sa2">SA-2 仿真内核</a>
+    <a class="sub" href="#sa3">SA-3 场景管理</a>
+    <a class="sub" href="#sa4">SA-4 仿真时钟</a>
+    <a class="sub" href="#sa5">SA-5 渲染契约</a>
+    <a class="sub" href="#sa6">SA-6 交互契约</a>
+    <a href="#ch3">第 3 章 · 仿真工程准则</a>
+    <a href="#ch4">第 4 章 · 合规检查清单</a>
+    <a href="#apA">附录 A · 术语</a>
+    <a href="#apB">附录 B · 现状审计</a>
+  </nav>
+
+  <main>
+
+    <header class="cover">
+      <div class="kicker">Simulation Software Design Specification</div>
+      <h1>群智优衡 · 仿真软件设计规范</h1>
+      <div class="en">城市应急与低空物流 · 无人机集群调度仿真平台</div>
+      <div class="meta">
+        <span class="chip"><b>版本</b> v1.0</span>
+        <span class="chip"><b>性质</b> 规范性 Normative</span>
+        <span class="chip"><b>地位</b> 世界逻辑与软件设计的唯一权威事实源</span>
+        <span class="chip"><b>术语</b> 必须 / 应当 / 禁止 / 可</span>
+      </div>
+    </header>
+
+    <section id="ch0">
+      <h2><span class="no">第 0 章</span>总则与设计哲学</h2>
+      <p><strong>核心命题。</strong>仿真软件 ≠ 看起来像的视频。仿真软件 = 维护一套独立的世界状态，内核驱动状态变化，渲染仅把状态画出来。</p>
+      <div class="axioms">
+        <div class="axiom"><div class="t">P1 · 状态优先</div><div class="d">世界状态是唯一真相，画面只是它的一种输出。</div></div>
+        <div class="axiom"><div class="t">P2 · 渲染单向</div><div class="d">渲染禁止反向修改世界状态，渲染结果禁止作为仿真逻辑输入。</div></div>
+        <div class="axiom"><div class="t">P3 · 确定性</div><div class="d">相同初始条件 + 相同种子 → 每次运行逐拍一致。</div></div>
+      </div>
+      <p>四层职责：<b>仿真内核</b>（纯逻辑）→ <b>场景管理</b>（状态容器/快照）→ <b>渲染</b>（只读视图）→ <b>交互</b>（改状态而非改像素）。</p>
+    </section>
+
+    <section id="ch1">
+      <h2><span class="no">第 1 章</span>世界逻辑规范（WL）</h2>
+
+      <h3 id="wl1">WL-1 时空基准</h3>
+      <div class="cl"><div class="id">WL-1.1</div><div class="tx"><span class="badge b-must">必须</span>采用本地投影米制平面坐标（OSM 导出），单位<b>米</b>。</div></div>
+      <div class="cl"><div class="id">WL-1.2</div><div class="tx"><span class="badge b-must">必须</span>以离散步推进，且 <code>1 step = 1 秒</code>（<code>STEP_SECONDS = 1.0</code>）；该映射必须在代码常量与 UI 显式声明。</div></div>
+      <div class="cl"><div class="id">WL-1.3</div><div class="tx">单局 <code>episode_max_steps = 3600</code> → 1 小时仿真。</div></div>
+      <div class="cl"><div class="id">WL-1.4</div><div class="tx"><span class="badge b-never">禁止</span>混用单位；全系统统一 m / s / kg / Wh。</div></div>
+
+      <h3 id="wl2">WL-2 实体规范</h3>
+      <h4>WL-2.1 无人机（真实机型锚定）</h4>
+      <p>无人机必须以真实公开机型参数建模，<span class="badge b-never">禁止</span>使用无来源的魔法数。</p>
+      <table>
+        <thead><tr><th>类型</th><th>参考机型</th><th>速度 m/s</th><th>载重 kg</th><th>电池 Wh</th><th>能耗 Wh/m</th><th>满载航程 km</th></tr></thead>
+        <tbody>
+          <tr><td>light_express 轻载快递</td><td>美团第四代配送无人机</td><td>20.0</td><td>2.4</td><td>380.0</td><td>0.032</td><td>10</td></tr>
+          <tr><td>standard_cargo 标准货运</td><td>顺丰丰翼方舟 ARK40</td><td>14.0</td><td>10.0</td><td>1600.0</td><td>0.06</td><td>20</td></tr>
+          <tr><td>heavy_cargo 重载运输</td><td>大疆 FlyCart 30 双电</td><td>20.0</td><td>30.0</td><td>3968.8</td><td>0.142</td><td>16</td></tr>
+        </tbody>
+      </table>
+      <div class="cl"><div class="id">WL-2.1.1</div><div class="tx">运动学：每步沿航线航点直线位移 <code>speed × STEP_SECONDS</code> 米。</div></div>
+      <div class="cl"><div class="id">WL-2.1.2</div><div class="tx">能耗 = 距离 × 基础能耗 × (1 + 载重比 × 载重惩罚系数)；到点即扣电。</div></div>
+      <div class="cl"><div class="id">WL-2.1.3</div><div class="tx">低电必须触发预判式改道换电；任务链放行必须保留电量储备（默认 15%）。</div></div>
+
+      <h4>WL-2.2 机巢（换电站）</h4>
+      <div class="cl"><div class="id">WL-2.2.1</div><div class="tx">默认 5 站，换电 180 s，泊位有限（默认 2）。</div></div>
+      <div class="cl"><div class="id">WL-2.2.2</div><div class="tx">泊位竞争必须用动态优先级仲裁（电量 / 等待 / 任务紧迫度），并提供 FIFO 对照。</div></div>
+      <div class="cl"><div class="id">WL-2.2.3</div><div class="tx"><span class="badge b-never">禁止</span>关闭最后一个可用机巢。</div></div>
+
+      <h4>WL-2.3 任务 / 需求</h4>
+      <div class="cl"><div class="id">WL-2.3.1</div><div class="tx">每个任务必须携带：重量、取货点、送达点、生成时刻、优先级(1–3)、类别(urgent/emergency/bulk/normal)、截止时刻、状态。</div></div>
+      <div class="cl"><div class="id">WL-2.3.2</div><div class="tx">截止时刻必须基于可解释 SLA：<code>deadline = 生成时刻 + random(900,3600)s</code>，参考速度 14 m/s、基础 420 s、每 kg +24 s。</div></div>
+
+      <h4>WL-2.4 禁飞区</h4>
+      <div class="cl"><div class="id">WL-2.4.1</div><div class="tx">禁飞区为飞行硬约束，必须参与路径规划；穿越必须触发绕飞并计数。</div></div>
+      <div class="cl"><div class="id">WL-2.4.2</div><div class="tx">任务起点/终点落在禁飞区内必须被拒绝。</div></div>
+
+      <h3 id="wl3">WL-3 单步推进规范</h3>
+      <p><code>step(actions)</code> 每次调用必须依次完成：</p>
+      <ul>
+        <li>将 <code>{drone_idx: [task_id,...]}</code> 分配为航线；支持同源追加与异源"顺路接入"任务链（上限 3 段、绕飞阈值 1500 m）。</li>
+        <li><code>current_time += 1</code>（秒）。</li>
+        <li>按需生成新任务（交互式控制台可暂停自动订单流）。</li>
+        <li>各无人机 <code>update()</code>：沿航点运动、扣电、到点取/送货、低电改道换电。</li>
+        <li>统计：里程（区分空载/载货）、能耗、利用率、任务完成（航点弹出判定）。</li>
+        <li>返回 observation / reward / done / info。</li>
+      </ul>
+
+      <h3 id="wl4">WL-4 需求生成规范<span class="badge b-never" style="margin-left:6px">禁止均匀乱撒</span></h3>
+      <div class="cl"><div class="id">WL-4.1</div><div class="tx">取送点必须以<b>热点聚类</b>生成：默认 60% 概率落在热点中心（医院/商圈）半径 80 m 内。</div></div>
+      <div class="cl"><div class="id">WL-4.2</div><div class="tx">到达必须呈<b>高峰/平峰潮汐</b>：peak 20 步/单、平峰 45 步/单，peak 概率 0.7，周期 1200 步。</div></div>
+      <div class="cl"><div class="id">WL-4.3</div><div class="tx">重量必须按分档抽样，且对应真实物流品类（见下表）。</div></div>
+      <table>
+        <thead><tr><th>重量区间</th><th>概率</th><th>对应品类</th><th>对标机型</th></tr></thead>
+        <tbody>
+          <tr><td>1–2 kg</td><td>55%</td><td>外卖 / 小件包裹</td><td>美团轻载</td></tr>
+          <tr><td>3–10 kg</td><td>35%</td><td>标准快递包裹</td><td>顺丰 ARK40</td></tr>
+          <tr><td>11–25 kg</td><td>10%</td><td>重货 / 应急物资</td><td>大疆 FlyCart 30</td></tr>
+        </tbody>
+      </table>
+      <div class="cl"><div class="id">WL-4.4</div><div class="tx">单局默认 60 单、初始 12 单。</div></div>
+
+      <h3 id="wl5">WL-5 环境与约束</h3>
+      <div class="cl"><div class="id">WL-5.1</div><div class="tx">建筑/路网必须来自真实 OSM 数据（当前杨浦区局部）。</div></div>
+      <div class="cl"><div class="id">WL-5.2</div><div class="tx">场景应当支持环境事件（插单、改优先级、故障停飞、关闭机巢；风场/天气为规划项）。</div></div>
+
+      <h3 id="wl6">WL-6 指标口径</h3>
+      <div class="cl"><div class="id">WL-6.1</div><div class="tx">必须至少统计：完成率、准时率、加权延迟、生成→送达时长、超时率、总能耗(Wh)、空载/载货里程、机队利用率、顺路接入、禁飞绕飞、泊位利用率、排队等待。</div></div>
+      <div class="cl"><div class="id">WL-6.2</div><div class="tx">所有指标必须机械可复算（同一快照 → 同一指标值）。</div></div>
+    </section>
+
+    <section id="ch2">
+      <h2><span class="no">第 2 章</span>软件架构规范（SA）</h2>
+
+      <h3 id="sa1">SA-1 分层</h3>
+      <p>系统必须分为五层，依赖只能自上而下；<span class="badge b-never">禁止</span>仿真内核 import 任何渲染库或 Web 框架。</p>
+      <div class="layers">
+        <div class="layer"><div class="lt">Layer 5 · UI / 交互层</div><div class="ld">命令：insertTask / setPriority / killNest / pauseOrders → 改世界状态</div></div>
+        <div class="layer"><div class="lt">Layer 4 · 渲染层（只读，双实现）</div><div class="ld">Web three.js ／ 桌面 pygame —— 消费同一份世界状态</div></div>
+        <div class="layer"><div class="lt">Layer 3 · 仿真时钟</div><div class="ld">固定步长时钟；服务端固定推进 + 客户端插值</div></div>
+        <div class="layer"><div class="lt">Layer 2 · 场景管理 / 世界状态</div><div class="ld">WorldState · 注册表 CRUD · 快照/检查点/回放</div></div>
+        <div class="layer"><div class="lt">Layer 1 · 仿真内核（纯逻辑）</div><div class="ld">运动学 / 需求 / 仲裁 / 规划 / 避障 / 随机源</div></div>
+        <div class="layer"><div class="lt">Layer 0 · 领域实体</div><div class="ld">DroneState / TaskState / NestState / NoFlyZoneState</div></div>
+      </div>
+
+      <h3 id="sa2">SA-2 仿真内核（Simulation Core）</h3>
+      <div class="cl"><div class="id">SA-2.1</div><div class="tx">必须为纯逻辑：无 UI、无渲染、无网络，可在无显示环境直接运行。</div></div>
+      <div class="cl"><div class="id">SA-2.2</div><div class="tx">必须可独立单元测试（不启动窗口、不依赖图形库）。</div></div>
+      <div class="cl"><div class="id">SA-2.3</div><div class="tx">输入初始参数 + 逐步 actions，输出每一时刻世界状态。</div></div>
+
+      <h3 id="sa3">SA-3 场景管理 / 世界状态（Scene Manager）</h3>
+      <div class="cl"><div class="id">SA-3.1</div><div class="tx">必须有单一 <code>WorldState</code> 容器：全部实体 + 仿真时钟 + 随机源状态 + 指标。</div></div>
+      <div class="cl"><div class="id">SA-3.2</div><div class="tx">必须提供实体注册表增删查（按 id）。</div></div>
+      <div class="cl"><div class="id">SA-3.3</div><div class="tx">必须提供整世界状态序列化/反序列化（快照）与 <code>hash_state()</code>。</div></div>
+      <div class="cl"><div class="id">SA-3.4</div><div class="tx">必须提供检查点保存/恢复与步历史（回放）。</div></div>
+
+      <h3 id="sa4">SA-4 仿真时钟（Simulation Clock）</h3>
+      <div class="cl"><div class="id">SA-4.1</div><div class="tx">必须采用固定时间步，物理步长与渲染帧率解耦。</div></div>
+      <div class="cl"><div class="id">SA-4.2</div><div class="tx">服务端应以固定速率时钟推进内核；客户端应在相邻两次快照间插值渲染（画面卡时物理不变慢）。</div></div>
+      <div class="cl"><div class="id">SA-4.3</div><div class="tx"><span class="badge b-never">禁止</span>把物理计算放在渲染循环内。</div></div>
+
+      <h3 id="sa5">SA-5 渲染层契约</h3>
+      <div class="cl"><div class="id">SA-5.1</div><div class="tx">渲染必须只读：从世界状态/快照构建视图，禁止回写状态。</div></div>
+      <div class="cl"><div class="id">SA-5.2</div><div class="tx"><b>可见性是渲染属性，不是存在属性</b>：被遮挡/不可见禁止导致实体从场景中删除。</div></div>
+      <div class="cl"><div class="id">SA-5.3</div><div class="tx"><span class="badge b-never">禁止</span>依赖渲染结果（裁剪、遮挡、透明度）做仿真判定。</div></div>
+      <div class="cl"><div class="id">SA-5.4</div><div class="tx">允许 Web 与桌面双实现，二者必须消费同一份世界状态。</div></div>
+
+      <h3 id="sa6">SA-6 交互层契约</h3>
+      <div class="cl"><div class="id">SA-6.1</div><div class="tx">所有交互必须通过命令修改世界状态，禁止直接改渲染画面。</div></div>
+      <div class="cl"><div class="id">SA-6.2</div><div class="tx">非法命令必须被拒绝且整体回滚，世界状态保持不变。</div></div>
+    </section>
+
+    <section id="ch3">
+      <h2><span class="no">第 3 章</span>仿真工程准则（SE）</h2>
+
+      <h3>SE-1 时间步长</h3>
+      <div class="cl"><div class="id">SE-1.1</div><div class="tx">采用固定时间步（推荐）；<span class="badge b-never">禁止</span>跟随帧率的可变步长。</div></div>
+      <div class="cl"><div class="id">SE-1.2</div><div class="tx">仿真逻辑与渲染逻辑必须分离，运行于不同循环/线程。</div></div>
+
+      <h3>SE-2 状态与对象管理</h3>
+      <div class="cl"><div class="id">SE-2.1</div><div class="tx">每个物体必须有独立状态存储（id、位置、速度、质量 + 业务标签）。</div></div>
+      <div class="cl"><div class="id">SE-2.2</div><div class="tx">属性必须分类：物理（位置/速度/质量）、渲染（颜色/可见性/纹理）、业务（id/标签）。</div></div>
+      <div class="cl"><div class="id">SE-2.3</div><div class="tx">物体销毁必须显式调用；<span class="badge b-never">禁止</span>以"关掉渲染"等同于"消失"。</div></div>
+
+      <h3>SE-3 渲染层陷阱</h3>
+      <div class="cl"><div class="id">SE-3.1</div><div class="tx">渲染画面禁止反向影响世界状态。</div></div>
+      <div class="cl"><div class="id">SE-3.2</div><div class="tx">遮挡必须用业务层标记或射线<b>查询</b>实现；射线只查询，不改变世界。</div></div>
+
+      <h3>SE-4 确定性</h3>
+      <div class="cl"><div class="id">SE-4.1</div><div class="tx">所有随机必须走集中式、可种子化的随机源。</div></div>
+      <div class="cl"><div class="id">SE-4.2</div><div class="tx">核心仿真必须单线程；禁止让线程调度不确定性破坏确定性。</div></div>
+      <div class="cl"><div class="id">SE-4.3</div><div class="tx">必须支持保存整场景快照并加载回到过去某一刻；<b>快照只保存世界状态，不保存画面</b>。</div></div>
+
+      <h3>SE-5 数值稳定与边界</h3>
+      <div class="cl"><div class="id">SE-5.1</div><div class="tx">位置必须有边界守卫（越界 clamp 并标记）；必须有 NaN/数值爆炸兜底。</div></div>
+      <div class="cl"><div class="id">SE-5.2</div><div class="tx">应当有"卡死/无进展"检测（连续 N 步未移动且无任务 → 标记，不静默）。</div></div>
+
+      <h3>SE-6 单位</h3>
+      <div class="cl"><div class="id">SE-6.1</div><div class="tx">全系统统一单位，见 WL-1.4。</div></div>
+
+      <h3>SE-7 序列化与回放</h3>
+      <div class="cl"><div class="id">SE-7.1</div><div class="tx">必须支持场景保存/加载；浮点序列化注意精度。</div></div>
+      <div class="cl"><div class="id">SE-7.2</div><div class="tx">回放可用两种方式：实时重仿真 或 状态序列回放（当前实现为后者）。</div></div>
+
+      <h3>SE-8 测试</h3>
+      <div class="cl"><div class="id">SE-8.1</div><div class="tx"><span class="badge b-never">禁止</span>仅靠肉眼判断仿真对错；必须有自动化测试直接读内核数据做断言。</div></div>
+      <div class="cl"><div class="id">SE-8.2</div><div class="tx">必须覆盖：确定性（同种子逐拍一致、快照往返一致）、遮挡不变量、越界守卫、非法命令回滚。</div></div>
+      <div class="cl"><div class="id">SE-8.3</div><div class="tx">单元测试禁止依赖渲染。</div></div>
+
+      <h3>SE-9 依赖与物理引擎选型</h3>
+      <div class="cl"><div class="id">SE-9.1</div><div class="tx"><b>明确决策：不引入 PyBullet / Bullet3 / ODE 等刚体物理引擎。</b>本项目是运动学调度-优化仿真（航线预规划 + 规划期绕障），非刚体动力学；引引擎只增依赖与不确定性而无法建模真实问题。</div></div>
+      <div class="cl"><div class="id">SE-9.2</div><div class="tx">若未来需风场扰动/悬停-巡航能耗差，应在核内用确定性解析公式实现，仍不上引擎。</div></div>
+    </section>
+
+    <section id="ch4">
+      <h2><span class="no">第 4 章</span>合规检查清单（评审用）</h2>
+      <table>
+        <thead><tr><th style="width:40px">#</th><th>检查项</th><th style="width:150px">条款</th></tr></thead>
+        <tbody>
+          <tr><td>1</td><td>1 step=1 秒已在代码常量与 UI 声明</td><td>WL-1.2</td></tr>
+          <tr><td>2</td><td>无人机参数全部来自真实机型且可溯源</td><td>WL-2.1</td></tr>
+          <tr><td>3</td><td>需求生成含热点 + 潮汐 + 重量分档</td><td>WL-4</td></tr>
+          <tr><td>4</td><td>仿真内核可无头运行、无渲染/网络依赖</td><td>SA-2.1</td></tr>
+          <tr><td>5</td><td>存在独立 WorldState + 快照 + 回放</td><td>SA-3</td></tr>
+          <tr><td>6</td><td>固定步长时钟、渲染插值</td><td>SA-4</td></tr>
+          <tr><td>7</td><td>遮挡不删实体、渲染不回写</td><td>SA-5</td></tr>
+          <tr><td>8</td><td>非法命令回滚</td><td>SA-6.2</td></tr>
+          <tr><td>9</td><td>同种子逐拍一致 + 快照往返一致</td><td>SE-4 / SE-8.2</td></tr>
+          <tr><td>10</td><td>越界/NaN 守卫存在</td><td>SE-5.1</td></tr>
+          <tr><td>11</td><td>单位统一</td><td>WL-1.4</td></tr>
+          <tr><td>12</td><td>物理引擎未引入（或已记录理由）</td><td>SE-9</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section id="apA">
+      <h2><span class="no">附录 A</span>术语</h2>
+      <ul>
+        <li><b>世界状态（World State）</b>：一切仿真对象的当前数值集合，渲染的唯一输入。</li>
+        <li><b>快照（Snapshot）</b>：世界状态在某一时刻的完整序列化。</li>
+        <li><b>固定时间步（Fixed Timestep）</b>：以恒定步长推进仿真，与渲染帧率无关。</li>
+        <li><b>CCD（连续碰撞检测）</b>：避免高速物体隧穿的检测方式（本项目因运动学建模暂不需要）。</li>
+        <li><b>SLA</b>：服务等级（此处为送达时限基线）。</li>
+      </ul>
+    </section>
+
+    <section id="apB">
+      <h2><span class="no">附录 B</span>现状审计（规范 vs 现有实现）</h2>
+      <table>
+        <thead><tr><th>规范条款</th><th>现有实现</th><th style="width:110px">状态</th></tr></thead>
+        <tbody>
+          <tr><td>WL-1.2 时间基准</td><td><code>drone.time_step=1.0</code>；deadline 用秒</td><td><span class="st s-warn">⚠ 隐含，需声明</span></td></tr>
+          <tr><td>WL-2.1 真实机型</td><td><code>config/simulation.json</code> heterogeneous</td><td><span class="st s-ok">✔ 已锚定</span></td></tr>
+          <tr><td>WL-4 需求模型</td><td><code>task.py</code> RealisticTaskGenerator</td><td><span class="st s-ok">✔ 已锚定</span></td></tr>
+          <tr><td>SA-2 纯内核</td><td><code>sim_session</code> 以 <code>Environment(visualize=False)</code> 无头创建</td><td><span class="st s-ok">✔</span></td></tr>
+          <tr><td>SA-3 世界状态/快照</td><td><code>sim_session.snapshot()</code> + <code>_history</code></td><td><span class="st s-ok">✔ 需收敛为 SceneManager</span></td></tr>
+          <tr><td>SA-4 固定时钟</td><td>客户端拉一步算一步</td><td><span class="st s-bad">✘ 待补</span></td></tr>
+          <tr><td>SA-5 渲染契约</td><td>命令式交互、渲染只读</td><td><span class="st s-warn">⚠ 需写成硬契约</span></td></tr>
+          <tr><td>SE-4 确定性</td><td>已用种子</td><td><span class="st s-warn">⚠ 缺往返测试</span></td></tr>
+          <tr><td>SE-5 边界守卫</td><td>仅建任务时查边界</td><td><span class="st s-bad">✘ 飞行中缺守卫</span></td></tr>
+          <tr><td>SE-9 物理引擎</td><td>未引入</td><td><span class="st s-ok">✔ 已合规</span></td></tr>
+        </tbody>
+      </table>
+      <div class="callout">详细展开见配套工作文档：<b>世界逻辑规格书.md</b>（WL 展开）、<b>仿真内核分层架构设计.md</b>（SA 展开 + 迁移路线）、<b>架构与界面改造方案.md</b>（UI/展示层）。</div>
+    </section>
+
+  </main>
+</div>
+<footer>群智优衡 · 仿真软件设计规范 v1.0 ｜ 本文件为世界逻辑与软件设计的唯一权威事实源，亦为项目主要展示对象。</footer>
+</body>
+</html>
