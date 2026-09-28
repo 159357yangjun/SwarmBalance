@@ -1,5 +1,6 @@
 import numpy as np
 import heapq
+import hashlib
 import time
 import datetime
 from shapely.geometry import Point, LineString
@@ -13,6 +14,13 @@ from data_source import build_data_source
 from task import WAREHOUSE_POS, Task
 from seed_interface import apply_seed
 from no_fly_zone import get_no_fly_zones, reset_no_fly_zones
+
+# 通行判定结果按「障碍几何指纹」分桶共享，而不是每个 Environment 一份。
+# 一个回合里 41,905 个静态节点对的冷算要 5.76s，而控制台每次 rebuild、批量实验的
+# 每个 episode 都会新建 Environment 并重付这笔钱——几何完全一样，纯属重复。
+# 上限兜住内存（实测工作集约 5 万条 / 约 5.4MB 每桶）。
+_PATH_CLEAR_BUCKETS = {}
+_PATH_CLEAR_BUCKET_MAX = 4
 
 
 CFG = get_shared_config()
@@ -96,8 +104,9 @@ class Environment:
         # 先用纯 Python 的 bbox 剔除，可免掉绝大多数昂贵的 GEOS 相交调用。
         # 这是等价优化：两条线段包围盒不重叠时，几何上不可能相交。
         self._high_buildings_bbox = [(b['geometry'].bounds, b['geometry']) for b in self.high_buildings]
-        # is_path_clear 的结果缓存，见该方法注释。障碍几何在本实例生命周期内不变。
-        self._path_clear_cache = {}
+        # is_path_clear 的结果缓存，见该方法注释。先留空：真正的桶要等 self.no_fly
+        # 就位后才算得出几何指纹，所以延迟到首次判定时解析。
+        self._path_clear_cache = None
 
         # 禁飞区：与建筑物并列的飞行硬约束（参与 is_path_clear / A* / 场景生成）
         self.no_fly = get_no_fly_zones()
@@ -1876,6 +1885,28 @@ class Environment:
         """
         return math.sqrt((pos1[0] - pos2[0])**2 + (pos1[1] - pos2[1])**2)
 
+    def _path_clear_bucket(self):
+        """按障碍几何指纹取（或建）共享的结果桶。
+
+        指纹必须覆盖 _is_path_clear_uncached 的**全部**输入，否则会跨环境返回错误的
+        通行判定 —— 表现是无人机穿楼或穿禁飞区飞过，而界面上一切正常、跑得还更快。
+        输入有三样：高楼多边形、禁飞区是否启用、每个禁飞区参与判定的几何。margin
+        已经 buffer 进 zone.geometry，但仍显式写进指纹，防止将来改成延迟外扩时静默失效。
+        """
+        parts = ["B%d" % len(self._high_buildings_bbox)]
+        parts += [geom.wkt for _bbox, geom in self._high_buildings_bbox]
+        nf = getattr(self, "no_fly", None)
+        zones = list(getattr(nf, "zones", None) or [])
+        parts.append("NF enabled=%d n=%d" % (int(bool(getattr(nf, "enabled", False))), len(zones)))
+        parts += ["%s|%r|%s" % (z.name, getattr(z, "margin", None), z.geometry.wkt) for z in zones]
+        fp = hashlib.md5(chr(10).join(parts).encode("utf-8")).hexdigest()[:16]
+        bucket = _PATH_CLEAR_BUCKETS.get(fp)
+        if bucket is None:
+            if len(_PATH_CLEAR_BUCKETS) >= _PATH_CLEAR_BUCKET_MAX:
+                _PATH_CLEAR_BUCKETS.clear()
+            bucket = _PATH_CLEAR_BUCKETS[fp] = {}
+        return bucket
+
     def is_path_clear(self, pos1, pos2):
         """
         Checks if the path between two positions is free of buildings and no-fly zones.
@@ -1885,16 +1916,19 @@ class Environment:
         # 18 万次，而真正的 A* 只有 34 次。键用精确坐标（不取整、不量化），命中返回的
         # 值与重新计算逐位相同，不改变任何仿真结果；调用方可能传 list，故统一转 tuple。
         cache_key = (tuple(pos1), tuple(pos2))
+        cache = self._path_clear_cache
+        if cache is None:
+            cache = self._path_clear_cache = self._path_clear_bucket()
         try:
-            cached = self._path_clear_cache[cache_key]
+            cached = cache[cache_key]
         except KeyError:
             pass
         else:
             return cached
 
         result = self._is_path_clear_uncached(cache_key[0], cache_key[1])
-        if len(self._path_clear_cache) < self._PATH_CLEAR_CACHE_MAX:
-            self._path_clear_cache[cache_key] = result
+        if len(cache) < self._PATH_CLEAR_CACHE_MAX:
+            cache[cache_key] = result
         return result
 
     def _is_path_clear_uncached(self, pos1, pos2):

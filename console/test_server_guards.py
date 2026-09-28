@@ -298,6 +298,29 @@ class CompletedTaskLogTests(unittest.TestCase):
         self.assertEqual(env_src.count("self.completed_task_log = []"), 2, "声明与 reset 各一处")
 
 
+class PathClearBucketFingerprintTests(unittest.TestCase):
+    """通行判定结果按几何指纹分桶共享，指纹漏掉任何输入都会导致跨环境穿模。"""
+
+    def test_fingerprint_covers_no_fly_geometry_and_margin(self):
+        env = server._get_session().env
+        buckets = __import__("environment")._PATH_CLEAR_BUCKETS
+        base = env._path_clear_bucket()
+        z = env.no_fly.zones[0]
+        old_geom, old_margin = z.geometry, z.margin
+        try:
+            from shapely.geometry import MultiPoint
+            pts = list(z.raw.exterior.coords) + [(z.raw.centroid.x, z.raw.centroid.y + d) for d in (0, 1200)]
+            z.geometry = MultiPoint(pts).convex_hull
+            z.margin = 1200.0
+            self.assertIsNot(env._path_clear_bucket(), base,
+                             "禁飞区几何/余量变了却仍复用旧桶 —— 缓存会返回过期的通行判定")
+        finally:
+            z.geometry, z.margin = old_geom, old_margin
+        self.assertIs(env._path_clear_bucket(), base,
+                      "几何还原后应回到同一个桶（指纹必须是几何的纯函数）")
+        self.assertLessEqual(len(buckets), __import__("environment")._PATH_CLEAR_BUCKET_MAX)
+
+
 class EnvironmentResetCoverageTests(unittest.TestCase):
     """Environment.reset() 必须归零每一个按步累计的统计量。
 
