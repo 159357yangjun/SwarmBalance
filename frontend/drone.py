@@ -15,7 +15,13 @@ BATTERY_CONSUMPTION_BASE = float(_DRONE_CFG.get("battery_consumption_base", 0.5)
 BATTERY_LOAD_PENALTY_FACTOR = float(_DRONE_CFG.get("battery_load_penalty_factor", 0.3))
 BATTERY_LOW_THRESHOLD = float(_DRONE_CFG.get("battery_low_threshold", 0.2))
 DRONE_SPEED = float(_DRONE_CFG.get("speed", 200.0))
-DRONE_TIME_STEP = float(_DRONE_CFG.get("time_step", 1.0))
+# ==================== 时间基准（规范 WL-1.2）====================
+# 规范要求 1 step = 1 秒，且该映射「必须在代码常量与 UI 中显式声明，禁止仅靠配置
+# 凑出自洽」。此前时钟写死 current_time += 1，而位移按 speed × time_step 推进，
+# 两者各取各的值，只在 time_step=1.0 时碰巧一致。现在统一走这一个常量。
+STEP_SECONDS = float(_DRONE_CFG.get("time_step", 1.0))
+# 历史别名，与 STEP_SECONDS 同一个值；新代码请用 STEP_SECONDS。
+DRONE_TIME_STEP = STEP_SECONDS
 DRONE_SWAP_TIME = float(_DRONE_CFG.get("swap_time_seconds", 180))
 DEFAULT_CARRYING_CAPACITY = int(_DRONE_CFG.get("carrying_capacity", 5))
 

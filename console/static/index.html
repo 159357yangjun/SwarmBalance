@@ -1121,6 +1121,8 @@ document.addEventListener('DOMContentLoaded', function () {
     <span class="sb-item">SEED <b>{{ seed }}</b></span>
     <span class="sb-item">STEP <b>{{ snap.step }}</b></span>
     <span class="sb-item">T <b>{{ Number(snap.time||0).toFixed(0) }}s</b></span>
+    <!-- 规范 WL-1.2 要求步长与秒的映射在 UI 中显式声明，不能只靠配置凑出自洽 -->
+    <span class="sb-item" title="规范 WL-1.2：时间以离散步推进，步长由代码常量 STEP_SECONDS 定义">1 步 = <b>{{ appMeta.step_seconds ?? 1 }} s</b></span>
     <span class="sb-item">机队 <b>{{ onlineDroneCount }}/{{ (snap.drones||[]).length }}</b></span>
     <span class="sb-item">待调度 <b>{{ snap.pending_count ?? (snap.tasks||[]).length }}</b></span>
     <span class="sb-item">完成率 <b>{{ pct(snap.stats.completion_rate) }}</b></span>
@@ -1311,7 +1313,7 @@ createApp({
       loading: true, warming: false, view: '2d', tab: 'metrics', showMap: true, showConfig: false, configBusy:false, configError:'', configLoaded:false, showTaskModal:false, taskSubmitting:false, taskError:'',
       showSceneEditor:false, sceneBusy:false, sceneError:'', sceneEditing:false, sceneLoaded:false,
       showSceneLibrary:false, sceneLibraryBusy:false, sceneLibraryError:'', sceneLibraryMessage:'', sceneLibrary:[], sceneLibraryForm:{name:'',description:'',include_scheduler:true},
-      showGuide:false, appMeta:{version:'',name:'',capabilities:{}}, algorithmOptions:[{key:'greedy',label:'Greedy 贪心',available:true},{key:'pso',label:'PSO 粒子群',available:true},{key:'ga',label:'GA 遗传',available:true},{key:'ortools',label:'OR-Tools',available:true}],
+      showGuide:false, appMeta:{version:'',name:'',step_seconds:1,capabilities:{}}, algorithmOptions:[{key:'greedy',label:'Greedy 贪心',available:true},{key:'pso',label:'PSO 粒子群',available:true},{key:'ga',label:'GA 遗传',available:true},{key:'ortools',label:'OR-Tools',available:true}],
       snap: { step:0, time:0, done:false, controls:{task_generation_paused:false}, events:[], history:[], health:{level:'normal',summary:'等待状态数据'}, demo:{active:false,cursor:0,total:0,next:null,completed:false}, stats:{ completed:0,generated:0,completion_rate:0,timeout_rate:0,avg_delay:0,energy:0,nest_turnover:0,berth_utilization:0,swap_sessions:0,utilization:0,empty_load_ratio:0,flight_distance:0,chain_insertions:0,no_fly_detours:0 }, drones:[],nests:[],tasks:[],map:{bounds:[0,0,1000,1000]} },
       trajectories: [], trend: [], timer: null, chart: null, compareChart: null,
       radarChart: null, rankChart: null, gaugeChart: null, fleetPieChart: null,

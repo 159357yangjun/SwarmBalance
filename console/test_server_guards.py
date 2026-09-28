@@ -310,5 +310,27 @@ class PathClearCacheTests(unittest.TestCase):
         self.assertIn("_high_buildings_bbox", SimSession._CHECKPOINT_STATIC_ENV_KEYS)
 
 
+class StepSecondsDeclarationTests(unittest.TestCase):
+    """规范 WL-1.2：步长→秒的映射必须是代码常量并在 UI 声明，不能只靠配置凑自洽。"""
+
+    def test_clock_advances_by_the_constant(self):
+        from console.sim_session import SimSession
+        from drone import STEP_SECONDS
+
+        s = SimSession()
+        s.reset(algorithm="greedy", seed=100)
+        s.step_many(7)
+        self.assertAlmostEqual(s.env.current_time, 7 * STEP_SECONDS, places=6)
+
+    def test_meta_exposes_the_mapping(self):
+        value = server.meta()["step_seconds"]
+        self.assertGreater(float(value), 0.0)
+
+    def test_ui_states_the_mapping(self):
+        html = Path(server._STATIC).read_text(encoding="utf-8")
+        self.assertIn("1 步 = ", html)
+        self.assertIn("step_seconds", html)
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -33,6 +33,11 @@ from console.scene_library import SceneLibrary  # noqa: E402
 from console.config_validation import assert_valid_simulation_config  # noqa: E402
 from console.capabilities import runtime_capabilities  # noqa: E402
 
+try:  # sim_session 已把 frontend/ 加入 sys.path；取规范要求的步长常量作为唯一来源
+    from drone import STEP_SECONDS  # noqa: E402
+except Exception:  # pragma: no cover - 缺依赖时仍要能让 /api/meta 起来
+    STEP_SECONDS = 1.0
+
 app = FastAPI(title="无人机调度仿真控制台")
 
 _STATIC = Path(__file__).resolve().parent / "static" / "index.html"
@@ -231,6 +236,9 @@ def meta():
         "algorithms": ALGORITHMS,
         "scene_library_limit": 50,
         "capabilities": runtime_capabilities(),
+        # 规范 WL-1.2 要求「1 step = 1 秒」这个映射必须在代码常量与 UI 中显式声明，
+        # 不能只靠配置凑出自洽；这里把它随元数据暴露，供状态栏声明。
+        "step_seconds": STEP_SECONDS,
     }
 
 

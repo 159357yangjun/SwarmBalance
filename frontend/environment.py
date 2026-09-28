@@ -4,7 +4,7 @@ import time
 import datetime
 from shapely.geometry import Point, LineString
 import math
-from drone import Drone, BATTERY_CONSUMPTION_BASE, BATTERY_LOAD_PENALTY_FACTOR, HETERO_ENABLED, BATTERY_LOW_THRESHOLD
+from drone import Drone, BATTERY_CONSUMPTION_BASE, BATTERY_LOAD_PENALTY_FACTOR, HETERO_ENABLED, BATTERY_LOW_THRESHOLD, STEP_SECONDS
 from charging_station import ChargingStation, DEFAULT_CHARGING_STATIONS, find_nearest_station
 from config.config_loder import get_shared_config
 # from test import OptimizedMapViewer
@@ -991,8 +991,9 @@ class Environment:
                             # 更新任务状态
                             task_to_assign.update_status("assigned")
 
-        # 每次调用 update 时，时间加一
-        self.current_time += 1
+        # 时钟与运动学共用同一个步长常量（规范 WL-1.2：1 step = 1 秒）。
+        # 原先写死 += 1，与 drone 位移用的 time_step 是两个独立来源，只在 1.0 时凑巧一致。
+        self.current_time += STEP_SECONDS
 
         # 根据模式生成新任务；交互式控制台可临时暂停自动订单流。
         new_tasks = [] if getattr(self, 'task_generation_paused', False) else self.task_generator.step(self.current_time)
