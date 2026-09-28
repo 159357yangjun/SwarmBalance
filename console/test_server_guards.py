@@ -267,6 +267,49 @@ class FrontendGuardTests(unittest.TestCase):
         self.assertIn("if (seq !== this.stepSeq) return;", self.html)
         self.assertIn("this.stepSeq++", self.html)          # stopPlay 递增
 
+    def test_sidebar_counts_do_not_read_phantom_keys(self):
+        """侧栏两处数字曾读快照里根本不存在的键，于是恒为 0 且与地图自相矛盾。"""
+        self.assertNotIn("low_battery_drones", self.html)
+        self.assertNotIn("snap.no_fly_zones", self.html)
+        self.assertIn("health?.critical_battery", self.html)
+        self.assertIn("health?.no_fly_count", self.html)
+        # 后端必须真的发这两个键
+        src = (Path(__file__).resolve().parent / "sim_session.py").read_text(encoding="utf-8")
+        self.assertIn('"no_fly_count": no_fly', src)
+        # 低电阈值只能与计数同源；界面不许再自己写死百分数
+        self.assertNotIn("&lt;30%", self.html)
+        self.assertIn("batteryLowPct", self.html)
+        # 计数与阈值同源，且走 sys.modules 取属性（drone 会被 reload，值绑定会留在旧值上）
+        self.assertIn('getattr(sys.modules.get("drone"), "BATTERY_LOW_THRESHOLD"', src)
+        self.assertNotIn(') < 0.2)', src)
+
+    def test_algorithm_shown_is_the_one_running(self):
+        """改下拉不会热切换调度器，所以展示必须读快照真值，否则界面在替用户撒谎。"""
+        self.assertIn("runningAlgorithm() { return this.snap.algorithm || this.algorithm; }", self.html)
+        self.assertIn("pendingAlgorithm()", self.html)
+        self.assertIn("算法 <b>{{ runningAlgorithm.toUpperCase() }}</b>", self.html)
+        self.assertIn("当前调度策略</div><div class=\"v\">{{ runningAlgorithm.toUpperCase() }}", self.html)
+        # 待生效必须显式标出来，不能让人以为已经切换了
+        self.assertIn('class="pend"', self.html)
+
+    def test_episode_end_is_visible_and_buttons_honest(self):
+        self.assertIn('@click="togglePlay" :disabled="snap.done"', self.html)
+        self.assertIn("playing || stepping || snap.done", self.html)
+        self.assertIn("本回合已结束", self.html)
+
+    def test_legend_carries_color_and_shape_on_one_glyph(self):
+        """色块永远是圆的，旁边的文字却写 ◆/■/▼ —— 圆点与自己的文字矛盾。"""
+        self.assertNotIn('<i class="dot" style="background:var(--idle)"', self.html)
+        self.assertGreaterEqual(self.html.count('<i class="lg" style="color:var('), 5)
+        self.assertIn(".legend .lg {", self.html)
+
+    def test_disabled_and_focus_styles_cover_the_small_buttons(self):
+        # 30 处 :disabled 绑定里 17 处落在 .tiny-btn，原先只有 .btn 有禁用态
+        self.assertIn(".tiny-btn:disabled", self.html)
+        # 焦点环曾是旧主题的钴蓝，贴在绿色品牌上
+        self.assertNotIn("#1d4ed8", self.html)
+        self.assertIn("[tabindex]:focus-visible { outline: 2px solid var(--accent-ink)", self.html)
+
 
 class PathClearCacheTests(unittest.TestCase):
     """is_path_clear 的结果缓存必须给出与重算完全一致的答案。"""
