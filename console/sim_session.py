@@ -379,7 +379,10 @@ class SimSession:
     # 运行态快照 / 检查点
     # ------------------------------------------------------------------
 
-    _CHECKPOINT_STATIC_ENV_KEYS = {"global_bounds", "high_buildings", "no_fly", "data_source"}
+    _CHECKPOINT_STATIC_ENV_KEYS = {"global_bounds", "high_buildings", "no_fly", "data_source",
+                                   # 纯派生的查询缓存，最深拷贝一次可达数十 MB 且对恢复无意义：
+                                   # 障碍几何由上面几个静态键决定，重建后缓存自然会重新填充。
+                                   "_high_buildings_bbox", "_path_clear_cache"}
     _CHECKPOINT_LIMIT = 5
 
     def _env_generation(self) -> str:

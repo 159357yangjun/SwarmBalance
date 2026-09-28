@@ -79,6 +79,10 @@ def build_fleet_drone_types(num_drones):
     return seq
 
 class Environment:
+    # is_path_clear 结果缓存的条目上限：超出后只停止写入、不清空，
+    # 保证长时间批量实验的内存占用有上界。
+    _PATH_CLEAR_CACHE_MAX = 400000
+
     def __init__(self, osm_file_path, visualize=False, episode_max_steps=DEFAULT_EPISODE_MAX_STEPS, data_source=None):
         roads_by_type, buildings_with_height = load_map_data(osm_file_path)
         # 全量建筑与道路：供控制台渲染"真实城市"肌理（此前只暴露高度>20 的高楼）
@@ -92,6 +96,8 @@ class Environment:
         # 先用纯 Python 的 bbox 剔除，可免掉绝大多数昂贵的 GEOS 相交调用。
         # 这是等价优化：两条线段包围盒不重叠时，几何上不可能相交。
         self._high_buildings_bbox = [(b['geometry'].bounds, b['geometry']) for b in self.high_buildings]
+        # is_path_clear 的结果缓存，见该方法注释。障碍几何在本实例生命周期内不变。
+        self._path_clear_cache = {}
 
         # 禁飞区：与建筑物并列的飞行硬约束（参与 is_path_clear / A* / 场景生成）
         self.no_fly = get_no_fly_zones()
@@ -1847,6 +1853,23 @@ class Environment:
         Checks if the path between two positions is free of buildings and no-fly zones.
         禁飞区判定复用与建筑物相同的"擦角忽略"阈值，保证两类障碍口径一致。
         """
+        # A* 在邻域扩展时会反复判定同一对节点：实测 2000 步里 is_path_clear 被调
+        # 18 万次，而真正的 A* 只有 34 次。键用精确坐标（不取整、不量化），命中返回的
+        # 值与重新计算逐位相同，不改变任何仿真结果；调用方可能传 list，故统一转 tuple。
+        cache_key = (tuple(pos1), tuple(pos2))
+        try:
+            cached = self._path_clear_cache[cache_key]
+        except KeyError:
+            pass
+        else:
+            return cached
+
+        result = self._is_path_clear_uncached(cache_key[0], cache_key[1])
+        if len(self._path_clear_cache) < self._PATH_CLEAR_CACHE_MAX:
+            self._path_clear_cache[cache_key] = result
+        return result
+
+    def _is_path_clear_uncached(self, pos1, pos2):
         x1, y1 = pos1
         x2, y2 = pos2
         lminx, lmaxx = (x1, x2) if x1 <= x2 else (x2, x1)

@@ -268,5 +268,47 @@ class FrontendGuardTests(unittest.TestCase):
         self.assertIn("this.stepSeq++", self.html)          # stopPlay 递增
 
 
+class PathClearCacheTests(unittest.TestCase):
+    """is_path_clear 的结果缓存必须给出与重算完全一致的答案。"""
+
+    @classmethod
+    def setUpClass(cls):
+        from console.sim_session import SimSession
+
+        cls.session = SimSession()
+        cls.session.reset(algorithm="greedy", seed=100)
+        cls.env = cls.session.env
+
+    def test_cached_answer_equals_uncached(self):
+        drones = self.env.drones
+        pairs = [((a.x, a.y), (b.x, b.y)) for a, b in zip(drones, drones[1:])]
+        self.assertTrue(pairs)
+        for p1, p2 in pairs:
+            with_cache = self.env.is_path_clear(p1, p2)
+            self.env._path_clear_cache.clear()
+            without = self.env._is_path_clear_uncached(tuple(p1), tuple(p2))
+            self.assertEqual(with_cache, without, "缓存改变了判定: %s->%s" % (p1, p2))
+
+    def test_second_call_hits_cache_without_growing_it(self):
+        p1, p2 = (self.env.drones[0].x, self.env.drones[0].y), (self.env.drones[1].x, self.env.drones[1].y)
+        self.env.is_path_clear(p1, p2)
+        size = len(self.env._path_clear_cache)
+        self.assertGreater(size, 0)
+        self.env.is_path_clear(p1, p2)
+        self.assertEqual(len(self.env._path_clear_cache), size, "重复查询不应新增条目（即应命中缓存）")
+
+    def test_list_arguments_are_accepted(self):
+        # 调用方可能传 list；缓存键必须转成 tuple，否则 TypeError: unhashable
+        p1 = [self.env.drones[0].x, self.env.drones[0].y]
+        p2 = [self.env.drones[1].x, self.env.drones[1].y]
+        self.assertIsInstance(self.env.is_path_clear(p1, p2), bool)
+
+    def test_cache_is_not_deep_copied_into_checkpoints(self):
+        from console.sim_session import SimSession
+
+        self.assertIn("_path_clear_cache", SimSession._CHECKPOINT_STATIC_ENV_KEYS)
+        self.assertIn("_high_buildings_bbox", SimSession._CHECKPOINT_STATIC_ENV_KEYS)
+
+
 if __name__ == "__main__":
     unittest.main()
