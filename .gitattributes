@@ -23,3 +23,7 @@
 *.doc     binary
 *.docx    binary
 *.pdf     binary
+
+# 前端依赖本地副本：必须保持官方构建产物的原始字节，
+# 否则行尾转换会让 console/static/vendor/README.md 登记的 SHA-256 对不上
+console/static/vendor/*.js  -text
