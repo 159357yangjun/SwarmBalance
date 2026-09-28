@@ -31,6 +31,52 @@ def _version_of(name: str) -> Optional[str]:
         return None
 
 
+# 所有算法共用的执行路径：环境、指标口径与实验编排本身。
+SHARED_SOURCES = [
+    "config/config_loder.py",
+    "frontend/environment.py",
+    "frontend/drone.py",
+    "frontend/charging_station.py",
+    "frontend/task.py",
+    "frontend/no_fly_zone.py",
+    "frontend/data_source.py",
+    "frontend/seed_interface.py",
+    "frontend/metrics_schema.py",
+    "frontend/scheduling_interface.py",
+    "frontend/matching.py",
+    "frontend/tools/osm.py",
+    "experiments/runner.py",
+    "experiments/worker.py",
+]
+
+# 每个算法各自的实现文件。少记一条，那一行结果就没有任何源码证据。
+# greedy 用 frontend/matching.py、ga 用 backend_si/matching.py，两份同名不同体，必须分开记。
+ALGORITHM_SOURCES = {
+    "greedy": ["frontend/greedy/__init__.py", "frontend/greedy/scheduler.py"],
+    "ga": [
+        "backend_si/ga_scheduler.py",
+        "backend_si/chain_codec.py",
+        "backend_si/fitness_evaluator.py",
+        "backend_si/matching.py",
+    ],
+    "pso": ["backend_si/pso_scheduler.py"],
+    "ortools": ["backend_si/ortools_scheduler.py"],
+}
+
+
+def _hash_sources(project_root: Path, rel_paths: Iterable[str]) -> Dict[str, str]:
+    hashes: Dict[str, str] = {}
+    for rel in rel_paths:
+        digest = sha256_file(project_root / rel)
+        if digest is None:
+            raise FileNotFoundError(
+                f"复现清单需要 {rel} 的源码哈希，但文件不存在；"
+                "源码被改名或删除时不允许静默记成 null"
+            )
+        hashes[rel] = digest
+    return hashes
+
+
 def _git_commit(root: Path) -> Optional[str]:
     try:
         proc = subprocess.run(
@@ -63,26 +109,25 @@ def write_manifest(
             "osmnx", "ortools", "fastapi", "uvicorn", "pygame",
         )
     }
-    core_sources = [
-        "backend_si/ga_scheduler.py",
-        "backend_si/chain_codec.py",
-        "backend_si/matching.py",
-        "backend_si/fitness_evaluator.py",
-        "frontend/environment.py",
-        "frontend/metrics_schema.py",
-        "experiments/runner.py",
-        "experiments/worker.py",
-    ]
-    source_hashes = {rel: sha256_file(project_root / rel) for rel in core_sources}
+    algos = sorted(set(algorithms))
+    unknown = [a for a in algos if a not in ALGORITHM_SOURCES]
+    if unknown:
+        raise KeyError(
+            f"算法 {unknown} 没有登记实现源码；在 ALGORITHM_SOURCES 里补上，"
+            "否则该算法的结果行在复现清单里是空的"
+        )
+    algorithm_source_files = {a: ALGORITHM_SOURCES[a] for a in algos}
+    listed = SHARED_SOURCES + sorted({f for a in algos for f in ALGORITHM_SOURCES[a]})
+    source_hashes = _hash_sources(project_root, listed)
 
     manifest: Dict[str, Any] = {
-        "schema_version": 1,
+        "schema_version": 2,
         "project": "SwarmBalance",
         "project_version": project_version,
         "generated_at_utc": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "preset": preset_key,
         "plan_count": int(plan_count),
-        "algorithms": sorted(set(algorithms)),
+        "algorithms": algos,
         "runtime": {
             "python": sys.version,
             "python_executable": sys.executable,
@@ -93,6 +138,7 @@ def write_manifest(
         "packages": packages,
         "git_commit": _git_commit(project_root),
         "core_source_sha256": source_hashes,
+        "algorithm_source_files": algorithm_source_files,
         "inputs": {
             "preset": {"path": str(preset_path) if preset_path else None, "sha256": sha256_file(preset_path) if preset_path else None},
             "simulation_config": {"path": str(base_config), "sha256": sha256_file(base_config)},
@@ -106,6 +152,8 @@ def write_manifest(
             "同一实验条件下不同算法使用相同 Seed。",
             "每个 episode 使用独立 simulation.json 副本并在独立子进程执行。",
             "该清单用于复现实验环境，不代表结果具有统计显著性。",
+            "schema v2 起按算法登记实现源码哈希（见 algorithm_source_files）；"
+            "v1 清单只覆盖 GA 相关源码，PSO/OR-Tools/greedy 三行没有源码证据。",
         ],
     }
     path = Path(output_dir) / "reproducibility.json"

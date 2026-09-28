@@ -2,11 +2,13 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import tempfile
 import unittest
 from pathlib import Path
 
 from experiments import runner
+from experiments.reproducibility import ALGORITHM_SOURCES, SHARED_SOURCES, write_manifest
 from experiments.runner import METRIC_COLUMNS, _aggregate, _mean_rows, build_plan, load_preset
 
 
@@ -173,6 +175,55 @@ class AggregationTests(unittest.TestCase):
                 self.assertNotIn("compare_latest", out)
             finally:
                 runner.PROJECT_ROOT = original
+
+
+CONCLUSION_ALGOS = ["greedy", "ga", "pso", "ortools"]
+
+
+class ReproducibilityManifestTests(unittest.TestCase):
+    def _manifest(self, root, algorithms, tmp):
+        return write_manifest(
+            Path(tmp), root, None,
+            root / "config" / "simulation.json",
+            root / "config" / "algorithms.yaml",
+            root / "frontend" / "data" / "map.osm",
+            1, algorithms, "conclusion",
+        )
+
+    def test_every_algorithm_row_carries_its_own_source_hash(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            doc = json.loads(self._manifest(runner.PROJECT_ROOT, CONCLUSION_ALGOS, tmp).read_text(encoding="utf-8"))
+        hashes = doc["core_source_sha256"]
+        # v1 清单只哈希 GA 相关源码：PSO / OR-Tools / greedy 三行结果是零源码证据的。
+        for algo in CONCLUSION_ALGOS:
+            for rel in ALGORITHM_SOURCES[algo]:
+                self.assertIn(rel, hashes, f"{algo} 的实现源码 {rel} 没进清单")
+        self.assertTrue(all(hashes[f] for f in hashes), "存在被静默记成 null 的源码哈希")
+
+    def test_no_listed_source_is_null(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            doc = json.loads(self._manifest(runner.PROJECT_ROOT, CONCLUSION_ALGOS, tmp).read_text(encoding="utf-8"))
+        for rel in SHARED_SOURCES:
+            self.assertIn(rel, doc["core_source_sha256"], f"共用执行路径 {rel} 没进清单")
+        self.assertEqual(doc["schema_version"], 2)
+
+    def test_unknown_algorithm_is_rejected_instead_of_left_unhashed(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            with self.assertRaises(KeyError):
+                self._manifest(runner.PROJECT_ROOT, CONCLUSION_ALGOS + ["qmix"], tmp)
+
+    def test_missing_source_file_raises_instead_of_recording_null(self):
+        with tempfile.TemporaryDirectory() as root, tempfile.TemporaryDirectory() as tmp:
+            with self.assertRaises(FileNotFoundError):
+                self._manifest(Path(root), ["pso"], tmp)
+
+    def test_algorithm_sources_stay_in_sync_with_worker_choices(self):
+        src = (runner.PROJECT_ROOT / "experiments" / "worker.py").read_text(encoding="utf-8")
+        found = re.search(r'--algorithm"[^\]]*choices=\[([^\]]+)\]', src)
+        self.assertIsNotNone(found, "worker.py 的 --algorithm choices 写法变了，这个防漂移断言需要一起改")
+        choices = set(re.findall(r'"([a-z_]+)"', found.group(1)))
+        self.assertEqual(choices, set(ALGORITHM_SOURCES),
+                         "worker 能跑的算法与复现清单登记表的键不一致")
 
 
 if __name__ == "__main__":
