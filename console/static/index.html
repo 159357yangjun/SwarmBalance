@@ -1376,7 +1376,10 @@ createApp({
     };
   },
   computed: {
-    baseInterval() { return 350; },
+    // 每拍之间的间隔。节拍随倍速收紧，而不是每拍塞进步数（见 playTick）。
+    // 45ms 下限是照着实测留的：count=1 的 /api/step p50=14.8ms、p95=28.1ms，
+    // 再快就会让请求排队、反而丢帧。
+    tickMs() { return Math.max(45, Math.round(350 / (this.speed || 1))); },
     busyDroneCount() { return (this.snap.drones || []).filter(d => d.state === 'busy').length; },
     berthQueueCount() { return (this.snap.nests || []).reduce((a,n) => a + (n.queue_length || 0), 0); },
     activeChainCount() { return (this.snap.drones || []).filter(d => (d.chain_len || 0) > 1).length; },
@@ -1911,10 +1914,25 @@ createApp({
     startPlay() {
       if (this.snap.done) return;
       this.playing = true;
-      this.advance(this.speed);
-      this.timer = setInterval(() => this.advance(this.speed), this.baseInterval);
+      this.playTick();
     },
-    stopPlay() { this.playing = false; this.stepSeq++; if (this.timer) { clearInterval(this.timer); this.timer = null; } },
+    async playTick() {
+      if (!this.playing) return;
+      // 记住自己这一代的序号。stepSeq 在 stopPlay() 里递增，所以「停了立刻又点播放」时，
+      // 上一条还在 await 里的旧链恢复后会发现序号已变而自行退出；只判 this.playing 是不够的
+      // —— 那时它已经被新的 startPlay 重新置为 true，两条链会并行跑，表现为播放突然双倍速。
+      const seq = this.stepSeq;
+      const t0 = performance.now();
+      await this.advance(1);
+      if (!this.playing || seq !== this.stepSeq) return;
+      // 原先是「固定 350ms 一拍、每拍走 speed 步」，于是 10x 和 1x 的**重绘率一模一样**
+      // （都是 2.9 次/秒），10x 只是每帧瞬移 10 步 —— 看着像卡带而不是快进。
+      // 改成「每拍只走 1 步、节拍随倍速收紧」：步速比例 1:2:5:10 保持不变，
+      // 但同样的步数被摊到更多帧上，10x 从 2.9fps 变成约 22fps。
+      const gap = this.tickMs - (performance.now() - t0);
+      this.timer = setTimeout(() => this.playTick(), gap > 0 ? gap : 0);
+    },
+    stopPlay() { this.playing = false; this.stepSeq++; if (this.timer) { clearTimeout(this.timer); this.timer = null; } },
     setSpeed(s) { this.speed = s; },
     onAlgorithmChange() {},
     closeTopModal() {
