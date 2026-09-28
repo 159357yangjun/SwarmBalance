@@ -39,7 +39,7 @@ document.addEventListener('DOMContentLoaded', function () {
   :root {
     --bg: #f5f6f8; --panel: #ffffff; --border: #e4e7ec;
     --text: #1f2329; --muted: #86909c; --accent: #2f6fed;
-    --idle: #52c41a; --busy: #1890ff; --charging: #faad14; --waiting: #fa8c16; --offline:#6b7280;
+    --idle: #52c41a; --busy: #1890ff; --charging: #f59e0b; --waiting: #7c3aed; --offline:#6b7280;
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: -apple-system,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif; background: var(--bg); color: var(--text); font-size: 14px; }
@@ -246,7 +246,7 @@ document.addEventListener('DOMContentLoaded', function () {
     --bg:#f6f8f7; --panel:#ffffff; --panel-2:#fbfcfc; --border:#e9ecec; --border-2:#f1f3f3;
     --text:#1b2320; --muted:#8a938f;
     --accent:#0e9f6e; --accent-2:#34d399; --accent-soft:#e9f7f1; --accent-ink:#0b7d57;
-    --idle:#12b76a; --busy:#2e90fa; --charging:#f59e0b; --waiting:#f97316; --offline:#98a2b3;
+    --idle:#12b76a; --busy:#2e90fa; --charging:#f59e0b; --waiting:#7c3aed; --offline:#98a2b3;
     --r-lg:14px; --r-md:11px; --r-sm:9px;
     --sh-1:0 1px 2px rgba(16,24,40,.04);
     --sh-2:0 4px 14px -8px rgba(16,24,40,.12);
@@ -268,6 +268,10 @@ document.addEventListener('DOMContentLoaded', function () {
   select,input[type=number],input[type=text]{ background:#fff; border:1px solid var(--border);
     color:var(--text); box-shadow:none; }
   select:focus,input:focus{ border-color:var(--accent); box-shadow:var(--ring); }
+  /* 键盘可达性：此前只有输入框有可见焦点态，按钮/链接/导航全无，
+     只用键盘的人（以及答辩现场需要 Tab 到某个按钮时）看不到焦点在哪 */
+  button:focus-visible, a:focus-visible, select:focus-visible, input:focus-visible,
+  [tabindex]:focus-visible { outline: 2px solid #1d4ed8; outline-offset: 2px; }
   .btn{ background:#fff; border:1px solid var(--border); color:#3f4a46; box-shadow:none; font-weight:500; }
   .btn:hover{ border-color:#bfe6d6; color:var(--accent-ink); background:var(--accent-soft); }
   .btn.primary{ background:var(--accent); border-color:var(--accent); color:#fff; box-shadow:0 2px 8px -3px rgba(14,159,110,.55); }
@@ -758,11 +762,11 @@ document.addEventListener('DOMContentLoaded', function () {
         </div>
       </div>
       <div class="legend" data-page-node-id="mGDkcE76m0pDpxFQhIVRpl">
-        <span data-page-node-id="VU8CgJ7oHNMqyI9vhECiww"><i class="dot" style="background:var(--idle)" data-page-node-id="vytutNfBoQ3DYMJntHzhzn"></i>空闲</span>
-        <span data-page-node-id="AVIUIX8glbLFVZBI3lALW4"><i class="dot" style="background:var(--busy)" data-page-node-id="9zLzNEz5F15ZkHM5sPty7g"></i>配送中</span>
-        <span data-page-node-id="zpPlVq12pNGQgLi1YNt5Ji"><i class="dot" style="background:var(--charging)" data-page-node-id="y8xMeqmbi82SSIEo3g2w0m"></i>换电</span>
-        <span data-page-node-id="ai3QmxOerNe0HBM2eyFHEI"><i class="dot" style="background:var(--waiting)" data-page-node-id="w02M20dVVjSdTL0yF7cZi5"></i>等泊位</span>
-        <span><i class="dot" style="background:var(--offline)"></i>停飞</span>
+        <span data-page-node-id="VU8CgJ7oHNMqyI9vhECiww"><i class="dot" style="background:var(--idle)" data-page-node-id="vytutNfBoQ3DYMJntHzhzn"></i>● 空闲</span>
+        <span data-page-node-id="AVIUIX8glbLFVZBI3lALW4"><i class="dot" style="background:var(--busy)" data-page-node-id="9zLzNEz5F15ZkHM5sPty7g"></i>● 配送中</span>
+        <span data-page-node-id="zpPlVq12pNGQgLi1YNt5Ji"><i class="dot" style="background:var(--charging)" data-page-node-id="y8xMeqmbi82SSIEo3g2w0m"></i>◆ 换电 / 前往机巢</span>
+        <span data-page-node-id="ai3QmxOerNe0HBM2eyFHEI"><i class="dot" style="background:var(--waiting)" data-page-node-id="w02M20dVVjSdTL0yF7cZi5"></i>■ 等泊位</span>
+        <span><i class="dot" style="background:var(--offline)"></i>▼ 停飞</span>
         <span style="color:var(--muted)" data-page-node-id="OWIybTAS3e6DpoP2hqG55F">△ 机巢</span>
         <span style="color:var(--muted)" data-page-node-id="PLyECwjADdLWuhXFCXoiGK">○→● 任务起终点</span>
       </div>
@@ -1302,7 +1306,28 @@ document.addEventListener('DOMContentLoaded', function () {
 
 <script>
 const { createApp } = Vue;
-const STATE_COLOR = { idle: '#52c41a', busy: '#1890ff', charging: '#faad14', waiting_berth: '#fa8c16', to_nest:'#d97706', offline:'#6b7280' };
+// 状态色必须与 CSS 变量同源。此前图例读 var(--charging)（#f59e0b），而地图上的
+// 无人机读这里硬编码的 #faad14 —— 同一个状态两种颜色（实测相差 1.13:1），
+// 答辩现场按图例去找地图上的点会对不上。改为启动时从计算样式取一次。
+const STATE_COLOR = (() => {
+  const cs = typeof document !== 'undefined' ? getComputedStyle(document.documentElement) : null;
+  const read = (name, fallback) => ((cs && cs.getPropertyValue(name)) || '').trim() || fallback;
+  const charging = read('--charging', '#f59e0b');
+  return {
+    idle: read('--idle', '#12b76a'),
+    busy: read('--busy', '#2e90fa'),
+    charging,
+    to_nest: charging,                 // 前往机巢补能与换电同族，共用色、共用形状
+    waiting_berth: read('--waiting', '#7c3aed'),
+    offline: read('--offline', '#98a2b3'),
+  };
+})();
+// 状态→形状：颜色之外必须有形状冗余（等泊位与换电的旧配色实测仅 1.25:1，
+// 投影仪上根本分不开；色觉障碍用户也无法靠颜色区分）。
+// 注意避开地图上已有的图形：机巢是正三角、任务起终点是圆，所以这里用
+// 菱形 / 正方形 / 倒三角三种未被占用的轮廓。
+const STATE_SHAPE = { idle:'circle', busy:'circle', charging:'diamond', to_nest:'diamond',
+                      waiting_berth:'square', offline:'triangle_down' };
 const PALETTE = ['#1890ff','#fa8c16','#52c41a','#eb2f96','#722ed1','#13c2c2','#f5222d','#a0d911','#2f54eb','#faad14'];
 
 createApp({
@@ -2074,7 +2099,24 @@ createApp({
         const p = P(d.x,d.y);
         const selected=this.selection.type==='drone' && String(this.selection.id)===String(d.id);
         if(selected){ ctx.strokeStyle='#2f6fed'; ctx.lineWidth=2.4; ctx.beginPath(); ctx.arc(p.sx,p.sy,11,0,Math.PI*2); ctx.stroke(); }
-        ctx.fillStyle = STATE_COLOR[d.state] || '#888'; ctx.beginPath(); ctx.arc(p.sx,p.sy,selected?6.5:5,0,Math.PI*2); ctx.fill();
+        ctx.fillStyle = STATE_COLOR[d.state] || '#888';
+        const r = selected ? 6.5 : 5;
+        ctx.beginPath();
+        // 圆 / 菱 / 方 / 倒三角 四种轮廓，保证不靠颜色也能分状态
+        // （正三角留给机巢，避免混淆）
+        switch (STATE_SHAPE[d.state] || 'circle') {
+          case 'diamond':
+            ctx.moveTo(p.sx, p.sy - r * 1.35); ctx.lineTo(p.sx + r * 1.05, p.sy);
+            ctx.lineTo(p.sx, p.sy + r * 1.35); ctx.lineTo(p.sx - r * 1.05, p.sy); ctx.closePath(); break;
+          case 'square':
+            ctx.rect(p.sx - r, p.sy - r, r * 2, r * 2); break;
+          case 'triangle_down':
+            ctx.moveTo(p.sx, p.sy + r * 1.3); ctx.lineTo(p.sx + r * 1.1, p.sy - r * 0.85);
+            ctx.lineTo(p.sx - r * 1.1, p.sy - r * 0.85); ctx.closePath(); break;
+          default:
+            ctx.arc(p.sx, p.sy, r, 0, Math.PI * 2);
+        }
+        ctx.fill();
         ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.5; ctx.stroke();
       });
     },
