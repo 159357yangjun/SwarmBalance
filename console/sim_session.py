@@ -844,10 +844,7 @@ class SimSession:
 
     def _tasks_snapshot(self, limit: int = 60) -> List[Dict]:
         tasks = []
-        try:
-            unassigned = getattr(self.env.task_generator, "unassigned_tasks", []) or []
-        except Exception:
-            unassigned = getattr(self.env, "unassigned_tasks", []) or []
+        unassigned = getattr(self.env, "unassigned_tasks", []) or []
         for t in unassigned:
             tid = str(getattr(t, "task_id", ""))
             if not tid or tid.startswith("__pad_"):

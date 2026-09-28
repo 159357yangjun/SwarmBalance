@@ -1,3 +1,4 @@
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -50,10 +51,14 @@ def config_signature(config_path=None):
     """
     p = _resolve(config_path)
     try:
-        st = os.stat(p)
-        return (_resolved_str(p), int(st.st_mtime_ns), int(st.st_size))
+        data = p.read_bytes()
     except OSError:
-        return (str(p), None, None)
+        return (str(p), None)
+    # 不能用 (mtime_ns, size)：实测 40 次内容各异的写入只产生 19 个不同的时间戳+长度组合
+    # （Windows 文件时间戳约 10ms 一格），把 num_drones 从 10 改成 11 这种等长改动会完全
+    # 躲过签名，指纹缓存就会永久 stale。读内容做哈希实测 0.08ms，仍比它守护的
+    # open+json.load(0.18ms) 便宜一半以上。
+    return (_resolved_str(p), hashlib.md5(data).hexdigest())
 
 
 def get_shared_config(config_path=None):

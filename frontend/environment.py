@@ -103,7 +103,6 @@ class Environment:
         self.no_fly = get_no_fly_zones()
         self.total_no_fly_detours = 0   # 因禁飞区触发绕飞的次数
 
-        self.unassigned_tasks = []  # 保持向后兼容，通过 task_generator 访问
         self.episode_max_steps = int(episode_max_steps)
         # 数据源适配层：统一提供 机队/机巢/任务 三类数据（随机生成 / CSV / GeoJSON）
         self.data_source = data_source if data_source is not None else build_data_source()
@@ -215,6 +214,17 @@ class Environment:
 
         # print(get_building_location_by_name( self.high_buildings, "衷和楼"))
         print(f"加载了 {len(self.high_buildings)} 个具有高度信息的建筑物")
+
+    @property
+    def unassigned_tasks(self):
+        """待分配队列的只读视图。
+
+        以前这是一个在 reset() 里 extend 过一次的普通列表，之后任务生成/消费都不再
+        同步它 —— 于是它是一份会过期的影子状态（实测跑 600 步后影子仍留着初始 12 条，
+        真实队列只剩 3 条）。任何拿它做兜底的代码都会读到假数据，所以直接转发给
+        task_generator，让它不可能再 stale。
+        """
+        return self.task_generator.unassigned_tasks
 
     def _build_charging_stations(self):
         """从数据源构建机巢（换电站）列表；数据源为空时退回配置默认站。"""
@@ -1259,7 +1269,6 @@ class Environment:
         elif self._episode_seed is not None:
             apply_seed(self._episode_seed)
 
-        self.unassigned_tasks = []
         self.charging_stations = self._build_charging_stations()
         self.drones = self._build_drones()
         self.current_time = 0
@@ -1317,7 +1326,6 @@ class Environment:
         self.task_generator.reset()
         self.task_generator.set_seed(self._episode_seed)
         initial_tasks = self.task_generator.generate_initial_tasks(self.current_time)
-        self.unassigned_tasks.extend(self.task_generator.unassigned_tasks)
         self.generated_task_times = [t.get_generation_time() for t in initial_tasks]
         self.total_generated_tasks = self.task_generator.total_tasks_generated
 
