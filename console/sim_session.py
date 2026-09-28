@@ -1185,12 +1185,16 @@ class SimSession:
         urgent = sum(1 for t in pending if int(getattr(t, "priority", 1)) >= 3)
         drones = list(self.env.drones)
         offline = sum(1 for d in drones if getattr(d, "out_of_service", False))
+        _low_thr = getattr(sys.modules.get("drone"), "BATTERY_LOW_THRESHOLD", 0.2)
         critical_battery = sum(1 for d in drones if not getattr(d, "out_of_service", False)
                                and not getattr(d, "is_charging", False)
-                               and float(getattr(d, "current_battery", 0.0)) / max(1e-9, float(getattr(d, "battery_capacity", 1.0))) < 0.2)
+                               and float(getattr(d, "current_battery", 0.0)) / max(1e-9, float(getattr(d, "battery_capacity", 1.0))) < _low_thr)
         nests = list(self.env.charging_stations)
         closed = sum(1 for s in nests if getattr(s, "closed", False))
         queue = sum(len(q) for q in getattr(self.env, "_nest_waiting", {}).values())
+        # 侧栏「禁飞区」要的是**区域个数**；_no_fly_snapshot 返回的是多边形环，一块区域可能有多个
+        # 环，拿它的长度计数会把 3 块报成 5 个。
+        no_fly = len(getattr(getattr(self.env, "no_fly", None), "zones", None) or [])
         online = len(drones) - offline
         level = "normal"
         notes = []
@@ -1212,6 +1216,7 @@ class SimSession:
             "level": level, "summary": "；".join(notes), "pending": len(pending),
             "urgent_pending": urgent, "offline_drones": offline, "critical_battery": critical_battery,
             "closed_nests": closed, "berth_queue": queue, "online_drones": online,
+            "no_fly_count": no_fly,
         }
 
     def _demo_snapshot(self) -> Dict:

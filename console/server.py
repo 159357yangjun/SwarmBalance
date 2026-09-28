@@ -239,6 +239,9 @@ def meta():
         # 规范 WL-1.2 要求「1 step = 1 秒」这个映射必须在代码常量与 UI 中显式声明，
         # 不能只靠配置凑出自洽；这里把它随元数据暴露，供状态栏声明。
         "step_seconds": STEP_SECONDS,
+        # 侧栏「低电」的阈值口径必须与 sim_session 的计数同源，不能让界面自己猜一个百分数。
+        # 走 sys.modules 取属性而不是 from-import：drone 会在改配置后被 reload，值绑定会留在旧值上。
+        "battery_low_threshold": getattr(sys.modules.get("drone"), "BATTERY_LOW_THRESHOLD", 0.2),
     }
 
 

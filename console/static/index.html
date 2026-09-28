@@ -638,7 +638,7 @@ document.addEventListener('DOMContentLoaded', function () {
         <div class="tree-row"><i class="tdot" style="background:var(--busy)"></i>无人机 <b>{{ (snap.drones||[]).length }}</b></div>
         <div class="tree-row"><i class="tdot" style="background:var(--idle)"></i>机巢 <b>{{ (snap.nests||[]).length }}</b></div>
         <div class="tree-row"><i class="tdot" style="background:var(--waiting)"></i>待调度任务 <b>{{ snap.pending_count ?? (snap.tasks||[]).length }}</b></div>
-        <div class="tree-row"><i class="tdot" style="background:#ef4444"></i>禁飞区 <b>{{ (snap.no_fly_zones||[]).length }}</b></div>
+        <div class="tree-row"><i class="tdot" style="background:#ef4444"></i>禁飞区 <b>{{ snap.health?.no_fly_count || 0 }}</b></div>
       </div>
     </aside>
   <div class="main" data-page-node-id="xbV1IaWBnja9Wb5xUW7bxY">
@@ -834,7 +834,7 @@ document.addEventListener('DOMContentLoaded', function () {
         <div class="overview-grid">
           <div class="overview-item"><div class="k">当前调度策略</div><div class="v">{{ algorithm.toUpperCase() }}</div><div class="sub">Seed {{ seed }} · {{ snap.controls?.task_generation_paused ? '人工/存量任务模式' : '自动订单流' }}</div></div>
           <div class="overview-item"><div class="k">任务压力</div><div class="v">{{ snap.pending_count || 0 }} 待调度 · P3 {{ snap.health?.urgent_pending || 0 }}</div><div class="sub">完成 {{ snap.stats.completed || 0 }} / 生成 {{ snap.stats.generated || 0 }}</div></div>
-          <div class="overview-item"><div class="k">机队资源</div><div class="v">在线 {{ onlineDroneCount }} / {{ (snap.drones||[]).length }}</div><div class="sub">配送 {{ busyDroneCount }} · 低电 {{ snap.health?.low_battery_drones || 0 }} · 停飞 {{ offlineDroneCount }}</div></div>
+          <div class="overview-item"><div class="k">机队资源</div><div class="v">在线 {{ onlineDroneCount }} / {{ (snap.drones||[]).length }}</div><div class="sub">配送 {{ busyDroneCount }} · 低电 {{ snap.health?.critical_battery || 0 }} · 停飞 {{ offlineDroneCount }}</div></div>
           <div class="overview-item"><div class="k">地面资源</div><div class="v">排队 {{ berthQueueCount }} · 关闭 {{ closedNestCount }}</div><div class="sub">泊位利用率 {{ pct(snap.stats.berth_utilization) }}</div></div>
         </div>
         <div class="advice-box">
@@ -1082,7 +1082,7 @@ document.addEventListener('DOMContentLoaded', function () {
           <div class="stat"><i class="tdot" :style="{background: stateColor('charging')}"></i>换电 / 前往机巢<b>{{ dockStateCount('charging') + dockStateCount('to_nest') }}</b></div>
           <div class="stat"><i class="tdot" :style="{background: stateColor('waiting_berth')}"></i>等泊位<b>{{ dockStateCount('waiting_berth') }}</b></div>
           <div class="stat"><i class="tdot" :style="{background:'#ef4444'}"></i>停飞<b>{{ offlineDroneCount }}</b></div>
-          <div class="stat"><i class="tdot" :style="{background: 'var(--muted)'}"></i>低电（&lt;30%）<b>{{ snap.health?.low_battery_drones || 0 }}</b></div>
+          <div class="stat"><i class="tdot" :style="{background: 'var(--muted)'}"></i>低电（&lt;{{ batteryLowPct }}%）<b>{{ snap.health?.critical_battery || 0 }}</b></div>
         </div>
       </div>
 
@@ -1367,6 +1367,8 @@ createApp({
     berthQueueCount() { return (this.snap.nests || []).reduce((a,n) => a + (n.queue_length || 0), 0); },
     activeChainCount() { return (this.snap.drones || []).filter(d => (d.chain_len || 0) > 1).length; },
     offlineDroneCount() { return (this.snap.drones || []).filter(d => d.out_of_service).length; },
+    // 阈值由后端随 meta 下发，与 sim_session 的计数同源；界面不再自己写死一个百分数。
+    batteryLowPct() { return Math.round(((this.appMeta && this.appMeta.battery_low_threshold) ?? 0.2) * 100); },
     closedNestCount() { return (this.snap.nests || []).filter(n => n.closed).length; },
     taskCatalog() { return this.snap.task_catalog || this.snap.tasks || []; },
     pendingTasksSorted() { return this.taskCatalog.filter(t => t.status === 'pending').slice().sort((a,b) => (a.remaining_time ?? 1e18) - (b.remaining_time ?? 1e18) || (b.priority||0)-(a.priority||0)); },
@@ -1407,7 +1409,7 @@ createApp({
       if((h.urgent_pending||0)>0) tips.push(`存在 ${h.urgent_pending} 条 P3 紧急任务：建议暂停自动订单流并单步观察重调度。`);
       if((h.offline_drones||0)>0) tips.push(`有 ${h.offline_drones} 架无人机停飞：检查回收任务是否已重新分配，必要时恢复资源。`);
       if((h.closed_nests||0)>0) tips.push(`有 ${h.closed_nests} 个机巢关闭：关注补能改道与剩余开放机巢负载。`);
-      if((h.low_battery_drones||0)>0) tips.push(`有 ${h.low_battery_drones} 架无人机低电：可点选无人机并请求补能。`);
+      if((h.critical_battery||0)>0) tips.push(`有 ${h.critical_battery} 架无人机低电：可点选无人机并请求补能。`);
       if((this.berthQueueCount||0)>0) tips.push(`当前泊位排队 ${this.berthQueueCount}：打开“调度”页查看动态优先级仲裁。`);
       if(!tips.length) tips.push('系统资源状态平稳。可继续播放，或人工插入紧急任务演示滚动重规划。');
       return tips.slice(0,3);
