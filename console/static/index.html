@@ -2021,7 +2021,13 @@ createApp({
       const dpr = window.devicePixelRatio || 1;
       const w = cv.clientWidth, h = cv.clientHeight;
       if (!w || !h) return;
-      cv.width = w*dpr; cv.height = h*dpr;
+      // 给 canvas 的 width/height 赋值会**重新分配后备存储并清空整张画布**，
+      // 即使数值没变。原先每次重绘都无条件赋值，于是每帧都要把 2893 栋建筑
+      // 与 1237 段路网整层重栅格化一遍——步进时画面发涩就是这个。
+      // 只在尺寸或设备像素比真的变了时才重建。
+      if (cv.width !== Math.round(w*dpr) || cv.height !== Math.round(h*dpr)) {
+        cv.width = Math.round(w*dpr); cv.height = Math.round(h*dpr);
+      }
       const ctx = cv.getContext('2d');
       ctx.setTransform(dpr,0,0,dpr,0,0);
       ctx.clearRect(0,0,w,h);
