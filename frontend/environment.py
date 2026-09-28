@@ -131,6 +131,9 @@ class Environment:
         
         # 跟踪已完成的任务，用于奖励计算
         self.completed_tasks = []
+        # completed_tasks 是**本步**的临时缓冲，_compute_reward() 末尾会 clear() 它；
+        # 控制台要在整回合里回看「哪些任务完成了、是否准时」，所以另存一份有界的耐久日志。
+        self.completed_task_log = []
         
         # 跟踪无人机分配的任务：{drone_idx: {'task': task, 'start_time': time}}
         self.drone_assignments = {}
@@ -337,6 +340,9 @@ class Environment:
             'generation_to_completion_time': generation_to_completion_time,
             'delay': delay
         })
+        self.completed_task_log.append(self.completed_tasks[-1])
+        if len(self.completed_task_log) > 120:
+            del self.completed_task_log[:-120]
 
         if PRINT_ROUTE_DEBUG:
             drone_id = self.drones[drone_idx].drone_id if drone_idx < len(self.drones) else f"drone_{drone_idx}"
@@ -1258,6 +1264,9 @@ class Environment:
         self.drones = self._build_drones()
         self.current_time = 0
         self.completed_tasks = []
+        # completed_tasks 是**本步**的临时缓冲，_compute_reward() 末尾会 clear() 它；
+        # 控制台要在整回合里回看「哪些任务完成了、是否准时」，所以另存一份有界的耐久日志。
+        self.completed_task_log = []
         self.drone_assignments = {}
         self._prev_free_status = {i: True for i in range(len(self.drones))}
         self._overdue_task_ids = set()

@@ -281,6 +281,23 @@ class ConfigSignatureCacheTests(unittest.TestCase):
             session._map_static_src = src
 
 
+class CompletedTaskLogTests(unittest.TestCase):
+    """任务生命周期视图曾恒空：快照读的是每步末尾就被 clear() 的临时缓冲。"""
+
+    def test_catalog_reads_the_durable_log_not_the_scratch_buffer(self):
+        env_src = (Path(server.__file__).resolve().parent.parent / "frontend" / "environment.py").read_text(encoding="utf-8")
+        ses_src = (Path(server.__file__).resolve().parent / "sim_session.py").read_text(encoding="utf-8")
+        # 临时缓冲确实还在被 clear —— 这正是当初视图恒空的根因
+        self.assertIn("self.completed_tasks.clear()", env_src)
+        self.assertIn('completed = list(getattr(self.env, "completed_task_log"', ses_src)
+        self.assertNotIn('getattr(self.env, "completed_tasks"', ses_src)
+        # 每一条进临时缓冲的行，都必须同时进耐久日志
+        self.assertIn("self.completed_task_log.append(self.completed_tasks[-1])", env_src)
+        # 日志必须有界（长跑不能无界增长，且检查点会 deepcopy 它）
+        self.assertIn("if len(self.completed_task_log) > 120:", env_src)
+        self.assertEqual(env_src.count("self.completed_task_log = []"), 2, "声明与 reset 各一处")
+
+
 class EnvironmentResetCoverageTests(unittest.TestCase):
     """Environment.reset() 必须归零每一个按步累计的统计量。
 

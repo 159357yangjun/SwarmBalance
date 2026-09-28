@@ -926,7 +926,7 @@ class SimSession:
                 })
                 rows[tid] = row
 
-        completed = list(getattr(self.env, "completed_tasks", []) or [])[-completed_limit:]
+        completed = list(getattr(self.env, "completed_task_log", []) or [])[-completed_limit:]
         for item in completed:
             task = item.get("task") if isinstance(item, dict) else None
             if task is None:

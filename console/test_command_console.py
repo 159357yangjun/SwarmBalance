@@ -160,7 +160,9 @@ class CommandConsoleTests(unittest.TestCase):
         task = FakeTask(task_id="done")
         s = make_session([], [FakeDrone("drone_0")])
         s._completed_task_owner["done"] = {"drone_id": "drone_0", "drone_idx": 0}
-        s.env.completed_tasks = [{
+        # 写的是 completed_task_log 而不是 completed_tasks：后者是本步的临时缓冲，
+        # _compute_reward() 在每步末尾就把它 clear() 掉了，快照时刻永远是空的。
+        s.env.completed_task_log = [{
             "task": task, "assigned_time": 1.0, "load_time": 2.0,
             "completion_time": 90.0, "delay": 0.0,
         }]
