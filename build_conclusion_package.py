@@ -25,11 +25,11 @@ DEFAULT_OUT = ROOT / "deliverables"
 
 DOCS = [
     "README.md",
-    "算法口径说明.md",
-    "产品化收口与结项口径审计.md",
-    "交互式仿真与答辩演示.md",
-    "离线便携与端到端自检.md",
-    "结项修改说明.md",
+    "docs/算法口径说明.md",
+    "docs/产品化收口与结项口径审计.md",
+    "docs/交互式仿真与答辩演示.md",
+    "docs/离线便携与端到端自检.md",
+    "docs/结项修改说明.md",
     "CHANGELOG.md",
     "CITATION.cff",
     "LICENSE",
@@ -117,12 +117,23 @@ def build(experiment: Optional[Path], output: Optional[Path], allow_missing: boo
     with tempfile.TemporaryDirectory() as td:
         stage = Path(td) / f"SwarmBalance-v{version}-结项证据包"
         stage.mkdir(parents=True)
+        missing = []
         for rel in DOCS + CONFIGS:
             src = ROOT / rel
-            if src.exists():
-                dst = stage / rel
-                dst.parent.mkdir(parents=True, exist_ok=True)
-                shutil.copy2(src, dst)
+            if not src.exists():
+                missing.append(rel)
+                continue
+            dst = stage / rel
+            dst.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(src, dst)
+        # 白名单文件缺失必须中断：历史上文档整体移入 docs/ 后，这里静默跳过了
+        # 5 份核心口径文档，结项包照常生成、返回码为 0，抽检才发现内容不全。
+        if missing:
+            raise FileNotFoundError(
+                "结项证据包白名单文件缺失，已中断打包：%s。"
+                "若文件被移动或改名，请同步更新 build_conclusion_package.py 的 DOCS/CONFIGS。"
+                % "、".join(missing)
+            )
         if experiment is not None:
             copy_tree_filtered(experiment, stage / "正式实验结果" / experiment.name)
 
