@@ -19,10 +19,30 @@ import numpy as np
 # 让该测试在未安装 osmnx 的 CI / 编辑环境也可执行。
 _fake_env_module = types.ModuleType("environment")
 _fake_env_module.Environment = object
-sys.modules.setdefault("environment", _fake_env_module)
+_had_real_env = "environment" in sys.modules
+if not _had_real_env:
+    sys.modules["environment"] = _fake_env_module
 
 sim_session = importlib.import_module("console.sim_session")
 SimSession = sim_session.SimSession
+
+
+def tearDownModule():
+    """本模块跑完后把 environment 换回真实实现。
+
+    上面这个桩是进程级的：sim_session 在 import 时就把 ``_env_module`` 绑到了假模块上，
+    于是同一进程里**之后**运行的任何测试只要构造真实 SimSession，就会执行
+    ``env_cls(...)`` 而 env_cls 是 ``object``，报 "TypeError: object() takes no arguments"。
+    桩只对需要它的这些用例有意义，不该泄漏给别的测试模块。
+    """
+    if _had_real_env:
+        return
+    try:
+        sys.modules.pop("environment", None)
+        import environment as _real_env  # frontend/ 已由 sim_session 加入 sys.path
+        sim_session._env_module = _real_env
+    except Exception:  # noqa: BLE001 - 缺依赖时保留桩，本模块仍可运行
+        sys.modules["environment"] = _fake_env_module
 
 
 class FakeTask:

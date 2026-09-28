@@ -27,6 +27,16 @@ except Exception:  # pragma: no cover - 是否安装由运行环境决定
     ox = None
 
 
+def _osmnx_available() -> bool:
+    """osmnx 是否**真的可用**。
+
+    只判断 ``ox is None`` 是不够的：一个导入不完整或被替换过的模块对象同样非 None，
+    走到 ``ox.graph_from_xml`` 才抛 AttributeError，控制台直接 500。这里按实际用到的
+    入口判定，不可用就走内置 XML 回退——与 capabilities 的「缺依赖降级」约定一致。
+    """
+    return ox is not None and hasattr(ox, "graph_from_xml") and hasattr(ox, "features_from_xml")
+
+
 _MAJOR_ROAD_TYPES = {
     'motorway', 'motorway_link',
     'trunk', 'trunk_link',
@@ -178,7 +188,7 @@ def load_map_data(osm_file_path):
     这里按「绝对路径 + mtime + 大小 + 解析模式 + osmnx 版本」缓存**最终返回值**，
     命中即直接反序列化。设 ``SWARM_BALANCE_OSM_CACHE=0`` 可强制重新解析。
     """
-    mode = "osmnx" if ox is not None else "fallback"
+    mode = "osmnx" if _osmnx_available() else "fallback"
     cache_path = _cache_path(osm_file_path, mode)
 
     if _cache_enabled() and cache_path is not None:
@@ -186,10 +196,10 @@ def load_map_data(osm_file_path):
         if cached is not None:
             return cached
 
-    if ox is None:
-        data = _load_map_data_fallback(osm_file_path)
-    else:
+    if _osmnx_available():
         data = _parse_map_data_with_osmnx(osm_file_path)
+    else:
+        data = _load_map_data_fallback(osm_file_path)
 
     if _cache_enabled() and cache_path is not None:
         _write_cache(cache_path, data)
