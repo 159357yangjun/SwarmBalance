@@ -244,7 +244,7 @@ document.addEventListener('DOMContentLoaded', function () {
      ================================================================ */
   :root{
     --bg:#f6f8f7; --panel:#ffffff; --panel-2:#fbfcfc; --border:#e9ecec; --border-2:#f1f3f3;
-    --text:#1b2320; --muted:#8a938f;
+    --text:#1b2320; --muted:#5f6b66;
     --accent:#0e9f6e; --accent-2:#34d399; --accent-soft:#e9f7f1; --accent-ink:#0b7d57;
     --idle:#12b76a; --busy:#2e90fa; --charging:#f59e0b; --waiting:#7c3aed; --offline:#98a2b3;
     --r-lg:14px; --r-md:11px; --r-sm:9px;
@@ -294,12 +294,12 @@ document.addEventListener('DOMContentLoaded', function () {
   .navbtn.active .ni{ background:#fff; color:var(--accent); box-shadow:0 1px 3px rgba(16,24,40,.06); }
   .ncol{ display:flex; flex-direction:column; min-width:0; text-align:left; }
   .ncol b{ font-size:13px; font-weight:600; line-height:1.3; }
-  .ncol i{ font-style:normal; font-size:10.5px; color:#a3aca8; line-height:1.3; }
-  .navbtn.active .ncol i{ color:#5aa88a; }
+  .ncol i{ font-style:normal; font-size:11px; color:var(--muted); line-height:1.3; }
+  .navbtn.active .ncol i{ color:var(--accent-ink); }
 
   /* 场景对象树 */
   .tree-sep{ height:1px; background:var(--border); margin:14px 6px 10px; }
-  .tree-title{ font-size:10px; letter-spacing:.14em; color:#a3aca8; margin:2px 9px 6px; font-weight:600; text-transform:uppercase; }
+  .tree-title{ font-size:11px; letter-spacing:.14em; color:var(--muted); margin:2px 9px 6px; font-weight:600; text-transform:uppercase; }
   .tree{ display:flex; flex-direction:column; gap:1px; }
   .tree-row{ display:flex; align-items:center; gap:9px; padding:6px 10px; border-radius:8px; font-size:12.5px; color:#4b5551; }
   .tree-row:hover{ background:#f4f7f6; }
@@ -335,7 +335,7 @@ document.addEventListener('DOMContentLoaded', function () {
   .event.important{ background:#f3f0ff; }
   .event.warning{ background:#fffaf0; }
   .event.success{ background:#f2fbf7; }
-  .event-time{ color:#a3aca8; }
+  .event-time{ color:var(--muted); }
   .kv{ background:#fafbfb; border:1px solid var(--border-2); }
   .kv .k{ color:var(--muted); }
   .kv .v{ color:var(--text); }
@@ -351,7 +351,7 @@ document.addEventListener('DOMContentLoaded', function () {
   .tiny-btn.success{ background:#fff; border-color:#c6ecd9; color:#0b7d57; }
   .task-note{ background:#fafbfb; color:var(--muted); }
   .incident-note{ background:#fffaf0; color:#ad6800; }
-  .empty-tip{ color:#a3aca8; }
+  .empty-tip{ color:var(--muted); }
   .progress{ background:#f1f3f3; }
   .progress > i{ background:var(--accent); }
   .checkpoint-row{ background:#fff; border:1px solid var(--border-2); }
@@ -438,7 +438,7 @@ document.addEventListener('DOMContentLoaded', function () {
   .dock-grid{ display:grid; grid-template-columns:1fr 1fr; gap:8px; }
   .dock-kpi{ border:1px solid var(--border-2); background:var(--panel-2); border-radius:var(--r-sm);
     padding:8px 9px; min-width:0; }
-  .dock-kpi .k{ font-size:10.5px; color:var(--muted); }
+  .dock-kpi .k{ font-size:11px; color:var(--muted); }
   .dock-kpi .v{ font-size:17px; font-weight:650; margin-top:3px; line-height:1.15;
     font-variant-numeric:tabular-nums; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .dock-kpi .s{ font-size:10px; color:var(--muted); margin-top:3px; line-height:1.4; }
@@ -457,7 +457,7 @@ document.addEventListener('DOMContentLoaded', function () {
   .dock .stat b{ margin-left:auto; color:var(--text); font-variant-numeric:tabular-nums; }
   .dock .stat .tdot{ width:8px; height:8px; border-radius:2px; flex:none; }
   .dock-spark{ height:64px; width:100%; }
-  .dock-empty{ font-size:11px; color:#a3aca8; text-align:center; padding:10px 0; }
+  .dock-empty{ font-size:11px; color:var(--muted); text-align:center; padding:10px 0; }
 
   /* 无人机卡：宽屏多列平铺，避免一列拉长后大量留白 */
   .drone-list{ display:grid; grid-template-columns:repeat(auto-fit,minmax(238px,1fr)); gap:9px; }
@@ -471,7 +471,7 @@ document.addEventListener('DOMContentLoaded', function () {
   .cmp-table{ display:flex; flex-direction:column; gap:2px; font-size:12px; }
   .cmp-head,.cmp-row{ display:grid; grid-template-columns:1.25fr repeat(6,minmax(0,1fr)); gap:6px;
     align-items:center; padding:7px 9px; border-radius:7px; }
-  .cmp-head{ color:var(--muted); font-size:10.5px; letter-spacing:.02em; background:var(--panel-2);
+  .cmp-head{ color:var(--muted); font-size:11px; letter-spacing:.02em; background:var(--panel-2);
     border:1px solid var(--border-2); }
   .cmp-row{ background:#fff; border:1px solid var(--border-2); }
   .cmp-row:nth-child(odd){ background:var(--panel-2); }
@@ -522,8 +522,8 @@ document.addEventListener('DOMContentLoaded', function () {
     border-radius:11px; padding:11px 12px 9px; min-width:0; }
   .dash-card .dc-h{ display:flex; align-items:baseline; justify-content:space-between; gap:8px; margin-bottom:5px; }
   .dash-card .dc-h b{ font-size:12.5px; font-weight:600; color:var(--text); }
-  .dash-card .dc-h span{ font-size:10.5px; color:var(--muted); }
-  .dash-card .dc-f{ margin-top:auto; font-size:10.5px; color:var(--muted); line-height:1.5; }
+  .dash-card .dc-h span{ font-size:11px; color:var(--muted); }
+  .dash-card .dc-f{ margin-top:auto; font-size:11px; color:var(--muted); line-height:1.5; }
   .dash-card .dc-tools{ display:flex; align-items:center; gap:6px; }
   #radar{ width:100%; height:274px; }
   #rank{ width:100%; height:274px; }
