@@ -983,7 +983,7 @@ document.addEventListener('DOMContentLoaded', function () {
           <div class="h" style="display:flex;justify-content:space-between;align-items:center" data-page-node-id="JRFXd5zgUUs4hlvvtZVa6F">
             多算法对比
             <select v-model="compareMetric" @change="drawCompare" style="height:28px" data-page-node-id="PHVQAQv2oy7Ip3tt8ZX3jn">
-              <option v-for="c in compareColumns" :key="c" :value="c" data-page-node-id="NffVH6xWcACIKf4ihGqDEh">{{c}}</option>
+              <option v-for="c in compareColumns" :key="c" :value="c" data-page-node-id="NffVH6xWcACIKf4ihGqDEh">{{ c }}{{ cmpUnit(c) }}</option>
             </select>
           </div>
           <div id="compare" data-page-node-id="E8AQznnsxavMfUu3uY3sw7" style="flex:1; min-height:300px; height:auto;"></div>
@@ -1032,7 +1032,7 @@ document.addEventListener('DOMContentLoaded', function () {
           <div class="cmp-table" v-if="compareRows.length">
             <div class="cmp-head">
               <span class="cmp-algo">算法</span>
-              <span v-for="c in compareColumns.slice(0,6)" :key="c" class="cmp-cell">{{ c }}</span>
+              <span v-for="c in compareColumns.slice(0,6)" :key="c" class="cmp-cell">{{ c }}{{ cmpUnit(c) }}</span>
             </div>
             <div class="cmp-row" v-for="r in compareRows" :key="r['算法']" :class="{best: r === compareBestRow}">
               <span class="cmp-algo"><i class="tdot" :style="{background: (r === compareBestRow) ? 'var(--accent)' : 'var(--muted)'}"></i>{{ r['算法'] }}</span>
@@ -2511,6 +2511,17 @@ createApp({
     },
 
     // 算法层：对比读数格式化（数字保留 2 位，非数字原样，空值显示破折号）
+    cmpUnit(c) {
+      // CSV 列名本身不带单位，而 cmpFmt 只做数量级格式化、不换算。于是「总能量消耗
+      // 4,442」在算法层其实是 Wh，同一指标在数据层却显示 13.6 kWh——评委无从对齐。
+      if (!c) return '';
+      if (c === '总能量消耗') return '（Wh）';
+      if (c === '总飞行距离') return '（m）';
+      if (c === '总步数') return '（步）';
+      if (/(率|占比)$/.test(c)) return '（0–1）';
+      if (/(时间|时延|等待)$/.test(c)) return '（s）';
+      return '';
+    },
     cmpFmt(v) {
       if (v === null || v === undefined || v === '') return '—';
       const n = Number(v);
