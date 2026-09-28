@@ -198,10 +198,23 @@ def _status_write(path: Optional[Path], payload: Dict[str, Any]) -> None:
 
 
 def _mean_rows(rows: Iterable[Dict[str, Any]]) -> Dict[str, float]:
-    rows = [r for r in rows if r.get("ok")]
-    if not rows:
+    """对同一实验条件下的多次运行取均值。
+
+    行里的成功标记键是「成功」（见 run() 构造 raw_rows 处），不是 worker 结果里的 "ok"。
+    这里曾写成 ``r.get("ok")`` → 过滤后恒为空 → 所有聚合指标静默变成 0.0，而
+    raw_runs.csv 数据正常、进程返回码为 0，整份结项证据包因此全是零且无人察觉。
+    所以现在显式区分「没有输入」与「有输入但全被过滤掉」，后者直接报错，不再补零。
+    """
+    rows = list(rows)
+    ok_rows = [r for r in rows if r.get("成功")]
+    if rows and not ok_rows:
+        raise ValueError(
+            f"{len(rows)} 行待聚合数据中没有任何一行标记为「成功」，"
+            "聚合口径可能有误（拒绝静默补 0）"
+        )
+    if not ok_rows:
         return {c: 0.0 for c in METRIC_COLUMNS}
-    return {c: sum(float(r.get(c, 0.0)) for r in rows) / len(rows) for c in METRIC_COLUMNS}
+    return {c: sum(float(r.get(c, 0.0)) for r in ok_rows) / len(ok_rows) for c in METRIC_COLUMNS}
 
 
 def _write_csv(path: Path, rows: List[Dict[str, Any]], fieldnames: List[str]) -> None:
