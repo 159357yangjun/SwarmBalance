@@ -211,5 +211,36 @@ class CheckpointGenerationTests(unittest.TestCase):
         self.assertIn("step", snap)
 
 
+class FrontendGuardTests(unittest.TestCase):
+    """锁住三个「点了没反应 / 静默覆盖」类前端缺陷的修复。
+
+    这些是纯前端逻辑，本环境没有 JS 测试框架（也不该为几条断言引入），
+    因此用源码断言防止被改回去——与 rebuild 不再 clear() 那条同一手法。
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        cls.html = (Path(server._STATIC).read_text(encoding="utf-8"))
+
+    def test_no_phantom_experiment_tab(self):
+        # 实验区块在 tab==='compare' 模板内；把 tab 设成 'experiment' 会让整页空白
+        self.assertNotIn("this.tab = 'experiment'", self.html)
+        self.assertNotIn("async switchTabExperiment", self.html)
+        # 进入算法层必须把预设与状态拉起来，否则下拉框恒空、下载按钮不出现
+        self.assertIn("ensureExperimentData", self.html)
+
+    def test_config_modal_cannot_save_unloaded_defaults(self):
+        self.assertIn("configLoaded", self.html)
+        self.assertIn("if (!this.configLoaded)", self.html)
+        self.assertIn('!configLoaded', self.html)          # 保存按钮 disabled
+        # 场景编辑器同一缺陷，同一修法
+        self.assertIn("if (!this.sceneLoaded)", self.html)
+        self.assertIn("!sceneLoaded", self.html)
+
+    def test_stale_step_response_is_discarded(self):
+        self.assertIn("if (seq !== this.stepSeq) return;", self.html)
+        self.assertIn("this.stepSeq++", self.html)          # stopPlay 递增
+
+
 if __name__ == "__main__":
     unittest.main()

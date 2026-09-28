@@ -586,6 +586,7 @@ document.addEventListener('DOMContentLoaded', function () {
     <span class="hint" v-if="resetError" style="color:#ef4444">{{ resetError }}</span>
     <button class="btn" @click="togglePlay" data-page-node-id="OUc4LaTereC4DNgOAhMReW">{{ playing ? '暂停' : '播放' }}</button>
     <button class="btn" @click="stepOnce" :disabled="playing || stepping" data-page-node-id="YTtnlBOIfmnU3lU46AW4bl">单步</button>
+    <span class="hint" v-if="stepError" style="color:#ef4444">{{ stepError }}</span>
     <div class="speed-group" data-page-node-id="VBhoB1vcQIVszsCROx1sWi">
       <button v-for="s in speeds" :key="s" class="btn" :class="{active: speed===s}" @click="setSpeed(s)" data-page-node-id="hhk1RmXNrzGfjwCoozpbvg">{{s}}x</button>
     </div>
@@ -977,7 +978,8 @@ document.addEventListener('DOMContentLoaded', function () {
           </div>
           <div id="compare" data-page-node-id="E8AQznnsxavMfUu3uY3sw7" style="flex:1; min-height:300px; height:auto;"></div>
           <div class="hint" data-page-node-id="Cc6NJZ0rfBMPg5ST89vWL2">数据来自 results/compare/*.csv 各算法最近一次评测结果。可点击「刷新」重新读取。</div>
-          <button class="btn" @click="loadCompare" data-page-node-id="7u0mMZ9EVyBuahwl3TiQdZ">刷新对比数据</button>
+          <button class="btn" @click="refreshCompare" data-page-node-id="7u0mMZ9EVyBuahwl3TiQdZ">刷新对比数据</button>
+          <div class="hint status-bad" v-if="compareError">{{ compareError }}</div>
         </div>
         <div class="experiment-box">
           <div class="h">一键实验编排</div>
@@ -987,6 +989,8 @@ document.addEventListener('DOMContentLoaded', function () {
             </select>
             <button class="btn primary" @click="runExperiment" :disabled="experimentRunning">{{ experimentRunning ? '运行中' : '一键运行' }}</button>
           </div>
+          <div class="hint status-bad" v-if="experimentError">{{ experimentError }}</div>
+          <div class="hint" v-if="!experimentError && !experimentPresets.length">预设列表为空：/api/experiments/presets 未返回任何预设。</div>
           <div class="hint" v-if="selectedExperimentPreset">{{ selectedExperimentPreset.description }}</div>
           <div class="progress"><i :style="{width: ((experimentStatus.progress || 0) * 100).toFixed(1) + '%'}"></i></div>
           <div class="status-line">
@@ -1158,7 +1162,7 @@ document.addEventListener('DOMContentLoaded', function () {
       <div class="status-line status-bad" v-if="configError">{{ configError }}</div>
       <div class="actions" data-page-node-id="EB56MhHbUDFObRVPnQ0dwP">
         <button class="btn" :disabled="configBusy" @click="showConfig=false" data-page-node-id="zjHWTLO2K0EQR4gY5KCvE0">取消</button>
-        <button class="btn primary" :disabled="configBusy" @click="saveConfig" data-page-node-id="xCZ9sIVEbQh3WgEKNpI2Th">{{ configBusy ? '校验并重建中…' : '保存并应用' }}</button>
+        <button class="btn primary" :disabled="configBusy || !configLoaded" @click="saveConfig" data-page-node-id="xCZ9sIVEbQh3WgEKNpI2Th">{{ configBusy ? '校验并重建中…' : '保存并应用' }}</button>
       </div>
     </div>
   </div>
@@ -1207,7 +1211,7 @@ document.addEventListener('DOMContentLoaded', function () {
       </div>
       <div class="task-note">保存后会热重建当前仿真环境，因此运行状态会重置；算法选择和 Seed 保留。场景编辑用于“设计场景”，运行时任务/故障/补能控制仍在主控制台完成。</div>
       <div class="status-line status-bad" v-if="sceneError" style="margin-top:8px">{{ sceneError }}</div>
-      <div class="actions"><button class="btn" @click="closeSceneEditor">取消</button><button class="btn primary" :disabled="sceneBusy || sceneDraft.dataSourceType!=='random'" @click="saveSceneLayout">{{ sceneBusy ? '正在重建…' : '保存布局并重建' }}</button></div>
+      <div class="actions"><button class="btn" @click="closeSceneEditor">取消</button><button class="btn primary" :disabled="sceneBusy || !sceneLoaded || sceneDraft.dataSourceType!=='random'" @click="saveSceneLayout">{{ sceneBusy ? '正在重建…' : '保存布局并重建' }}</button></div>
     </div>
   </div>
 
@@ -1302,16 +1306,16 @@ createApp({
   data() {
     return {
       algorithm: 'greedy', seed: 100, playing: false, speed: 1, speeds: [1,2,5,10], stepping:false,
-      resetting: false, resetError: '',
-      loading: true, warming: false, view: '2d', tab: 'metrics', showMap: true, showConfig: false, configBusy:false, configError:'', showTaskModal:false, taskSubmitting:false, taskError:'',
-      showSceneEditor:false, sceneBusy:false, sceneError:'', sceneEditing:false,
+      resetting: false, resetError: '', stepSeq: 0, stepError: '',
+      loading: true, warming: false, view: '2d', tab: 'metrics', showMap: true, showConfig: false, configBusy:false, configError:'', configLoaded:false, showTaskModal:false, taskSubmitting:false, taskError:'',
+      showSceneEditor:false, sceneBusy:false, sceneError:'', sceneEditing:false, sceneLoaded:false,
       showSceneLibrary:false, sceneLibraryBusy:false, sceneLibraryError:'', sceneLibraryMessage:'', sceneLibrary:[], sceneLibraryForm:{name:'',description:'',include_scheduler:true},
       showGuide:false, appMeta:{version:'',name:'',capabilities:{}}, algorithmOptions:[{key:'greedy',label:'Greedy 贪心',available:true},{key:'pso',label:'PSO 粒子群',available:true},{key:'ga',label:'GA 遗传',available:true},{key:'ortools',label:'OR-Tools',available:true}],
       snap: { step:0, time:0, done:false, controls:{task_generation_paused:false}, events:[], history:[], health:{level:'normal',summary:'等待状态数据'}, demo:{active:false,cursor:0,total:0,next:null,completed:false}, stats:{ completed:0,generated:0,completion_rate:0,timeout_rate:0,avg_delay:0,energy:0,nest_turnover:0,berth_utilization:0,swap_sessions:0,utilization:0,empty_load_ratio:0,flight_distance:0,chain_insertions:0,no_fly_detours:0 }, drones:[],nests:[],tasks:[],map:{bounds:[0,0,1000,1000]} },
       trajectories: [], trend: [], timer: null, chart: null, compareChart: null,
       radarChart: null, rankChart: null, gaugeChart: null, fleetPieChart: null,
-      compareRows: [], compareColumns: [], compareMetric: '', compareBasis: null, compareInconsistent: [],
-      experimentPresets: [], experimentPreset: 'quick', experimentStatus: {state:'idle',progress:0,completed_runs:0,total_runs:0}, experimentTimer: null,
+      compareRows: [], compareColumns: [], compareMetric: '', compareBasis: null, compareInconsistent: [], compareError: '',
+      experimentPresets: [], experimentPreset: 'quick', experimentStatus: {state:'idle',progress:0,completed_runs:0,total_runs:0}, experimentTimer: null, experimentError: '',
       scenarioPresets: [], scenarioKey: 'medical_peak', scenarioBusy:false, scenarioError:'', scenarioHasRestore:false,
       checkpointName:'答辩节点', checkpointBusy:false, checkpointError:'',
       mapStatic: { bounds:[0,0,1000,1000], buildings: [] },
@@ -1693,6 +1697,8 @@ createApp({
 
     async openSceneEditor() {
       this.stopPlay(); this.sceneError='';
+      // 同 openConfig：读取失败时 sceneDraft 会停留在旧值/初始值，直接保存会覆盖真实配置
+      this.sceneLoaded = false;
       try {
         const cfg=await this.api('/api/config');
         const fallback=(this.snap.nests||[]).map(n=>({station_id:Number(n.id),x:n.x,y:n.y,berths:n.berths,swap_time_seconds:n.swap_time_seconds,charging_power:50}));
@@ -1706,8 +1712,9 @@ createApp({
           newZoneRadius:150,
         };
         if(!Array.isArray(this.sceneDraft.noFly.zones)) this.sceneDraft.noFly.zones=[];
+        this.sceneLoaded = true;
         this.sceneEditing=true; this.showSceneEditor=true;
-      } catch(e) { this.sceneError=e.message; this.showSceneEditor=true; }
+      } catch(e) { this.sceneError='读取场景配置失败：' + (e.message || e) + '。已禁用保存，避免用旧数据覆盖真实配置。'; this.showSceneEditor=true; }
     },
     closeSceneEditor() {
       this.showSceneEditor=false; this.sceneEditing=false;
@@ -1727,6 +1734,10 @@ createApp({
     },
     async saveSceneLayout() {
       if(this.sceneBusy) return;
+      if (!this.sceneLoaded) {
+        this.sceneError = '尚未读到真实场景配置，已阻止保存。请关闭后重试，或检查后端 /api/config 是否可用。';
+        return;
+      }
       this.sceneBusy=true; this.sceneError=''; this.stopPlay();
       try {
         const stations=this.sceneDraft.nests.map(n=>({station_id:Number(n.station_id),x:Number(n.x),y:Number(n.y),berths:Number(n.berths||1),swap_time_seconds:Number(n.swap_time_seconds||180),charging_power:Number(n.charging_power||50)}));
@@ -1808,12 +1819,21 @@ createApp({
     async advance(count=1) {
       if (this.stepping) return;
       this.stepping = true;
+      const seq = this.stepSeq;
       try {
         const snap = await this.api('/api/step?count=' + count, { method:'POST' });
+        // stepSeq 由 stopPlay() 递增。高倍速下一步请求可达数秒，期间用户点「停止」
+        // 或「恢复快照」后，这个在途响应若仍生效，会把刚恢复的状态盖回去
+        // （表现：步数回退、地图回跳）。
+        if (seq !== this.stepSeq) return;
+        this.stepError = '';
         this.applySnap(snap);
         if (snap.done && this.playing) this.stopPlay();
       } catch(e) {
-        console.error(e); this.stopPlay();
+        if (seq !== this.stepSeq) return;
+        // 原先只 console.error + stopPlay，界面停在旧数据上，看起来像卡死而不是出错
+        this.stepError = e.message || '步进失败';
+        this.stopPlay();
       } finally { this.stepping = false; }
     },
     async stepOnce() { await this.advance(1); },
@@ -1824,7 +1844,7 @@ createApp({
       this.advance(this.speed);
       this.timer = setInterval(() => this.advance(this.speed), this.baseInterval);
     },
-    stopPlay() { this.playing = false; if (this.timer) { clearInterval(this.timer); this.timer = null; } },
+    stopPlay() { this.playing = false; this.stepSeq++; if (this.timer) { clearInterval(this.timer); this.timer = null; } },
     setSpeed(s) { this.speed = s; },
     onAlgorithmChange() {},
     onResize() { if (this.view === '2d') this.draw2d(); else if (this.threeState) this.resize3d(); this.drawChart(); this.drawCompare(); if (!this.showMap && this.tab === 'metrics') { this.drawGauge(); this.drawFleetPie(); } },
@@ -2355,6 +2375,10 @@ createApp({
     // ============ 配置 ============
     async openConfig() {
       this.configError='';
+      // 读取失败时表单里会是 data() 的硬编码默认值（10 架 / 60 任务 / 泊位 2 …）。
+      // 旧写法只 console.warn 就照常打开弹窗，用户点「保存并应用」就把默认值深合并
+      // 进 simulation.json，静默覆盖真实场景配置。所以这里用 configLoaded 把关。
+      this.configLoaded = false;
       try {
         const cfg = await this.api('/api/config');
         const algo = await this.api('/api/scheduler-config');
@@ -2374,11 +2398,18 @@ createApp({
         this.algo.ga_gen = algo.ga?.generations ?? 40;
         this.algo.ortools_t = algo.ortools?.time_limit_seconds ?? 2.0;
         this.algo.buffer = algo.dual_channel?.buffer_size_threshold ?? 15;
-      } catch(e) { console.warn(e); }
+        this.configLoaded = true;
+      } catch(e) {
+        this.configError = '读取当前配置失败：' + (e.message || e) + '。已禁用保存，避免用默认值覆盖真实配置。';
+      }
       this.showConfig = true;
     },
     async saveConfig() {
       if(this.configBusy) return;
+      if (!this.configLoaded) {
+        this.configError = '尚未读到真实配置，已阻止保存。请关闭后重试，或检查后端 /api/config 是否可用。';
+        return;
+      }
       this.configBusy=true; this.configError=''; this.stopPlay();
       const scenePatch = {
         environment: { num_drones: this.cfg.num_drones, episode_max_steps: this.cfg.episode_max },
@@ -2457,6 +2488,9 @@ createApp({
         else if (p === 'data') this.tab = 'metrics';
         else if (p === 'spec') this.tab = 'spec';
       }
+      // 实验状态轮询只在算法层（实验区块所在页）跑：离开还每 1.5s 轮询是白耗，
+      // 回到算法层则由 ensureExperimentData() 重新拉起。
+      if (p !== 'algo') this.stopExperimentPolling();
       this.$nextTick(() => {
         if (this.showMap) {
           if (this.view === '3d' && this.threeState) this.resize3d();
@@ -2473,8 +2507,15 @@ createApp({
 
     async switchTabCompare() {
       this.tab = 'compare';
-      if (!this.compareRows.length) await this.loadCompare();
+      try {
+        if (!this.compareRows.length) await this.loadCompare();
+      } catch (e) {
+        // 后端读 CSV 出错时，不 catch 会变成 unhandled rejection：按钮像没反应，
+        // 而且后面的 drawCompare 不再执行，算法层整页图表空白。
+        this.compareError = e.message || '对比数据加载失败';
+      }
       this.$nextTick(() => this.drawCompare());
+      await this.ensureExperimentData();
     },
     async loadCompare() {
       const d = await this.api('/api/compare');
@@ -2482,6 +2523,7 @@ createApp({
       // 口径守卫：/api/compare 报告基准规模与偏离算法，这里只做提示，不改数值。
       this.compareBasis = d.basis || null; this.compareInconsistent = d.inconsistent || [];
       if (!this.compareMetric || !d.columns.includes(this.compareMetric)) this.compareMetric = d.columns[0] || '';
+      this.compareError = '';
       this.$nextTick(() => this.drawCompare());
     },
     drawCompare() {
@@ -2658,17 +2700,30 @@ createApp({
     },
 
     // ============ 一键实验 ============
-    async switchTabExperiment() {
-      this.tab = 'experiment';
+    // 原先这里是个 switchTabExperiment()，把 tab 设成 'experiment'；但实验区块其实位于
+    // tab==='compare' 的模板内，一旦被调用反而会让整页空白，所以从未被接上——
+    // 后果是 /api/experiments/presets 永不请求（预设下拉恒空、描述不显示），
+    // 状态也不拉取（「下载结项证据包」按钮默认不出现，必须手动点刷新）。
+    // 改为进入算法层时顺带把预设与状态拉齐，不再假装有一个独立页面。
+    async ensureExperimentData() {
       if (!this.experimentPresets.length) {
         try {
           const d = await this.api('/api/experiments/presets');
           this.experimentPresets = d.presets || [];
-          if (!this.experimentPresets.find(p => p.key === this.experimentPreset) && this.experimentPresets.length) this.experimentPreset = this.experimentPresets[0].key;
-        } catch(e) { console.warn(e); }
+          if (this.experimentPresets.length && !this.experimentPresets.find(p => p.key === this.experimentPreset)) {
+            this.experimentPreset = this.experimentPresets[0].key;
+          }
+          this.experimentError = '';
+        } catch (e) {
+          this.experimentError = e.message || '实验预设加载失败';
+        }
       }
       await this.loadExperimentStatus();
       this.startExperimentPolling();
+    },
+    async refreshCompare() {
+      try { await this.loadCompare(); }
+      catch (e) { this.compareError = e.message || '对比数据加载失败'; }
     },
     async runExperiment() {
       if (this.experimentRunning) return;
