@@ -1,6 +1,11 @@
 import numpy as np
 import heapq
 import hashlib
+import atexit
+import os
+import pickle
+import tempfile
+from pathlib import Path
 import time
 import datetime
 from shapely.geometry import Point, LineString
@@ -21,6 +26,58 @@ from no_fly_zone import get_no_fly_zones, reset_no_fly_zones
 # 上限兜住内存（实测工作集约 5 万条 / 约 5.4MB 每桶）。
 _PATH_CLEAR_BUCKETS = {}
 _PATH_CLEAR_BUCKET_MAX = 4
+# 落盘位置与 OSM 解析缓存同目录（已在 .gitignore 里），换机器/换子进程也能复用。
+_PATH_CLEAR_DIR = Path(__file__).resolve().parent / "data" / ".osm_cache"
+_PATH_CLEAR_FILES = 6
+
+
+def _path_clear_disk_enabled() -> bool:
+    return os.environ.get("SWARM_BALANCE_PATHCLEAR_CACHE", "1").strip() != "0"
+
+
+def _path_clear_load(fp: str):
+    """读回上一次的判定结果。任何异常都当未命中处理——宁可重算 5.8 秒，
+    也不能因为一个坏缓存文件而给出错误的通行判定。"""
+    if not _path_clear_disk_enabled():
+        return None
+    try:
+        with open(_PATH_CLEAR_DIR / ("pathclear-%s.pkl" % fp), "rb") as f:
+            data = pickle.load(f)
+        return data if isinstance(data, dict) else None
+    except Exception:
+        return None
+
+
+def _path_clear_store(fp: str, bucket: dict) -> None:
+    if not _path_clear_disk_enabled() or not bucket:
+        return
+    try:
+        _PATH_CLEAR_DIR.mkdir(parents=True, exist_ok=True)
+        fd, tmp = tempfile.mkstemp(dir=str(_PATH_CLEAR_DIR), suffix=".tmp")
+        with os.fdopen(fd, "wb") as f:
+            pickle.dump(bucket, f, protocol=4)
+        os.replace(tmp, _PATH_CLEAR_DIR / ("pathclear-%s.pkl" % fp))
+        _path_clear_prune(fp)
+    except Exception:
+        try:
+            os.unlink(tmp)
+        except Exception:
+            pass
+
+
+def _path_clear_prune(keep: str) -> None:
+    try:
+        files = sorted(_PATH_CLEAR_DIR.glob("pathclear-*.pkl"),
+                       key=lambda q: q.stat().st_mtime, reverse=True)
+        for stale in files[_PATH_CLEAR_FILES:]:
+            try:
+                stale.unlink()
+            except Exception:
+                pass
+    except Exception:
+        pass
+
+
 
 
 CFG = get_shared_config()
@@ -1904,7 +1961,10 @@ class Environment:
         if bucket is None:
             if len(_PATH_CLEAR_BUCKETS) >= _PATH_CLEAR_BUCKET_MAX:
                 _PATH_CLEAR_BUCKETS.clear()
-            bucket = _PATH_CLEAR_BUCKETS[fp] = {}
+            bucket = _PATH_CLEAR_BUCKETS[fp] = (_path_clear_load(fp) or {})
+            # 批量实验是每格一个子进程（runner.py:506），进程级共享救不了它；
+            # 挂到 atexit 上，让第一个格子算出来的 4.5 万条判定被后面 59 个格子读回来。
+            atexit.register(_path_clear_store, fp, bucket)
         return bucket
 
     def is_path_clear(self, pos1, pos2):
