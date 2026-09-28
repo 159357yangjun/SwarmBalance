@@ -2,16 +2,16 @@
 
 - 预设：标准结项实验
 - 成功运行：68/68
-- 生成时间：2026-09-11 05:05:37
+- 生成时间：2026-09-28 02:23:30
 - 公平性：同一实验条件下不同算法使用相同 Seed。
 - 隔离性：每次运行使用独立 simulation.json 副本，未改写主配置。
 
 ## 核心算法对比
 
-- **贪心调度**：完成率 0.00%，超时率 0.00%，无人机利用率 0.00%，空载率 0.00%，机巢周转率 0.0000。
-- **OR-Tools**：完成率 0.00%，超时率 0.00%，无人机利用率 0.00%，空载率 0.00%，机巢周转率 0.0000。
-- **GA**：完成率 0.00%，超时率 0.00%，无人机利用率 0.00%，空载率 0.00%，机巢周转率 0.0000。
-- **PSO**：完成率 0.00%，超时率 0.00%，无人机利用率 0.00%，空载率 0.00%，机巢周转率 0.0000。
+- **贪心调度**：完成率 100.00%，超时率 5.33%，无人机利用率 49.87%，空载率 49.39%，机巢周转率 0.9600。
+- **OR-Tools**：完成率 100.00%，超时率 8.00%，无人机利用率 50.68%，空载率 44.80%，机巢周转率 0.8600。
+- **GA**：完成率 100.00%，超时率 7.67%，无人机利用率 50.84%，空载率 44.98%，机巢周转率 0.8600。
+- **PSO**：完成率 100.00%，超时率 8.00%，无人机利用率 49.91%，空载率 44.69%，机巢周转率 0.8800。
 
 ## GA 与 Greedy 的配对 Seed 描述性比较
 
@@ -47,7 +47,6 @@
 - algorithm_comparison_stats: `algorithm_comparison_stats.csv`
 - paired_ga_vs_greedy: `paired_ga_vs_greedy.csv`
 - compare_latest: `C:\Users\yyyy\AppData\Roaming\TRAE SOLO CN\ModularData\ai-agent\work-mode-projects\6a91893e4cc261f69a0a52a0\drone-scheduling\results\compare\one_click_latest.csv`
-- reproducibility: `reproducibility.json`
 - figure: `figures\algorithm_completion_rate.png`
 - figure: `figures\algorithm_timeout_rate.png`
 - figure: `figures\algorithm_utilization.png`
