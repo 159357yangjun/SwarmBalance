@@ -2091,7 +2091,7 @@ createApp({
       this.activeMapTasks.forEach(t => {
         const a = P(t.source[0],t.source[1]), d = P(t.destination[0],t.destination[1]);
         const selected = this.selection.type==='task' && String(this.selection.id)===String(t.id);
-        const base = t.status==='in_progress' ? '#7c3aed' : (t.status==='assigned' ? '#2f6fed' : (t.priority >= 3 ? '#ef4444' : '#d0d5dd'));
+        const base = t.status==='in_progress' ? '#7c3aed' : (t.status==='assigned' ? '#2e90fa' : (t.priority >= 3 ? '#ef4444' : '#d0d5dd'));
         ctx.strokeStyle = base; ctx.lineWidth = selected ? 3.2 : (t.priority >= 3 ? 1.8 : 1);
         ctx.beginPath(); ctx.moveTo(a.sx,a.sy); ctx.lineTo(d.sx,d.sy); ctx.stroke();
       });
@@ -2101,8 +2101,8 @@ createApp({
       nestPreview.forEach(n => {
         const p = P(n.x,n.y);
         const selected=!this.sceneEditing && this.selection.type==='nest' && String(this.selection.id)===String(n.id);
-        if(selected){ ctx.strokeStyle='#2f6fed'; ctx.lineWidth=2; ctx.beginPath(); ctx.arc(p.sx,p.sy,12,0,Math.PI*2); ctx.stroke(); }
-        ctx.fillStyle = n.closed ? '#6b7280' : '#faad14'; ctx.beginPath();
+        if(selected){ ctx.strokeStyle='#1b2320'; ctx.lineWidth=2; ctx.beginPath(); ctx.arc(p.sx,p.sy,12,0,Math.PI*2); ctx.stroke(); }
+        ctx.fillStyle = n.closed ? '#6b7280' : STATE_COLOR.charging; ctx.beginPath();
         ctx.moveTo(p.sx,p.sy-7); ctx.lineTo(p.sx+6,p.sy+5); ctx.lineTo(p.sx-6,p.sy+5); ctx.closePath(); ctx.fill();
         ctx.fillStyle='#8a5a00'; ctx.font='9px sans-serif'; ctx.fillText(String(n.id),p.sx+7,p.sy-5);
         if(n.closed){ ctx.strokeStyle='#ef4444'; ctx.lineWidth=2; ctx.beginPath(); ctx.moveTo(p.sx-6,p.sy-6); ctx.lineTo(p.sx+6,p.sy+6); ctx.moveTo(p.sx+6,p.sy-6); ctx.lineTo(p.sx-6,p.sy+6); ctx.stroke(); }
@@ -2120,8 +2120,8 @@ createApp({
         const a = P(t.source[0],t.source[1]), d = P(t.destination[0],t.destination[1]);
         const selected = this.selection.type==='task' && String(this.selection.id)===String(t.id);
         const rr = selected ? 6 : (t.priority >= 3 ? 4 : 2.5);
-        ctx.fillStyle = t.manual ? '#7c3aed' : (t.status==='assigned'||t.status==='in_progress' ? '#2f6fed' : '#8a919f'); ctx.beginPath(); ctx.arc(a.sx,a.sy,rr,0,Math.PI*2); ctx.fill();
-        ctx.fillStyle = t.priority >= 3 ? '#dc2626' : (t.status==='assigned'||t.status==='in_progress' ? '#2f6fed' : '#4b5563'); ctx.beginPath(); ctx.arc(d.sx,d.sy,rr,0,Math.PI*2); ctx.fill();
+        ctx.fillStyle = t.manual ? '#7c3aed' : (t.status==='assigned'||t.status==='in_progress' ? '#2e90fa' : '#8a919f'); ctx.beginPath(); ctx.arc(a.sx,a.sy,rr,0,Math.PI*2); ctx.fill();
+        ctx.fillStyle = t.priority >= 3 ? '#dc2626' : (t.status==='assigned'||t.status==='in_progress' ? '#2e90fa' : '#4b5563'); ctx.beginPath(); ctx.arc(d.sx,d.sy,rr,0,Math.PI*2); ctx.fill();
       });
 
       // 地图取点中的临时起终点标记
@@ -2137,7 +2137,7 @@ createApp({
       this.snap.drones.forEach(d => {
         const p = P(d.x,d.y);
         const selected=this.selection.type==='drone' && String(this.selection.id)===String(d.id);
-        if(selected){ ctx.strokeStyle='#2f6fed'; ctx.lineWidth=2.4; ctx.beginPath(); ctx.arc(p.sx,p.sy,11,0,Math.PI*2); ctx.stroke(); }
+        if(selected){ ctx.strokeStyle='#1b2320'; ctx.lineWidth=2.4; ctx.beginPath(); ctx.arc(p.sx,p.sy,11,0,Math.PI*2); ctx.stroke(); }
         ctx.fillStyle = STATE_COLOR[d.state] || '#888';
         const r = selected ? 6.5 : 5;
         ctx.beginPath();
@@ -2696,7 +2696,7 @@ createApp({
           return higher ? t : 1 - t;
         };
       });
-      const PALETTE = ['#0e9f6e', '#2f6fed', '#faad14', '#8b5cf6', '#e5484d', '#14b8a6', '#f97316'];
+      const PALETTE = ['#0e9f6e', '#2e90fa', '#faad14', '#8b5cf6', '#e5484d', '#14b8a6', '#f97316'];
       chart.setOption({
         color: PALETTE,
         tooltip: { trigger: 'item' },
