@@ -137,5 +137,43 @@ class AggregationTests(unittest.TestCase):
         self.assertEqual(before, after)
 
 
+    def test_quick_preset_cannot_overwrite_shared_compare_table(self):
+        """只有 conclusion 正式实验可以覆盖答辩对比页的数据源。
+
+        此前 quick（1200 步 / repeats=1）跑完也写 results/compare/one_click_latest.csv，
+        而 /api/compare 按文件名排序 + keep="last" 读取，点一次「快速自检」就等于
+        悄悄换掉了对比页背后的一整批数字。
+        """
+        raw_rows = [self._row("algorithm_comparison", "greedy", 完成率=0.9, 总步数=2000.0)]
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            original = runner.PROJECT_ROOT
+            runner.PROJECT_ROOT = root
+            try:
+                shared = root / "results" / "compare" / "one_click_latest.csv"
+                quick = _aggregate(list(raw_rows), root / "quick", {"_preset_key": "quick"})
+                self.assertNotIn("compare_latest", quick)
+                self.assertFalse(shared.exists(), "quick 预设不应写共享对比表")
+
+                concl = _aggregate(list(raw_rows), root / "concl", {"_preset_key": "conclusion"})
+                self.assertIn("compare_latest", concl)
+                self.assertTrue(shared.exists(), "conclusion 应写入共享对比表")
+            finally:
+                runner.PROJECT_ROOT = original
+
+    def test_aggregate_without_preset_is_backwards_compatible(self):
+        raw_rows = [self._row("algorithm_comparison", "greedy", 完成率=0.9, 总步数=2000.0)]
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            original = runner.PROJECT_ROOT
+            runner.PROJECT_ROOT = root
+            try:
+                out = _aggregate(raw_rows, root / "exp")        # 不传 preset 也不能报错
+                self.assertTrue((root / "exp" / "algorithm_comparison.csv").exists())
+                self.assertNotIn("compare_latest", out)
+            finally:
+                runner.PROJECT_ROOT = original
+
+
 if __name__ == "__main__":
     unittest.main()

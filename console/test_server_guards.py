@@ -81,6 +81,16 @@ class CompareBasisTests(unittest.TestCase):
             self.assertEqual(payload["basis"], {"生成任务数": next(iter(tasks))})
             self.assertEqual(payload["inconsistent"], [], "仅步数不同不应被判为口径偏离")
 
+    def test_rows_report_source_file(self):
+        """keep='last' 会让后读到的文件顶掉先读到的，每行必须能追溯到来源 CSV。"""
+        payload = server.compare()
+        if not payload["rows"]:
+            self.skipTest("results/compare 下没有可用 CSV")
+        for row in payload["rows"]:
+            src = row["口径"].get("来源")
+            self.assertIsInstance(src, str, "行 %s 缺来源标注" % row["算法"])
+            self.assertTrue(src.endswith(".csv"), "来源应是 CSV 文件名: %r" % src)
+
     def test_no_common_basis_is_not_fabricated(self):
         """生成任务数各行都不一样时，宁可不给基准，也不硬选一个误导人。"""
         rows = [{"算法": a, "总步数": s, "生成任务数": n, "完成率": 1.0}
@@ -204,6 +214,22 @@ class CheckpointGenerationTests(unittest.TestCase):
 
         src = inspect.getsource(SimSession.rebuild)
         self.assertNotIn("_checkpoints.clear()", src)
+
+    def test_save_reports_overwrite_and_eviction(self):
+        """存满 5 个后再存，最旧的那个会被淘汰；同名则被覆盖。两者过去都静默。"""
+        self.session._checkpoints.clear()
+        last = None
+        for i in range(1, 7):
+            last = self.session.save_checkpoint("slot-%d" % i)
+        self.assertEqual(last["淘汰"], "slot-1")
+        self.assertIsNone(last["覆盖"])
+        self.assertEqual(last["槽位"], "5/5")
+        self.assertNotIn("slot-1", [c["name"] for c in last["checkpoints"]])
+
+        again = self.session.save_checkpoint("slot-3")
+        self.assertEqual(again["覆盖"], "slot-3")
+        self.assertIsNone(again["淘汰"])
+        self.assertEqual(again["槽位"], "5/5")
 
     def test_same_generation_restore_still_works(self):
         self.session.save_checkpoint("ok-check")

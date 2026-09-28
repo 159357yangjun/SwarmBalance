@@ -863,15 +863,16 @@ def compare():
         df = pd.read_csv(path, encoding="utf-8-sig")
         if "算法" not in df.columns:
             continue
+        df["_来源"] = path.name          # 记录每行来自哪个文件，供下面标注来源
         frames.append(df)
     if not frames:
-        return {"rows": [], "columns": []}
+        return {"rows": [], "columns": [], "basis": None, "inconsistent": []}
 
     data = pd.concat(frames, ignore_index=True)
     # 先去掉"空跑"行：全零 / 全 NaN 的一行没有任何评测意义。
     # 否则 one_click_latest.csv 这类全零记录会在下面 keep="last" 时
     # 覆盖掉同一个算法在其它 CSV 里的真实结果（实测 greedy/ga/pso/ortools 被清零）。
-    num_cols_all = [c for c in data.columns if c != "算法"]
+    num_cols_all = [c for c in data.columns if c not in ("算法", "_来源")]
     numeric = data[num_cols_all].apply(pd.to_numeric, errors="coerce")
     valid_mask = numeric.abs().sum(axis=1) > 0
     data = data.loc[valid_mask].reset_index(drop=True)
@@ -885,9 +886,9 @@ def compare():
     # 30 任务进图、其余算法 60 任务。这里只标注、不改数值、不剔除行。
     # 只保留数值列 + 算法列，去掉总步数/完成任务数等冗余
     drop_cols = {"总步数", "完成任务数", "生成任务数", "换电总次数"}
-    keep_cols = [c for c in data.columns if c != "算法" and c not in drop_cols]
+    keep_cols = [c for c in data.columns if c not in ("算法", "_来源") and c not in drop_cols]
     rows = data[["算法"] + keep_cols].to_dict(orient="records")
-    scale_rows = data[["算法", "总步数", "生成任务数"]].to_dict(orient="records")
+    scale_rows = data[["算法", "总步数", "生成任务数", "_来源"]].to_dict(orient="records")
     basis_tasks, inconsistent = _resolve_basis(scale_rows)
     flagged = {i["算法"] for i in inconsistent}
 
@@ -911,6 +912,9 @@ def compare():
             "生成任务数": _as_int(scale.get("生成任务数")),
             "总步数": _as_int(scale.get("总步数")),
             "偏离": row.get("算法") in flagged,
+            # keep="last" 会让后读到的文件顶掉先读到的；标出来源，避免答辩时
+            # 说不清这一行到底是手工评测还是一次一键实验的结果。
+            "来源": scale.get("_来源"),
         }
 
     return {

@@ -380,6 +380,7 @@ class SimSession:
     # ------------------------------------------------------------------
 
     _CHECKPOINT_STATIC_ENV_KEYS = {"global_bounds", "high_buildings", "no_fly", "data_source"}
+    _CHECKPOINT_LIMIT = 5
 
     def _env_generation(self) -> str:
         """环境结构指纹：机队规模、机巢数量与泊位、禁飞区数量、回合上限等。
@@ -459,13 +460,24 @@ class SimSession:
         }
         # 记录保存时的环境结构，供 rebuild 后判断该快照是否还可安全恢复
         frozen["env_gen"] = self._env_generation()
-        # 覆盖同名快照；新名称超过 5 个时移除最早插入的一项。
-        if name not in self._checkpoints and len(self._checkpoints) >= 5:
-            oldest = next(iter(self._checkpoints))
-            self._checkpoints.pop(oldest, None)
+        # 覆盖同名快照；新名称超过上限时移除最早插入的一项。
+        # 这两件事过去都是静默的——实测存第 6 个快照时第一个会无声消失，
+        # 而界面只写了一句「当前服务内最多 5 个」。改为如实回报，由前端提示用户。
+        replaced = name if name in self._checkpoints else None
+        evicted = None
+        if replaced is None and len(self._checkpoints) >= self._CHECKPOINT_LIMIT:
+            evicted = next(iter(self._checkpoints))
+            self._checkpoints.pop(evicted, None)
         self._checkpoints[name] = frozen
         self._emit("checkpoint_saved", f"已保存运行态快照：{name}", level="success")
-        return {"ok": True, "checkpoints": self.list_checkpoints(), "snapshot": self.snapshot()}
+        return {
+            "ok": True,
+            "checkpoints": self.list_checkpoints(),
+            "snapshot": self.snapshot(),
+            "覆盖": replaced,
+            "淘汰": evicted,
+            "槽位": "%d/%d" % (len(self._checkpoints), self._CHECKPOINT_LIMIT),
+        }
 
     def load_checkpoint(self, name: str) -> Dict:
         name = str(name or "").strip()

@@ -806,7 +806,8 @@ document.addEventListener('DOMContentLoaded', function () {
           <div class="status-line status-bad" v-if="scenarioError">{{ scenarioError }}</div>
         </div>
         <div class="checkpoint-box">
-          <div class="scenario-title"><span>运行态快照</span><span class="hint">当前服务内最多 5 个</span></div>
+          <div class="scenario-title"><span>运行态快照</span><span class="hint">已用 {{ checkpointRows.length }} / {{ checkpointLimit }}</span></div>
+          <div class="hint" v-if="checkpointMessage" style="color:#b45309">{{ checkpointMessage }}</div>
           <div class="row">
             <input type="text" v-model.trim="checkpointName" maxlength="40" placeholder="例如：故障注入前">
             <button class="btn" :disabled="checkpointBusy" @click="saveCheckpoint">保存当前状态</button>
@@ -1013,7 +1014,7 @@ document.addEventListener('DOMContentLoaded', function () {
        </div>
 
         <div class="dispatch-box">
-          <div class="h"><span>当前对比读数</span><span class="hint">{{ compareMetric || '—' }} · 数据源 results/compare/*.csv</span></div>
+          <div class="h"><span>当前对比读数</span><span class="hint">{{ compareMetric || '—' }} · 来源 {{ compareSources || 'results/compare/*.csv' }}</span></div>
           <div class="basis-warn" v-if="compareInconsistent.length && compareBasis">
             口径提示：本页以 <b>{{ compareBasis['生成任务数'] }} 个生成任务</b> 为基准，
             其中 <b>{{ compareInconsistent.map(x => x['算法']).join('、') }}</b>
@@ -1317,7 +1318,7 @@ createApp({
       compareRows: [], compareColumns: [], compareMetric: '', compareBasis: null, compareInconsistent: [], compareError: '',
       experimentPresets: [], experimentPreset: 'quick', experimentStatus: {state:'idle',progress:0,completed_runs:0,total_runs:0}, experimentTimer: null, experimentError: '',
       scenarioPresets: [], scenarioKey: 'medical_peak', scenarioBusy:false, scenarioError:'', scenarioHasRestore:false,
-      checkpointName:'答辩节点', checkpointBusy:false, checkpointError:'',
+      checkpointName:'答辩节点', checkpointBusy:false, checkpointError:'', checkpointMessage:'', checkpointLimit:5,
       mapStatic: { bounds:[0,0,1000,1000], buildings: [] },
       cfg: { num_drones:10, total_tasks:60, light:5, standard:3, heavy:2, peak:0.7, berths:2, arbitration:'priority', deadline_min:900, episode_max:3600 },
       algo: { pso_particles:20, pso_iter:30, ga_pop:60, ga_gen:40, ortools_t:2.0, buffer:15 },
@@ -1389,6 +1390,16 @@ createApp({
     checkpointRows() { return this.snap.checkpoints || []; },
     selectedExperimentPreset() { return this.experimentPresets.find(p => p.key === this.experimentPreset) || null; },
     experimentRunning() { return ['starting','running'].includes(this.experimentStatus.state); },
+    compareSources() {
+      // keep='last' 会让后读到的文件顶掉先读到的；把每行来源汇总出来，
+      // 免得答辩时被问「这个 ga 的数是哪来的」而答不上。
+      const m = {};
+      for (const r of this.compareRows) {
+        const s = ((r['口径'] || {})['来源']) || '未知';
+        m[s] = (m[s] || 0) + 1;
+      }
+      return Object.keys(m).sort().map(k => k + ' ×' + m[k]).join(' · ');
+    },
     experimentStateText() {
       const m = {idle:'未启动', starting:'正在启动', running:'运行中', completed:'已完成', completed_with_errors:'完成（部分失败）', failed:'失败', unknown:'状态未知'};
       return m[this.experimentStatus.state] || this.experimentStatus.state || '未启动';
@@ -1506,10 +1517,16 @@ createApp({
 
     async saveCheckpoint() {
       if(this.checkpointBusy) return;
-      this.stopPlay(); this.checkpointBusy=true; this.checkpointError='';
+      this.stopPlay(); this.checkpointBusy=true; this.checkpointError=''; this.checkpointMessage='';
       try {
         const r=await this.api('/api/checkpoints',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:this.checkpointName||'答辩节点'})});
         if(r.snapshot) this.applySnap(r.snapshot);
+        // 覆盖同名与淘汰最旧过去都是静默的：误点一次就丢掉答辩前存的节点而毫无察觉
+        const notes=[];
+        if(r['覆盖']) notes.push('已覆盖同名快照「'+r['覆盖']+'」');
+        if(r['淘汰']) notes.push('槽位已满，最旧的「'+r['淘汰']+'」已被淘汰');
+        if(r['槽位']) notes.push('槽位 '+r['槽位']);
+        this.checkpointMessage = notes.join(' · ');
       } catch(e) { this.checkpointError=e.message; }
       finally { this.checkpointBusy=false; }
     },

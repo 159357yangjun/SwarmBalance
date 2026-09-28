@@ -226,7 +226,8 @@ def _write_csv(path: Path, rows: List[Dict[str, Any]], fieldnames: List[str]) ->
             writer.writerow(row)
 
 
-def _aggregate(raw_rows: List[Dict[str, Any]], output_dir: Path) -> Dict[str, Path]:
+def _aggregate(raw_rows: List[Dict[str, Any]], output_dir: Path,
+               preset: Optional[Dict[str, Any]] = None) -> Dict[str, Path]:
     outputs: Dict[str, Path] = {}
     meta_cols = ["实验", "变量", "取值", "重复", "Seed", "算法key", "算法", "成功", "耗时秒", "错误"]
     _write_csv(output_dir / "raw_runs.csv", raw_rows, meta_cols + METRIC_COLUMNS)
@@ -274,9 +275,13 @@ def _aggregate(raw_rows: List[Dict[str, Any]], output_dir: Path) -> Dict[str, Pa
         paired_path = write_rows(output_dir / "paired_ga_vs_greedy.csv", paired_rows)
         outputs["paired_ga_vs_greedy"] = paired_path
 
-    # 让已有“对比”页自动显示最近一次一键实验结果。只写算法对比汇总，不改历史文件。
+    # 让「对比」页自动显示最近一次**正式**实验结果。只写算法对比汇总，不改历史文件。
+    # 闸门是必要的：此前 quick 预设（1200 步 / repeats=1）跑完也会覆盖这个共享文件，
+    # 而 /api/compare 按文件名排序 + keep="last" 读取，等于点一次「快速自检」就悄悄
+    # 换掉了答辩对比页的数据源。非 conclusion 预设的结果只留在自己的实验目录里。
     alg_path = outputs.get("algorithm_comparison")
-    if alg_path:
+    preset_key = (preset or {}).get("_preset_key") or ""
+    if alg_path and preset_key == "conclusion":
         latest = PROJECT_ROOT / "results" / "compare" / "one_click_latest.csv"
         latest.parent.mkdir(parents=True, exist_ok=True)
         with open(alg_path, "r", encoding="utf-8-sig", newline="") as src:
@@ -288,6 +293,9 @@ def _aggregate(raw_rows: List[Dict[str, Any]], output_dir: Path) -> Dict[str, Pa
             latest_rows.append(clean)
         _write_csv(latest, latest_rows, ["算法"] + METRIC_COLUMNS)
         outputs["compare_latest"] = latest
+    elif alg_path:
+        print(f"[aggregate] 预设 {preset_key or '未知'} 不写入共享的 results/compare/one_click_latest.csv"
+              "（仅 conclusion 正式实验可覆盖答辩对比页数据源）")
     return outputs
 
 
@@ -549,7 +557,7 @@ def run_experiments(preset: Dict[str, Any], output_root: Path, status_file: Opti
         status["error_count"] = sum(1 for r in raw_rows if not r["成功"])
         _status_write(status_file, status)
 
-    outputs = _aggregate(raw_rows, output_dir)
+    outputs = _aggregate(raw_rows, output_dir, preset)
     outputs["reproducibility"] = manifest_path
     figures = _plot(outputs, output_dir)
     summary = _write_summary(preset, raw_rows, outputs, figures, output_dir)
