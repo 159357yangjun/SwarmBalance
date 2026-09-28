@@ -121,5 +121,95 @@ class OsmCacheKeyTests(unittest.TestCase):
             self.assertIsNone(osm._read_cache(truncated))
 
 
+class SeedValidationTests(unittest.TestCase):
+    """Seed 越界必须是可读的 400，而不是没有说明的 500。"""
+
+    def test_negative_and_oversized_seed_rejected_with_400(self):
+        from fastapi import HTTPException
+
+        for bad in (-5, -1, 2 ** 32, 2 ** 63):
+            with self.assertRaises(HTTPException, msg="seed=%s 应被拒绝" % bad) as ctx:
+                server.reset(server.ResetRequest(algorithm="ga", seed=bad))
+            self.assertEqual(ctx.exception.status_code, 400)
+            self.assertIn("Seed", ctx.exception.detail)
+
+    def test_boundary_seeds_accepted(self):
+        # 0 与 2**32-1 是 numpy 允许的边界；这两个值过去会在 pso/ga/ortools 路径上 500 吗？
+        # 不会——只有区间外才会。这里只断言不抛 400。
+        from fastapi import HTTPException
+
+        for ok in (0, 1, 100, 2 ** 32 - 1):
+            try:
+                server.reset(server.ResetRequest(algorithm="greedy", seed=ok))
+            except HTTPException as exc:  # pragma: no cover
+                self.fail("seed=%s 不应被拒: %s" % (ok, exc.detail))
+
+
+class VendorAssetTests(unittest.TestCase):
+    """本地前端依赖必须可被取到，且不能成为任意文件读取口。"""
+
+    def test_serves_each_vendored_library(self):
+        from fastapi.responses import FileResponse
+
+        for name in server._VENDOR_FILES:
+            resp = server.vendor(name)
+            self.assertIsInstance(resp, FileResponse)
+            self.assertTrue(Path(resp.path).exists(), "本地依赖缺失: %s" % name)
+            self.assertGreater(Path(resp.path).stat().st_size, 10000)
+
+    def test_rejects_unknown_and_traversal_names(self):
+        from fastapi import HTTPException
+
+        for bad in ("nope.js", "../../../etc/passwd", "server.py", ""):
+            with self.assertRaises(HTTPException, msg="应拒绝: %r" % bad) as ctx:
+                server.vendor(bad)
+            self.assertEqual(ctx.exception.status_code, 404)
+
+
+class CheckpointGenerationTests(unittest.TestCase):
+    """rebuild 不再销毁快照，改为跨代拒绝恢复。"""
+
+    @classmethod
+    def setUpClass(cls):
+        from console.sim_session import SimSession
+
+        cls.session = SimSession()
+        cls.session.reset(algorithm="greedy", seed=100)
+
+    def test_saved_checkpoint_records_generation(self):
+        self.session.save_checkpoint("gen-check")
+        stored = self.session._checkpoints["gen-check"]
+        self.assertEqual(stored["env_gen"], self.session._env_generation())
+        self.assertTrue(self.session.list_checkpoints()[0]["可用"])
+
+    def test_cross_generation_restore_is_refused_with_explanation(self):
+        self.session.save_checkpoint("stale-check")
+        original = self.session._checkpoints["stale-check"]["env_gen"]
+        self.session._checkpoints["stale-check"]["env_gen"] = "000000000000"
+        try:
+            with self.assertRaises(ValueError) as ctx:
+                self.session.load_checkpoint("stale-check")
+            self.assertIn("环境重建", str(ctx.exception))
+            rows = {r["name"]: r for r in self.session.list_checkpoints()}
+            self.assertFalse(rows["stale-check"]["可用"])
+        finally:
+            self.session._checkpoints["stale-check"]["env_gen"] = original
+
+    def test_rebuild_no_longer_destroys_checkpoints(self):
+        """旧实现在 rebuild() 里 clear()，误点一次「保存并应用」就丢掉答辩前存的全部节点。
+        这里锁住源码，防止有人为了「省事」把保护改回去。"""
+        import inspect
+
+        from console.sim_session import SimSession
+
+        src = inspect.getsource(SimSession.rebuild)
+        self.assertNotIn("_checkpoints.clear()", src)
+
+    def test_same_generation_restore_still_works(self):
+        self.session.save_checkpoint("ok-check")
+        snap = self.session.load_checkpoint("ok-check")
+        self.assertIn("step", snap)
+
+
 if __name__ == "__main__":
     unittest.main()

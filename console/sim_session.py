@@ -17,7 +17,9 @@
 from __future__ import annotations
 
 import copy
+import hashlib
 import importlib
+import json
 import math
 import random
 import sys
@@ -379,13 +381,41 @@ class SimSession:
 
     _CHECKPOINT_STATIC_ENV_KEYS = {"global_bounds", "high_buildings", "no_fly", "data_source"}
 
+    def _env_generation(self) -> str:
+        """环境结构指纹：机队规模、机巢数量与泊位、禁飞区数量、回合上限等。
+
+        这些一变，旧快照里的无人机下标、泊位编号、任务归属就对不上了。旧实现在
+        rebuild() 里直接 ``_checkpoints.clear()`` 把用户存的快照一并销毁（误点一次
+        「保存并应用」就丢掉答辩前存的「故障注入前」节点，且无法撤销）。改成打标：
+        快照保留，跨代恢复时给出可执行的错误提示。
+        """
+        cfg = get_shared_config()
+        env_cfg = cfg.get("environment") or {}
+        het = cfg.get("heterogeneous") or {}
+        structural = {
+            "num_drones": env_cfg.get("num_drones"),
+            "episode_max_steps": env_cfg.get("episode_max_steps"),
+            "allow_multi_task": env_cfg.get("allow_multi_task"),
+            "hetero_enabled": het.get("enabled"),
+            "fleet_mix": het.get("fleet_mix"),
+            "nests": len(cfg.get("charging_stations") or []),
+            "berths": (cfg.get("nest") or {}).get("berths"),
+            "no_fly_zones": len(cfg.get("no_fly_zones") or []),
+        }
+        raw = json.dumps(structural, sort_keys=True, ensure_ascii=False, default=str)
+        return hashlib.md5(raw.encode("utf-8")).hexdigest()[:12]
+
     def list_checkpoints(self) -> List[Dict[str, Any]]:
+        current = self._env_generation()
         rows = []
         for name, item in self._checkpoints.items():
             meta = item.get("meta") or {}
+            gen = item.get("env_gen")
             rows.append({
                 "name": name, "step": int(meta.get("step", 0)), "time": float(meta.get("time", 0.0)),
                 "algorithm": meta.get("algorithm"), "seed": meta.get("seed"),
+                # 跨环境重建的快照仍可列出（不销毁用户数据），但不可恢复
+                "可用": gen is None or gen == current,
             })
         return rows
 
@@ -427,6 +457,8 @@ class SimSession:
             "step": int(self.step_count), "time": float(self.env.current_time),
             "algorithm": self.algorithm, "seed": self.seed,
         }
+        # 记录保存时的环境结构，供 rebuild 后判断该快照是否还可安全恢复
+        frozen["env_gen"] = self._env_generation()
         # 覆盖同名快照；新名称超过 5 个时移除最早插入的一项。
         if name not in self._checkpoints and len(self._checkpoints) >= 5:
             oldest = next(iter(self._checkpoints))
@@ -443,6 +475,13 @@ class SimSession:
             state = copy.deepcopy(self._checkpoints[name])
         except Exception as exc:
             raise ValueError(f"运行态快照无法恢复: {exc}") from exc
+        gen = state.get("env_gen")
+        if gen is not None and gen != self._env_generation():
+            raise ValueError(
+                f"快照「{name}」保存于另一次环境重建之前（机队规模、机巢数量与泊位、"
+                "禁飞区数量或回合上限已改变），跨代恢复会让无人机下标与泊位编号错位，"
+                "已拒绝。请在当前配置下重新保存一个快照。"
+            )
         # 保留当前静态地图对象，只覆盖保存时的动态环境状态。
         current_static = {k: self.env.__dict__.get(k) for k in self._CHECKPOINT_STATIC_ENV_KEYS}
         for key in list(self.env.__dict__):
@@ -583,8 +622,9 @@ class SimSession:
             self.osm_path, visualize=False, episode_max_steps=self.episode_max_steps)
         self.num_drones = len(self.env.drones)
         self.trajectories = [[] for _ in range(self.num_drones)]
-        # 配置结构可能变化（机队/机巢/禁飞区），旧运行态快照不再安全。
-        self._checkpoints.clear()
+        # 配置结构可能变化（机队/机巢/禁飞区），旧快照不再可安全恢复——但**不再销毁**：
+        # 每个快照带环境代次标记，跨代恢复由 load_checkpoint 明确拒绝并解释原因。
+        # 旧实现此处 clear() 会让误点一次「保存并应用」就丢掉答辩前存的全部节点且不可撤销。
         return self.reset(self.algorithm, self.seed)
 
     # ------------------------------------------------------------------

@@ -4,9 +4,37 @@
 <meta charset="UTF-8" data-page-node-id="zAgHIL4UZs5G1FXYOIy3IC">
 <meta name="viewport" content="width=device-width, initial-scale=1.0" data-page-node-id="FizhhgGtTeCt51SxoGnMs3">
 <title>群智优衡 · 三维协同调度指挥台</title>
-<script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
+<script>
+/* 前端依赖加载策略：本地优先，CDN 仅作回退。
+   原先三个库全部只指向公网，答辩现场断网或内网拦截会让整页不可用且无任何提示。
+   版本已钉死（不再用 vue@3 / echarts@5 这类浮动大版本），避免上游发新版静默改变 UI 行为。 */
+window.__cdnFallback = function (url) { document.write('<script src="' + url + '"><\/script>'); };
+window.__depsMissing = [];
+document.addEventListener('DOMContentLoaded', function () {
+  var missing = window.__depsMissing || [];
+  if (!missing.length) return;
+  var box = document.getElementById('deps-error');
+  var list = document.getElementById('deps-error-list');
+  if (!box || !list) return;
+  list.textContent = missing.join('、');
+  box.classList.add('show');
+});
+</script>
+<script src="/vendor/vue.global.prod.js" onerror="__cdnFallback('https://unpkg.com/vue@3.5.13/dist/vue.global.prod.js')"></script>
+<script>if (typeof window.Vue === 'undefined') window.__depsMissing.push('Vue');</script>
+<script src="/vendor/echarts.min.js" onerror="__cdnFallback('https://cdn.jsdelivr.net/npm/echarts@5.5.1/dist/echarts.min.js')"></script>
+<script>if (typeof window.echarts === 'undefined') window.__depsMissing.push('ECharts');</script>
+<script src="/vendor/three.min.js" onerror="__cdnFallback('https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js')"></script>
+<script>if (typeof window.THREE === 'undefined') window.__depsMissing.push('three.js');</script>
+<style>
+  /* v-cloak 此前只写在 #app 上却没有对应规则，Vue 加载失败时会满屏露出 {{ snap.step }} 原文 */
+  [v-cloak] { display: none !important; }
+  #deps-error { position: fixed; inset: 0; z-index: 999; display: none; align-items: center; justify-content: center; background: #f5f6f8; padding: 24px; }
+  #deps-error.show { display: flex; }
+  #deps-error .card { max-width: 620px; background: #fff; border: 1px solid #e4e7ec; border-left: 4px solid #fa8c16; border-radius: 12px; padding: 22px 24px; font-size: 14px; line-height: 1.75; color: #1f2329; }
+  #deps-error h1 { font-size: 17px; margin-bottom: 10px; }
+  #deps-error code { background: #f2f4f7; padding: 1px 6px; border-radius: 5px; font-size: 12.5px; }
+</style>
 <style>
   :root {
     --bg: #f5f6f8; --panel: #ffffff; --border: #e4e7ec;
@@ -534,6 +562,17 @@
 </style>
 </head>
 <body data-page-node-id="Ua4Bz8YMekShkdxtCoSHta">
+<div id="deps-error">
+  <div class="card">
+    <h1>前端依赖未能加载</h1>
+    <p>以下库在本地副本与公共 CDN 都未取得：<b id="deps-error-list">—</b>。</p>
+    <p>页面因此无法启动，这不是仿真内核的问题。请依次尝试：</p>
+    <p>1. 确认本项目 <code>console/static/vendor/</code> 下三个 js 文件齐全；<br>
+       2. 换一台可访问外网的机器，或连上手机热点后刷新；<br>
+       3. 若在内网/受管网络，请把 <code>unpkg.com</code> 与 <code>cdn.jsdelivr.net</code> 加入放行名单。</p>
+    <p>后端 API 与仿真内核不依赖这些库，仍可用 <code>frontend/evaluate_metrics.py</code> 命令行出结果。</p>
+  </div>
+</div>
 <div id="app" class="app" v-cloak data-page-node-id="ZvBi2G7GcqaCsFPXQmgfBD">
   <div class="topbar" data-page-node-id="MA6CgM40XHMAOgvYmnWO9m">
     <div class="title" data-page-node-id="yEGYtTCQwSanMto2AT2nOj">群智优衡 · 三维协同调度指挥台</div>
@@ -542,8 +581,9 @@
       <option v-for="a in algorithmOptions" :key="a.key" :value="a.key" :disabled="!a.available">{{ a.label }}{{ a.available ? '' : '（不可用）' }}</option>
     </select>
     <label data-page-node-id="r0di1BtPVs5jknz9QzDiwA">Seed</label>
-    <input type="number" v-model.number="seed" style="width:82px" data-page-node-id="LucDPmBqTeUiB4UOL7n7TI">
-    <button class="btn primary" @click="reset" data-page-node-id="JU2iDEFq99z5zovyDHzEiF">重置</button>
+    <input type="number" v-model.number="seed" min="0" max="4294967295" step="1" style="width:82px" data-page-node-id="LucDPmBqTeUiB4UOL7n7TI">
+    <button class="btn primary" @click="reset" :disabled="resetting" data-page-node-id="JU2iDEFq99z5zovyDHzEiF">{{ resetting ? '重置中…' : '重置' }}</button>
+    <span class="hint" v-if="resetError" style="color:#ef4444">{{ resetError }}</span>
     <button class="btn" @click="togglePlay" data-page-node-id="OUc4LaTereC4DNgOAhMReW">{{ playing ? '暂停' : '播放' }}</button>
     <button class="btn" @click="stepOnce" :disabled="playing || stepping" data-page-node-id="YTtnlBOIfmnU3lU46AW4bl">单步</button>
     <div class="speed-group" data-page-node-id="VBhoB1vcQIVszsCROx1sWi">
@@ -1262,6 +1302,7 @@ createApp({
   data() {
     return {
       algorithm: 'greedy', seed: 100, playing: false, speed: 1, speeds: [1,2,5,10], stepping:false,
+      resetting: false, resetError: '',
       loading: true, warming: false, view: '2d', tab: 'metrics', showMap: true, showConfig: false, configBusy:false, configError:'', showTaskModal:false, taskSubmitting:false, taskError:'',
       showSceneEditor:false, sceneBusy:false, sceneError:'', sceneEditing:false,
       showSceneLibrary:false, sceneLibraryBusy:false, sceneLibraryError:'', sceneLibraryMessage:'', sceneLibrary:[], sceneLibraryForm:{name:'',description:'',include_scheduler:true},
@@ -1380,8 +1421,25 @@ createApp({
         await new Promise(res => setTimeout(res, 250));
       }
       if (this.warming) this.warming = false;
-      if (!r.ok) { const e = await r.json().catch(()=>({detail:'请求失败'})); throw new Error(e.detail || r.statusText); }
+      if (!r.ok) {
+        const e = await r.json().catch(() => ({ detail: '' }));
+        throw new Error(this.apiErrorText(e && e.detail, r.status, r.statusText));
+      }
       return r.json();
+    },
+    apiErrorText(detail, status, statusText) {
+      // FastAPI 的 422 把 detail 返回成对象数组；旧写法 new Error(数组) 会得到
+      // "[object Object]"，调用方即使 catch 了也显示不出原因，看起来就像点了没反应。
+      if (typeof detail === 'string' && detail) return detail;
+      if (Array.isArray(detail) && detail.length) {
+        const parts = detail.map(d => {
+          const loc = (d && d.loc ? d.loc : []).filter(x => x !== 'body').join('.');
+          return (loc ? loc + ' ' : '') + ((d && d.msg) || '参数不合法');
+        });
+        return parts.join('；');
+      }
+      if (detail && typeof detail === 'object' && detail.detail) return this.apiErrorText(detail.detail, status, statusText);
+      return '请求失败（HTTP ' + (status || '?') + (statusText ? ' ' + statusText : '') + '）';
     },
 
     async openSceneLibrary() {
@@ -1726,11 +1784,26 @@ createApp({
     },
 
     async reset() {
+      if (this.resetting) return;            // 防连点并发 POST /api/reset
+      const seed = Number(this.seed);
+      if (!Number.isInteger(seed) || seed < 0 || seed > 4294967295) {
+        // 输入框被清空时 v-model.number 会留下 ''，后端会回 422；在这里先给出一句话
+        this.resetError = 'Seed 需为 0 ~ 4294967295 之间的整数';
+        return;
+      }
+      this.resetError = '';
+      this.resetting = true;
       this.stopPlay();
       this.clearSelection();
-      const snap = await this.api('/api/reset', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({algorithm:this.algorithm, seed:this.seed}) });
-      this.trajectories = []; this.trend = [];
-      this.applySnap(snap);
+      try {
+        const snap = await this.api('/api/reset', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({algorithm:this.algorithm, seed}) });
+        this.trajectories = []; this.trend = [];
+        this.applySnap(snap);
+      } catch (e) {
+        this.resetError = e.message || '重置失败';
+      } finally {
+        this.resetting = false;
+      }
     },
     async advance(count=1) {
       if (this.stepping) return;

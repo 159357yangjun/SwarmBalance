@@ -37,6 +37,13 @@ app = FastAPI(title="无人机调度仿真控制台")
 
 _STATIC = Path(__file__).resolve().parent / "static" / "index.html"
 _SPEC = Path(__file__).resolve().parent / "static" / "spec.html"
+_VENDOR = Path(__file__).resolve().parent / "static" / "vendor"
+# 白名单而非目录挂载：既避免路径穿越，也让「本地依赖是否齐全」可被预检明确判定。
+_VENDOR_FILES = {
+    "vue.global.prod.js": "application/javascript",
+    "echarts.min.js": "application/javascript",
+    "three.min.js": "application/javascript",
+}
 _SIM_JSON = _PROJECT_ROOT / "config" / "simulation.json"
 _ALG_YAML = _PROJECT_ROOT / "backend_si" / "config.yaml"
 _SCENE_LIBRARY = SceneLibrary(_PROJECT_ROOT / "config" / "scenes")
@@ -190,6 +197,22 @@ def spec():
     return HTMLResponse("<h1>spec.html 缺失</h1>")
 
 
+@app.get("/vendor/{name}")
+def vendor(name: str):
+    """本地前端依赖。
+
+    页面原先只从 unpkg / jsdelivr 加载 Vue、ECharts、three.js，答辩现场断网或被内网
+    策略拦截时整页不可用；这里提供本地副本作为首选，CDN 只作回退。
+    """
+    media_type = _VENDOR_FILES.get(name)
+    if media_type is None:
+        raise HTTPException(status_code=404, detail="未知前端依赖")
+    path = _VENDOR / name
+    if not path.exists():
+        raise HTTPException(status_code=404, detail=f"本地依赖文件缺失: {name}")
+    return FileResponse(str(path), media_type=media_type)
+
+
 # ---------------------------------------------------------------------------
 # 仿真 API
 # ---------------------------------------------------------------------------
@@ -235,6 +258,13 @@ def snapshot():
 def reset(req: ResetRequest):
     if req.algorithm not in ALGORITHMS:
         raise HTTPException(status_code=400, detail=f"未知算法: {req.algorithm}")
+    # numpy 的随机种子只接受 0 ~ 2**32-1。此前负数或超大 Seed 会在 pso/ga/ortools
+    # 路径上抛 ValueError，用户拿到的是一个没有任何说明的 500。
+    if not 0 <= req.seed <= 0xFFFFFFFF:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Seed 必须是 0 ~ {0xFFFFFFFF} 之间的整数（当前为 {req.seed}）",
+        )
     try:
         with _op_lock:
             snap = _get_session().reset(algorithm=req.algorithm, seed=req.seed)
