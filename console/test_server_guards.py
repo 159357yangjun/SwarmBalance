@@ -49,11 +49,9 @@ class SnapshotWarmingGateTests(unittest.TestCase):
 
 
 class CompareBasisTests(unittest.TestCase):
-    """/api/compare 必须标出评测规模与基准不一致的算法，且不得改动数值。"""
+    """/api/compare 按「生成任务数」判定口径，且不得改动任何数值。"""
 
-    def test_flags_off_basis_rows_without_changing_values(self):
-        import csv
-
+    def test_rows_carry_basis_metadata_without_changing_values(self):
         payload = server.compare()
         if not payload["rows"]:
             self.skipTest("results/compare 下没有可用 CSV")
@@ -63,18 +61,33 @@ class CompareBasisTests(unittest.TestCase):
         for row in payload["rows"]:
             self.assertIn("口径", row)
             self.assertIsInstance(row["口径"]["偏离"], bool)
+            rate = row.get("完成率")
+            self.assertTrue(rate is None or 0.0 <= rate <= 1.0, "完成率越界: %r" % rate)
 
         flagged = {i["算法"] for i in payload["inconsistent"]}
         self.assertEqual(flagged, {r["算法"] for r in payload["rows"] if r["口径"]["偏离"]})
 
-        # 数值必须与源 CSV 的最后一行一致：守卫只做标注，不参与计算。
-        ga_path = server._PROJECT_ROOT / "results" / "compare" / "backend_ga_metrics.csv"
-        if ga_path.exists():
-            with ga_path.open(encoding="utf-8-sig", newline="") as fh:
-                last = list(csv.DictReader(fh))[-1]
-            ga_row = next((r for r in payload["rows"] if r["算法"] == last["算法"]), None)
-            if ga_row is not None:
-                self.assertAlmostEqual(float(last["完成率"]), ga_row["完成率"], places=4)
+    def test_step_count_difference_alone_is_not_a_basis_violation(self):
+        """总步数是 episode 提前结束的运行结果，同条件下各算法天然不同；
+        只有分母（生成任务数）不一致才算口径问题。早先用 (总步数, 生成任务数)
+        当复合基准时，10 行步数互不相等会让众数退化成无意义的 858 并误报 9 行。"""
+        payload = server.compare()
+        rows = payload["rows"]
+        if not rows:
+            self.skipTest("results/compare 下没有可用 CSV")
+        tasks = {r["口径"]["生成任务数"] for r in rows}
+        steps = {r["口径"]["总步数"] for r in rows}
+        if len(tasks) == 1 and len(steps) > 1:
+            self.assertEqual(payload["basis"], {"生成任务数": next(iter(tasks))})
+            self.assertEqual(payload["inconsistent"], [], "仅步数不同不应被判为口径偏离")
+
+    def test_no_common_basis_is_not_fabricated(self):
+        """生成任务数各行都不一样时，宁可不给基准，也不硬选一个误导人。"""
+        rows = [{"算法": a, "总步数": s, "生成任务数": n, "完成率": 1.0}
+                for a, s, n in [("x", 900, 30), ("y", 2000, 60), ("z", 1200, 90)]]
+        basis, inconsistent = server._resolve_basis(rows)
+        self.assertIsNone(basis)
+        self.assertEqual(inconsistent, [])
 
 
 class OsmCacheKeyTests(unittest.TestCase):

@@ -971,9 +971,9 @@
         <div class="dispatch-box">
           <div class="h"><span>当前对比读数</span><span class="hint">{{ compareMetric || '—' }} · 数据源 results/compare/*.csv</span></div>
           <div class="basis-warn" v-if="compareInconsistent.length && compareBasis">
-            口径提示：本页以 <b>{{ compareBasis['总步数'] }} 步 / {{ compareBasis['生成任务数'] }} 任务</b> 为基准，
+            口径提示：本页以 <b>{{ compareBasis['生成任务数'] }} 个生成任务</b> 为基准，
             其中 <b>{{ compareInconsistent.map(x => x['算法']).join('、') }}</b>
-            的评测规模与基准不同，完成率与时效类指标不可直接横向比较（数值未做任何调整）。
+            的评测规模与基准不同，完成率等以任务数为分母的指标不可直接横向比较（数值未做任何调整）。
           </div>
           <div class="cmp-table" v-if="compareRows.length">
             <div class="cmp-head">

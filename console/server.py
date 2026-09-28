@@ -15,7 +15,7 @@ import json
 import sys
 import threading
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
@@ -783,6 +783,42 @@ _CSV_FILES = [
 ]
 
 
+def _resolve_basis(meta_rows: List[Dict[str, Any]]) -> Tuple[Optional[int], List[Dict[str, Any]]]:
+    """按「生成任务数」的众数确定共同口径，返回 (基准任务数, 偏离行列表)。
+
+    为什么不用总步数：总步数是 episode 提前跑完时的**运行结果**，同一设定下各算法
+    天然互不相等，拿它当基准会把正常的性能差异误报成口径不一致（曾实测 10 行步数
+    全不相等 → 众数退化成无意义的 858 → 9/10 行被误标）。完成率等指标的分母是
+    生成任务数，所以只有它不一致才是真正不可比。
+
+    众数只出现一次时返回 (None, [])：宁可不给基准，也不硬选一个误导人的。
+    """
+    counts: Dict[int, int] = {}
+    for row in meta_rows:
+        try:
+            n = int(float(row.get("生成任务数", 0)))
+        except (TypeError, ValueError):
+            continue
+        if n > 0:
+            counts[n] = counts.get(n, 0) + 1
+    if not counts:
+        return None, []
+    top = max(counts.items(), key=lambda kv: (kv[1], -kv[0]))
+    if top[1] < 2:
+        return None, []
+    basis = top[0]
+    off: List[Dict[str, Any]] = []
+    for row in meta_rows:
+        try:
+            n = int(float(row.get("生成任务数", 0)))
+            steps = int(float(row.get("总步数", 0)))
+        except (TypeError, ValueError):
+            continue
+        if n > 0 and n != basis:
+            off.append({"算法": row.get("算法"), "生成任务数": n, "总步数": steps})
+    return basis, off
+
+
 @app.get("/api/compare")
 def compare():
     """读 results/compare/*.csv，返回各算法最后一行指标（供前端 ECharts 对比）。"""
@@ -815,26 +851,15 @@ def compare():
     # 同一算法取最后一条（保留最近一次评测），但只从有效行里取
     data = data.drop_duplicates("算法", keep="last").reset_index(drop=True)
 
-    # 口径守卫：各算法必须在相同的 总步数 / 生成任务数 下评测，否则雷达图和排行图
-    # 是在比不同量纲的数字。实测进过一张图的反例：ga 600 步/30 任务，
-    # greedy/pso/ortools 2000 步/60 任务，qmix/vdn/iql 约 900 步/60 任务。
-    # 这里只做标注与上报，不修改、不剔除任何数值——是否重跑由人决定。
-    pair_counts: Dict[Any, int] = {}
-    for _, r in data.iterrows():
-        try:
-            pair = (int(float(r.get("总步数", 0))), int(float(r.get("生成任务数", 0))))
-        except (TypeError, ValueError):
-            continue
-        if pair[0] <= 0 or pair[1] <= 0:
-            continue
-        pair_counts[pair] = pair_counts.get(pair, 0) + 1
-    basis = max(pair_counts.items(), key=lambda kv: (kv[1], -kv[0][0]))[0] if pair_counts else None
-
+    # 口径守卫：只有分母（生成任务数）不一致才算不可比。历史上的真实反例是 ga 以
+    # 30 任务进图、其余算法 60 任务。这里只标注、不改数值、不剔除行。
     # 只保留数值列 + 算法列，去掉总步数/完成任务数等冗余
     drop_cols = {"总步数", "完成任务数", "生成任务数", "换电总次数"}
     keep_cols = [c for c in data.columns if c != "算法" and c not in drop_cols]
     rows = data[["算法"] + keep_cols].to_dict(orient="records")
-    basis_rows = data[["算法", "总步数", "生成任务数"]].to_dict(orient="records")
+    scale_rows = data[["算法", "总步数", "生成任务数"]].to_dict(orient="records")
+    basis_tasks, inconsistent = _resolve_basis(scale_rows)
+    flagged = {i["算法"] for i in inconsistent}
 
     def _clean(v):
         if isinstance(v, float) and (math.isnan(v) or math.isinf(v)):
@@ -843,24 +868,24 @@ def compare():
             return round(v, 4)
         return v
 
-    inconsistent = []
-    for row, meta in zip(rows, basis_rows):
+    def _as_int(v):
+        try:
+            return int(float(v))
+        except (TypeError, ValueError):
+            return None
+
+    for row, scale in zip(rows, scale_rows):
         for k in list(row.keys()):
             row[k] = _clean(row[k])
-        try:
-            pair = (int(float(meta["总步数"])), int(float(meta["生成任务数"])))
-        except (TypeError, ValueError):
-            pair = None
-        off = basis is not None and pair is not None and pair != basis
-        row["口径"] = {"总步数": pair[0] if pair else None,
-                     "生成任务数": pair[1] if pair else None,
-                     "偏离": bool(off)}
-        if off:
-            inconsistent.append({"算法": meta["算法"], "总步数": pair[0], "生成任务数": pair[1]})
+        row["口径"] = {
+            "生成任务数": _as_int(scale.get("生成任务数")),
+            "总步数": _as_int(scale.get("总步数")),
+            "偏离": row.get("算法") in flagged,
+        }
 
     return {
         "rows": rows,
         "columns": keep_cols,
-        "basis": {"总步数": basis[0], "生成任务数": basis[1]} if basis else None,
+        "basis": {"生成任务数": basis_tasks} if basis_tasks is not None else None,
         "inconsistent": inconsistent,
     }
