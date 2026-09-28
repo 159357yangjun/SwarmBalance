@@ -88,6 +88,10 @@ class Environment:
         self.global_bounds = get_global_bounds(buildings_with_height)
 
         self.high_buildings = [b for b in buildings_with_height if b['height'] is not None and b['height'] > 20]
+        # 性能：预计算高楼包围盒。is_path_clear 会被 A* 在每条路径规划中调用数千次，
+        # 先用纯 Python 的 bbox 剔除，可免掉绝大多数昂贵的 GEOS 相交调用。
+        # 这是等价优化：两条线段包围盒不重叠时，几何上不可能相交。
+        self._high_buildings_bbox = [(b['geometry'].bounds, b['geometry']) for b in self.high_buildings]
 
         # 禁飞区：与建筑物并列的飞行硬约束（参与 is_path_clear / A* / 场景生成）
         self.no_fly = get_no_fly_zones()
@@ -1843,12 +1847,21 @@ class Environment:
         Checks if the path between two positions is free of buildings and no-fly zones.
         禁飞区判定复用与建筑物相同的"擦角忽略"阈值，保证两类障碍口径一致。
         """
+        x1, y1 = pos1
+        x2, y2 = pos2
+        lminx, lmaxx = (x1, x2) if x1 <= x2 else (x2, x1)
+        lminy, lmaxy = (y1, y2) if y1 <= y2 else (y2, y1)
+
         line = LineString([pos1, pos2])
 
-        for building in self.high_buildings:
-            if building['geometry'].intersects(line):
+        for (bxmin, bymin, bxmax, bymax), geom in self._high_buildings_bbox:
+            # bbox 快速剔除：包围盒不重叠 → 几何上必然不相交。
+            # 这是纯数值比较，比 GEOS 的 intersects 便宜约两个数量级。
+            if bxmax < lminx or bxmin > lmaxx or bymax < lminy or bymin > lmaxy:
+                continue
+            if geom.intersects(line):
                 # Check if intersection is significant (not just touching corners)
-                if building['geometry'].intersection(line).length > 0.1:  # Small threshold to avoid floating point errors
+                if geom.intersection(line).length > 0.1:  # Small threshold to avoid floating point errors
                     return False
 
         # 禁飞区：与建筑物同等对待的硬约束（含安全余量外扩）

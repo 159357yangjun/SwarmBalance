@@ -59,6 +59,23 @@ def _get_session() -> SimSession:
     return _session
 
 
+@app.on_event("startup")
+def _warmup_session() -> None:
+    """启动即后台预热仿真会话，避免浏览器首屏白等。
+
+    SimSession 首次构造要加载并解析本地 OSM 地图（实测约 2s），原先等首个
+    /api/snapshot 请求才初始化，用户打开页面会卡在这段耗时上。这里在服务启动
+    后立刻用后台线程预热；预热失败不致命——首个请求仍会按原路径重试。
+    """
+    def _warm() -> None:
+        try:
+            _get_session()
+        except Exception as exc:  # noqa: BLE001 - 预热失败降级为首次请求时初始化
+            print(f"[预热] 会话初始化失败，将在首次请求时重试：{exc}", file=sys.stderr)
+
+    threading.Thread(target=_warm, name="session-warmup", daemon=True).start()
+
+
 def _deep_merge(base: Dict, patch: Dict) -> Dict:
     """递归合并 dict，patch 覆盖 base（不丢失 base 中未提及的字段）。"""
     for k, v in patch.items():

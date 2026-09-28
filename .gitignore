@@ -31,3 +31,7 @@ config/scenes/scene_*.json
 # ================= 结项归档产物 =================
 deliverables/*.zip
 _review/
+
+# ================= PyMARL 训练产物 =================
+# 训练检查点（agent.th / opt.th）与 sacred 实验日志属运行时产物，不入库
+backend_wx/pymarl-master/results/

@@ -39,7 +39,7 @@ def main():
 
     url = f"http://{args.host}:{args.port}/"
     print(f"控制台启动中：{url}")
-    print("首次请求会加载本地 OSM 地图，请稍候。Ctrl+C 可停止服务。")
+    print("正在后台预热本地 OSM 地图（通常数秒内就绪）。Ctrl+C 可停止服务。")
     if not args.no_browser and args.host in {"127.0.0.1", "localhost"}:
         threading.Timer(1.2, lambda: webbrowser.open(url)).start()
     uvicorn.run("console.server:app", host=args.host, port=args.port, log_level="warning")

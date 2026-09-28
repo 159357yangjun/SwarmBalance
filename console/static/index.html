@@ -477,7 +477,24 @@
   /* 图表：拉高，别在宽屏上显得又扁又空 */
   .chart-box{ display:flex; flex-direction:column; }
   #trend{ height:224px !important; }
-  #compare{ height:300px !important; }
+  #compare{ flex:1; min-height:300px; }
+
+  /* ---- 大数据看板：多图组合 ---- */
+  .dash{ display:grid; gap:var(--gap); align-items:stretch; }
+  .dash.c2{ grid-template-columns:repeat(2,minmax(0,1fr)); }
+  .dash.c3{ grid-template-columns:repeat(3,minmax(0,1fr)); }
+  .dash-card{ display:flex; flex-direction:column; background:var(--panel); border:1px solid var(--border);
+    border-radius:11px; padding:11px 12px 9px; min-width:0; }
+  .dash-card .dc-h{ display:flex; align-items:baseline; justify-content:space-between; gap:8px; margin-bottom:5px; }
+  .dash-card .dc-h b{ font-size:12.5px; font-weight:600; color:var(--text); }
+  .dash-card .dc-h span{ font-size:10.5px; color:var(--muted); }
+  .dash-card .dc-f{ margin-top:auto; font-size:10.5px; color:var(--muted); line-height:1.5; }
+  .dash-card .dc-tools{ display:flex; align-items:center; gap:6px; }
+  #radar{ width:100%; height:274px; }
+  #rank{ width:100%; height:274px; }
+  #gauge{ width:100%; height:168px; }
+  #fleetPie{ width:100%; height:168px; }
+  @media (max-width:1300px){ .dash.c2,.dash.c3{ grid-template-columns:1fr; } }
 
   /* 面板内部：让列表区可伸缩，卡片不出现内部空洞 */
   .dispatch-box{ display:flex; flex-direction:column; }
@@ -782,6 +799,16 @@
           <div class="card" data-page-node-id="nfzChainCard"><div class="k" data-page-node-id="nfzChainK">顺路接入</div><div class="v" data-page-node-id="nfzChainV">{{ snap.stats.chain_insertions }}<small data-page-node-id="nfzChainS"> 次</small></div></div>
           <div class="card" data-page-node-id="nfzDetCard"><div class="k" data-page-node-id="nfzDetK">禁飞绕飞</div><div class="v" data-page-node-id="nfzDetV">{{ snap.stats.no_fly_detours }}<small data-page-node-id="nfzDetS"> 次</small></div></div>
         </div>
+        <div class="dash c2">
+          <div class="dash-card">
+            <div class="dc-h"><b>调度绩效仪表盘</b><span>实时</span></div>
+            <div id="gauge"></div>
+          </div>
+          <div class="dash-card">
+            <div class="dc-h"><b>机队状态分布</b><span>{{ (snap.drones||[]).length }} 架</span></div>
+            <div id="fleetPie"></div>
+          </div>
+        </div>
         <div class="chart-box" data-page-node-id="s6dvoTkO4iFkv7cFBBCnaG">
           <div class="h" data-page-node-id="QjneynkS4KlvtiFfufSeLj">关键指标趋势</div>
           <div id="trend" data-page-node-id="OOEWN2XNwHMSRGNxzxeej1"></div>
@@ -880,6 +907,16 @@
       </template>
 
       <template v-if="tab==='compare'" data-page-node-id="A6gEjnv2E6sVzFiBhGi5w1">
+       <div class="dash c2" style="margin-bottom:var(--gap)">
+         <div class="dash-card">
+           <div class="dc-h"><b>算法能力雷达</b><span>多维归一化 · 越外越优</span></div>
+           <div id="radar"></div>
+         </div>
+         <div class="dash-card">
+           <div class="dc-h"><b>指标排行</b><span>{{ compareMetric || '—' }}</span></div>
+           <div id="rank"></div>
+         </div>
+       </div>
        <div class="grid2 stretch">
         <div class="chart-box" data-page-node-id="MDNaiLaNVYJjWftFYLqXiW">
           <div class="h" style="display:flex;justify-content:space-between;align-items:center" data-page-node-id="JRFXd5zgUUs4hlvvtZVa6F">
@@ -1216,6 +1253,7 @@ createApp({
       showGuide:false, appMeta:{version:'',name:'',capabilities:{}}, algorithmOptions:[{key:'greedy',label:'Greedy 贪心',available:true},{key:'pso',label:'PSO 粒子群',available:true},{key:'ga',label:'GA 遗传',available:true},{key:'ortools',label:'OR-Tools',available:true}],
       snap: { step:0, time:0, done:false, controls:{task_generation_paused:false}, events:[], history:[], health:{level:'normal',summary:'等待状态数据'}, demo:{active:false,cursor:0,total:0,next:null,completed:false}, stats:{ completed:0,generated:0,completion_rate:0,timeout_rate:0,avg_delay:0,energy:0,nest_turnover:0,berth_utilization:0,swap_sessions:0,utilization:0,empty_load_ratio:0,flight_distance:0,chain_insertions:0,no_fly_detours:0 }, drones:[],nests:[],tasks:[],map:{bounds:[0,0,1000,1000]} },
       trajectories: [], trend: [], timer: null, chart: null, compareChart: null,
+      radarChart: null, rankChart: null, gaugeChart: null, fleetPieChart: null,
       compareRows: [], compareColumns: [], compareMetric: '',
       experimentPresets: [], experimentPreset: 'quick', experimentStatus: {state:'idle',progress:0,completed_runs:0,total_runs:0}, experimentTimer: null,
       scenarioPresets: [], scenarioKey: 'medical_peak', scenarioBusy:false, scenarioError:'', scenarioHasRestore:false,
@@ -1305,7 +1343,14 @@ createApp({
     taskStatusText(s) { return ({pending:'待调度',assigned:'已分配',in_progress:'执行中',completed:'已完成'})[s] || s || '未知'; },
     taskStatusClass(t) { if ((t?.priority || 0) >= 3 && t?.status !== 'completed') return 'urgent'; return t?.status==='completed' ? 'good' : (t?.status==='pending' ? 'warn' : 'busy'); },
     async api(path, opts) {
-      const r = await fetch(path, opts);
+      let r;
+      try {
+        r = await fetch(path, opts);
+      } catch (e) {
+        // 网络层失败（后端中途停止 / 连接被拒）时给出可读提示，
+        // 否则冒泡出去的是 "Failed to fetch"，用户无从判断。
+        throw new Error('无法连接到控制台服务，请确认后端仍在运行');
+      }
       if (!r.ok) { const e = await r.json().catch(()=>({detail:'请求失败'})); throw new Error(e.detail || r.statusText); }
       return r.json();
     },
@@ -1615,13 +1660,23 @@ createApp({
         const snap = await this.api('/api/snapshot');
         this.algorithm=snap.algorithm||this.algorithm; this.seed=snap.seed??this.seed;
         this.applySnap(snap);
+        // 地图数据（818KB）比快照晚到。上面的 applySnap 已经触发过一次绘制，
+        // 但那时 mapStatic 还是空的（只有几个默认字段），底图画不出来；
+        // 这里加载完必须补一次重绘，否则首屏 2D 地图一片空白，
+        // 用户得点一下"播放/单步"才会出现建筑与路网。
         this.mapStatic = await this.api('/api/map');
+        if (this.view === '2d') this.draw2d();
+        else if (this.threeState) this.draw3d();
         await this.loadScenarios();
         await this.loadSceneLibrary();
         try { if(localStorage.getItem('swarm-guide-seen')!=='1' && !/[?&#]noguide/.test(location.search + location.hash)) this.showGuide=true; } catch(_) {}
       } finally { this.loading = false; }
+      await this.ensureEcharts();
       this.initChart();
-      window.addEventListener('resize', () => this.onResize());
+      if (!this.showMap && this.tab === 'compare') this.drawCompare();
+      // 保存引用，便于 beforeUnmount 时移除（匿名函数无法 removeEventListener）
+      this._onResize = () => this.onResize();
+      window.addEventListener('resize', this._onResize);
     },
 
     applySnap(snap) {
@@ -1638,6 +1693,7 @@ createApp({
     render() {
       if (this.view === '2d') this.draw2d(); else this.draw3d();
       this.drawChart();
+      if (!this.showMap && this.tab === 'metrics') { this.drawGauge(); this.drawFleetPie(); }
     },
 
     async reset() {
@@ -1669,7 +1725,7 @@ createApp({
     stopPlay() { this.playing = false; if (this.timer) { clearInterval(this.timer); this.timer = null; } },
     setSpeed(s) { this.speed = s; },
     onAlgorithmChange() {},
-    onResize() { if (this.view === '2d') this.draw2d(); else if (this.threeState) this.resize3d(); this.drawChart(); this.drawCompare(); },
+    onResize() { if (this.view === '2d') this.draw2d(); else if (this.threeState) this.resize3d(); this.drawChart(); this.drawCompare(); if (!this.showMap && this.tab === 'metrics') { this.drawGauge(); this.drawFleetPie(); } },
 
     // ============ 2D ============
     project(bounds, x, y, w, h) {
@@ -1942,6 +1998,9 @@ createApp({
         if (!bmatCache[k]) bmatCache[k] = new THREE.MeshStandardMaterial({ color: cLow.clone().lerp(cHigh, k/10), roughness:0.85, metalness:0.12 });
         return bmatCache[k];
       };
+      // 建筑：逐栋 try（个别几何非法不应毁掉整个场景），但失败要汇总上报，
+      // 不再静默吞掉——否则场景缺楼时完全无从排查。
+      let bdSkipped = 0, bdFirstErr = '';
       this.mapStatic.buildings.forEach(bd => {
         try {
           const shape = new THREE.Shape();
@@ -1950,8 +2009,14 @@ createApp({
           const mesh = new THREE.Mesh(geo, bmatFor(bd.height));
           mesh.rotation.x = -Math.PI/2;
           scene.add(mesh);
-        } catch(e) {}
+        } catch(e) {
+          if (!bdSkipped) bdFirstErr = String((e && e.message) || e);
+          bdSkipped++;
+        }
       });
+      if (bdSkipped) {
+        console.warn(`[3D] ${bdSkipped}/${this.mapStatic.buildings.length} 栋建筑几何构建失败已跳过；首个错误：${bdFirstErr}`);
+      }
       // 道路网络：合并为单次 LineSegments（一次 draw call），顶点色区分主次干道
       const roadPos = [], roadCol = [];
       const ROAD_COLOR = { primary:0x6f9be8, trunk:0x6f9be8, primary_link:0x6f9be8, trunk_link:0x6f9be8, secondary:0xa3b7d4, tertiary:0xc6d2dd };
@@ -1972,6 +2037,7 @@ createApp({
 
       // 禁飞区（红色半透明棱柱；y 取负与建筑旋转后坐标一致）
       (this.mapStatic.no_fly_zones || []).forEach(z => {
+        if (!z.coords || z.coords.length < 3) return;  // 空/退化多边形直接跳过，避免挤出无效几何
         const shape = new THREE.Shape();
         z.coords.forEach((pt,i) => { const x=pt[0]-c.x, y=pt[1]-c.y; i===0?shape.moveTo(x,y):shape.lineTo(x,y); });
         const geo = new THREE.ExtrudeGeometry(shape, { depth: 300, bevelEnabled:false });
@@ -2293,9 +2359,10 @@ createApp({
         if (this.showMap) {
           if (this.view === '3d' && this.threeState) this.resize3d();
           else if (this.view === '2d') this.draw2d();
-        } else if (this.chart && this.tab === 'metrics') {
-          this.chart.resize();
+        } else if (this.tab === 'metrics') {
           this.drawChart();
+          this.drawGauge();
+          this.drawFleetPie();
         }
         // 算法层：等两栏布局稳定后再按栏高重绘对比图，避免残留空白
         if (!this.showMap && this.tab === 'compare') setTimeout(() => this.drawCompare(), 60);
@@ -2315,19 +2382,19 @@ createApp({
     },
     drawCompare() {
       if (this.tab !== 'compare') return;
-      let el = document.getElementById('compare');
+      if (typeof window.echarts === 'undefined') return;
+      const el = document.getElementById('compare');
       if (!el) return;
-      // 让图表填满所在栏的可用高度（栏高由右侧"一键实验编排"卡决定）
-      const host = el.parentElement;
-      const avail = Math.max(260, host.clientHeight - 118);
-      el.style.height = avail + 'px';
-      if (!this.compareChart) this.compareChart = echarts.init(el);
-      if (!this.compareChart) return;
-      this.compareChart.resize({ height: avail });
+      // 高度交给 CSS（.chart-box > #compare { flex:1 }）随栏高自适应。
+      // 原先用 host.clientHeight - 118 估算，不仅硬编码易失准，还会被 CSS 的
+      // height !important 覆盖，等于无效代码。
+      const chart = this.chartFor(el, 'compareChart');
+      if (!chart) return;
+      chart.resize();
       const m = this.compareMetric; if (!m) return;
       const algos = this.compareRows.map(r => r['算法']);
       const vals = this.compareRows.map(r => r[m] ?? 0);
-      this.compareChart.setOption({
+      chart.setOption({
         backgroundColor: 'transparent',
         grid: { left: 46, right: 16, top: 22, bottom: 34 },
         xAxis: { type:'category', data: algos, axisLabel:{fontSize:10, rotate:20} },
@@ -2335,6 +2402,155 @@ createApp({
         tooltip: { trigger:'axis' },
         series: [{ type:'bar', data: vals, itemStyle:{ color:'#0e9f6e' }, barMaxWidth: 46 }]
       });
+      this.drawRadar();
+      this.drawRank();
+    },
+
+    // ---- 算法能力雷达：跨维度 min-max 归一化，展示"算法作用"全景 ----
+    drawRadar() {
+      if (typeof window.echarts === 'undefined') return;
+      const el = document.getElementById('radar'); if (!el) return;
+      const chart = this.chartFor(el, 'radarChart');
+      if (!chart) return;
+      // 转成纯 JSON 数据：echarts 会长期持有 option 引用，
+      // 直接喂 Vue 响应式对象（Proxy）会在其内部异步渲染时出错。
+      const rows = JSON.parse(JSON.stringify(this.compareRows || []));
+      if (!rows.length) { chart.clear(); return; }
+      const num = (r, k) => { const v = Number(r[k]); return Number.isFinite(v) ? v : null; };
+      // [显示名, 源列, 是否越大越好]
+      const DIMS = [
+        ['完成率', '完成率', true],
+        ['准时率', '超时率', false],
+        ['时效', '平均时延', false],
+        ['能效', '总能量消耗', false],
+        ['机队利用率', '无人机利用率', true],
+        ['空载率', '空载率', false],
+      ];
+      const active = DIMS.filter(([, col]) => rows.filter(r => num(r, col) !== null).length >= 2);
+      if (!active.length) { chart.clear(); return; }
+      const normers = active.map(([, col, higher]) => {
+        const vals = rows.map(r => num(r, col)).filter(v => v !== null);
+        const mn = Math.min(...vals), mx = Math.max(...vals);
+        return (r) => {
+          const x = num(r, col);
+          if (x === null) return 0;
+          if (mx === mn) return 1;
+          const t = (x - mn) / (mx - mn);
+          return higher ? t : 1 - t;
+        };
+      });
+      const PALETTE = ['#0e9f6e', '#2f6fed', '#faad14', '#8b5cf6', '#e5484d', '#14b8a6', '#f97316'];
+      chart.setOption({
+        color: PALETTE,
+        tooltip: { trigger: 'item' },
+        legend: { bottom: 0, itemWidth: 10, itemHeight: 6, textStyle: { fontSize: 10 } },
+        radar: {
+          center: ['50%', '45%'], radius: '62%',
+          indicator: active.map(([name]) => ({ name, max: 1 })),
+          axisName: { fontSize: 10, color: '#4b5551' },
+          splitLine: { lineStyle: { color: '#e6ebef' } },
+          splitArea: { areaStyle: { color: ['#fbfcfc', '#f6f8f7'] } },
+          axisLine: { lineStyle: { color: '#e6ebef' } }
+        },
+        series: [{
+          type: 'radar',
+          data: rows.map((r, i) => ({
+            name: String(r['算法'] || ('算法' + i)).toUpperCase(),
+            value: normers.map(f => Number(f(r).toFixed(3))),
+            lineStyle: { width: 2 }, areaStyle: { opacity: 0.1 }, symbolSize: 4
+          }))
+        }]
+      }, true);
+    },
+
+    // ---- 指标排行：按当前指标排序的横向条，最优高亮 ----
+    drawRank() {
+      if (typeof window.echarts === 'undefined') return;
+      const el = document.getElementById('rank'); if (!el) return;
+      const chart = this.chartFor(el, 'rankChart');
+      if (!chart) return;
+      const m = this.compareMetric;
+      if (!m) { chart.clear(); return; }
+      const lowerBetter = /时间|等待|时延|耗时|超时|绕飞|空载|消耗|能耗|距离/.test(String(m));
+      const rows = JSON.parse(JSON.stringify(this.compareRows || []))
+        .filter(r => Number.isFinite(Number(r[m])));
+      if (!rows.length) { chart.clear(); return; }
+      const sorted = rows.slice().sort((a, b) =>
+        lowerBetter ? Number(a[m]) - Number(b[m]) : Number(b[m]) - Number(a[m]));
+      // 反转后最优项落在坐标轴顶部
+      const ordered = sorted.slice().reverse();
+      chart.setOption({
+        grid: { left: 74, right: 54, top: 10, bottom: 10 },
+        tooltip: { trigger: 'item', formatter: p => `${p.name}<br/>${m}: ${this.cmpFmt(p.value)}` },
+        xAxis: { type: 'value', axisLabel: { fontSize: 9 }, splitLine: { lineStyle: { color: '#f1f3f3' } } },
+        yAxis: {
+          type: 'category', data: ordered.map(r => String(r['算法'] || '').toUpperCase()),
+          axisLabel: { fontSize: 10 }, axisTick: { show: false }, axisLine: { show: false }
+        },
+        series: [{
+          type: 'bar', barMaxWidth: 16,
+          data: ordered.map((r, i) => ({
+            value: Number(r[m]),
+            itemStyle: { color: i === ordered.length - 1 ? '#0e9f6e' : '#c9d4dd', borderRadius: [0, 3, 3, 0] }
+          })),
+          label: { show: true, position: 'right', fontSize: 9.5, color: '#4b5551',
+                   formatter: p => this.cmpFmt(p.value) }
+        }]
+      }, true);
+    },
+
+    // ---- 调度绩效仪表盘：完成率环形进度 ----
+    drawGauge() {
+      if (typeof window.echarts === 'undefined') return;
+      const el = document.getElementById('gauge'); if (!el) return;
+      const chart = this.chartFor(el, 'gaugeChart');
+      if (!chart) return;
+      const raw = Number(this.snap?.stats?.completion_rate ?? 0);
+      const v = Math.max(0, Math.min(1, Number.isFinite(raw) ? raw : 0));
+      const col = v >= 0.9 ? '#0e9f6e' : (v >= 0.7 ? '#faad14' : '#e5484d');
+      chart.setOption({
+        series: [{
+          type: 'gauge', startAngle: 205, endAngle: -25, min: 0, max: 1,
+          radius: '94%', center: ['50%', '60%'],
+          progress: { show: true, width: 14, roundCap: true, itemStyle: { color: col } },
+          axisLine: { lineStyle: { width: 14, color: [[1, '#eef1f5']] } },
+          pointer: { show: false }, axisTick: { show: false },
+          splitLine: { show: false }, axisLabel: { show: false }, anchor: { show: false },
+          title: { show: true, offsetCenter: [0, '38%'], fontSize: 11, color: '#86909c' },
+          detail: { valueAnimation: true, offsetCenter: [0, '-4%'], fontSize: 26, fontWeight: 600,
+                    color: '#1f2329', formatter: x => (x * 100).toFixed(1) + '%' },
+          data: [{ value: v, name: '任务完成率' }]
+        }]
+      }, true);
+    },
+
+    // ---- 机队状态分布环图 ----
+    drawFleetPie() {
+      if (typeof window.echarts === 'undefined') return;
+      const el = document.getElementById('fleetPie'); if (!el) return;
+      const chart = this.chartFor(el, 'fleetPieChart');
+      if (!chart) return;
+      const drones = this.snap?.drones || [];
+      const LABEL = { idle: '空闲', busy: '配送中', charging: '换电中', waiting_berth: '等泊位', to_nest: '返回机巢', offline: '停飞' };
+      const counts = {};
+      for (const d of drones) {
+        const s = d.out_of_service ? 'offline' : (d.state || 'idle');
+        counts[s] = (counts[s] || 0) + 1;
+      }
+      const data = Object.entries(counts).map(([k, n]) => ({
+        name: LABEL[k] || k, value: n, itemStyle: { color: this.stateColor(k) }
+      }));
+      chart.setOption({
+        tooltip: { trigger: 'item', formatter: '{b}: {c} 架 ({d}%)' },
+        legend: { bottom: 0, itemWidth: 10, itemHeight: 6, textStyle: { fontSize: 10 } },
+        series: [{
+          type: 'pie', radius: ['44%', '68%'], center: ['50%', '44%'], avoidLabelOverlap: true,
+          itemStyle: { borderColor: '#fff', borderWidth: 2 },
+          label: { show: true, fontSize: 10, formatter: '{d}%' },
+          labelLine: { length: 6, length2: 8 },
+          data: data.length ? data : [{ name: '无数据', value: 1, itemStyle: { color: '#eef1f5' } }]
+        }]
+      }, true);
     },
 
     // ============ 一键实验 ============
@@ -2379,14 +2595,44 @@ createApp({
     },
 
     // ============ 趋势图 ============
+    // 获取（必要时重建）绑定在当前 DOM 上的 echarts 实例。
+    // 切页时 v-if 会销毁并重建图表容器，而旧实例仍指向已脱离 DOM 的元素——
+    // 若继续复用旧实例，切回来后容器里没有 canvas，图表会整体消失。
+    chartFor(el, key) {
+      if (!el) return null;
+      const existing = echarts.getInstanceByDom(el);
+      if (existing) { this[key] = existing; return existing; }
+      const stale = this[key];
+      if (stale) { try { stale.dispose(); } catch (e) { /* 实例已失效，忽略 */ } }
+      const inst = echarts.init(el);
+      this[key] = inst;
+      return inst;
+    },
+    // 等待 echarts CDN 就绪：Vue 的 CDN 可能先于 echarts 完成，
+    // 若此时 mounted 已执行并调用 echarts.init，会抛 "echarts is not defined"。
+    ensureEcharts(timeoutMs = 15000) {
+      return new Promise(resolve => {
+        if (typeof window.echarts !== 'undefined') return resolve(true);
+        const t0 = Date.now();
+        const timer = setInterval(() => {
+          if (typeof window.echarts !== 'undefined') { clearInterval(timer); resolve(true); }
+          else if (Date.now() - t0 > timeoutMs) { clearInterval(timer); resolve(false); }
+        }, 50);
+      });
+    },
     initChart() {
-      const el = document.getElementById('trend'); if (el) this.chart = echarts.init(el);
       this.drawChart();
+      this.drawGauge();
+      this.drawFleetPie();
     },
     drawChart() {
-      if (!this.chart) return;
+      if (typeof window.echarts === 'undefined') return;
+      const el = document.getElementById('trend');
+      const chart = el ? this.chartFor(el, 'chart') : null;
+      if (!chart) return;
+      chart.resize();
       const rows=this.trend||[];
-      this.chart.setOption({
+      chart.setOption({
         backgroundColor:'transparent', animation:false, grid:{left:38,right:34,top:28,bottom:25},
         legend:{top:0,itemWidth:12,itemHeight:6,textStyle:{fontSize:9}},
         tooltip:{trigger:'axis'},
@@ -2412,7 +2658,7 @@ createApp({
     this.init();
     if (/[?&]view=3d/.test(location.search)) setTimeout(() => this.switchView('3d'), 1000);
   },
-  beforeUnmount() { this.stopPlay(); this.stopExperimentPolling(); this.destroy3d(); if (this.chart) this.chart.dispose(); if (this.compareChart) this.compareChart.dispose(); }
+  beforeUnmount() { this.stopPlay(); this.stopExperimentPolling(); this.destroy3d(); if (this._onResize) { window.removeEventListener('resize', this._onResize); this._onResize = null; } [this.chart, this.compareChart, this.radarChart, this.rankChart, this.gaugeChart, this.fleetPieChart].forEach(c => { if (c) c.dispose(); }); }
 }).mount('#app');
 </script>
 </body>
