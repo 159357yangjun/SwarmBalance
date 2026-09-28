@@ -1150,7 +1150,7 @@ document.addEventListener('DOMContentLoaded', function () {
   </div>
 
   <div class="modal-mask" v-if="showConfig" @click.self="showConfig=false" data-page-node-id="SJhG8jDuiu2fRBIFv1AvSG">
-    <div class="modal" data-page-node-id="Lkvwo8Whjwxt1s0ftqzwTg">
+    <div class="modal" role="dialog" aria-modal="true" aria-label="仿真配置" data-page-node-id="Lkvwo8Whjwxt1s0ftqzwTg">
       <h3 data-page-node-id="XARI3fpUD1vX3G20FYW0VE">仿真配置</h3>
       <div class="group" data-page-node-id="FOIdOKqT7gQsmd4k0Fj3c0">
         <div class="group-title" data-page-node-id="5VZvj3WQBlnXQCF26i7WYQ">场景配置（simulation.json）</div>
@@ -1189,7 +1189,7 @@ document.addEventListener('DOMContentLoaded', function () {
   </div>
 
   <div class="modal-mask" v-if="showSceneEditor" @click.self="closeSceneEditor">
-    <div class="modal" style="width:780px">
+    <div class="modal" style="width:780px" role="dialog" aria-modal="true" aria-label="<h3>场景布局编辑器</h3>">
       <h3>场景布局编辑器</h3>
       <div class="scene-warning" v-if="sceneDraft.dataSourceType!=='random'">当前数据源是 {{ sceneDraft.dataSourceType }}。此编辑器只直接修改 simulation.json 的随机场景布局；CSV/GeoJSON 场景请改导入文件。</div>
       <div class="group">
@@ -1237,7 +1237,7 @@ document.addEventListener('DOMContentLoaded', function () {
   </div>
 
   <div class="modal-mask" v-if="showSceneLibrary" @click.self="showSceneLibrary=false">
-    <div class="modal" style="width:720px">
+    <div class="modal" style="width:720px" role="dialog" aria-modal="true" aria-label="<h3>场景库 · 保存 / 复用 / 导入导出</h3>">
       <h3>场景库 · 保存 / 复用 / 导入导出</h3>
       <div class="task-note">场景库保存“初始配置 + 算法 + Seed”，适合复现实验与答辩场景；运行态快照保存的是仿真进行到某一时刻的动态状态，两者用途不同。</div>
       <div class="group" style="margin-top:12px">
@@ -1266,7 +1266,7 @@ document.addEventListener('DOMContentLoaded', function () {
   </div>
 
   <div class="modal-mask" v-if="showGuide" @click.self="closeGuide">
-    <div class="modal" style="width:680px">
+    <div class="modal" style="width:680px" role="dialog" aria-modal="true" aria-label="<h3>群智优衡 · 推荐操作流程</h3>">
       <h3>群智优衡 · 推荐操作流程</h3>
       <div class="guide-steps">
         <div class="guide-step"><strong>1. 先选“场景”，再选“算法”</strong><span>普通使用可从“场景库”或“答辩演示场景”开始；算法切换后点击“重置”让调度器从同一 Seed 重新开始。</span></div>
@@ -1280,7 +1280,7 @@ document.addEventListener('DOMContentLoaded', function () {
   </div>
 
   <div class="modal-mask" v-if="showTaskModal" @click.self="showTaskModal=false">
-    <div class="modal" style="width:600px">
+    <div class="modal" style="width:600px" role="dialog" aria-modal="true" aria-label="<h3>运行中新增任务</h3>">
       <h3>运行中新增任务</h3>
       <div class="preset-actions">
         <button class="btn" @click="applyTaskPreset('medical')">紧急医疗</button>
@@ -1839,6 +1839,12 @@ createApp({
       // 保存引用，便于 beforeUnmount 时移除（匿名函数无法 removeEventListener）
       this._onResize = () => this.onResize();
       window.addEventListener('resize', this._onResize);
+      // 全站原先零键盘监听：5 个弹窗只能点遮罩或右上角 ×，键盘用户出不去。
+      this._onKey = (ev) => {
+        if (ev.key !== 'Escape' || ev.defaultPrevented) return;
+        if (this.closeTopModal()) ev.preventDefault();
+      };
+      window.addEventListener('keydown', this._onKey, true);
     },
 
     applySnap(snap) {
@@ -1911,6 +1917,19 @@ createApp({
     stopPlay() { this.playing = false; this.stepSeq++; if (this.timer) { clearInterval(this.timer); this.timer = null; } },
     setSpeed(s) { this.speed = s; },
     onAlgorithmChange() {},
+    closeTopModal() {
+      // 一次 Esc 只关最上面一层，不能把所有弹窗一起关掉：
+      // 从「场景库」里点开「新任务」时两个是叠着的，全关会把用户刚填的表单一并吞掉。
+      const STACK = [
+        [() => this.showTaskModal,   () => { this.showTaskModal = false; }],
+        [() => this.showSceneEditor, () => this.closeSceneEditor()],
+        [() => this.showSceneLibrary,() => { this.showSceneLibrary = false; }],
+        [() => this.showGuide,       () => this.closeGuide()],
+        [() => this.showConfig,      () => { if (!this.configBusy) this.showConfig = false; }],
+      ];
+      for (const [open, close] of STACK) { if (open()) { close(); return true; } }
+      return false;
+    },
     onResize() { if (this.view === '2d') this.draw2d(); else if (this.threeState) this.resize3d(); this.drawChart(); this.drawCompare(); if (!this.showMap && this.tab === 'metrics') { this.drawGauge(); this.drawFleetPie(); } },
 
     // ============ 2D ============
@@ -2910,7 +2929,7 @@ createApp({
     this.init();
     if (/[?&]view=3d/.test(location.search)) setTimeout(() => this.switchView('3d'), 1000);
   },
-  beforeUnmount() { this.stopPlay(); this.stopExperimentPolling(); this.destroy3d(); if (this._onResize) { window.removeEventListener('resize', this._onResize); this._onResize = null; } [this.chart, this.compareChart, this.radarChart, this.rankChart, this.gaugeChart, this.fleetPieChart].forEach(c => { if (c) c.dispose(); }); }
+  beforeUnmount() { if (this._onKey) { window.removeEventListener('keydown', this._onKey, true); this._onKey = null; } this.stopPlay(); this.stopExperimentPolling(); this.destroy3d(); if (this._onResize) { window.removeEventListener('resize', this._onResize); this._onResize = null; } [this.chart, this.compareChart, this.radarChart, this.rankChart, this.gaugeChart, this.fleetPieChart].forEach(c => { if (c) c.dispose(); }); }
 }).mount('#app');
 </script>
 </body>
