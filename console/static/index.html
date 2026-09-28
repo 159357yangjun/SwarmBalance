@@ -384,6 +384,15 @@ document.addEventListener('DOMContentLoaded', function () {
   .statusbar .sb-item b{ color:#3f4a46; font-weight:600; }
   /* 下拉改了但没点重置：这是「下一次要用的算法」，不是此刻在跑的，必须与真值区分开。 */
   .pend{ color:#ad6800; font-weight:600; font-style:normal; }
+  /* hover 瞬时跳色 + 零 :active，按钮按下去没反馈。统一补上，并给动效留退出开关。 */
+  .btn, .tiny-btn, .navbtn, .select-row, .tree-row, .clickable, .close-x {
+    transition: background-color .16s ease, border-color .16s ease, color .16s ease, box-shadow .16s ease;
+  }
+  .btn:not(:disabled):active, .tiny-btn:not(:disabled):active, .navbtn:active { transform: translateY(1px); }
+  @media (prefers-reduced-motion: reduce) {
+    .btn, .tiny-btn, .navbtn, .select-row, .tree-row, .clickable, .close-x { transition: none; }
+    .btn:not(:disabled):active, .tiny-btn:not(:disabled):active, .navbtn:active { transform: none; }
+  }
   .statusbar .led{ width:7px; height:7px; border-radius:50%; background:var(--idle); box-shadow:0 0 0 3px var(--accent-soft); }
   .statusbar .led.warning{ background:var(--charging); box-shadow:0 0 0 3px #fdf3e3; }
   .statusbar .led.critical{ background:#ef4444; box-shadow:0 0 0 3px #fdecec; }
@@ -2876,6 +2885,7 @@ createApp({
       const rows=this.trend||[];
       chart.setOption({
         backgroundColor:'transparent', animation:false, grid:{left:38,right:34,top:28,bottom:25},
+        color:['#0e9f6e','#e5484d','#2e90fa','#7c3aed'],
         legend:{top:0,itemWidth:12,itemHeight:6,textStyle:{fontSize:9}},
         tooltip:{trigger:'axis'},
         xAxis:{type:'value',name:'步',nameTextStyle:{fontSize:9},axisLabel:{fontSize:9}},
