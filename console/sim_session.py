@@ -41,7 +41,7 @@ ALGORITHMS = ["greedy", "pso", "ga", "ortools"]
 
 # 顶层只 import 模块（不 from import 值），便于 rebuild 时刷新到 reload 后的新类
 import environment as _env_module  # noqa: E402
-from config.config_loder import get_shared_config  # noqa: E402
+from config.config_loder import config_signature, get_shared_config  # noqa: E402
 
 
 def reload_sim_modules():
@@ -385,6 +385,11 @@ class SimSession:
                                    "_high_buildings_bbox", "_path_clear_cache"}
     _CHECKPOINT_LIMIT = 5
 
+    # 配置没变则指纹不可能变。以前每次 /api/snapshot 都要重开文件 + json.load + md5
+    # （实测占快照构建的大头），而 UI 每 350ms 轮询一次。按 (路径, mtime_ns, size) 记忆，
+    # 界外手改配置文件同样会让签名变化、缓存自动失效。
+    _GEN_CACHE: Dict[tuple, str] = {}
+
     def _env_generation(self) -> str:
         """环境结构指纹：机队规模、机巢数量与泊位、禁飞区数量、回合上限等。
 
@@ -393,6 +398,10 @@ class SimSession:
         「保存并应用」就丢掉答辩前存的「故障注入前」节点，且无法撤销）。改成打标：
         快照保留，跨代恢复时给出可执行的错误提示。
         """
+        sig = config_signature()
+        cached = self._GEN_CACHE.get(sig)
+        if cached is not None:
+            return cached
         cfg = get_shared_config()
         env_cfg = cfg.get("environment") or {}
         het = cfg.get("heterogeneous") or {}
@@ -407,7 +416,11 @@ class SimSession:
             "no_fly_zones": len(cfg.get("no_fly_zones") or []),
         }
         raw = json.dumps(structural, sort_keys=True, ensure_ascii=False, default=str)
-        return hashlib.md5(raw.encode("utf-8")).hexdigest()[:12]
+        digest = hashlib.md5(raw.encode("utf-8")).hexdigest()[:12]
+        if len(self._GEN_CACHE) > 32:      # 一键实验会换很多临时配置，别让它无限长
+            self._GEN_CACHE.clear()
+        self._GEN_CACHE[sig] = digest
+        return digest
 
     def list_checkpoints(self) -> List[Dict[str, Any]]:
         current = self._env_generation()
@@ -673,6 +686,12 @@ class SimSession:
 
     def map_static(self) -> Dict:
         """静态地图几何（一次性）：边界 + 建筑轮廓(含高度)。"""
+        # 静态几何在同一个 Environment 生命周期内不会变。以前每次调用都从两千多栋建筑
+        # 重建全部环（实测 p50 106ms、响应体 885KB），而前端在 mount、场景应用、
+        # rebuild、布局保存各处都会重拉一次，且都持着 _op_lock。
+        cached = getattr(self, "_map_static_cache", None)
+        if cached is not None and getattr(self, "_map_static_src", None) is self.env:
+            return cached
         bounds = getattr(self.env, "global_bounds", None)
         if not bounds:
             xs = [d.x for d in self.env.drones] + [s.x for s in self.env.charging_stations]
@@ -714,12 +733,15 @@ class SimSession:
                         pts.append([x, y])
                 if len(pts) >= 2:
                     roads.append({"type": str(rtype), "coords": pts})
-        return {
+        result = {
             "bounds": [float(v) for v in bounds],
             "buildings": buildings,
             "roads": roads,
             "no_fly_zones": self._no_fly_snapshot(),
         }
+        self._map_static_cache = result
+        self._map_static_src = self.env
+        return result
 
     def _no_fly_snapshot(self) -> List[Dict]:
         """禁飞区轮廓（申请书「可灵活配置禁飞区」的可视化）。"""

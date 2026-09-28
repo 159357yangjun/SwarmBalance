@@ -1,6 +1,59 @@
 import json
 import os
 from pathlib import Path
+from typing import Dict
+
+
+_SOURCE: Dict[str, Path] = {}
+
+
+def _resolve(config_path=None) -> Path:
+    if config_path is not None:
+        return Path(config_path)
+    # 默认来源要记忆：Path(__file__).resolve() 在 Windows 上实测 0.2ms 一次，
+    # 而它会在每次 /api/snapshot 的指纹计算里被触发，直接把缓存的收益吃光。
+    override = os.environ.get("SWARM_BALANCE_SIM_CONFIG", "").strip()
+    hit = _SOURCE.get(override)
+    if hit is None:
+        hit = Path(override) if override else Path(__file__).resolve().with_name("simulation.json")
+        if len(_SOURCE) > 64:
+            _SOURCE.clear()
+        _SOURCE[override] = hit
+    return hit
+
+
+_RESOLVED: Dict[str, str] = {}
+
+
+def _resolved_str(raw: Path) -> str:
+    """Path.resolve() 在 Windows 上很贵（实测 0.41ms/次），而配置来源在一次运行里
+    基本不变，所以按原始字符串记忆解析结果。"""
+    key = str(raw)
+    hit = _RESOLVED.get(key)
+    if hit is None:
+        try:
+            hit = str(raw.resolve())
+        except OSError:
+            hit = key
+        if len(_RESOLVED) > 64:
+            _RESOLVED.clear()
+        _RESOLVED[key] = hit
+    return hit
+
+
+def config_signature(config_path=None):
+    """配置来源指纹：(解析后的绝对路径, mtime_ns, size)。
+
+    给需要"文件没变就别重算"的调用方用（例如 SimSession 的环境结构指纹，
+    以前每次 /api/snapshot 都要重开文件 + json.load + md5）。用 stat 而不是
+    内容哈希，是因为它足够便宜且能捕捉到界外手改；文件一改签名即变，缓存自然失效。
+    """
+    p = _resolve(config_path)
+    try:
+        st = os.stat(p)
+        return (_resolved_str(p), int(st.st_mtime_ns), int(st.st_size))
+    except OSError:
+        return (str(p), None, None)
 
 
 def get_shared_config(config_path=None):
@@ -11,11 +64,5 @@ def get_shared_config(config_path=None):
     批量实验不会改写用户正在调试/演示的主配置。显式传入 ``config_path`` 的优先级
     最高。
     """
-    if config_path is None:
-        override = os.environ.get("SWARM_BALANCE_SIM_CONFIG", "").strip()
-        config_path = Path(override) if override else Path(__file__).resolve().with_name("simulation.json")
-    else:
-        config_path = Path(config_path)
-
-    with open(config_path, "r", encoding="utf-8") as f:
+    with open(_resolve(config_path), "r", encoding="utf-8") as f:
         return json.load(f)

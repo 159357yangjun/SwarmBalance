@@ -6,6 +6,7 @@ FastAPI 的路由装饰器返回原函数，因此可以当普通函数测。
 from __future__ import annotations
 
 import json
+import os
 import re
 import tempfile
 import unittest
@@ -236,6 +237,48 @@ class CheckpointGenerationTests(unittest.TestCase):
         self.session.save_checkpoint("ok-check")
         snap = self.session.load_checkpoint("ok-check")
         self.assertIn("step", snap)
+
+
+class ConfigSignatureCacheTests(unittest.TestCase):
+    """_env_generation 与 map_static 的记忆化必须"快但不 stale"。"""
+
+    def test_signature_is_stable_then_tracks_file(self):
+        import tempfile, time
+        from config import config_loder as CL
+        with tempfile.TemporaryDirectory() as td:
+            p = Path(td) / "sim.json"
+            p.write_text('{"environment": {"num_drones": 10}}', encoding="utf-8")
+            a = CL.config_signature(p)
+            self.assertEqual(a, CL.config_signature(p), "同一文件同一状态下签名不该变")
+            p.write_text('{"environment": {"num_drones": 11}}', encoding="utf-8")
+            os.utime(p, ns=(time.time_ns(), time.time_ns()))
+            self.assertNotEqual(a, CL.config_signature(p), "改过配置后签名没变，指纹缓存会永远 stale")
+
+    def test_env_generation_cache_returns_same_value_as_cold(self):
+        session = server._get_session()
+        fresh = dict(session._GEN_CACHE)
+        try:
+            session._GEN_CACHE.clear()
+            cold = session._env_generation()
+            self.assertEqual(len(session._GEN_CACHE), 1, "冷算后应刚好落一条缓存")
+            warm = session._env_generation()
+            self.assertEqual(cold, warm, "缓存命中后指纹与冷算不一致")
+        finally:
+            session._GEN_CACHE.clear()
+            session._GEN_CACHE.update(fresh)
+
+    def test_map_static_is_memoized_but_rebuilt_for_a_new_env(self):
+        session = server._get_session()
+        first = session.map_static()
+        self.assertIs(session.map_static(), first, "同一个 Environment 应复用同一份静态几何")
+        src = session._map_static_src
+        try:
+            session._map_static_src = None   # 模拟 env 被换掉：身份校验应判定缓存失效
+            second = session.map_static()
+            self.assertIsNot(second, first, "env 换了还返回旧几何，就是 stale 缓存")
+            self.assertIs(session.map_static(), second, "重算后应落到新缓存，而不是每次重建")
+        finally:
+            session._map_static_src = src
 
 
 class EnvironmentResetCoverageTests(unittest.TestCase):
