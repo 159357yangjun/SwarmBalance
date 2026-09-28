@@ -217,6 +217,14 @@ class ReproducibilityManifestTests(unittest.TestCase):
             with self.assertRaises(FileNotFoundError):
                 self._manifest(Path(root), ["pso"], tmp)
 
+    def test_manifest_carries_no_absolute_path(self):
+        """归档清单曾把 C:\\Users\\<user>\\... 整条写进去，等于把开发机目录结构发给评委。"""
+        with tempfile.TemporaryDirectory() as tmp:
+            text = self._manifest(runner.PROJECT_ROOT, CONCLUSION_ALGOS, tmp).read_text(encoding="utf-8")
+        self.assertNotIn("\\\\", text, "清单里仍有 Windows 绝对路径")
+        self.assertIsNone(re.search(r"[A-Za-z]:[\\/]", text), "清单里仍有盘符路径")
+        self.assertNotIn(str(Path.home()), text)
+
     def test_algorithm_sources_stay_in_sync_with_worker_choices(self):
         src = (runner.PROJECT_ROOT / "experiments" / "worker.py").read_text(encoding="utf-8")
         found = re.search(r'--algorithm"[^\]]*choices=\[([^\]]+)\]', src)

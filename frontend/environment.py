@@ -1284,6 +1284,16 @@ class Environment:
         # 重置耗电量统计
         self.total_energy_consumed = 0.0
 
+        # 逐回合累计量：这些必须在 reset 归零，否则控制台每点一次「重置」就叠加一轮。
+        # 实测漏掉时 avg_drone_utilization 会走成 1.0 → 2.0 → 3.0（利用率 300%，物理不可能），
+        # 而 empty_load_ratio 因为分子分母同时泄漏反而看不出来。
+        self.drone_busy_steps = 0.0
+        self.total_flight_distance = 0.0
+        self.total_empty_distance = 0.0
+        self.total_loaded_distance = 0.0
+        self.total_no_fly_detours = 0
+        self.total_chain_insertions = 0
+
         # 重置机巢泊位竞争状态与周转指标（创新点2）
         self._nest_waiting = {s.station_id: [] for s in self.charging_stations}
         self.total_swap_sessions = 0

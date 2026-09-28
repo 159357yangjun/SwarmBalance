@@ -21,7 +21,7 @@ echo 使用解释器: %PY%
 echo.
 
 rem 启动前清理占用 8765 的旧实例，避免重复实例互相抢端口
-powershell -NoProfile -Command "$c=Get-NetTCPConnection -LocalPort 8765 -State Listen -ErrorAction SilentlyContinue; if($c){ foreach($x in $c){ Write-Host ('[clean] killing stale process PID '+$x.OwningProcess+' holding port 8765'); Stop-Process -Id $x.OwningProcess -Force -ErrorAction SilentlyContinue }; Start-Sleep -Milliseconds 600 }"
+powershell -NoProfile -Command "$c=Get-NetTCPConnection -LocalPort 8765 -State Listen -ErrorAction SilentlyContinue; foreach($x in @($c)){ $p=$x.OwningProcess; $pr=Get-CimInstance Win32_Process -ErrorAction SilentlyContinue | Where-Object { $_.ProcessId -eq $p } | Select-Object -First 1; if($pr -and $pr.Name -match '^python(w)?\.exe$' -and [string]$pr.CommandLine -match 'console\.run'){ Write-Host ('[clean] 终止本项目残留实例 PID '+$p); Stop-Process -Id $p -Force -ErrorAction SilentlyContinue } elseif($pr){ Write-Host ('[warn] 端口 8765 已被 '+$pr.Name+' (PID '+$p+') 占用，它不是本项目的进程，不会替你终止；请改用 --port 换端口') } }; Start-Sleep -Milliseconds 600"
 echo.
 
 %PY% -m console.run

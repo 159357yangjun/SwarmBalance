@@ -6,6 +6,7 @@ FastAPI 的路由装饰器返回原函数，因此可以当普通函数测。
 from __future__ import annotations
 
 import json
+import re
 import tempfile
 import unittest
 from pathlib import Path
@@ -235,6 +236,43 @@ class CheckpointGenerationTests(unittest.TestCase):
         self.session.save_checkpoint("ok-check")
         snap = self.session.load_checkpoint("ok-check")
         self.assertIn("step", snap)
+
+
+class EnvironmentResetCoverageTests(unittest.TestCase):
+    """Environment.reset() 必须归零每一个按步累计的统计量。
+
+    曾漏掉 6 个：控制台每点一次「重置」就叠加一轮，实测 avg_drone_utilization
+    走成 1.0 → 2.0 → 3.0（利用率 300%，物理不可能），total_flight_distance 同步翻倍；
+    而 empty_load_ratio 因为分子分母一起泄漏反而看不出异常。
+    实验侧不受影响（worker 每 episode 新建 Environment），所以只有 Web 会话会踩。
+    """
+
+    _COUNTERS = (
+        "drone_busy_steps", "total_flight_distance", "total_empty_distance",
+        "total_loaded_distance", "total_no_fly_detours", "total_chain_insertions",
+    )
+
+    def test_accumulators_are_cleared_in_reset(self):
+        src = (Path(server.__file__).resolve().parent.parent / "frontend" / "environment.py").read_text(encoding="utf-8")
+        start = src.find("def reset(")
+        self.assertGreater(start, 0)
+        body = src[start:src.find("\n    def ", start + 10)]
+        assigned = set(re.findall(r"self\.([A-Za-z_]\w*)\s*=", body))
+        missing = [c for c in self._COUNTERS if c not in assigned]
+        self.assertFalse(missing, f"Environment.reset() 漏归零: {missing}")
+
+    def test_no_statistics_accumulator_escapes_reset(self):
+        """通用不变式：凡是 get_statistics 读到的自增字段，reset() 里必须重新赋值。"""
+        src = (Path(server.__file__).resolve().parent.parent / "frontend" / "environment.py").read_text(encoding="utf-8")
+        start = src.find("def reset(")
+        body = src[start:src.find("\n    def ", start + 10)]
+        assigned = set(re.findall(r"self\.([A-Za-z_]\w*)\s*=", body))
+        stats = src[src.find("def get_statistics("):]
+        stats = stats[:stats.find("\n    def ", 10)]
+        read = set(re.findall(r"self\.([A-Za-z_]\w*)", stats))
+        bumped = set(re.findall(r"self\.([A-Za-z_]\w*)\s*\+=", src))
+        leak = sorted((read & bumped) - assigned)
+        self.assertFalse(leak, f"get_statistics 用到的自增量没在 reset() 归零: {leak}")
 
 
 class FrontendGuardTests(unittest.TestCase):

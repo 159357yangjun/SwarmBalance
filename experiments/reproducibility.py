@@ -77,6 +77,27 @@ def _hash_sources(project_root: Path, rel_paths: Iterable[str]) -> Dict[str, str
     return hashes
 
 
+def _display_path(path: Optional[Path], root: Path) -> Optional[str]:
+    """清单里的路径一律相对仓库根，绝不写绝对路径。
+
+    绝对路径会把开发机的用户名和上层工作目录一起打进结项证据里
+    （实测归档清单里就是 C:\\Users\\<user>\\AppData\\Roaming\\...\\.venv310\\...）。
+    复现需要的是「相对哪个文件」，不是「在谁的盘上」。
+    """
+    if path is None:
+        return None
+    p = Path(path)
+    for base in (root, root.parent):
+        try:
+            return p.resolve().relative_to(base).as_posix()
+        except Exception:
+            continue
+    try:
+        return "~/" + p.resolve().relative_to(Path.home()).as_posix()
+    except Exception:
+        return p.name
+
+
 def _git_commit(root: Path) -> Optional[str]:
     try:
         proc = subprocess.run(
@@ -130,7 +151,7 @@ def write_manifest(
         "algorithms": algos,
         "runtime": {
             "python": sys.version,
-            "python_executable": sys.executable,
+            "python_executable": _display_path(Path(sys.executable), project_root),
             "platform": platform.platform(),
             "machine": platform.machine(),
             "processor": platform.processor(),
@@ -140,10 +161,10 @@ def write_manifest(
         "core_source_sha256": source_hashes,
         "algorithm_source_files": algorithm_source_files,
         "inputs": {
-            "preset": {"path": str(preset_path) if preset_path else None, "sha256": sha256_file(preset_path) if preset_path else None},
-            "simulation_config": {"path": str(base_config), "sha256": sha256_file(base_config)},
-            "algorithm_config": {"path": str(algorithm_config), "sha256": sha256_file(algorithm_config)},
-            "osm": {"path": str(osm_path), "sha256": sha256_file(osm_path)},
+            "preset": {"path": _display_path(preset_path, project_root), "sha256": sha256_file(preset_path) if preset_path else None},
+            "simulation_config": {"path": _display_path(base_config, project_root), "sha256": sha256_file(base_config)},
+            "algorithm_config": {"path": _display_path(algorithm_config, project_root), "sha256": sha256_file(algorithm_config)},
+            "osm": {"path": _display_path(osm_path, project_root), "sha256": sha256_file(osm_path)},
         },
         "environment_flags": {
             "SWARM_BALANCE_SIM_CONFIG": os.environ.get("SWARM_BALANCE_SIM_CONFIG"),
