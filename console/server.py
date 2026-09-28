@@ -288,8 +288,20 @@ def reset(req: ResetRequest):
 def step(count: int = 1):
     """推进 1~50 步。高倍速播放使用批量步进以降低 HTTP 请求压力。"""
     count = max(1, min(50, int(count)))
+    session = _get_session()
+    snap = None
+    for _ in range(count):
+        # 锁按**步**取放，而不是整批一把 hold 到底。原先批量步进会独占 _op_lock
+        # 直到 50 步跑完，期间 /api/snapshot 只能在锁外排队，画面直接冻结。
+        # 逐步放锁后读请求最多插到两步之间，等待上界从"整批"降到"一步"。
+        # 每一步本身仍是原子的，与前端在 1x 下发 50 个独立请求等价。
+        with _op_lock:
+            snap = session.step()
+            done = session.done
+        if done:
+            break
     with _op_lock:
-        return JSONResponse(_get_session().step_many(count))
+        return JSONResponse(snap if snap is not None else session.snapshot())
 
 
 @app.post("/api/tasks/inject")
