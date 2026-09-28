@@ -850,7 +850,7 @@ document.addEventListener('DOMContentLoaded', function () {
           <div class="card" data-page-node-id="tn3yTGx2ghaaX6I8Bj7mbJ"><div class="k" data-page-node-id="bpFGKgyrMCapIqArX4zEB7">完成率</div><div class="v" data-page-node-id="L4IBiPJXtYlOx1qx3gQZxF">{{ pct(snap.stats.completion_rate) }}</div></div>
           <div class="card" data-page-node-id="4Hp6G1nLenNqHOcj1jiBNs"><div class="k" data-page-node-id="L4l0MX5ZEQ52DsEOU58TMX">超时率</div><div class="v" data-page-node-id="hndpXj0lmrf2F1ESMxWxOX">{{ pct(snap.stats.timeout_rate) }}</div></div>
           <div class="card" data-page-node-id="PE9NHMWqBTjCxC52dI7CRW"><div class="k" data-page-node-id="wTxynBDYW3q3LCVMF5uYtm">完成 / 生成</div><div class="v" data-page-node-id="Vc7WnbzuPypFl9aUI7T7eY">{{ snap.stats.completed }}<small data-page-node-id="ek1dJ7Dd2Wc0QNjbkbTLXk"> / {{ snap.stats.generated }}</small></div></div>
-          <div class="card" data-page-node-id="BeHVhRKCGsEA3x17SyiwMt"><div class="k" data-page-node-id="CvP6TQg3GgCsBEFuXVViTG">平均时延</div><div class="v" data-page-node-id="afZiBVdNxDxjBH3q5QW84Q">{{ snap.stats.avg_delay.toFixed(1) }}<small data-page-node-id="59CaTHf1kzYpvS6C2uKqBc"> 步</small></div></div>
+          <div class="card" data-page-node-id="BeHVhRKCGsEA3x17SyiwMt"><div class="k" data-page-node-id="CvP6TQg3GgCsBEFuXVViTG">平均时延</div><div class="v" data-page-node-id="afZiBVdNxDxjBH3q5QW84Q">{{ snap.stats.avg_delay.toFixed(1) }}<small data-page-node-id="59CaTHf1kzYpvS6C2uKqBc"> s</small></div></div>
           <div class="card" data-page-node-id="3iBOFEI8EplZUiFaIww1c7"><div class="k" data-page-node-id="usgxEYTRvw38kdmbxjjbdj">机巢周转率</div><div class="v" data-page-node-id="tbQVIKxrw66rcHn7aeBnvO">{{ snap.stats.nest_turnover.toFixed(2) }}</div></div>
           <div class="card" data-page-node-id="H8MQS3n51nL7gFphCaNAbM"><div class="k" data-page-node-id="kaPZf222DxiH9WfjNnIQFd">泊位利用率</div><div class="v" data-page-node-id="wJxh0OXJ9E4wTNiHzhkenl">{{ pct(snap.stats.berth_utilization) }}</div></div>
           <div class="card" data-page-node-id="SX9JuzizSAkyBDqy0S7Oi9"><div class="k" data-page-node-id="pUQmMLTYxhozQtRgKzrjTA">累计能耗</div><div class="v" data-page-node-id="FC6sj5AoSs7dMmPEVxdWPn">{{ (snap.stats.energy/1000).toFixed(1) }}<small data-page-node-id="UQMvejP0NzP1ZDbT6P38Jt"> kWh</small></div></div>
@@ -1075,7 +1075,7 @@ document.addEventListener('DOMContentLoaded', function () {
         </div>
         <div class="dock-grid" style="margin-top:10px">
           <div class="dock-kpi"><div class="k">步 / 时间</div><div class="v">{{ snap.step }}</div><div class="s">{{ Number(snap.time||0).toFixed(0) }} s · {{ runningAlgorithm.toUpperCase() }}</div></div>
-          <div class="dock-kpi"><div class="k">超时率</div><div class="v">{{ pct(snap.stats.timeout_rate) }}</div><div class="s">平均时延 {{ snap.stats.avg_delay.toFixed(1) }} 步</div></div>
+          <div class="dock-kpi"><div class="k">超时率</div><div class="v">{{ pct(snap.stats.timeout_rate) }}</div><div class="s">平均时延 {{ snap.stats.avg_delay.toFixed(1) }} s</div></div>
         </div>
       </div>
 
