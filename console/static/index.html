@@ -2034,6 +2034,23 @@ createApp({
       }
     },
 
+    mapSignature() {
+      // 离屏底图缓存的失效判据。原先只用 buildings.length，于是：
+      // 路网变了不会失效（缓存里还是旧的路）、dpr 变了不会失效（浏览器缩放或换
+      // 显示器后拿一张错分辨率的位图硬 blit）、建筑数量相同但几何不同也不会失效。
+      // 这里把"画进底图的东西"都算进来：两个数组的长度与顶点总数。
+      // 结果记在 mapStatic 对象上，所以每次换地图只算一次，不是每帧算。
+      const ms = this.mapStatic;
+      if (!ms) return 'none';
+      if (ms.__sig == null) {
+        const bs = ms.buildings || [], rs = ms.roads || [];
+        let v = 0;
+        for (const x of bs) v += (x && x.coords) ? x.coords.length : 0;
+        for (const x of rs) v += (x && x.coords) ? x.coords.length : 0;
+        ms.__sig = bs.length + 'b' + rs.length + 'r' + v;
+      }
+      return ms.__sig;
+    },
     draw2d() {
       const cv = document.getElementById('c2d'); if (!cv) return;
       const dpr = window.devicePixelRatio || 1;
@@ -2054,7 +2071,7 @@ createApp({
       const P = (x,y) => this.project(b,x,y,w,h);
 
       // ── 真实底图（OSM 建筑 + 道路）：离屏缓存，避免每帧重绘数千图元 ──
-      const baseKey = w + 'x' + h + '|' + b.join(',') + '|' + ((this.mapStatic?.buildings||[]).length);
+      const baseKey = w + 'x' + h + 'x' + dpr + '|' + b.join(',') + '|' + this.mapSignature();
       if (!this._base2d || this._base2d.key !== baseKey) {
         const off = document.createElement('canvas');
         off.width = w*dpr; off.height = h*dpr;
