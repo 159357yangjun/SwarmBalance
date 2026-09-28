@@ -25,6 +25,9 @@ results/compare/*.bak-*
 tmp/
 frontend/test_multi_task.py
 
+# OSM 解析结果磁盘缓存（按源文件指纹失效，只影响启动速度，不影响仿真结果）
+frontend/data/.osm_cache/
+
 # Local Web scene library
 config/scenes/scene_*.json
 

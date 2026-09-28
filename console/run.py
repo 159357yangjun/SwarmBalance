@@ -39,7 +39,11 @@ def main():
 
     url = f"http://{args.host}:{args.port}/"
     print(f"控制台启动中：{url}")
-    print("正在后台预热本地 OSM 地图（通常数秒内就绪）。Ctrl+C 可停止服务。")
+    # 预热走后台线程、端口照常早开：实测若把预热挪到绑定端口之前，虽然首个
+    # /api/snapshot 从 4.3s 降到 0.12s，但浏览器要等 8.5s 才能开始加载 CDN 资源，
+    # 总可用时间反而从 5.8s 退化到 8.5s。早开端口 + 预热期返回 warming 让前端轮询，
+    # 才能让 CDN 加载与地图解析并行（见 server.snapshot 的 202 分支）。
+    print("正在后台预热本地 OSM 地图（就绪前页面会显示加载中）。Ctrl+C 可停止服务。")
     if not args.no_browser and args.host in {"127.0.0.1", "localhost"}:
         threading.Timer(1.2, lambda: webbrowser.open(url)).start()
     uvicorn.run("console.server:app", host=args.host, port=args.port, log_level="warning")

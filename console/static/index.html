@@ -433,6 +433,9 @@
   .drone-row .chain{ margin-top:auto; padding-top:5px; }
 
   /* 算法层：对比读数表 */
+  .basis-warn{ margin:0 0 8px; padding:7px 10px; border:1px solid #f0d9a8; border-left:3px solid #d99a2b;
+    border-radius:8px; background:#fdf7ec; color:#7a5a17; font-size:11.5px; line-height:1.55; }
+  .basis-warn b{ color:#5c4310; }
   .cmp-table{ display:flex; flex-direction:column; gap:2px; font-size:12px; }
   .cmp-head,.cmp-row{ display:grid; grid-template-columns:1.25fr repeat(6,minmax(0,1fr)); gap:6px;
     align-items:center; padding:7px 9px; border-radius:7px; }
@@ -518,7 +521,14 @@
     .span2,.span3{ grid-column:auto; }
   }
   @media (max-width:1150px){
-    .appnav{ display:none; }
+    /* 窄屏只收起右侧实时坞，导航必须保留：5 个分层页只有 .appnav 这一个入口
+       （无汉堡菜单/无 hashchange 监听/无键盘绑定），而 1920 投影在 175% 缩放下
+       只有 1097 CSS px——整条隐藏会让控制层/算法层/数据层/规范四页彻底进不去。
+       这里改成纯图标竖条，文字靠 navbtn 的 title 属性做悬停提示。 */
+    :root{ --nav:64px; }
+    .appnav{ padding:10px 6px !important; }
+    .appnav .brand, .navbtn .ncol, .tree-sep, .tree-title, .tree{ display:none; }
+    .navbtn{ justify-content:center; gap:0; padding:10px 0; }
     .dock{ display:none; }
   }
 </style>
@@ -590,7 +600,7 @@
     <div class="canvas-wrap" data-page-node-id="5wyhqcDoW5OchxqEvnDE9j" v-show="showMap">
       <canvas id="c2d" v-show="view==='2d'" @click="handleMapClick" data-page-node-id="GOoRu5Gy4CLnmR9RJTcnI5"></canvas>
       <div id="c3d" v-show="view==='3d'" data-page-node-id="WGI6eppnPVQqdoqaCIajlq"></div>
-      <div class="loading" v-if="loading" data-page-node-id="YLs7yTZVydcicGBABtnBTD">正在加载 OSM 地图…</div>
+      <div class="loading" v-if="loading || warming" data-page-node-id="YLs7yTZVydcicGBABtnBTD">{{ warming ? '仿真会话后台预热中（首次解析本地 OSM 地图）…' : '正在加载 OSM 地图…' }}</div>
       <div class="map-pick-banner" v-if="mapPick.active">
         <span>{{ mapPickPrompt }}</span>
         <button @click.stop="cancelMapPick">取消取点</button>
@@ -960,6 +970,11 @@
 
         <div class="dispatch-box">
           <div class="h"><span>当前对比读数</span><span class="hint">{{ compareMetric || '—' }} · 数据源 results/compare/*.csv</span></div>
+          <div class="basis-warn" v-if="compareInconsistent.length && compareBasis">
+            口径提示：本页以 <b>{{ compareBasis['总步数'] }} 步 / {{ compareBasis['生成任务数'] }} 任务</b> 为基准，
+            其中 <b>{{ compareInconsistent.map(x => x['算法']).join('、') }}</b>
+            的评测规模与基准不同，完成率与时效类指标不可直接横向比较（数值未做任何调整）。
+          </div>
           <div class="cmp-table" v-if="compareRows.length">
             <div class="cmp-head">
               <span class="cmp-algo">算法</span>
@@ -1247,14 +1262,14 @@ createApp({
   data() {
     return {
       algorithm: 'greedy', seed: 100, playing: false, speed: 1, speeds: [1,2,5,10], stepping:false,
-      loading: true, view: '2d', tab: 'metrics', showMap: true, showConfig: false, configBusy:false, configError:'', showTaskModal:false, taskSubmitting:false, taskError:'',
+      loading: true, warming: false, view: '2d', tab: 'metrics', showMap: true, showConfig: false, configBusy:false, configError:'', showTaskModal:false, taskSubmitting:false, taskError:'',
       showSceneEditor:false, sceneBusy:false, sceneError:'', sceneEditing:false,
       showSceneLibrary:false, sceneLibraryBusy:false, sceneLibraryError:'', sceneLibraryMessage:'', sceneLibrary:[], sceneLibraryForm:{name:'',description:'',include_scheduler:true},
       showGuide:false, appMeta:{version:'',name:'',capabilities:{}}, algorithmOptions:[{key:'greedy',label:'Greedy 贪心',available:true},{key:'pso',label:'PSO 粒子群',available:true},{key:'ga',label:'GA 遗传',available:true},{key:'ortools',label:'OR-Tools',available:true}],
       snap: { step:0, time:0, done:false, controls:{task_generation_paused:false}, events:[], history:[], health:{level:'normal',summary:'等待状态数据'}, demo:{active:false,cursor:0,total:0,next:null,completed:false}, stats:{ completed:0,generated:0,completion_rate:0,timeout_rate:0,avg_delay:0,energy:0,nest_turnover:0,berth_utilization:0,swap_sessions:0,utilization:0,empty_load_ratio:0,flight_distance:0,chain_insertions:0,no_fly_detours:0 }, drones:[],nests:[],tasks:[],map:{bounds:[0,0,1000,1000]} },
       trajectories: [], trend: [], timer: null, chart: null, compareChart: null,
       radarChart: null, rankChart: null, gaugeChart: null, fleetPieChart: null,
-      compareRows: [], compareColumns: [], compareMetric: '',
+      compareRows: [], compareColumns: [], compareMetric: '', compareBasis: null, compareInconsistent: [],
       experimentPresets: [], experimentPreset: 'quick', experimentStatus: {state:'idle',progress:0,completed_runs:0,total_runs:0}, experimentTimer: null,
       scenarioPresets: [], scenarioKey: 'medical_peak', scenarioBusy:false, scenarioError:'', scenarioHasRestore:false,
       checkpointName:'答辩节点', checkpointBusy:false, checkpointError:'',
@@ -1344,13 +1359,27 @@ createApp({
     taskStatusClass(t) { if ((t?.priority || 0) >= 3 && t?.status !== 'completed') return 'urgent'; return t?.status==='completed' ? 'good' : (t?.status==='pending' ? 'warn' : 'busy'); },
     async api(path, opts) {
       let r;
-      try {
-        r = await fetch(path, opts);
-      } catch (e) {
-        // 网络层失败（后端中途停止 / 连接被拒）时给出可读提示，
-        // 否则冒泡出去的是 "Failed to fetch"，用户无从判断。
-        throw new Error('无法连接到控制台服务，请确认后端仍在运行');
+      const warmDeadline = Date.now() + 40000;
+      for (;;) {
+        try {
+          r = await fetch(path, opts);
+        } catch (e) {
+          // 网络层失败（后端中途停止 / 连接被拒）时给出可读提示，
+          // 否则冒泡出去的是 "Failed to fetch"，用户无从判断。
+          throw new Error('无法连接到控制台服务，请确认后端仍在运行');
+        }
+        if (r.status !== 202) break;
+        // 202 = 仿真会话仍在后台预热（首次解析本地 OSM 地图）。这里等一等再试，
+        // 使 CDN 资源加载与地图解析并行；若改为推迟绑定端口，总可用时间反而更差。
+        // 注意 202 的 r.ok 为 true，必须在 !r.ok 之前先判状态码。
+        if (Date.now() > warmDeadline) {
+          this.warming = false;
+          throw new Error('仿真会话预热超时，请重启控制台服务');
+        }
+        this.warming = true;
+        await new Promise(res => setTimeout(res, 250));
       }
+      if (this.warming) this.warming = false;
       if (!r.ok) { const e = await r.json().catch(()=>({detail:'请求失败'})); throw new Error(e.detail || r.statusText); }
       return r.json();
     },
@@ -2377,6 +2406,8 @@ createApp({
     async loadCompare() {
       const d = await this.api('/api/compare');
       this.compareRows = d.rows; this.compareColumns = d.columns;
+      // 口径守卫：/api/compare 报告基准规模与偏离算法，这里只做提示，不改数值。
+      this.compareBasis = d.basis || null; this.compareInconsistent = d.inconsistent || [];
       if (!this.compareMetric || !d.columns.includes(this.compareMetric)) this.compareMetric = d.columns[0] || '';
       this.$nextTick(() => this.drawCompare());
     },

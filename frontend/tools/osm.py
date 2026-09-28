@@ -9,7 +9,11 @@ Web 服务因为一个纯可视化依赖无法启动。
 """
 from __future__ import annotations
 
+import hashlib
 import math
+import os
+import pickle
+import tempfile
 import xml.etree.ElementTree as ET
 from collections import defaultdict
 from pathlib import Path
@@ -166,29 +170,53 @@ def _load_map_data_fallback(osm_file_path):
 
 
 def load_map_data(osm_file_path):
-    """加载地图数据；优先 osmnx，缺失时自动离线回退。"""
-    if ox is None:
-        return _load_map_data_fallback(osm_file_path)
+    """加载地图数据；优先 osmnx，缺失时自动离线回退。
 
+    性能：解析本项目那份 13MB 的本地 ``.osm`` 实测约 4.3s——osmnx 会对同一个文件
+    做两遍 XML 解析（``graph_from_xml`` 一遍、``features_from_xml`` 一遍），而每新建
+    一个 Environment 都要重跑；批量实验里每个 worker 都付一次这笔钱。
+    这里按「绝对路径 + mtime + 大小 + 解析模式 + osmnx 版本」缓存**最终返回值**，
+    命中即直接反序列化。设 ``SWARM_BALANCE_OSM_CACHE=0`` 可强制重新解析。
+    """
+    mode = "osmnx" if ox is not None else "fallback"
+    cache_path = _cache_path(osm_file_path, mode)
+
+    if _cache_enabled() and cache_path is not None:
+        cached = _read_cache(cache_path)
+        if cached is not None:
+            return cached
+
+    if ox is None:
+        data = _load_map_data_fallback(osm_file_path)
+    else:
+        data = _parse_map_data_with_osmnx(osm_file_path)
+
+    if _cache_enabled() and cache_path is not None:
+        _write_cache(cache_path, data)
+    return data
+
+
+def _parse_map_data_with_osmnx(osm_file_path):
+    """真正调用 osmnx 的解析路径（冷缓存时才跑）。"""
     graph = ox.graph_from_xml(osm_file_path)
     graph = ox.project_graph(graph)
     buildings = ox.features_from_xml(osm_file_path, tags={'building': True})
-    if hasattr(buildings, 'to_crs') and graph.graph.get('crs') is not None:
-        buildings = buildings.to_crs(graph.graph['crs'])
+    if hasattr(buildings, "to_crs") and graph.graph.get("crs") is not None:
+        buildings = buildings.to_crs(graph.graph["crs"])
 
     roads_by_type = defaultdict(list)
     for u, v, data in graph.edges(data=True):
-        road_type = data.get('highway', 'residential')
+        road_type = data.get("highway", "residential")
         if isinstance(road_type, list):
-            road_type = road_type[0] if road_type else 'residential'
+            road_type = road_type[0] if road_type else "residential"
         if road_type not in _MAJOR_ROAD_TYPES:
             continue
-        if 'geometry' in data:
-            geom = data['geometry']
+        if "geometry" in data:
+            geom = data["geometry"]
         else:
             node1 = graph.nodes[u]
             node2 = graph.nodes[v]
-            geom = LineString([(node1['x'], node1['y']), (node2['x'], node2['y'])])
+            geom = LineString([(node1["x"], node1["y"]), (node2["x"], node2["y"])])
         roads_by_type[road_type].append(geom)
 
     buildings_with_height = []
@@ -196,12 +224,88 @@ def load_map_data(osm_file_path):
         tags = building
         height_val = _height_from_tags(tags)
         buildings_with_height.append({
-            'geometry': building.geometry,
-            'height': height_val,
-            'id': idx,
-            'tags': tags,
+            "geometry": building.geometry,
+            "height": height_val,
+            "id": idx,
+            "tags": tags,
         })
     return roads_by_type, buildings_with_height
+
+
+# ---------------------------------------------------------------------------
+# 解析结果磁盘缓存
+# ---------------------------------------------------------------------------
+
+_CACHE_FORMAT = 1
+_CACHE_DIR = Path(__file__).resolve().parents[1] / "data" / ".osm_cache"
+_CACHE_MAX_KEEP = 6
+
+
+def _cache_enabled() -> bool:
+    return os.environ.get("SWARM_BALANCE_OSM_CACHE", "1").strip().lower() not in {"0", "false", "off", "no"}
+
+
+def _cache_path(osm_file_path, mode: str) -> Optional[Path]:
+    """按源文件指纹给出缓存文件路径；无法 stat 时返回 None（不缓存）。"""
+    path = Path(osm_file_path).resolve()
+    try:
+        stat = path.stat()
+    except OSError:
+        return None
+    ox_version = getattr(ox, "__version__", "none")
+    raw = "|".join((
+        f"fmt{_CACHE_FORMAT}", mode, ox_version, str(path),
+        str(stat.st_mtime_ns), str(stat.st_size),
+    ))
+    digest = hashlib.sha256(raw.encode("utf-8")).hexdigest()[:24]
+    return _CACHE_DIR / f"osm-{digest}.pkl"
+
+
+def _read_cache(cache_path: Path):
+    """读缓存。任何异常都当作未命中——缓存坏了不能拖垮仿真启动。"""
+    try:
+        with cache_path.open("rb") as fh:
+            payload = pickle.load(fh)
+    except Exception:  # noqa: BLE001 - 未命中处理
+        return None
+    if not isinstance(payload, tuple) or len(payload) != 2:
+        return None
+    roads, buildings = payload
+    if not isinstance(roads, dict) or not isinstance(buildings, list) or not buildings:
+        return None
+    return roads, buildings
+
+
+def _write_cache(cache_path: Path, data) -> None:
+    """原子写缓存，并只保留最近 _CACHE_MAX_KEEP 份。失败静默忽略。"""
+    tmp = None
+    try:
+        cache_path.parent.mkdir(parents=True, exist_ok=True)
+        fd, tmp = tempfile.mkstemp(dir=str(cache_path.parent), suffix=".tmp")
+        os.close(fd)
+        with open(tmp, "wb") as fh:
+            pickle.dump(data, fh, protocol=pickle.HIGHEST_PROTOCOL)
+        os.replace(tmp, cache_path)
+        tmp = None
+        _prune_cache(cache_path.parent)
+    except Exception:  # noqa: BLE001 - 缓存只影响速度，不影响正确性
+        if tmp:
+            try:
+                os.unlink(tmp)
+            except OSError:
+                pass
+
+
+def _prune_cache(directory: Path) -> None:
+    try:
+        files = sorted(directory.glob("osm-*.pkl"), key=lambda p: p.stat().st_mtime)
+    except OSError:
+        return
+    for stale in files[:-_CACHE_MAX_KEEP]:
+        try:
+            stale.unlink()
+        except OSError:
+            pass
 
 def get_building_location_by_name(buildings_with_height, name, exact=True):
     """根据建筑名查找建筑位置。

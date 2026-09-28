@@ -45,6 +45,7 @@ APP_VERSION = (_PROJECT_ROOT / "VERSION").read_text(encoding="utf-8").strip() if
 _session: Optional[SimSession] = None
 _lock = threading.Lock()
 _op_lock = threading.RLock()  # 串行化 step/reset/rebuild/inject，避免浏览器高倍速下并发推进
+_warm_done = threading.Event()  # 后台预热线程结束（成功或失败）后置位，用于 /api/snapshot 快速返回
 _scenario_backup_text: Optional[str] = None
 _scenario_backup_runtime: Optional[Dict[str, Any]] = None
 
@@ -61,17 +62,25 @@ def _get_session() -> SimSession:
 
 @app.on_event("startup")
 def _warmup_session() -> None:
-    """启动即后台预热仿真会话，避免浏览器首屏白等。
+    """启动即后台预热仿真会话，同时让端口照常早开。
 
-    SimSession 首次构造要加载并解析本地 OSM 地图（实测约 2s），原先等首个
-    /api/snapshot 请求才初始化，用户打开页面会卡在这段耗时上。这里在服务启动
-    后立刻用后台线程预热；预热失败不致命——首个请求仍会按原路径重试。
+    两个约束互相冲突，必须同时满足：
+    1. SimSession 首次构造要解析本地 OSM 地图，实测约 4.3s。若等首个请求才初始化，
+       用户会看到一个阻塞 4.3s 的 /api/snapshot。
+    2. 若把预热挪到绑定端口之前（实测首个请求可降到 0.12s），浏览器就要等 8.5s 才能
+       开始加载 CDN 与地图数据，总可用时间从 5.8s 退化到 8.5s。
+    所以端口早开、预热跑在后台，未就绪期间 /api/snapshot 用 202 快速回绝，
+    由前端 api() 等待重试（见 static/index.html 的 warming 分支）。
     """
+
     def _warm() -> None:
         try:
             _get_session()
         except Exception as exc:  # noqa: BLE001 - 预热失败降级为首次请求时初始化
             print(f"[预热] 会话初始化失败，将在首次请求时重试：{exc}", file=sys.stderr)
+        finally:
+            # 失败也要置位：否则 /api/snapshot 会一直 202，前端永远卡在加载态。
+            _warm_done.set()
 
     threading.Thread(target=_warm, name="session-warmup", daemon=True).start()
 
@@ -202,8 +211,22 @@ def meta():
     }
 
 
+def _warming_response() -> Optional[JSONResponse]:
+    """后台预热尚未结束（且会话还没建好）时返回 202，否则返回 None。
+
+    首屏的 /api/snapshot 与 /api/map 会在预热线程持有 _lock 期间到达，
+    不加这道快速回绝的话，请求会一直阻塞到地图解析完成（实测 4.3s）。
+    """
+    if _warm_done.is_set() or _session is not None:
+        return None
+    return JSONResponse({"warming": True, "detail": "仿真会话正在后台预热，请稍候"}, status_code=202)
+
+
 @app.get("/api/snapshot")
 def snapshot():
+    warming = _warming_response()
+    if warming is not None:
+        return warming
     with _op_lock:
         return JSONResponse(_get_session().snapshot())
 
@@ -309,6 +332,9 @@ def rebuild():
 @app.get("/api/map")
 def map_static():
     """静态地图几何：边界 + 建筑轮廓(含高度)，供 3D 视图一次性加载。"""
+    warming = _warming_response()
+    if warming is not None:
+        return warming
     with _op_lock:
         return JSONResponse(_get_session().map_static())
 
@@ -788,10 +814,27 @@ def compare():
 
     # 同一算法取最后一条（保留最近一次评测），但只从有效行里取
     data = data.drop_duplicates("算法", keep="last").reset_index(drop=True)
+
+    # 口径守卫：各算法必须在相同的 总步数 / 生成任务数 下评测，否则雷达图和排行图
+    # 是在比不同量纲的数字。实测进过一张图的反例：ga 600 步/30 任务，
+    # greedy/pso/ortools 2000 步/60 任务，qmix/vdn/iql 约 900 步/60 任务。
+    # 这里只做标注与上报，不修改、不剔除任何数值——是否重跑由人决定。
+    pair_counts: Dict[Any, int] = {}
+    for _, r in data.iterrows():
+        try:
+            pair = (int(float(r.get("总步数", 0))), int(float(r.get("生成任务数", 0))))
+        except (TypeError, ValueError):
+            continue
+        if pair[0] <= 0 or pair[1] <= 0:
+            continue
+        pair_counts[pair] = pair_counts.get(pair, 0) + 1
+    basis = max(pair_counts.items(), key=lambda kv: (kv[1], -kv[0][0]))[0] if pair_counts else None
+
     # 只保留数值列 + 算法列，去掉总步数/完成任务数等冗余
     drop_cols = {"总步数", "完成任务数", "生成任务数", "换电总次数"}
     keep_cols = [c for c in data.columns if c != "算法" and c not in drop_cols]
     rows = data[["算法"] + keep_cols].to_dict(orient="records")
+    basis_rows = data[["算法", "总步数", "生成任务数"]].to_dict(orient="records")
 
     def _clean(v):
         if isinstance(v, float) and (math.isnan(v) or math.isinf(v)):
@@ -800,7 +843,24 @@ def compare():
             return round(v, 4)
         return v
 
-    for r in rows:
-        for k in list(r.keys()):
-            r[k] = _clean(r[k])
-    return {"rows": rows, "columns": keep_cols}
+    inconsistent = []
+    for row, meta in zip(rows, basis_rows):
+        for k in list(row.keys()):
+            row[k] = _clean(row[k])
+        try:
+            pair = (int(float(meta["总步数"])), int(float(meta["生成任务数"])))
+        except (TypeError, ValueError):
+            pair = None
+        off = basis is not None and pair is not None and pair != basis
+        row["口径"] = {"总步数": pair[0] if pair else None,
+                     "生成任务数": pair[1] if pair else None,
+                     "偏离": bool(off)}
+        if off:
+            inconsistent.append({"算法": meta["算法"], "总步数": pair[0], "生成任务数": pair[1]})
+
+    return {
+        "rows": rows,
+        "columns": keep_cols,
+        "basis": {"总步数": basis[0], "生成任务数": basis[1]} if basis else None,
+        "inconsistent": inconsistent,
+    }
