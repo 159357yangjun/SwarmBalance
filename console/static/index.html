@@ -69,6 +69,9 @@ document.addEventListener('DOMContentLoaded', function () {
   .legend .dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 5px; }
   /* 字形即色块：颜色与形状落在同一个字符上，不会出现"圆点配 ◆ 文字"的矛盾。 */
   .legend .lg { font-size: 12px; margin-right: 4px; }
+  .vex-note{ position:absolute; left:12px; bottom:44px; z-index:5; max-width:min(520px,72%);
+    padding:5px 9px; border-radius:7px; background:rgba(255,255,255,.92); border:1px solid var(--border);
+    color:var(--muted); font-size:11px; line-height:1.5; }
   .loading { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: var(--muted); background: rgba(255,255,255,.7); z-index: 10; }
 
   .side { width: 340px; display: flex; flex-direction: column; gap: 12px; min-height: 0; overflow-y: auto; }
@@ -784,6 +787,7 @@ document.addEventListener('DOMContentLoaded', function () {
         <span style="color:var(--muted)" data-page-node-id="OWIybTAS3e6DpoP2hqG55F">△ 机巢</span>
         <span style="color:var(--muted)" data-page-node-id="PLyECwjADdLWuhXFCXoiGK">○→● 任务起终点</span>
       </div>
+    <div class="vex-note" v-show="view==='3d'">3D 视图竖向放大约 4 倍 —— 4.5km 城市尺度下楼高仅 12~180m，按真实比例楼会看不见。水平方向与高度均非同一比例，勿据此判断实际高差。</div>
     </div>
 
     <div class="side" :class="{full:!showMap}" v-show="!showMap" data-page-node-id="Isx49LZxEMTzLZ1GxuX533">
