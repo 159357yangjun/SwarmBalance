@@ -276,8 +276,9 @@ swarm-balance/
 │  ├─ map_drawer.py / map_drawer_3d.py   # pygame 桌面端 2D/3D 可视化（可选）
 │  ├─ greedy/                    # 贪心基线（scheduler.py + run_greedy.py）
 │  ├─ tools/osm.py               # OSM 解析 + 结果落盘缓存（frontend/data/.osm_cache/）
-│  ├─ data/                      # map/ 内置 OSM（约 13 MB）、siping/、.osm_cache/
-│  └─ assets/
+│  ├─ data/                      # map/part_of_yangpu.osm（约 10.6 MB，唯一内置地图）
+│  │                             #   + .osm_cache/（OSM 解析与通行判定缓存，已 gitignore）
+│  └─ assets/charging_4.png      # 仅 charger 图标被 map_drawer.py 加载，其余素材已清理
 │
 ├─ backend_si/                   # 经典基线算法
 │  ├─ ga_scheduler.py / chain_codec.py / fitness_evaluator.py / matching.py
