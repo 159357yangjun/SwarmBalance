@@ -122,12 +122,19 @@ def main():
     parser.add_argument("--osm", type=str, default="data/map/part_of_yangpu.osm",
                         help="Relative path to OSM map file.")
     parser.add_argument("--seed", type=int, default=100,
-                        help="Base seed; episode ep uses seed+ep+1 (aligns with pso/ga/qmix).")
+                        help="Base seed; episode ep uses seed+ep+1 (aligns with pso/ga).")
+    parser.add_argument("--output", type=str, default=None, metavar="PATH",
+                        help="指标 CSV 输出路径。默认写进 results/compare/<该算法>.csv —— "
+                             "那是 Web 算法对比页读取的证据文件，追加一行就会改变对比页上该算法"
+                             "的显示值。只是想看数、不想动证据，请指到别处，"
+                             "例如 --output ../results/adhoc/ga.csv")
     args = parser.parse_args()
 
     episode_steps = args.episode_steps or 1200
     algorithm_key, _ = POLICY_MAP[args.policy]
-    metrics_path = _get_metrics_output(args.policy)
+    metrics_path = Path(args.output) if args.output else _get_metrics_output(args.policy)
+    if args.output and not metrics_path.is_absolute():
+        metrics_path = (PROJECT_ROOT / "frontend" / args.output).resolve()
 
     all_rows = []
     for ep in range(args.episodes):
@@ -159,6 +166,19 @@ def main():
         print(f"{col}: {mean_stats[col]:.4f}")
     write_mean_metrics_row(metrics_path, algorithm_key, all_rows)
     print(f"metrics_file: {metrics_path}")
+    # 说清楚这次写入到底会不会影响答辩对比页：_CSV_FILES 里 one_click_latest.csv 排在最后，
+    # 而 server.py 的 compare() 用 drop_duplicates(keep="last")，所以只要该文件里有同一个
+    # 算法，前面几份 CSV 的行就全被它盖住 —— 追加并不会改变页面显示。
+    if "results" in metrics_path.parts and "compare" in metrics_path.parts:
+        winner = "one_click_latest.csv"
+        if metrics_path.name == winner:
+            print("!! %s 是 _CSV_FILES 的最后一个文件，页面按 keep=last 取值，"
+                  "本次追加会立即成为 %s 在「算法对比」页的显示值。"
+                  % (winner, algorithm_key))
+        else:
+            print("（说明：%s 已追加一行，但它不会改变「算法对比」页 —— "
+                  "该页数据源 %s 排在读取顺序末尾且覆盖同一算法；页面标题也会实时标出当前来源。）"
+                  % (metrics_path.name, winner))
     print("=" * 60)
 
 

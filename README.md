@@ -7,7 +7,7 @@
 [![Python](https://img.shields.io/badge/python-3.10-blue.svg)](https://www.python.org/)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20Linux%20%7C%20macOS-lightgrey.svg)](README.md)
-[![Algorithms](https://img.shields.io/badge/algorithms-5%20families-orange.svg)](README.md)
+[![Algorithms](https://img.shields.io/badge/algorithms-4%20families-orange.svg)](README.md)
 
 面向城市低空物流配送场景，构建**任务生成 → 调度决策 → 飞行仿真 → 指标评估 → 可视化**的完整闭环，
 在同一物理口径下横向对比五类调度方法。
@@ -75,13 +75,18 @@ pip install -r requirements.txt
 ```bash
 cd frontend
 python evaluate_metrics.py --policy ga --episodes 1 --episode-steps 600 --seed 100
+
+# 只想看数、不想动 results/compare/ 里的对比页数据源，加 --output 改道：
+python evaluate_metrics.py --policy ga --episodes 1 --episode-steps 600 \n    --seed 100 --output ../results/adhoc/ga.csv
 ```
 
-输出示例：
+> 该命令单次约 **4 秒**（Python 3.10 完整环境）。默认会把一行**追加**进 `results/compare/backend_ga_metrics.csv`；程序结束时会打印这次写入会不会影响「算法对比」页 —— 由于读取顺序末尾的 `one_click_latest.csv` 覆盖同名算法，前几份 CSV 的追加通常不改变页面显示，但页面标题会实时标出当前来源。
+
+输出示例（2026-09-29 在当前代码下实测）：
 
 ```
 Episode 1 (seed=101): 完成率=0.7667, 超时率=0.0435, 平均时延=0.4565,
-完成=23/30, 利用率=0.706, 空载率=0.499, 顺路接入=5, 禁飞绕飞=7
+完成=23/30, 利用率=0.705, 空载率=0.498, 顺路接入=5, 禁飞绕飞=7
 ```
 
 ### 打开可视化
@@ -113,6 +118,14 @@ Windows 直接双击 `start_console_portable.bat`。此模式会使用项目自�
 python -m console.selfcheck
 python release_check.py             # 普通发布检查
 python release_check.py --strict    # Python 3.10 正式环境最终检查
+
+# 配置哑键门禁（改了不起作用的键）—— 已并入 console 测试，随 discover 自动执行：
+python -m unittest discover -s console -p "test_*.py"
+python -m unittest console.test_config_keys_coverage -v   # 或单独跑这一项
+
+# 数据来源可追溯性 + 环境基线漂移门禁（默认阻断，退出码非零）：
+python verify_data_provenance.py
+python verify_data_provenance.py --allow-loader-drift     # 确认接受当前环境时才加
 ```
 
 详细说明见 [`离线便携与端到端自检.md`](docs/离线便携与端到端自检.md)。
@@ -247,8 +260,8 @@ swarm-balance/
 │
 ├─ console/                      # Web 控制台（FastAPI）
 │  ├─ run.py                     # 启动入口
-│  ├─ server.py                  # 949 行 / 40 个端点
-│  ├─ sim_session.py             # 1292 行 · Web 与 CLI 共用的唯一仿真会话
+│  ├─ server.py                  # REST 层（40 个路由）
+│  ├─ sim_session.py             # Web 与 CLI 共用的唯一仿真会话入口
 │  ├─ capabilities.py            # 运行时能力探测（可选依赖是否可用）
 │  ├─ preflight.py               # 启动前环境自检（完整 / 便携两套必需清单）
 │  ├─ config_validation.py       # 配置写入前的校验
@@ -321,12 +334,14 @@ swarm-balance/
 
 ### 异构机型（对标公开产品规格）
 
-| 机型 key | 参考产品 | 航速 (m/s) | 载重 (kg) | 电池 (Wh) | 满载续航 (km) |
+| 机型 key | 参考产品 | 航速 (m/s) ¹ | 载重 (kg) ¹ | 电池 (Wh) ¹ | 满载续航 (km) ² |
 |---|---|---|---|---|---|
 | `light_express` | 美团第四代配送无人机 | 20 | 2.4 | 380 | 10 |
 | `standard_cargo` | 顺丰丰翼方舟 ARK40 | 14 | 10 | 1600 | 20 |
 | `heavy_cargo` | 大疆 FlyCart 30 双电 | 20 | 30 | 3968.8 | 16 |
 
+> ¹ **仿真输入**：对应 `heterogeneous.drone_types.<key>` 的 `speed` / `carrying_capacity` / `battery_capacity`，由 `frontend/drone.py` 读取并参与计算。
+> ² **仅展示，不参与仿真计算**：`full_load_range_km` 写在配置里但代码从不读取；实际续航由 `battery_capacity` 与放电模型（`battery_consumption_base` × `battery_load_penalty_factor`）推导，改这一列不改变任何仿真结果。该结论由 `console/test_config_keys_coverage.py` 守住。
 > 上述为公开规格近似取值，用于仿真对比，实际以官方最新发布为准。
 > 载重与电池容量可对到公开规格；**航速一列（含 `standard_cargo` 的 14 m/s 与 `sla_reference_speed=14`）在仓库内未标注出处**，
 > 逐条溯源见 [`数据来源与可追溯性登记表.md`](docs/数据来源与可追溯性登记表.md) 第二节（P1–P3）。
@@ -356,16 +371,16 @@ env = Environment("data/map/part_of_yangpu.osm", data_source=ds)
 | 指标 | 含义 | 方向 |
 |---|---|---|
 | Completion Rate | 已完成任务数 / 已生成任务数 | 越高越好 |
-| Timeout Rate | 超时任务占已完成任务比例 | 越低越好 |
-| Average Delay | 超时任务平均超时时长 | 越低越好 |
+| Timeout Rate | 超时任务 / **已完成**任务（未完成任务不进分子分母，属幸存者口径，须与 Completion Rate 联读） | 越低越好 |
+| Average Delay | **全部**完成任务的平均超时时长（准时任务按 0 计入分母），恒等于 `超时率 × 超时任务的平均晚到时长` | 越低越好 |
 | Generation-to-Assignment Wait | 生成 → 被分配的等待时间 | 越低越好 |
 | Assignment-to-Loading Wait | 分配 → 实际装载的等待时间 | 越低越好 |
 | Loading-to-Delivery Time | 装载 → 送达的平均时间 | 越低越好 |
 | Avg / Max Generation-to-Completion | 全流程平均 / 最大耗时 | 越低越好 |
 | Priority Average Delay | 各优先级任务平均时延 | 越低越好 |
 | Total Energy Consumption | 机队累计能耗 | 越低越好 |
-| **Drone Utilization** | 机队利用率（忙步数 / 总步数） | 越高越好 |
-| **Empty Load Ratio** | 空载率（空载里程 / 总里程） | 越低越好 |
+| **Drone Utilization** | 机队利用率 = 忙步数 /（仿真秒数 × 机队规模）；**仅当 `drone.time_step = 1`** 时才等价于「忙步数 / 总步数」 | 越高越好 |
+| **Empty Load Ratio** | 空载率 = 空载里程 / 总飞行里程；「空载」= 机上无货 **或** 下一任务航点是取货点（运力回收段） | 越低越好 |
 | **Chain Insertions** | 顺路接入次数 | 机制生效观测 |
 | **No-Fly Detours** | 禁飞区绕飞次数 | 机制生效观测 |
 | Berth Utilization / Nest Turnover / Avg Berth Wait | 机巢泊位利用率、周转率、排队等待 | 视运营目标 |

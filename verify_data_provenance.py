@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import argparse
 import csv
+import io
 import json
 import math
 import os
@@ -189,64 +190,145 @@ def check_experiments(report):
     return 1 if bad else 0
 
 
-def check_loader(report):
-    """同一张 OSM，两条加载路径给出的碰撞体规模差 6 倍。"""
+def _loader_observation():
+    """实测两条加载路径的建筑/碰撞体规模。返回 (obs, err)。"""
     fe = os.path.join(ROOT, "frontend")
     if fe not in sys.path:
         sys.path.insert(0, fe)
     try:
         from tools import osm as osm_mod
     except Exception as exc:
-        report.append(("SKIP", "LOADER", "无法导入 tools.osm（%s）；此段需要 numpy/osmnx" % exc))
-        return 2
+        return None, "无法导入 tools.osm（%s）；此段需要 numpy/osmnx" % exc
     mapfile = os.path.join(fe, "data", "map", "part_of_yangpu.osm")
     if not os.path.isfile(mapfile):
-        report.append(("SKIP", "LOADER", "缺 %s" % mapfile))
-        return 2
+        return None, "缺 %s" % mapfile
 
-    def summarize(rows, label):
+    def summarize(rows):
         n = len(rows)
-        nan = sum(1 for b in rows if isinstance(b.get("height"), float) and math.isnan(b["height"]))
+        nan = sum(1 for b in rows
+                  if isinstance(b.get("height"), float) and math.isnan(b["height"]))
         none_ = sum(1 for b in rows if b.get("height") is None)
         over = sum(1 for b in rows
-                   if b.get("height") is not None and not (isinstance(b.get("height"), float)
-                                                           and math.isnan(b["height"]))
+                   if b.get("height") is not None
+                   and not (isinstance(b.get("height"), float) and math.isnan(b["height"]))
                    and b["height"] > 20)
-        report.append(("NOTE", "LOADER",
-                       "%-10s 建筑=%-5d 有高度=%-5d NaN=%-5d None=%-5d 碰撞体(>20m)=%d (%.2f%%)"
-                       % (label, n, n - nan - none_, nan, none_, over, 100.0 * over / max(1, n))))
-        return over
+        return {"buildings": n, "height_is_none": none_, "height_is_nan": nan,
+                "finite_heights": n - none_ - nan, "colliders_gt_20m": over}
 
-    fb = summarize(osm_mod._load_map_data_fallback(mapfile)[1], "fallback")
-    _mode = "osmnx" if osm_mod._osmnx_available() else "fallback"
-    ox = summarize(osm_mod.load_map_data(mapfile)[1], _mode)
-    if fb != ox:
-        report.append(("FAIL", "LOADER",
-                       "同一张地图两条路径的障碍物规模不同：fallback=%d vs %s=%d（差 %.1f 倍）。"
-                       "能否复现取决于目标机器 import osmnx 是否成功" % (
-                           fb, _mode, ox, fb / max(1, ox))))
-    else:
-        report.append(("OK", "LOADER", "两条路径障碍物规模一致（%d）" % fb))
-    return 1 if fb != ox else 0
+    mode = "osmnx" if osm_mod._osmnx_available() else "fallback"
+    fb = summarize(osm_mod._load_map_data_fallback(mapfile)[1])
+    cur = summarize(osm_mod.load_map_data(mapfile)[1])
+    return {"mode": mode, "paths": {"fallback": fb, "osmnx": cur}}, None
+
+
+def check_loader(report, allow_drift=False):
+    """硬门禁：当前环境的障碍物规模必须与 provenance_baseline.json 一致。
+
+    只做 fallback vs 当前路径的自洽比较是不够的 —— osmnx 整个消失时两条路径都退化成
+    fallback、数值相等，那种"环境已变"的状态会被判为通过（已实测确认）。必须对基线比。
+    """
+    obs, err = _loader_observation()
+    if err:
+        report.append(("SKIP", "LOADER",
+                       err + " —— 依赖缺失本身就会改变障碍物规模，此环境不可用于复算归档实验"))
+        return 2
+
+    bpath = os.path.join(ROOT, "provenance_baseline.json")
+    if not os.path.isfile(bpath):
+        report.append(("FAIL", "LOADER", "缺基线文件 provenance_baseline.json，无法判定环境漂移"))
+        return 1
+    base = json.load(open(bpath, encoding="utf-8"))
+
+    drift = []
+    if obs["mode"] != base["expected_mode"]:
+        drift.append("加载路径 mode=%s，基线期望 %s（import osmnx 成败直接决定这一点）"
+                     % (obs["mode"], base["expected_mode"]))
+    for name in ("osmnx", "fallback"):
+        exp, got = base["paths"][name], obs["paths"][name]
+        for field in ("buildings", "height_is_none", "height_is_nan", "colliders_gt_20m"):
+            if got.get(field) != exp.get(field):
+                drift.append("%s 路径 %s = %s，基线为 %s"
+                             % (name, field, got.get(field), exp.get(field)))
+
+    fb_n = obs["paths"]["fallback"]["colliders_gt_20m"]
+    cur_n = obs["paths"][obs["mode"]]["colliders_gt_20m"]
+    base_fb = base["paths"]["fallback"]["colliders_gt_20m"]
+    base_cur = base["paths"][base["expected_mode"]]["colliders_gt_20m"]
+    report.append(("NOTE", "LOADER",
+                   "实测 mode=%s：fallback 碰撞体=%d，当前路径碰撞体=%d；基线 %d / %d。"
+                   "两条路径本就不相等，这是已记录在基线里的既有事实，"
+                   "所以判据是「与基线是否一致」而不是「两者是否相等」。"
+                   % (obs["mode"], fb_n, cur_n, base_fb, base_cur)))
+
+    rc = 0
+    if drift:
+        joined = ("\n      - ").join(drift)
+        if allow_drift:
+            report.append(("WARN", "LOADER",
+                           "环境与基线不一致共 %d 项，已用 --allow-loader-drift 放行；"
+                           "此环境下不得声称结论可复现：\n      - %s" % (len(drift), joined)))
+        else:
+            report.append(("FAIL", "LOADER",
+                           "当前环境与产出归档实验的环境不一致，共 %d 项：\n      - %s"
+                           % (len(drift), joined)))
+            report.append(("NOTE", "LOADER",
+                           "确认要接受当前环境就加 --allow-loader-drift；"
+                           "确认当前机器才是产出基线那台就用 --write-loader-baseline 重采"))
+            rc = 1
+    elif rc == 0:
+        report.append(("OK", "LOADER",
+                       "环境与基线一致（mode=%s，当前路径碰撞体=%d）" % (obs["mode"], cur_n)))
+    return rc
+
+
+def write_loader_baseline():
+    obs, err = _loader_observation()
+    if err:
+        print("无法采集基线：%s" % err)
+        return 2
+    path = os.path.join(ROOT, "provenance_baseline.json")
+    doc = json.load(open(path, encoding="utf-8")) if os.path.isfile(path) else {}
+    doc["schema_version"] = 1
+    doc["measured_at"] = "rewritten by --write-loader-baseline"
+    doc["expected_mode"] = obs["mode"]
+    doc["paths"] = obs["paths"]
+    with io.open(path, "w", encoding="utf-8", newline=chr(10)) as f:
+        json.dump(doc, f, ensure_ascii=False, indent=2)
+        f.write(chr(10))
+    print("基线已重写：mode=%s，osmnx 碰撞体=%d，fallback 碰撞体=%d"
+          % (obs["mode"], obs["paths"]["osmnx"]["colliders_gt_20m"],
+             obs["paths"]["fallback"]["colliders_gt_20m"]))
+    print("只有确认当前机器就是产出归档实验的那台时才该这么做。")
+    return 0
+
 
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--marl", action="store_true", help="只跑 MARL 发布值核对")
     ap.add_argument("--experiments", action="store_true", help="只跑结项实验重算")
-    ap.add_argument("--loader", action="store_true", help="只跑建筑高度双路径对比")
+    ap.add_argument("--loader", action="store_true", help="只跑建筑高度双路径与环境基线核对")
+    ap.add_argument("--allow-loader-drift", action="store_true",
+                    help="显式放行与基线不一致的环境（默认阻断，退出码非零）")
+    ap.add_argument("--write-loader-baseline", action="store_true",
+                    help="用当前环境实测值重写 provenance_baseline.json")
     args = ap.parse_args()
+
+    if args.write_loader_baseline:
+        return write_loader_baseline()
+
     selected = [k for k in ("marl", "experiments", "loader") if getattr(args, k)]
     if not selected:
         selected = ["marl", "experiments", "loader"]
 
     report = []
     rc = 0
-    runners = {"marl": check_marl, "experiments": check_experiments, "loader": check_loader}
+    runners = {"marl": check_marl, "experiments": check_experiments,
+               "loader": lambda rep: check_loader(rep, allow_drift=args.allow_loader_drift)}
     for name in selected:
         rc = max(rc, runners[name](report))
 
-    order = {"FAIL": 0, "SKIP": 1, "INFO": 2, "NOTE": 3, "OK": 4}
+    order = {"FAIL": 0, "WARN": 1, "SKIP": 2, "INFO": 3, "NOTE": 4, "OK": 5}
     print("=" * 96)
     print("SwarmBalance 数据来源可追溯性自检")
     print("=" * 96)
@@ -256,10 +338,11 @@ def main():
     counts = {}
     for s, _, _ in report:
         counts[s] = counts.get(s, 0) + 1
-    print("合计: " + "  ".join("%s=%d" % (k, counts[k]) for k in ("FAIL", "SKIP", "INFO", "NOTE", "OK")
+    print("合计: " + "  ".join("%s=%d" % (k, counts[k])
+                            for k in ("FAIL", "WARN", "SKIP", "INFO", "NOTE", "OK")
                             if k in counts))
     if rc == 1:
-        print("=> 发现不可追溯/不一致数据。详见 docs/数据来源与可追溯性登记表.md")
+        print("=> 发现不可追溯/不一致数据或环境漂移。详见 docs/数据来源与可追溯性登记表.md")
     return rc
 
 

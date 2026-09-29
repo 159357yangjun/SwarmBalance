@@ -157,8 +157,7 @@
     "max_chain_tasks": 3,
     "max_detour_m": 1500.0,
     "battery_reserve_ratio": 0.15,
-    "require_same_source": false,
-    "detour_penalty_weight": 1.0
+    "require_same_source": false
   },
   "drone": {
     "battery_capacity": 1600.0,

@@ -40,3 +40,5 @@ _review/
 
 # 本地残留的 MARL 训练产物（模块已移除，整个目录永不入库，防止 git add -A 误扫 33MB .th）
 backend_wx/
+# CLI 探针/临时评测输出（--output 改道目标），不入库
+results/adhoc/
