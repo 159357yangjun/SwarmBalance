@@ -239,44 +239,76 @@ python ab_chain_test.py --policies pso ga --episodes 1 --episode-steps 1200
 ## 🗂 项目结构
 
 ```text
-SwarmBalance/
+swarm-balance/
+├─ run_conclusion.py             # 结项实验入口（11 行 shim → experiments.runner.main）
+├─ run_tests.bat / run_conclusion.bat / release_check.bat / finalize_project.bat
+├─ start_console.bat             # 启动 Web 控制台（8765）；portable 版走精简依赖
+├─ stop_console.bat
+├─ build_conclusion_package.py   # 结项证据包；DOCS/CONFIGS 白名单缺文件即抛错
+├─ release_check.py / selfcheck  # 交付前静态检查（含内联 JS 语法）
+├─ README.md / CHANGELOG.md / CONTRIBUTING.md / CITATION.cff / LICENSE / VERSION
+├─ requirements.txt              # 完整实验环境（Python 3.10）
+│
+├─ console/                      # Web 控制台（FastAPI）
+│  ├─ run.py                     # 启动入口
+│  ├─ server.py                  # 949 行 / 40 个端点
+│  ├─ sim_session.py             # 1292 行 · Web 与 CLI 共用的唯一仿真会话
+│  ├─ capabilities.py            # 运行时能力探测（可选依赖是否可用）
+│  ├─ preflight.py               # 启动前环境自检（完整 / 便携两套必需清单）
+│  ├─ config_validation.py       # 配置写入前的校验
+│  ├─ scenario_presets.py        # 答辩预设（应急医疗高峰 / 机巢拥堵 / …）
+│  ├─ scene_library.py           # 场景库持久化（config/scenes/）
+│  ├─ experiment_service.py      # 一键实验的子进程编排与状态文件
+│  ├─ static/index.html          # 2982 行 · 单文件 Vue 3 应用（无构建步骤）
+│  ├─ static/spec.html           # 「规范」页正文，由 /spec 路由渲染进 iframe
+│  ├─ static/vendor/             # 内置 vue.global.prod.js / echarts.min.js /
+│  │                             #   three.min.js + README（版本、来源、SHA-256）
+│  └─ test_*.py                  # 7 个文件 / 74 个用例（标准库 unittest）
+│
+├─ frontend/                     # 仿真内核与可视化
+│  ├─ environment.py             # 2017 行 · 世界状态、障碍判定、统计口径
+│  ├─ drone.py                   # 289 行 · STEP_SECONDS 等显式常量在此
+│  ├─ task.py / charging_station.py / nest.py / no_fly_zone.py / matching.py
+│  ├─ scheduling_interface.py    # 调度器抽象基类
+│  ├─ metrics_schema.py          # 统一指标列名（CSV 表头单一来源）
+│  ├─ data_source.py / enterprise_data_source.py / mock_enterprise_api.py
+│  ├─ map_drawer.py / map_drawer_3d.py   # pygame 桌面端 2D/3D 可视化（可选）
+│  ├─ greedy/                    # 贪心基线（scheduler.py + run_greedy.py）
+│  ├─ tools/osm.py               # OSM 解析 + 结果落盘缓存（frontend/data/.osm_cache/）
+│  ├─ data/                      # map/ 内置 OSM（约 13 MB）、siping/、.osm_cache/
+│  └─ assets/
+│
+├─ backend_si/                   # 经典基线算法
+│  ├─ ga_scheduler.py / chain_codec.py / fitness_evaluator.py / matching.py
+│  ├─ pso_scheduler.py / ortools_scheduler.py   # OR-Tools 缺失时降级并标记不可用
+│  └─ config.yaml
+│
+├─ backend_wx/                   # MARL 侧（pymarl-master，历史结果引用；本包不含可重跑的
+│                                #   torch 环境，QMIX/VDN/IQL 指标以 CSV 形式引用）
+│
 ├─ config/
-│  ├─ simulation.json          # 仿真环境、任务、无人机、禁飞区、任务链配置
-│  ├─ positions.json           # 任务位置数据
-│  └─ import/                  # CSV / GeoJSON 真实数据样例
-├─ frontend/                   # 仿真环境与评估入口
-│  ├─ environment.py           # 仿真环境、指标统计、A* 路径规划
-│  ├─ drone.py                 # 无人机运动、电量（换电）与载重
-│  ├─ task.py                  # 任务模型与任务生成器
-│  ├─ charging_station.py      # 机巢（换电站）模型
-│  ├─ no_fly_zone.py           # 禁飞区约束
-│  ├─ data_source.py           # 数据源抽象（random/csv/geojson/enterprise）
-│  ├─ metrics_schema.py        # 统一指标落盘 schema（单一事实来源）
-│  ├─ map_drawer_3d.py         # 三维软件投影可视化
-│  ├─ run_visual.py            # 桌面可视化入口
-│  ├─ evaluate_metrics.py      # 四算法统一评测入口
-│  ├─ ab_chain_test.py         # 任务链开/关 A/B 对照
-│  └─ greedy/                  # 贪心调度器
-├─ backend_si/                 # 群体智能调度器（PSO / GA / OR-Tools）
-│  ├─ pso_scheduler.py         # PSO 优化器 + 事件驱动调度框架
-│  ├─ ga_scheduler.py          # GA 优化器（排列 / 分配双编码）
-│  ├─ chain_codec.py           # 排列编码 → 贪婪分割解码
-│  ├─ ortools_scheduler.py     # CP-SAT 基线
-│  └─ config.yaml              # 算法超参
-├─ backend_wx/pymarl-master/   # 多智能体强化学习（IQL / VDN / QMIX）
-├─ console/                    # Web 可视化控制台（FastAPI + Vue3 + Three.js）
-│  ├─ run.py                   # 一键启动入口（启动预检 + 自动打开浏览器）
-│  ├─ server.py                # REST API
-│  ├─ sim_session.py           # 会话状态、快照与场景库
-│  ├─ selfcheck.py             # 真实链路端到端自检
-│  └─ static/index.html        # 单页前端（2D Canvas / 3D Three.js / ECharts）
-├─ experiments/                # 批量实验编排（presets / runner / worker / reporting）
+│  ├─ simulation.json            # 环境/任务/无人机/禁飞区/机巢配置
+│  ├─ config_loder.py            # 共享配置读取 + 来源签名（缓存失效判据）
+│  ├─ positions.json
+│  ├─ scenes/                    # 场景库落盘目录（scene_*.json 不入库）
+│  └─ import/                    # 外部数据导入工作区
+│
+├─ experiments/
+│  ├─ runner.py                  # 609 行 · 预设解析、子进程编排、聚合
+│  ├─ worker.py                  # 单个 episode 的隔离执行（独立配置副本）
+│  ├─ reporting.py               # 统计与配对检验
+│  ├─ reproducibility.py         # 复现清单（schema v2：按算法登记源码哈希）
+│  ├─ presets/                   # quick.yaml / conclusion.yaml / paper.yaml
+│  └─ test_*.py                  # 2 个文件 / 21 个用例
+│
 ├─ results/
-│  ├─ compare/                 # 各算法统一指标 CSV 与 plots/
-│  ├─ experiments/             # 一键结项实验输出（<preset>_<timestamp>/）
-│  └─ plot_compare_metrics.py  # 指标汇总、归一化评分与绘图
-├─ paper/                      # 课程论文、插图与 Overleaf 工程
-└─ deliverables/               # 结项证据包输出（*.zip 不入库）
+│  ├─ compare/                   # 8 份对比 CSV（答辩对比页数据源）+ plots/
+│  ├─ experiments/               # conclusion_<时间戳>/ 正式实验目录
+│  └─ plot_compare_metrics.py
+│
+├─ deliverables/                 # 作品图片、界面展示
+├─ paper/                        # 论文正文与图件
+└─ docs/                         # 16 份项目文档（见文末索引）
 ```
 
 > 根目录另有结项工具链（`release_check.py`、`run_conclusion.py`、`build_conclusion_package.py`、`finalize_project.bat`）、
