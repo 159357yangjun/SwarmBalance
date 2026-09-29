@@ -26,7 +26,16 @@ KEY_METRICS: Sequence[str] = (
     "总飞行距离",
 )
 
-HIGHER_IS_BETTER = {"完成率", "无人机利用率", "泊位利用率", "机巢周转率"}
+HIGHER_IS_BETTER = {"完成率", "无人机利用率"}
+
+# 泊位利用率 / 机巢周转率 原先被列进 HIGHER_IS_BETTER，方向是错的，而且错的不是措辞：
+# 这个集合会决定 improvements 的符号与 胜/平/负 计数（见 _paired_rows），
+# 于是 paired_ga_vs_greedy.csv 里会出现"GA 在这两项净负"的胜负结论。
+# 实测反例（seed=101、greedy、1800 步）：泊位 1→2→4 时排队总时长 359s→0→0、
+# 完成率 0.85→0.9167→0.9167（真实改善），但周转率 1.80→0.70→0.35、
+# 泊位利用率 0.1526→0.0700→0.0350 —— 两个指标都随"系统变好"而下降。
+# 它们衡量的是地面资源的占用程度，方向取决于运营目标，不能单向判优。
+DIRECTION_AMBIGUOUS = {"泊位利用率", "机巢周转率"}
 LOWER_IS_BETTER = {
     "超时率",
     "从生成到完成总时间平均",
@@ -107,6 +116,11 @@ def paired_comparison(
         elif metric in LOWER_IS_BETTER:
             improvements = [a - b for a, b in pairs]
             direction = "越低越好"
+        elif metric in DIRECTION_AMBIGUOUS:
+            # 不判优：保留原始差值供人看，但不产出"改进"与胜负计数，
+            # 否则读者会把一个方向未定的差值当成结论。
+            improvements = raw_deltas
+            direction = "视运营目标（不单向判优）"
         else:
             improvements = raw_deltas
             direction = "未定义"
@@ -115,9 +129,10 @@ def paired_comparison(
         imp_mean = mean(improvements)
         rel = (imp_mean / abs(base_mean)) if abs(base_mean) > 1e-12 else 0.0
         eps = 1e-12
-        wins = sum(1 for x in improvements if x > eps)
-        ties = sum(1 for x in improvements if abs(x) <= eps)
-        losses = sum(1 for x in improvements if x < -eps)
+        judged = metric not in DIRECTION_AMBIGUOUS
+        wins = sum(1 for x in improvements if x > eps) if judged else ""
+        ties = sum(1 for x in improvements if abs(x) <= eps) if judged else ""
+        losses = sum(1 for x in improvements if x < -eps) if judged else ""
         out.append({
             "指标": metric,
             "方向": direction,
@@ -127,7 +142,7 @@ def paired_comparison(
             "基线均值": base_mean,
             "候选均值": cand_mean,
             "候选减基线": mean(raw_deltas),
-            "平均改进": imp_mean,
+            "平均改进": imp_mean if judged else mean(raw_deltas),
             "相对改进率": rel,
             "胜": wins,
             "平": ties,
@@ -160,15 +175,19 @@ def render_paired_markdown(rows: List[Dict[str, Any]]) -> List[str]:
         "## GA 与 Greedy 的配对 Seed 描述性比较",
         "",
         "> 下表只做描述性比较，不等价于统计显著性检验；正的“平均改进”表示 GA 按该指标方向更优。",
+        "> 方向为「视运营目标」的指标不判优：它们的数值随容量配置同向变化"
+        "（泊位变多则周转率与泊位利用率同时下降，而真实排队与完成率在改善），"
+        "因此胜/平/负留空，避免被读成结论。",
         "",
-        "| 指标 | Greedy 均值 | GA 均值 | 平均改进 | 相对改进率 | 胜/平/负 |",
-        "|---|---:|---:|---:|---:|---:|",
+        "| 指标 | 方向 | Greedy 均值 | GA 均值 | 平均改进 | 相对改进率 | 胜/平/负 |",
+        "|---|---|---:|---:|---:|---:|---:|",
     ]
     for r in rows:
+        tally = ("%s/%s/%s" % (r["胜"], r["平"], r["负"])) if r["胜"] != "" else "不判"
         lines.append(
-            f"| {r['指标']} | {float(r['基线均值']):.6g} | {float(r['候选均值']):.6g} | "
-            f"{float(r['平均改进']):.6g} | {float(r['相对改进率']):.2%} | "
-            f"{r['胜']}/{r['平']}/{r['负']} |"
+            f"| {r['指标']} | {r['方向']} | {float(r['基线均值']):.6g} | "
+            f"{float(r['候选均值']):.6g} | {float(r['平均改进']):.6g} | "
+            f"{float(r['相对改进率']):.2%} | {tally} |"
         )
     lines.append("")
     return lines

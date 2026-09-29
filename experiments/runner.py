@@ -575,13 +575,63 @@ def run_experiments(preset: Dict[str, Any], output_root: Path, status_file: Opti
     return output_dir
 
 
+def regenerate_reports(exp_dir: Path) -> List[Path]:
+    """只从已有的 ``raw_runs.csv`` 重建派生报表，不重跑任何一次仿真。
+
+    为什么需要：派生报表（均值表 / 统计表 / 配对表 / summary.md）是**代码的函数**，
+    不只是数据的函数。当聚合或方向标注本身被修正时（本轮的指标方向、上次的 _mean_rows
+    键名全零），旧产物就是错的，而重跑 68 次要几十分钟。留一条"用同一批 raw 重算派生层"
+    的路，才能让报表修正不必以重跑实验为代价。
+
+    刻意不做两件事：① 不写共享的 results/compare/one_click_latest.csv（传 preset=None
+    即走 _aggregate 里的"非 conclusion 不写共享表"分支）；② 不重画图表，
+    只把 figures/ 下已存在的图重新登记进 summary.md，避免清单被清空。
+    """
+    exp_dir = Path(exp_dir)
+    raw_path = exp_dir / "raw_runs.csv"
+    if not raw_path.is_file():
+        raise RuntimeError("找不到 %s，无法重生成派生报表" % raw_path)
+    with open(raw_path, "r", encoding="utf-8-sig", newline="") as f:
+        raw_rows = list(csv.DictReader(f))
+    if not raw_rows:
+        raise RuntimeError("%s 是空的，拒绝用它覆盖派生报表" % raw_path)
+
+    cfg_path = exp_dir / "experiment_config.yaml"
+    preset: Dict[str, Any] = {}
+    if cfg_path.is_file():
+        loaded = yaml.safe_load(cfg_path.read_text(encoding="utf-8"))
+        if isinstance(loaded, dict):
+            preset = loaded
+
+    outputs = _aggregate(raw_rows, exp_dir, preset=None)
+    figures = sorted((exp_dir / "figures").glob("*.png")) if (exp_dir / "figures").is_dir() else []
+    summary = _write_summary(preset, raw_rows, outputs, figures, exp_dir)
+    outputs["summary"] = summary
+    return list(outputs.values())
+
+
 def main(argv: Optional[List[str]] = None) -> int:
     parser = argparse.ArgumentParser(description="群智优衡：一键结项实验")
     parser.add_argument("--preset", default="conclusion", help="quick / conclusion / paper，或自定义 YAML 路径")
     parser.add_argument("--output-root", default=str(DEFAULT_OUTPUT_ROOT))
     parser.add_argument("--status-file", default="")
     parser.add_argument("--dry-run", action="store_true", help="只打印实验计划，不创建结果目录、不运行仿真")
+    parser.add_argument("--regenerate-reports", metavar="EXP_DIR", default="",
+                        help="只从该实验目录已有的 raw_runs.csv 重算派生报表"
+                             "（均值表/统计表/配对表/summary.md），不重跑任何仿真")
     args = parser.parse_args(argv)
+
+    if args.regenerate_reports:
+        try:
+            written = regenerate_reports(Path(args.regenerate_reports).resolve())
+        except Exception as exc:
+            print("重生成失败：%s: %s" % (type(exc).__name__, exc), file=sys.stderr)
+            return 1
+        print("已从 raw_runs.csv 重算派生报表（未重跑仿真）：")
+        for p in written:
+            print("  - %s" % p)
+        return 0
+
     try:
         preset = load_preset(args.preset)
         status_file = Path(args.status_file).resolve() if args.status_file else None

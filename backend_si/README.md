@@ -66,7 +66,9 @@ fitness = w₁ · on_time_rate - w₂ · avg_delay - w₃ · total_energy
 其中：
 
 - **on_time_rate**：准时完成率，即在 `remaining_time` 内完成的任务占比
-- **avg_delay**：平均延迟时间，超时任务的平均超时量（越小越好，故取负）
+- **avg_delay**：平均延迟时间 = `total_delay / num_tasks`，即**全部任务**上的平均超时量
+  （准时任务按 0 计入分母，见 `pso_scheduler.py:672`；不是「超时任务」的平均，
+  那会把分母换成晚到任务数）（越小越好，故取负）
 - **total_energy**：总能耗，所有无人机飞行距离之和的归一化值（越小越好，故取负，由于电量设计部分未完成，当前没有优化此项）
 
 权重 `w₁`、`w₂`、`w₃` 在 `config.yaml` 的 `fitness_weights` 节配置。PSO 通过 `max_iterations` 轮迭代，每轮更新粒子速度和位置（分配方案），追踪全局最优解 `gbest` 和个体最优解 `pbest`，最终返回适应度最高的分配方案。
