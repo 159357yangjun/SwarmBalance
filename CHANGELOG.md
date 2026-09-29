@@ -20,6 +20,12 @@
 现移入 `DIRECTION_AMBIGUOUS`，胜/平/负留空并加「方向」列。权威侧判定为**代码**
 （`main.tex:112` 的 `Δ_j=max(0,c_j−d_j)` 与 `total_delay/total_completed` 一致；
 论文全文 0 次提及 utilization/turnover）。
+**同一轮只修了一半，随后补齐（d21756c）**：`console/static/index.html:1408` 的
+`compareBestRow` 用"命中越小越好关键词取最小，否则取最大"，这两个指标不含关键词，
+于是落到默认分支继续被高亮"最优算法" —— 同一份数据，实验报告写「不判」、网页写"这个最好"。
+现名单只留 `reporting.py` 一份，由 `/api/compare` 下发 `direction_ambiguous`、前端消费。
+真跑验证：切到 机巢周转率 时 `.cmp-row.best`=0 且提示变为「不判最优」，
+切回 完成率 时 best=1（反面对照，防改成永远不判）；删掉前端短路 → 对应用例变红。
 
 **③ 门禁必须能自证（eea30a9 / c686064）** — 两条门禁原先都能"自己满足自己"：
 配置哑键门禁的语料集若不排除自身源码，在门禁文件里写出键名就等于"该键已被读取"
