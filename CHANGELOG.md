@@ -2,6 +2,81 @@
 
 ## [Unreleased]
 
+### 2026-09-29 晚：回合步数单一真源 + 指标方向判据 + 门禁自证 + 文档命令副作用（commit 01ce4da / 8d8a60f / eea30a9 / c686064 / 本轮新增）
+
+`VERSION` 保持 `1.0.0` 未动，未打 tag、未发 release、未 push。
+
+**① 单回合步数收成单一真源（01ce4da）** — `frontend/environment.py:79` 与 `command_console.py:95`
+各留一份 `1200` 字面量，改主配置对 ad-hoc 评测入口无效。现由
+`config/config_loder.get_episode_max_steps()` 唯一决定，**缺 `environment.episode_max_steps`
+直接 RuntimeError**，不再悄悄退回 1200。顺带查清归档里哪些用了别的步数：
+结项归档 68 次全部 3600 步（不是论文用的 1200/2000），`results/compare/` 那批手工评测是
+400/600/2000/1200 混合口径 —— 后者才是论文表 `main.tex:285`「Greedy 完成 58/60」的来源，
+与 3600 步的结项数据不同源（R1 遗留，仍在等你拍板）。
+
+**② 指标方向判据（8d8a60f）** — `reporting.py:29` 把「机巢周转率」「泊位利用率」当
+"越高越好"是**定义性错误**而非措辞问题：泊位 1→2→4 时排队 359s→0→0、完成率
+0.85→0.9167（真改善），但周转率 1.80→0.70→0.35、利用率 0.1526→0.0700 同向下跌。
+现移入 `DIRECTION_AMBIGUOUS`，胜/平/负留空并加「方向」列。权威侧判定为**代码**
+（`main.tex:112` 的 `Δ_j=max(0,c_j−d_j)` 与 `total_delay/total_completed` 一致；
+论文全文 0 次提及 utilization/turnover）。
+
+**③ 门禁必须能自证（eea30a9 / c686064）** — 两条门禁原先都能"自己满足自己"：
+配置哑键门禁的语料集若不排除自身源码，在门禁文件里写出键名就等于"该键已被读取"
+（**失效方向是变绿不是变红**）。现各加变异用例，且实测过红：删排除行 → 哑键用例 FAIL；
+`if drift:` 退回旧的"两路径相等" → 8 条里 4 条 FAIL；缺基线从 `return 1` 改 `return 0` → 对应用例 FAIL。
+osmnx 漂移的手工验证也已固化为 `unittest discover` 用例，并处理了"聚合跑里静默 skip"
+（`test_environment_incidents.py` 注入假 osmnx 会污染判定）—— 改为契约用例 + 子进程，
+现在全量 `discover` 里 9 条全部执行、`skipped=0`。
+**过程中自己写出一条空转断言并当场发现**：第一版 patch 的是 `Path.is_file`，
+而 `check_loader` 用 `os.path.isfile(字符串)`，探针没生效、门禁照读真基线返回 0。
+
+**④ 照 README 跑一次就把仓库弄脏（本轮）** — 评审/新用户照文档走一遍，工作区立刻脏，
+这比"离了作者机器跑不通"更贴 R1。一手证据：
+
+```
+$ cd frontend && python evaluate_metrics.py --policy ga --episodes 1 --episode-steps 600 --seed 100
+$ git status --porcelain
+ M results/compare/backend_ga_metrics.csv        # 7 行 → 8 行
+```
+
+写入面清点（全部实测或按代码路径核过）：
+`evaluate_metrics.py` 默认**追加**入库的 `results/compare/<算法>.csv`；
+`plot_compare_metrics.py` 以 "w" **截断重写** `results/compare/plots/` 下 15 个已入库产物；
+`run_conclusion.py --preset conclusion` **截断重写** `results/compare/one_click_latest.csv`
+（那是 `/api/compare` 按 `keep="last"` 实际展示的那份答辩数据源）。
+归档实验目录本身安全：`<preset>_<秒级时间戳>` 每次新建，不会覆盖任何一轮归档 —— 已查，不是缺陷。
+另发现 README 第二条示例命令里有个**字面 `\n`**，照抄直接 `error: unrecognized arguments: n`（已修）。
+
+处置：三者默认都改成只写 `results/adhoc/`（已 gitignore），写入库必须显式
+`--record-into-evidence` / `--publish-latest`；Web「实验」页签内部自带发布开关，
+页面行为不变；`.gitignore` 补 `results/experiments/<新时间戳目录>` 与 `web_status.json` /
+`web_runner.log`，并写明"已跟踪文件不受 gitignore 影响，所以证据改动照样看得见"。
+新增 `console/test_readme_command_side_effects.py`（6 条）：真跑文档命令后要求
+porcelain **增量**为空 + 比对 `results/compare/**` 的**内容指纹**（增量法在"文件本来就已脏"
+时会假绿），并先证明脏检测探针本身不是空转。三条变异均实测过红。
+
+**⑤ 那个 0.001 已归因，不是噪声也不是文档陈旧（本轮）** — README 逐 episode 行写
+`利用率=0.705 / 空载率=0.498`，同一条命令末尾的 Mean Metrics 写 `0.7045 / 0.4984`。
+同一命令连跑 5 次：`逐位不一致字段数 = 0 / 24`，方差为 0；CSV 里存的全精度是
+`无人机利用率=0.7045`（`.3f`→`0.705`）、`空载率=0.49840552356370954`（`.3f`→`0.498`）。
+所以差值纯粹是同一个数的两种打印精度，**不存在**需要同 seed 解释的运行不稳定。
+固化为 `console/test_run_determinism.py`（2 条，共用同一批运行，12.5s），
+并已用 1e-4 级扰动验证过红。详见登记表第七点五节。
+
+**本轮未验证 / 待你拍板**：
+
+- `results/compare/plots/` 的**归档缺口**：出图脚本现在实际生成 **20** 张图，仓库只入库 **15** 张。
+  我跑 `--record-into-evidence` 验证开关是否真的接线时，多出 5 个未跟踪 PNG
+  （`bar_chain_insertions/drone_utilization/empty_load_ratio/no_fly_detours/total_flight_distance`）。
+  它们是我这次的运行产物，**已删除**，未替你决定是否作为正式交付物入库。在该决定之前，
+  请不要对该目录用 `git add -A`。
+- R1 论文表与 CSV 的矛盾（`main.tex` 用 2000 步数据、结项用 3600 步）本轮**未改**。
+- `frontend/environment.py:89` 的 `DEFAULT_NUM_DRONES = int(ENV_CFG.get("num_drones", 3))`
+  是同一类"第二套默认"，本轮**未动**（不在你点的三件事里，且改它要一并核对前端读数）。
+- `--record-into-evidence` 与 `--publish-latest` 的**正向**写盘我只在临时目录/可回滚前提下验证过，
+  没有真正刷新入库证据。
+
 ### 2026-09-29 下午：两个守门门禁 + 文档数字口径对齐 + 评审视角首次运行（commit fd5ede9 / dfb3dcf / 66016b7 / 0ded28f）
 
 本轮修的是四类**"看起来正常、其实没人读/说错了"**的问题，不是一个具体 bug。
