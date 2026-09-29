@@ -287,7 +287,7 @@ class CommandConsoleTests(unittest.TestCase):
         created = {}
 
         class Env:
-            def __init__(self, path, visualize=False, episode_max_steps=0):
+            def __init__(self, path, episode_max_steps=0):
                 created["steps"] = episode_max_steps
                 self.drones = [object(), object()]
 

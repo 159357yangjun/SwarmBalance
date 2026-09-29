@@ -53,30 +53,6 @@
       }
     }
   },
-  "qmix_reward": {
-    "completion_bonus": 2.0,
-    "backlog_penalty": 0.02,
-    "invalid_action_penalty": 0.5,
-    "overdue_step_penalty": 0.2,
-    "idle_penalty": 0.02,
-    "uncompleted_penalty": 30.0,
-    "completion_rate_bonus": 100.0,
-    "priority_delay_weight_1": 1.0,
-    "priority_delay_weight_2": 1.5,
-    "priority_delay_weight_3": 2.2,
-    "urgency_backlog_base": 0.25,
-    "overdue_severity_scale": 100.0,
-    "terminal_delay_penalty": 0.08,
-    "reward_scale": 0.02,
-    "reward_clip": 5.0
-  },
-  "qmix_assignment_repair": {
-    "enabled": false,
-    "priority_weight": 2.0,
-    "urgency_weight": 5.0,
-    "source_distance_weight": 1.5,
-    "route_distance_weight": 0.5
-  },
   "task": {
     "positions_file": "../config/positions.json",
     "weight_min": 1,
@@ -193,14 +169,6 @@
     "time_step": 1.0,
     "carrying_capacity": 10.0,
     "swap_time_seconds": 180
-  },
-  "visualization": {
-    "mode": "3d",
-    "azimuth": 35.0,
-    "elevation": 55.0,
-    "zoom": 1.0,
-    "height_scale": 6.0,
-    "drone_altitude": 60.0
   },
   "data_source": {
     "type": "random",

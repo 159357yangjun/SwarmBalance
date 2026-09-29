@@ -37,4 +37,6 @@ _review/
 
 # ================= PyMARL 训练产物 =================
 # 训练检查点（agent.th / opt.th）与 sacred 实验日志属运行时产物，不入库
-backend_wx/pymarl-master/results/
+
+# 本地残留的 MARL 训练产物（模块已移除，整个目录永不入库，防止 git add -A 误扫 33MB .th）
+backend_wx/

@@ -53,16 +53,25 @@ def _read_csv(path):
         return list(csv.DictReader(f))
 
 
+def _display(path):
+    """仓库相对路径：绝对路径会把开发机用户名带进对外输出。"""
+    rel = os.path.relpath(path, ROOT).replace(os.sep, "/")
+    return rel if not rel.startswith("..") else os.path.basename(path)
+
+
 def check_marl(report):
     """发布值是否等于该 run 的 test 聚合。核心判据：它不可能优于历史上最好的一局。"""
     if not os.path.isfile(COMPARE_CSV):
-        report.append(("SKIP", "MARL", "缺少 %s" % COMPARE_CSV))
-        return 2
+        report.append(("INFO", "MARL",
+                       "不适用：MARL 模块与其指标行已于本版移除（移除前逐格核对结论为："
+                       "54 格中 23 格优于历史最好一局、0 格劣于最差、38 格与任何原始行都不相等）。"
+                       "详见 docs/数据来源与可追溯性登记表.md 第五节 R2"))
+        return 0
     if not os.path.isdir(SACRED):
-        report.append(("SKIP", "MARL",
-                       "缺少 backend_wx/pymarl-master/results/sacred/（该目录被 .gitignore 排除，"
-                       "clone 后不存在 —— 这本身就是登记表 R2 的第一条结论）"))
-        return 2
+        report.append(("FAIL", "MARL",
+                       "发布表 %s 存在，但其原始记录目录 %s 不在仓库里 —— clone 之后无法核对，"
+                       "等于没有证据" % (_display(COMPARE_CSV), _display(SACRED))))
+        return 1
 
     published = {r["算法"]: r for r in _read_csv(COMPARE_CSV) if r.get("算法")}
     better = worse = nomatch = 0
@@ -237,7 +246,7 @@ def main():
     for name in selected:
         rc = max(rc, runners[name](report))
 
-    order = {"FAIL": 0, "SKIP": 1, "NOTE": 2, "OK": 3}
+    order = {"FAIL": 0, "SKIP": 1, "INFO": 2, "NOTE": 3, "OK": 4}
     print("=" * 96)
     print("SwarmBalance 数据来源可追溯性自检")
     print("=" * 96)
@@ -247,7 +256,7 @@ def main():
     counts = {}
     for s, _, _ in report:
         counts[s] = counts.get(s, 0) + 1
-    print("合计: " + "  ".join("%s=%d" % (k, counts[k]) for k in ("FAIL", "SKIP", "NOTE", "OK")
+    print("合计: " + "  ".join("%s=%d" % (k, counts[k]) for k in ("FAIL", "SKIP", "INFO", "NOTE", "OK")
                             if k in counts))
     if rc == 1:
         print("=> 发现不可追溯/不一致数据。详见 docs/数据来源与可追溯性登记表.md")

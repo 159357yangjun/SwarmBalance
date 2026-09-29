@@ -49,7 +49,7 @@ def build_scheduler(policy, env, seed):
 def run_one(osm, steps, policy, seed, chain_on):
     # 进程内开关：environment 里的常量与方法都以全局名引用，直接改模块属性即可
     environment.CHAIN_ENABLED = chain_on
-    env = Environment(str(osm), visualize=False, episode_max_steps=steps)
+    env = Environment(str(osm), episode_max_steps=steps)
     obs = env.reset(seed=seed)
     act = build_scheduler(policy, env, seed)
     done = False

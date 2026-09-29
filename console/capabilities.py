@@ -1,7 +1,7 @@
 """Runtime capability detection used by preflight and the Web UI.
 
 Keep this module dependency-light: it must be importable even when optional packages
-such as osmnx / pygame / OR-Tools are absent.
+such as osmnx / OR-Tools are absent.
 """
 from __future__ import annotations
 
@@ -23,7 +23,6 @@ def _has(module: str) -> bool:
 def runtime_capabilities() -> Dict[str, Any]:
     has_osmnx = _has("osmnx")
     has_pyproj = _has("pyproj")
-    has_pygame = _has("pygame")
     has_ortools = _has("ortools")
     local_osm = ROOT / "frontend" / "data" / "map" / "part_of_yangpu.osm"
 
@@ -48,14 +47,12 @@ def runtime_capabilities() -> Dict[str, Any]:
             "unavailable": "不可用",
         }[map_backend],
         "local_osm_present": local_osm.exists(),
-        "desktop_visualization": has_pygame and has_osmnx,
         "headless_web": has_pyproj and local_osm.exists(),
         "algorithms": algorithms,
         "available_algorithms": [x["key"] for x in algorithms if x["available"]],
         "optional": {
             "osmnx": has_osmnx,
             "pyproj": has_pyproj,
-            "pygame": has_pygame,
             "ortools": has_ortools,
         },
     }

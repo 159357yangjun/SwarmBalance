@@ -8,4 +8,4 @@
 - `greedy/run_greedy.py`: 纯贪心算法测试入口（`--episodes --episode-steps --csv`）。
 - `evaluate_metrics.py`: 统一评估入口（`--policy greedy|pso`），输出对比指标CSV。
 - 根配置读取：通过 `config/settings.py` 统一加载 `config/simulation.json`。
-- `data/` `assets/` `tools/`: 地图、资源与工具代码。
+- `data/` `tools/`: 内置地图与 OSM 解析工具代码。

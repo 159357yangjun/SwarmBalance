@@ -31,8 +31,7 @@ networkx==3.3
 pandas==2.2.3
 requests==2.32.5
 
-# ---- 仿真渲染 / 绘图 ----
-pygame==2.6.1
+# ---- 实验图表绘制 ----
 matplotlib==3.10.9
 
 # ---- 配置解析（config.yaml / simulation.json）----

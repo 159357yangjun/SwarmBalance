@@ -46,7 +46,7 @@ def _resolve_episode_steps(default_steps):
 
 
 def run_one_episode(osm_path, episode_steps, seed):
-    env = Environment(str(osm_path), visualize=False, episode_max_steps=episode_steps)
+    env = Environment(str(osm_path), episode_max_steps=episode_steps)
     obs = env.reset(seed=seed)
     scheduler = GAScheduler(num_drones=len(env.drones), verbose=False, seed=seed)
     done = False

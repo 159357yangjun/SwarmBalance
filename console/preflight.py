@@ -48,8 +48,6 @@ def run_checks(portable: bool = False) -> Dict[str, List[str]]:
             errors.append("缺少内置地图 frontend/data/map/part_of_yangpu.osm。")
         if not caps["optional"]["osmnx"]:
             warnings.append("未安装 osmnx：将使用内置离线 OSM XML 回退解析器；正式实验建议完整环境。")
-        if not caps["optional"]["pygame"]:
-            warnings.append("未安装 pygame：浏览器控制台可用，桌面 pygame 可视化不可用。")
         if not caps["optional"]["ortools"]:
             warnings.append("未安装 OR-Tools：Greedy / GA / PSO 可用，OR-Tools 基线已在界面中标记不可用。")
     else:
@@ -65,7 +63,6 @@ def run_checks(portable: bool = False) -> Dict[str, List[str]]:
             ("yaml", "PyYAML==6.0.3"),
             ("fastapi", "fastapi"),
             ("uvicorn", "uvicorn"),
-            ("pygame", "pygame==2.6.1"),
             ("ortools", "ortools"),
         ]
         missing = [hint for mod, hint in required if importlib.util.find_spec(mod) is None]

@@ -44,7 +44,7 @@ def run_one(config_path: Path, algorithm: str, seed: int, episode_steps: int, os
     from environment import Environment
     from metrics_schema import to_output_metrics
 
-    env = Environment(str(osm_path), visualize=False, episode_max_steps=int(episode_steps))
+    env = Environment(str(osm_path), episode_max_steps=int(episode_steps))
     obs = env.reset(seed=int(seed))
     scheduler = _build_scheduler(algorithm, env, int(seed))
 

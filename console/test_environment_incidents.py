@@ -1,6 +1,6 @@
 """运行时事故注入的轻量 smoke tests。
 
-通过 stub 掉 osmnx / pygame，直接构造 Environment.__new__，不加载真实 OSM。
+通过 stub 掉 osmnx，直接构造 Environment.__new__，不加载真实 OSM。
 验证故障停飞回收任务、机巢关闭触发改道两条核心链路。
 """
 from __future__ import annotations
@@ -17,7 +17,6 @@ for p in (str(ROOT), str(FRONTEND)):
         sys.path.insert(0, p)
 
 sys.modules.setdefault("osmnx", types.ModuleType("osmnx"))
-sys.modules.setdefault("pygame", types.ModuleType("pygame"))
 # 其它测试可能先把 environment 替换成轻量 fake；这里明确恢复真实模块。
 if "environment" in sys.modules and getattr(sys.modules["environment"], "__file__", None) is None:
     del sys.modules["environment"]

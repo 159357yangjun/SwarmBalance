@@ -12,8 +12,11 @@
 **技术栈**
 
 - 后端：Python 3.10 + FastAPI + Uvicorn + NumPy + osmnx + shapely + pyproj + OR-Tools
-- 前端：Vue 3 + Three.js + ECharts 5（**全部 CDN 引入，无构建步骤**，见 `console/static/index.html`）
-- 强化学习：PyMARL（IQL/VDN/QMIX，PyTorch），位于 `backend_wx/`
+- 前端：Vue 3 + Three.js + ECharts 5（**无构建步骤**；三库已本地化到 `console/static/vendor/`，
+  加载失败才回退 CDN，完全断网时显示诊断卡而非白屏。见 `console/static/index.html`）
+- ~~强化学习 PyMARL（`backend_wx/`）~~ **已于 v1.0.1 整体移除**：其 6 行对比指标经逐格核对
+  在本仓库任何原始记录中都找不到对应运算（54 格中 23 格优于该算法历史最好一局、0 格劣于最差、
+  38 格与任何一行都不相等），且训练产物从未进入版本库。**不要试图恢复它，也不要引用任何 MARL 数字。**
 
 **核心设计：双入口**
 
@@ -72,7 +75,6 @@ drone-scheduling/
 │   ├── data/map/*.osm           本地地图数据（13M，离线可用）
 │   └── evaluate_metrics.py      命令行评测入口（主力）
 ├── backend_si/                  PSO / GA / OR-Tools 调度器 + 适应度评估
-├── backend_wx/pymarl-master/    PyMARL 框架（训练用，**运行时零引用**）
 ├── config/                      仿真参数、场景库
 ├── experiments/                 实验编排（runner/worker + 2 个测试）
 ├── results/                     实验产物（CSV + 图表）

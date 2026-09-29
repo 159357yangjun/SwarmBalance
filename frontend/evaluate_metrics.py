@@ -87,7 +87,7 @@ def _build_scheduler(policy, env, seed):
 
 
 def run_one_episode(osm_path, episode_steps, policy, seed):
-    env = Environment(str(osm_path), visualize=False, episode_max_steps=episode_steps)
+    env = Environment(str(osm_path), episode_max_steps=episode_steps)
     # 与 pso / ga / qmix 一致地固定 seed，保证四类算法跑同一批任务场景
     obs = env.reset(seed=seed)
 

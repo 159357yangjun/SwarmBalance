@@ -112,7 +112,7 @@ class SimSession:
         self.episode_max_steps = int(episode_max_steps)
         # 动态取类，保证 rebuild 后能拿到 reload 后的新 Environment
         env_cls = _env_module.Environment
-        self.env = env_cls(self.osm_path, visualize=False,
+        self.env = env_cls(self.osm_path,
                            episode_max_steps=self.episode_max_steps)
         self.num_drones = len(self.env.drones)
         self.algorithm: str = "greedy"
@@ -647,7 +647,7 @@ class SimSession:
         self.episode_max_steps = int((cfg.get("environment") or {}).get("episode_max_steps", self.episode_max_steps))
         # reload 后 _env_module.Environment 已是最新类
         self.env = _env_module.Environment(
-            self.osm_path, visualize=False, episode_max_steps=self.episode_max_steps)
+            self.osm_path, episode_max_steps=self.episode_max_steps)
         self.num_drones = len(self.env.drones)
         self.trajectories = [[] for _ in range(self.num_drones)]
         # 配置结构可能变化（机队/机巢/禁飞区），旧快照不再可安全恢复——但**不再销毁**：

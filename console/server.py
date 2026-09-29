@@ -848,7 +848,6 @@ _CSV_FILES = [
     "backend_si_metrics.csv",
     "backend_ga_metrics.csv",
     "backend_ortools_metrics.csv",
-    "backend_wx_metrics.csv",
     "one_click_latest.csv",
 ]
 

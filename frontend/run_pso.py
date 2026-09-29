@@ -48,7 +48,7 @@ def _resolve_episode_steps(default_steps):
 
 
 def run_one_episode(osm_path, episode_steps, seed):
-    env = Environment(str(osm_path), visualize=False, episode_max_steps=episode_steps)
+    env = Environment(str(osm_path), episode_max_steps=episode_steps)
     # 用固定 seed 复现与 qmix 相同的任务场景
     obs = env.reset(seed=seed)
     # PSOScheduler 持有队列/已知任务等内部状态，必须每个 episode 新建

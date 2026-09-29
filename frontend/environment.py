@@ -84,7 +84,6 @@ CFG = get_shared_config()
 ENV_CFG = CFG.get("environment", {})
 DRONE_CFG = CFG.get("drone", {})
 HETERO_CFG = CFG.get("heterogeneous", {})
-VIS_CFG = CFG.get("visualization", {})
 FLEET_MIX = HETERO_CFG.get("fleet_mix", {})
 DEFAULT_EPISODE_MAX_STEPS = int(ENV_CFG.get("episode_max_steps", 1200))
 DEFAULT_NUM_DRONES = int(ENV_CFG.get("num_drones", 3))
@@ -148,7 +147,7 @@ class Environment:
     # 保证长时间批量实验的内存占用有上界。
     _PATH_CLEAR_CACHE_MAX = 400000
 
-    def __init__(self, osm_file_path, visualize=False, episode_max_steps=DEFAULT_EPISODE_MAX_STEPS, data_source=None):
+    def __init__(self, osm_file_path, episode_max_steps=DEFAULT_EPISODE_MAX_STEPS, data_source=None):
         roads_by_type, buildings_with_height = load_map_data(osm_file_path)
         # 全量建筑与道路：供控制台渲染"真实城市"肌理（此前只暴露高度>20 的高楼）
         self.roads_by_type = roads_by_type
@@ -262,19 +261,6 @@ class Environment:
         print(f"Generated {len(new_tasks)} tasks:")
         # for task in new_tasks:
         #     print(f"  {task}")
-
-        self.viewer = None
-        if visualize:
-            # 桌面可视化依赖 pygame；Web/批量仿真保持 headless，不应因未安装
-            # pygame 而在模块 import 阶段失败。仅真正请求桌面窗口时再加载。
-            vis_mode = str(VIS_CFG.get("mode", "3d")).lower()
-            if vis_mode == "2d":
-                from map_drawer import OptimizedMapViewer
-                self.viewer = OptimizedMapViewer(osm_file_path)
-            else:
-                from map_drawer_3d import MapViewer3D
-                self.viewer = MapViewer3D(osm_file_path)
-            self.viewer.set_on_add_drone(self.add_drone)
 
         self._episode_seed = None
 
@@ -1192,17 +1178,13 @@ class Environment:
 
         stats = self.get_statistics()
 
-        running = True
-        if self.viewer:
-            running = self.viewer.render(self.drones, stats)
-
         done_by_horizon = self.current_time >= self.episode_max_steps
         done_by_exhaustion = (
             self.task_generator.is_exhausted
             and len(self.task_generator.unassigned_tasks) == 0
             and all(drone.is_free or getattr(drone, 'out_of_service', False) for drone in self.drones)
         )
-        done = bool(done_by_horizon or done_by_exhaustion or (not running))
+        done = bool(done_by_horizon or done_by_exhaustion)
         info = {
             "episode_limit": bool(done_by_horizon),
             "episode_step": int(self.current_time),

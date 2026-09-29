@@ -42,7 +42,7 @@ def _resolve_episode_steps(default_steps):
 
 
 def run_one_episode(osm_path, episode_steps, seed):
-    env = Environment(str(osm_path), visualize=False, episode_max_steps=episode_steps)
+    env = Environment(str(osm_path), episode_max_steps=episode_steps)
     obs = env.reset(seed=seed)
     # 调度器持有队列 / 已知任务等内部状态，必须每个 episode 新建
     scheduler = ORToolsScheduler(num_drones=len(env.drones), verbose=False, seed=seed)

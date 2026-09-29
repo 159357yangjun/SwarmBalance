@@ -2,6 +2,32 @@
 
 ## [Unreleased]
 
+### 收敛为纯网页前后端（移除桌面端与 MARL）
+
+项目形态明确为「Web 前端 + FastAPI 后端 + 无头仿真内核」，凡不在这条链路上的实现整体移除：
+
+- **移除 pygame 桌面端**：`frontend/map_drawer.py`、`map_drawer_3d.py`、`task_shower.py`、
+  `run_visual.py`、`test.py`（旧桌面主程序）与 `frontend/assets/`（8 张图，仅
+  `charging_4.png` 被桌面渲染器加载）。`Environment` 的 `visualize` 参数、viewer 构建块与
+  `viewer.render` 钩子一并删除 —— 此前 10 个调用点全部传 `visualize=False`，该参数是死 API。
+  同步移除 `capabilities.py` 的 `desktop_visualization` 能力位、`preflight.py` 的 pygame 探测与
+  依赖要求，以及 `requirements.txt` 的 `pygame==2.6.1`。
+- **移除 MARL 侧**：`backend_wx/`（36 个 .py + 228 个 `.th` 检查点，约 33 MB）与
+  `results/compare/backend_wx_metrics.csv` 六行，并从 `console/server.py` 的 `_CSV_FILES` 摘除。
+  依据是登记表 R2 的逐格核对：54 个性能格中 **23 格优于该算法历史上最好的一局、
+  0 格劣于最差一局、38 格与原始记录任何一行都不相等**，且训练产物从未进入版本库。
+  这不是"结果不好"而是"数字从未对应过一次运算"，故不保留、不再引用。
+- **移除随之失效的配置段**：`simulation.json` 的 `visualization`（仅桌面渲染器读）、
+  `qmix_reward` 与 `qmix_assignment_repair`（仅 pymarl 读）。按行删除，其余字节不变。
+- **规范同步收紧**：`docs/仿真软件设计规范.md` 的 **SA-5.4** 从「允许 Web + pygame 双实现」
+  改为「仅 Web 单一实现，内核与后端不得为可视化引入 GUI 依赖」；`算法口径说明.md`
+  删除 MARL 定位行、第八节改题「PSO 的扩展理由」、**第十节"答辩建议一句话"去掉 MARL**
+  （那句话是当场要说出口的，留着即构成虚假陈述）；`结项最终验收清单.md` 同步。
+- **保留的判定依据**：`experiments/worker.py` 虽不被任何模块 import，但 `runner.py:524-534`
+  以 `subprocess.run(-m experiments.worker)` 拉起，属网页端"一键实验"链路 → 保留。
+  测试文件由 `unittest discover -p test_*.py` 按模式收集，"零文本引用"对它们不构成死代码证据。
+
+
 ### 控制台修复与运维加固
 
 - 修复 Web 控制台 3D 视图**黑屏**：`threeState` 是 Vue 响应式数据，THREE 的 scene/camera/renderer 被响应式 Proxy 包裹，渲染循环守卫 `threeState === st` 恒为 false（Proxy ≠ 原始对象），`render()` 从未执行。改用 `Vue.markRaw()` 让 Three 对象脱离响应式。

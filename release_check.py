@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import argparse
 import compileall
+import os
 import re
 import shutil
 import subprocess
@@ -20,7 +21,12 @@ ROOT = Path(__file__).resolve().parent
 
 
 def _run(cmd: List[str], *, cwd: Path = ROOT) -> Tuple[bool, str]:
-    proc = subprocess.run(cmd, cwd=str(cwd), text=True, capture_output=True)
+    # Windows 上 text=True 会按父进程 locale（cp936）解码子进程输出，而子进程打印的是
+    # UTF-8，reader 线程直接 UnicodeDecodeError 死掉、stdout 变 None —— 于是失败时
+    # 下面那些 `if not ok and out` 拿不到任何诊断文本，闸门会"FAIL 但不说为什么"。
+    env = dict(os.environ, PYTHONUTF8="1", PYTHONIOENCODING="utf-8")
+    proc = subprocess.run(cmd, cwd=str(cwd), text=True, capture_output=True,
+                          encoding="utf-8", errors="replace", env=env)
     out = (proc.stdout or "") + (proc.stderr or "")
     return proc.returncode == 0, out.strip()
 

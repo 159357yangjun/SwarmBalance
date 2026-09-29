@@ -541,5 +541,38 @@ class StepSecondsDeclarationTests(unittest.TestCase):
         self.assertIn("step_seconds", html)
 
 
+class ReleaseCheckOutputCaptureTests(unittest.TestCase):
+    """release_check 的失败诊断不能被子进程编码问题吃掉。
+
+    Windows 上 subprocess(text=True) 按父进程 locale（cp936）解码，而子进程在
+    PYTHONUTF8 下输出 UTF-8（或反过来），reader 线程会 UnicodeDecodeError 死掉、
+    stdout 变 None —— 于是 `if not ok and out` 拿不到任何原因，闸门 FAIL 却不说话。
+    """
+
+    def test_failure_detail_is_captured_even_with_chinese_output(self):
+        import subprocess
+        import sys as _sys
+        from pathlib import Path as _P
+
+        root = _P(__file__).resolve().parents[1]
+        sys_path = str(root)
+        if sys_path not in _sys.path:
+            _sys.path.insert(0, sys_path)
+        import release_check
+
+        src = (
+            "import sys\n"
+            "sys.stderr.write('断言失败：机巢泊位数不一致 中文诊断\\n')\n"
+            "sys.exit(1)\n"
+        )
+        with tempfile.TemporaryDirectory() as td:
+            child = _P(td) / "failchild.py"
+            child.write_text(src, encoding="utf-8")
+            ok, out = release_check._run([_sys.executable, str(child)])
+        self.assertFalse(ok, "子进程应当以非零码退出")
+        self.assertIn("断言失败：机巢泊位数不一致", out,
+                      "失败诊断文本必须被捕获，否则闸门 FAIL 时无法定位原因")
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -77,7 +77,7 @@ def _mean_metrics(rows):
 
 
 def run_one_episode(osm_path, episode_steps, seed=None):
-    env = Environment(str(osm_path), visualize=True, episode_max_steps=episode_steps)
+    env = Environment(str(osm_path), episode_max_steps=episode_steps)
     obs = env.reset(seed=seed)
     done = False
     while not done:

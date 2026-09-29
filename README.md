@@ -20,13 +20,13 @@
 
 | 特性 | 说明 |
 |---|---|
-| **五类算法统一评测** | Greedy / PSO / GA / OR-Tools(CP-SAT) / MARL(IQL·VDN·QMIX)，共享同一仿真环境与指标口径 |
+| **四类算法统一评测** | Greedy / PSO / GA / OR-Tools(CP-SAT)，共享同一仿真环境与指标口径 |
 | **异构机队** | 轻载·标准·重载三种机型，参数取自美团、顺丰丰翼、大疆公开产品规格 |
 | **任务链调度** | GA 采用**排列编码 + 贪婪分割解码**，输出每机一条有序任务链 |
 | **顺路接入** | 在途无人机按绕行半径 / 载重 / 电量 / 时间窗约束，把下一单直接挂到当前航线 |
 | **禁飞区约束** | 支持圆形与多边形禁飞区（含安全余量），接入 A\* 路径规划实现真绕飞 |
 | **机巢地面资源** | 有限泊位 + 动态优先级仲裁（电量紧迫度 + 等待时长 + 任务紧迫度），整组换电 180 秒 |
-| **双形态可视化** | 原生 pygame 三维软件投影窗口 + 浏览器 Web 控制台（FastAPI + Vue3 + Three.js） |
+| **Web 控制台可视化** | 浏览器端 2D/3D 指挥台（FastAPI + Vue3 + Three.js），服务端全程无头 |
 | **运行中交互调度** | 播放 / 暂停 / 单步 / 1x·2x·5x·10x，支持在当前状态中人工注入普通、重货、紧急任务 |
 | **调度过程可解释** | Web“调度”页实时展示无人机任务链、机巢泊位队列、动态优先级和调度事件日志 |
 | **可点击调度指挥台** | 2D / 3D 地图可直接点无人机、任务、机巢查看实时详情；待调度任务可查看候选无人机能力匹配、ETA 与约束解释 |
@@ -87,11 +87,7 @@ Episode 1 (seed=101): 完成率=0.7667, 超时率=0.0435, 平均时延=0.4565,
 ### 打开可视化
 
 ```bash
-# 原生桌面窗口（pygame 三维视图，鼠标拖拽旋转 / 滚轮缩放）
-cd frontend
-python run_visual.py --algo greedy
-
-# 或浏览器控制台
+# 浏览器控制台（唯一的可视化入口）
 # Windows 推荐：双击 start_console.bat（自动预检并打开浏览器）
 python -m console.run          # 其它平台同样可用，默认自动打开浏览器
 ```
@@ -103,13 +99,13 @@ python -m console.run          # 其它平台同样可用，默认自动打开�
 
 ### 答辩应急：便携 Web 模式
 
-正式实验仍建议使用上面的 Python 3.10 完整环境。如果答辩机临时缺少 OSMnx / pygame / OR-Tools，可以使用：
+正式实验仍建议使用上面的 Python 3.10 完整环境。如果答辩机临时缺少 OSMnx / OR-Tools，可以使用：
 
 ```bash
 python -m console.run --portable
 ```
 
-Windows 直接双击 `start_console_portable.bat`。此模式会使用项目自带 `part_of_yangpu.osm` 的离线 XML 回退解析器；缺少 pygame 时仅关闭桌面窗口，缺少 OR-Tools 时界面会把该算法标记为不可用，Greedy / GA / PSO 与浏览器指挥台仍可运行。**便携模式用于演示兜底，不用于最终论文实验数据。**
+Windows 直接双击 `start_console_portable.bat`。此模式会使用项目自带 `part_of_yangpu.osm` 的离线 XML 回退解析器；缺少 OR-Tools 时界面会把该算法标记为不可用，Greedy / GA / PSO 与浏览器指挥台仍可运行。**便携模式用于演示兜底，不用于最终论文实验数据。**
 
 发布/答辩前可以先运行真实主链路自检：
 
@@ -180,7 +176,6 @@ Web 控制台不是“只跑一次结果”的算法跑分页面，而是自由�
 | **PSO** | 群体智能 | 偏好矩阵编码，粒子群批量优化 + 事件驱动 | `backend_si/pso_scheduler.py` |
 | **GA** | 群体智能（主推） | **排列编码 + 贪婪分割解码** / 分配矩阵（可切换） | `backend_si/ga_scheduler.py`、`chain_codec.py` |
 | **OR-Tools** | 经典求解器基线 | CP-SAT，0/1 分配，目标 `makespan + Σ超时量` | `backend_si/ortools_scheduler.py` |
-| **MARL** | 强化学习扩展 | PyMARL：IQL / VDN / QMIX（含 `-U` 改进版） | `backend_wx/pymarl-master/` |
 
 **GA 的两种编码**（`backend_si/config.yaml` 的 `ga.encoding` 切换）：
 
@@ -189,7 +184,7 @@ Web 控制台不是“只跑一次结果”的算法跑分页面，而是自由�
 | `permutation`（**默认**） | 任务排列 | 贪婪分割 → 每机有序任务链 | OX 顺序交叉 + 交换/插入/片段逆序变异 | 任务链优化引擎的落地实现 |
 | `assignment` | 任务 → 无人机下标 | 直接分配 | 均匀交叉 + 负载感知变异 + 容量修复 | 与 PSO 同构，用于 A/B 对照 |
 
-> 项目申请书规划的是「贪心 / 经典求解器 / 本项目优化算法」三种方案，PSO 与 MARL 属于实现阶段的扩展对比。
+> 项目申请书规划的是「贪心 / 经典求解器 / 本项目优化算法」三种方案，PSO 属于实现阶段的扩展对比。
 > 口径对应关系与扩展理由见 [`算法口径说明.md`](docs/算法口径说明.md)。
 
 ### 任务链与顺路接入
@@ -246,7 +241,7 @@ swarm-balance/
 ├─ stop_console.bat
 ├─ build_conclusion_package.py   # 结项证据包；DOCS/CONFIGS 白名单缺文件即抛错
 ├─ release_check.py / selfcheck  # 交付前静态检查（含内联 JS 语法）
-├─ verify_data_provenance.py     # 数据来源可追溯性自检（登记表的可执行版；MARL/结项实验两段纯标准库）
+├─ verify_data_provenance.py     # 数据来源可追溯性自检（登记表的可执行版；结项实验/加载路径两段）
 ├─ README.md / CHANGELOG.md / CONTRIBUTING.md / CITATION.cff / LICENSE / VERSION
 ├─ requirements.txt              # 完整实验环境（Python 3.10）
 │
@@ -269,24 +264,20 @@ swarm-balance/
 ├─ frontend/                     # 仿真内核与可视化
 │  ├─ environment.py             # 2017 行 · 世界状态、障碍判定、统计口径
 │  ├─ drone.py                   # 289 行 · STEP_SECONDS 等显式常量在此
-│  ├─ task.py / charging_station.py / nest.py / no_fly_zone.py / matching.py
+│  ├─ task.py / charging_station.py / no_fly_zone.py / matching.py
 │  ├─ scheduling_interface.py    # 调度器抽象基类
 │  ├─ metrics_schema.py          # 统一指标列名（CSV 表头单一来源）
 │  ├─ data_source.py / enterprise_data_source.py / mock_enterprise_api.py
-│  ├─ map_drawer.py / map_drawer_3d.py   # pygame 桌面端 2D/3D 可视化（可选）
 │  ├─ greedy/                    # 贪心基线（scheduler.py + run_greedy.py）
 │  ├─ tools/osm.py               # OSM 解析 + 结果落盘缓存（frontend/data/.osm_cache/）
 │  ├─ data/                      # map/part_of_yangpu.osm（约 10.6 MB，唯一内置地图）
 │  │                             #   + .osm_cache/（OSM 解析与通行判定缓存，已 gitignore）
-│  └─ assets/charging_4.png      # 仅 charger 图标被 map_drawer.py 加载，其余素材已清理
 │
 ├─ backend_si/                   # 经典基线算法
 │  ├─ ga_scheduler.py / chain_codec.py / fitness_evaluator.py / matching.py
 │  ├─ pso_scheduler.py / ortools_scheduler.py   # OR-Tools 缺失时降级并标记不可用
 │  └─ config.yaml
 │
-├─ backend_wx/                   # MARL 侧（pymarl-master，历史结果引用；本包不含可重跑的
-│                                #   torch 环境，QMIX/VDN/IQL 指标以 CSV 形式引用）
 │
 ├─ config/
 │  ├─ simulation.json            # 环境/任务/无人机/禁飞区/机巢配置
@@ -395,10 +386,6 @@ python evaluate_metrics.py --policy pso     --episodes 5 --episode-steps 2000
 python evaluate_metrics.py --policy ga      --episodes 5 --episode-steps 2000
 python evaluate_metrics.py --policy ortools --episodes 5 --episode-steps 2000
 
-# 强化学习
-cd ../backend_wx/pymarl-master/src
-python main.py --config=qmix --env-config=env_drone
-
 # 汇总指标并出图
 cd ../../..
 python results/plot_compare_metrics.py
@@ -490,10 +477,9 @@ Windows 也可以直接双击 `run_conclusion.bat`，或在命令行执行 `run_
 - 顺路接入的绕行判定用**绝对半径**（默认 1500 米，约为本地图跨度 55%），换地图需重新标定；
 - 能力匹配目前采用可解释的载重/速度/续航加权函数，权重仍需通过敏感性实验标定；
 - 禁飞区可在 Web 场景编辑器中重设布局，但仍属于**场景级静态约束**（保存后重建），尚未实现仿真过程中随时间自动出现/消失的时变空域管制；
-- `frontend/nest.py` 的机巢仲裁类未被 `environment.py` 引用，属冗余死代码（待清理）；
 - 仿真为离散时间步；无人机故障是运行时状态事件，未进一步模拟电机退化、定位漂移、风场等连续物理过程；
 - **数据可追溯性**：项目内每个"被当作事实呈现的数字"的来源、能否点开验证、能否追溯到一次运算，逐条登记在 [`数据来源与可追溯性登记表.md`](docs/数据来源与可追溯性登记表.md)，可用 `python verify_data_provenance.py` 独立重算。其中两条须如实声明：
-  其一是 MARL 六行（`results/compare/backend_wx_metrics.csv`）**在本仓库任何原始记录中都找不到对应运算**，且原始 `sacred/` 结果目录被 `.gitignore` 排除，clone 后凭证归零；
+  其一是原 MARL 对比（QMIX/VDN/IQL 六行）经逐格核对**在本仓库任何原始记录中都找不到对应运算**（54 个性能格里 23 格优于该算法历史上最好的一局、0 格劣于最差一局、38 格与任何一行都不相等），且其训练产物从未进入版本库，因此该模块与其指标行已一并移除，本项目不再声称 MARL 结果；
   其二是内置地图的碰撞体规模**取决于目标机器能否 `import osmnx`**（108 栋 vs 18 栋），因此结项实验的逐位可重算性只在依赖一致时成立。
 
 ---
