@@ -11,9 +11,32 @@ import argparse
 import threading
 import webbrowser
 
-import uvicorn
-
 from console.preflight import run_checks
+
+
+def _import_uvicorn():
+    """延后导入 Web 框架依赖。
+
+    原先 `import uvicorn` 写在模块顶部，早于 run_checks()：任何没装依赖的解释器
+    （评审跳过 venv 直接 `python -m console.run`）都会在 import 阶段拿到一段裸
+    ModuleNotFoundError traceback，而 preflight 里那条"该装什么"的说明永远印不出来。
+    """
+    try:
+        import uvicorn
+    except ModuleNotFoundError as exc:
+        missing = getattr(exc, "name", None) or "uvicorn"
+        raise SystemExit(
+            "缺少 Web 控制台依赖：%s\n"
+            "本项目要求 Python 3.10 虚拟环境，请先执行：\n"
+            "    python -m venv .venv310\n"
+            "    .venv310\\Scripts\\activate        (Windows)\n"
+            "    source .venv310/bin/activate      (Linux/macOS)\n"
+            "    python -m pip install -r requirements.txt\n"
+            "只想临时演示，可用便携模式（仅需 fastapi + uvicorn）：\n"
+            "    python -m pip install -r console/requirements.txt\n"
+            "详见 README『环境安装』与『答辩应急：便携 Web 模式』两节。" % missing
+        )
+    return uvicorn
 
 
 def main():
@@ -38,6 +61,7 @@ def main():
         print("[启动预检] 通过" + ("（便携 Web 模式）" if args.portable else ""))
 
     url = f"http://{args.host}:{args.port}/"
+    uvicorn = _import_uvicorn()
     print(f"控制台启动中：{url}")
     # 预热走后台线程、端口照常早开：实测若把预热挪到绑定端口之前，虽然首个
     # /api/snapshot 从 4.3s 降到 0.12s，但浏览器要等 8.5s 才能开始加载 CDN 资源，
