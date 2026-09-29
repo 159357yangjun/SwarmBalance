@@ -2,6 +2,92 @@
 
 ## [Unreleased]
 
+### 2026-09-29 下午：两个守门门禁 + 文档数字口径对齐 + 评审视角首次运行（commit fd5ede9 / dfb3dcf / 66016b7 / 0ded28f）
+
+本轮修的是四类**"看起来正常、其实没人读/说错了"**的问题，不是一个具体 bug。
+`VERSION` 保持 `1.0.0` 未动，未打 tag、未发 release。
+
+**① 配置哑键门禁（dfb3dcf）** — 治"模块删了、配置里的键留下没人读"这一类病。
+新增 `console/test_config_keys_coverage.py`，由 `unittest discover -s console` 自动收集，
+不需要有人记得跑。判据：全部源码的字符串字面量收成一个集合，配置叶子键不在其中即
+"改了不起作用"；刻意偏保守（宁可漏报不误报，否则会被当噪声关掉）。覆盖 301 个叶子键
+（`config/simulation.json` + `backend_si/config.yaml` + 三个实验预设）。
+白名单 `ALLOWED_UNREAD` 强制写 reason（不足 12 字直接失败）。
+两个实现教训：语料集必须**排除门禁自身文件**（否则"在门禁源码里写出键名"就等于
+"该键已被读取"，门禁可自证通过 —— 第一版就栽在这，探针测试自己失败才发现）；
+新增 `test_scanner_actually_detects_a_planted_orphan` 防止扫描器本身变成哑门禁。
+
+**② 加载路径改为基线硬门禁（dfb3dcf）** — 回答"只是打印还是阻断"：
+改之前它确实非零退出，但有个洞 —— 只比 `fallback` vs `当前路径` 是否相等，
+而 **osmnx 整个消失时两条路径都退化成 fallback、数值都是 108、相等 → 返回 0 通过**。
+已实测复现该洞（删掉 `ox.graph_from_xml` 模拟装坏）。现改为与 `provenance_baseline.json`
+比对（mode + 两路径的 buildings/None/NaN/碰撞体），漂移即 `exit 1`；
+`--allow-loader-drift` 显式放行但仍留 WARN；`--write-loader-baseline` 重采。
+基线记的是实测值：osmnx 路径 2889 栋 / 25 有可用高度 / **18** 碰撞体；
+fallback 2876 / 397 / **108**。判据是「与基线是否一致」而不是「两者是否相等」。
+
+**③ README 数字逐条与代码对齐（dfb3dcf）** — 其中三处不是措辞问题而是**定义写错了**：
+`Average Delay` 原写"超时任务平均超时时长"，代码是 `total_delay / 全部完成任务`；
+`Drone Utilization` 原写"忙步数 / 总步数"，代码分母是 `仿真秒数 × 机队规模`，
+**仅当 `time_step = 1` 时才巧合等价**；`Timeout Rate` 未说明是幸存者口径。
+机型表加脚注区分「仿真输入」与「仅展示，不参与仿真计算」——
+`full_load_range_km`（README「满载续航」列的 10/20/16）代码零读取，实际续航由
+`battery_capacity` 与放电模型推导。删掉 `server.py 949 行` / `sim_session.py 1292 行`
+这类一改代码就漂的声称（实测已漂到 964 / 1291）。badge `algorithms 5 families` → `4`。
+示例输出按当前代码重测：利用率 0.706→0.705、空载率 0.499→0.498（载重 int→float 修复所致）。
+
+**④ 两处日志标签病（66016b7）** — `environment.py:268` 把 `len(high_buildings)` 印成
+"具有高度信息的建筑物"（实测 2889 / 25 / 18 是三个不同含义的数）；
+`selfcheck.py:55` 把下发前端的**建筑环数 2893** 标成"高层建筑"，连 `_require` 的失败文案
+也错。现三数分列。
+
+**⑤ 缺依赖不再吐裸 traceback（0ded28f）** — 评审最可能的第一步是跳过 venv 直接跑。
+根因是设计倒置：`import uvicorn` 写在 `console/run.py` 顶部，**早于**专门用来报告
+缺依赖的 `run_checks()`，所以那份报告永远印不出来。现在预检先跑并列出具体缺哪些包；
+`--skip-preflight` 时由 `_import_uvicorn()` 兜底给出 venv 与 requirements 两条安装路径。
+
+**⑥ 删掉 4 个永不被读的 metrics 覆盖键（fd5ede9）** — `evaluate_metrics.py:65` 拼的是
+`f"{policy}_file"`，policy 取值 greedy/pso/ga/ortools，实际查 `greedy_file`，而配置写的是
+`frontend_greedy_file` 这类对不上的名字 → 5 个键里只有 `compare_dir` 生效。
+同时删 `task_chain.detour_penalty_weight`（被 `max_detour_m` 绝对半径取代）。
+
+**验证命令与实际结果**（均在 Python 3.10.11 完整环境）：
+
+```
+python -m unittest discover -s console -t .      → Ran 80 tests, OK   （原 77，+3 为门禁）
+python -m unittest discover -s experiments -t .  → Ran 21 tests, OK
+python release_check.py                          → exit 0，9 项全 OK，解码异常 0 次
+python verify_data_provenance.py --loader        → exit 0，「环境与基线一致 mode=osmnx 碰撞体=18」
+python -m console.selfcheck --steps 1            → exit 0，5.3s（冷启动 12.0s）
+```
+
+两个新门禁都**演示过红**（不是只跑绿）：种 `environment.zz_planted_dead_key` → 门禁 FAIL
+并精确点名，还原 → OK；模拟 osmnx 不可用 → 5 项漂移 → exit 1，加 `--allow-loader-drift` → exit 0
+且仍留 WARN。`release_check._run` 的编码修复也做了前后对照：旧写法子进程诊断捕获长度 **0**，
+新写法完整捕获中文诊断。
+
+评审视角首次运行用**真实克隆**验证（`git clone` 到临时目录、删掉 `.osm_cache` 后冷启动）：
+克隆 81M、该有的都有；冷启动 selfcheck 12.0s exit 0 并自动生成缓存，
+**证明不需要作者先手工跑一次**；Web 端首页 200、`/api/map` 818KB/0.32s、`/api/compare` 200、
+启动日志 0 异常、截图渲染正常；跟踪文件里绝对路径/用户名泄露 0 处；
+`.bat` 同时探测仓库内与上一级的 `.venv310`，都没有则告警。
+
+**仍然没验证的东西**（不要当成已确认）：
+
+1. `python -m venv .venv310` + `pip install -r requirements.txt` 这条建环境路径
+   **完全没跑过**（不装东西是硬约束）。所以评审照 README 装环境能否成功、耗时多久、
+   `pip==23.3.2` 的建议是否仍成立，全是未知。
+2. `numpy 必须先装` 的顺序约束只在 requirements 注释里读到，**没实测违反会怎样**。
+3. **Linux/macOS 一行都没测**；`.bat` 在非 Windows 全部不可用，是否存在等价 shell 脚本未查。
+4. 门禁的 301 键里，`enabled` / `type` / `radius` 这类常见词是靠"名字在别处出现过"
+   蒙混通过覆盖判据的，**它们各自真被读取没有逐个确认**。
+5. `--write-loader-baseline` 只读了代码，**没实跑**。
+6. 基线只覆盖地图加载路径；`ortools` / `fastapi` 版本漂移会不会改变仿真结果，**没有基线**。
+7. R1（论文 `main.tex` 表格与仓库 CSV 矛盾）本轮**未动**。
+8. `results/compare/` 里 4 份手写 CSV 是死数据（被 `one_click_latest.csv` 以
+   `keep="last"` 全部覆盖，且其中 3 份是 20 列旧表头）—— 本轮只把副作用讲明白并加了
+   `--output` 改道，**去留未决**，需要项目所有者拍板。
+
 ### 收敛为纯网页前后端（移除桌面端与 MARL）
 
 项目形态明确为「Web 前端 + FastAPI 后端 + 无头仿真内核」，凡不在这条链路上的实现整体移除：
