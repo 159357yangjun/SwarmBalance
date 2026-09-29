@@ -30,6 +30,7 @@ DOCS = [
     "docs/交互式仿真与答辩演示.md",
     "docs/离线便携与端到端自检.md",
     "docs/结项修改说明.md",
+    "docs/结项最终验收清单.md",
     "CHANGELOG.md",
     "CITATION.cff",
     "LICENSE",

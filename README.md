@@ -97,8 +97,9 @@ python -m console.run          # 其它平台同样可用，默认自动打开�
 ```
 
 > **停止控制台**：在运行它的终端按 `Ctrl+C`；Windows 也可双击 `stop_console.bat`，
-> 它会清理所有 `console.run` 进程并释放 8765 端口。`start_console*.bat` 在启动前会自动清理
-> 占用 8765 的旧实例，避免重复实例互相抢端口导致页面一直加载不出来。
+> 它会清理所有 `console.run` 进程并释放 8765 端口。`start_console*.bat` 在启动前会清理
+> **命令行含 `console.run` 的 Python 进程**（本项目自己的残留实例）；若 8765 被别的程序
+> 占用，它只会提示而不会替你终止对方，此时请用 `--port` 换一个端口。
 
 ### 答辩应急：便携 Web 模式
 
