@@ -23,7 +23,7 @@ STEP_SECONDS = float(_DRONE_CFG.get("time_step", 1.0))
 # 历史别名，与 STEP_SECONDS 同一个值；新代码请用 STEP_SECONDS。
 DRONE_TIME_STEP = STEP_SECONDS
 DRONE_SWAP_TIME = float(_DRONE_CFG.get("swap_time_seconds", 180))
-DEFAULT_CARRYING_CAPACITY = int(_DRONE_CFG.get("carrying_capacity", 5))
+DEFAULT_CARRYING_CAPACITY = float(_DRONE_CFG.get("carrying_capacity", 5))
 
 
 def resolve_drone_type(drone_type):
@@ -45,7 +45,10 @@ class Drone:
             self.battery_consumption_base = float(type_cfg.get("battery_consumption_base", BATTERY_CONSUMPTION_BASE))
             self.battery_load_penalty_factor = float(type_cfg.get("battery_load_penalty_factor", BATTERY_LOAD_PENALTY_FACTOR))
             if carrying_capacity is None:
-                carrying_capacity = int(type_cfg.get("carrying_capacity", DEFAULT_CARRYING_CAPACITY))
+                # float 而不是 int：配置里 light_express 是 2.4 kg（对标美团第四代），
+                # 用 int 会静默截成 2 kg —— 与配置、README 和两份文档印的 2.4 全不一致，
+                # 而且直接改变「这个任务 light 机型接不接得了」的判定边界。
+                carrying_capacity = float(type_cfg.get("carrying_capacity", DEFAULT_CARRYING_CAPACITY))
             battery_capacity = float(type_cfg.get("battery_capacity", battery_capacity))
         else:
             self.speed = DRONE_SPEED
