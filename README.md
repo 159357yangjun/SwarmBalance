@@ -246,6 +246,7 @@ swarm-balance/
 ├─ stop_console.bat
 ├─ build_conclusion_package.py   # 结项证据包；DOCS/CONFIGS 白名单缺文件即抛错
 ├─ release_check.py / selfcheck  # 交付前静态检查（含内联 JS 语法）
+├─ verify_data_provenance.py     # 数据来源可追溯性自检（登记表的可执行版；MARL/结项实验两段纯标准库）
 ├─ README.md / CHANGELOG.md / CONTRIBUTING.md / CITATION.cff / LICENSE / VERSION
 ├─ requirements.txt              # 完整实验环境（Python 3.10）
 │
@@ -308,7 +309,7 @@ swarm-balance/
 │
 ├─ deliverables/                 # 作品图片、界面展示
 ├─ paper/                        # 论文正文与图件
-└─ docs/                         # 16 份项目文档（见文末索引）
+└─ docs/                         # 16 份文档 + 1 份 Word 交付（见文末索引）
 ```
 
 > 根目录另有结项工具链（`release_check.py`、`run_conclusion.py`、`build_conclusion_package.py`、`finalize_project.bat`）、
@@ -326,7 +327,7 @@ swarm-balance/
 - 任务按高峰期 / 非高峰期 / 热点区域动态生成；
 - 默认单回合 3600 步（1 小时）。
 
-### 异构机型（真实产品参数）
+### 异构机型（对标公开产品规格）
 
 | 机型 key | 参考产品 | 航速 (m/s) | 载重 (kg) | 电池 (Wh) | 满载续航 (km) |
 |---|---|---|---|---|---|
@@ -335,6 +336,8 @@ swarm-balance/
 | `heavy_cargo` | 大疆 FlyCart 30 双电 | 20 | 30 | 3968.8 | 16 |
 
 > 上述为公开规格近似取值，用于仿真对比，实际以官方最新发布为准。
+> 载重与电池容量可对到公开规格；**航速一列（含 `standard_cargo` 的 14 m/s 与 `sla_reference_speed=14`）在仓库内未标注出处**，
+> 逐条溯源见 [`数据来源与可追溯性登记表.md`](docs/数据来源与可追溯性登记表.md) 第二节（P1–P3）。
 
 ### 真实数据接入
 
@@ -449,6 +452,7 @@ Windows 也可以直接双击 `run_conclusion.bat`，或在命令行执行 `run_
 
 | 文档 | 内容 |
 |---|---|
+| [`数据来源与可追溯性登记表.md`](docs/数据来源与可追溯性登记表.md) | **每个数字从哪来、能不能追溯到一次运算。** 按 A 可追溯 / B 不可追溯 / C 无来源 三级登记物理参数、指标口径与已发布结果，附亲自复现的命令 |
 | [`仿真软件设计规范.md`](docs/仿真软件设计规范.md) | 规范正文（单一事实源）。软件内「规范」页由 `console/static/spec.html` 渲染，另有同内容的 `docs/仿真软件设计规范.docx` 供 Word 交付 |
 | [`世界逻辑规格书.md`](docs/世界逻辑规格书.md) | 规范 WL 章的展开：世界规则、数值口径与**尚未落实项清单** |
 | [`仿真内核分层架构设计.md`](docs/仿真内核分层架构设计.md) | 规范 SA 章的展开：内核分层现状与目标态迁移路线 |
@@ -486,7 +490,10 @@ Windows 也可以直接双击 `run_conclusion.bat`，或在命令行执行 `run_
 - 能力匹配目前采用可解释的载重/速度/续航加权函数，权重仍需通过敏感性实验标定；
 - 禁飞区可在 Web 场景编辑器中重设布局，但仍属于**场景级静态约束**（保存后重建），尚未实现仿真过程中随时间自动出现/消失的时变空域管制；
 - `frontend/nest.py` 的机巢仲裁类未被 `environment.py` 引用，属冗余死代码（待清理）；
-- 仿真为离散时间步；无人机故障是运行时状态事件，未进一步模拟电机退化、定位漂移、风场等连续物理过程。
+- 仿真为离散时间步；无人机故障是运行时状态事件，未进一步模拟电机退化、定位漂移、风场等连续物理过程；
+- **数据可追溯性**：项目内每个"被当作事实呈现的数字"的来源、能否点开验证、能否追溯到一次运算，逐条登记在 [`数据来源与可追溯性登记表.md`](docs/数据来源与可追溯性登记表.md)，可用 `python verify_data_provenance.py` 独立重算。其中两条须如实声明：
+  其一是 MARL 六行（`results/compare/backend_wx_metrics.csv`）**在本仓库任何原始记录中都找不到对应运算**，且原始 `sacred/` 结果目录被 `.gitignore` 排除，clone 后凭证归零；
+  其二是内置地图的碰撞体规模**取决于目标机器能否 `import osmnx`**（108 栋 vs 18 栋），因此结项实验的逐位可重算性只在依赖一致时成立。
 
 ---
 
