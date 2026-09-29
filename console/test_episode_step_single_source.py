@@ -71,7 +71,8 @@ class EpisodeStepSingleSourceTests(unittest.TestCase):
                 if not fn.endswith(".py"):
                     continue
                 full = os.path.join(dirpath, fn)
-                text = io.open(full, encoding="utf-8", errors="replace").read()
+                with io.open(full, encoding="utf-8", errors="replace") as fh:
+                    text = fh.read()
                 for i, line in enumerate(text.split("\n"), 1):
                     stripped = line.strip()
                     if stripped.startswith("#"):

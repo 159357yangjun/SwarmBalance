@@ -237,7 +237,8 @@ def check_loader(report, allow_drift=False):
     if not os.path.isfile(bpath):
         report.append(("FAIL", "LOADER", "缺基线文件 provenance_baseline.json，无法判定环境漂移"))
         return 1
-    base = json.load(open(bpath, encoding="utf-8"))
+    with open(bpath, encoding="utf-8") as bf:
+        base = json.load(bf)
 
     drift = []
     if obs["mode"] != base["expected_mode"]:
@@ -287,7 +288,10 @@ def write_loader_baseline():
         print("无法采集基线：%s" % err)
         return 2
     path = os.path.join(ROOT, "provenance_baseline.json")
-    doc = json.load(open(path, encoding="utf-8")) if os.path.isfile(path) else {}
+    doc = {}
+    if os.path.isfile(path):
+        with open(path, encoding="utf-8") as pf:
+            doc = json.load(pf)
     doc["schema_version"] = 1
     doc["measured_at"] = "rewritten by --write-loader-baseline"
     doc["expected_mode"] = obs["mode"]
