@@ -51,6 +51,37 @@ class SnapshotWarmingGateTests(unittest.TestCase):
         self.assertIsNone(server._warming_response())
 
 
+class CompareDirectionSingleSourceTests(unittest.TestCase):
+    """「哪些指标不判优」只允许有一份定义，且前端必须消费后端下发的那份。
+
+    实际漂过的样子：experiments/reporting.py 已把 泊位利用率 / 机巢周转率 移出
+    "越高越好"（泊位 1→2→4 时排队 359s→0→0、完成率上升，这两项却同向下跌），
+    而 console/static/index.html 的对比表仍在给它们高亮"最优算法" ——
+    同一份数据，实验报告说"不判"、网页说"这个算法最好"。
+    """
+
+    def test_api_exposes_the_authoritative_ambiguous_set(self):
+        payload = server.compare()
+        self.assertIn("direction_ambiguous", payload,
+                      "/api/compare 不再下发方向不明确指标名单，前端只能自己猜")
+        from experiments.reporting import DIRECTION_AMBIGUOUS
+        self.assertEqual(sorted(payload["direction_ambiguous"]), sorted(DIRECTION_AMBIGUOUS),
+                         "下发的名单与 experiments/reporting.py 的 DIRECTION_AMBIGUOUS 不一致")
+
+    def test_frontend_consumes_it_instead_of_hardcoding(self):
+        html = (Path(__file__).resolve().parents[1] / "console" / "static" / "index.html"
+                ).read_text(encoding="utf-8")
+        self.assertIn("direction_ambiguous", html,
+                      "前端没再读 /api/compare 的名单，改回硬编码就会与报告漂移")
+        self.assertIn("compareAmbiguous", html, "前端没有把名单用到判优上")
+        # 关键：判优函数必须在关键词正则**之前**排除这些指标，否则 泊位利用率
+        # 会因为不含"越小越好"关键词而被默认成"越高越好"。
+        fn = html.split("compareBestRow()")[1].split("},")[0]
+        self.assertIn("compareAmbiguous", fn, "compareBestRow 里没有做不判优短路")
+        self.assertLess(fn.index("compareAmbiguous"), fn.index("lowerBetter"),
+                        "短路写在 lowerBetter 之后等于没写：默认分支仍会把它们判成越高越好")
+
+
 class CompareBasisTests(unittest.TestCase):
     """/api/compare 按「生成任务数」判定口径，且不得改动任何数值。"""
 

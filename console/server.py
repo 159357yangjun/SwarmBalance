@@ -28,6 +28,7 @@ for _p in (str(_PROJECT_ROOT),):
         sys.path.insert(0, _p)
 
 from console.sim_session import ALGORITHMS, SimSession  # noqa: E402
+from experiments.reporting import DIRECTION_AMBIGUOUS as AMBIGUOUS_DIRECTION_METRICS  # noqa: E402
 from console import experiment_service  # noqa: E402
 from console import scenario_presets  # noqa: E402
 from console.scene_library import SceneLibrary  # noqa: E402
@@ -961,4 +962,9 @@ def compare():
         "columns": keep_cols,
         "basis": {"生成任务数": basis_tasks} if basis_tasks is not None else None,
         "inconsistent": inconsistent,
+        # 方向随容量配置同向变化的指标：前端表格不得为它们高亮"最优算法"。
+        # 名单只在 experiments/reporting.py 里维护一份，这里原样下发 ——
+        # 前端另写一份必然漂移（实验报告已改成"不判"，而对比页当时仍在判，
+        # 就是两份名单各走各的实测后果）。
+        "direction_ambiguous": sorted(AMBIGUOUS_DIRECTION_METRICS),
     }

@@ -1054,7 +1054,15 @@ document.addEventListener('DOMContentLoaded', function () {
                 {{ cmpFmt(r[c]) }}
               </span>
             </div>
-            <div class="hint" style="margin-top:8px">高亮列 = 当前图表所选指标；青绿一行 = 该指标下的最优算法。完成率、利用率等按"越高越好"判定，等待/耗时/时延/能耗等按"越低越好"判定。</div>
+            <div class="hint" style="margin-top:8px" v-if="compareBestRow">
+              高亮列 = 当前图表所选指标；青绿一行 = 该指标下的最优算法。完成率、利用率等按"越高越好"判定，等待/耗时/时延/能耗等按"越低越好"判定。
+            </div>
+            <div class="hint" style="margin-top:8px" v-else-if="compareAmbiguous.includes(compareMetric)">
+              「{{ compareMetric }}」不判最优：它的读数随容量配置同向变化（泊位变多则周转率与泊位利用率同时下降，而真实排队与完成率在改善），方向取决于运营目标。判据与实验报告同源，见 `experiments/reporting.py` 的 DIRECTION_AMBIGUOUS。
+            </div>
+            <div class="hint" style="margin-top:8px" v-else>
+              当前指标下没有可比的读数（所选算法均无有效值）。
+            </div>
           </div>
           <div class="empty-tip" v-else>暂无对比数据，请点击左侧「刷新对比数据」。</div>
         </div>
@@ -1361,6 +1369,7 @@ createApp({
       trajectories: [], trend: [], timer: null, chart: null, compareChart: null,
       radarChart: null, rankChart: null, gaugeChart: null, fleetPieChart: null,
       compareRows: [], compareColumns: [], compareMetric: '', compareBasis: null, compareInconsistent: [], compareError: '',
+      compareAmbiguous: [],
       experimentPresets: [], experimentPreset: 'quick', experimentStatus: {state:'idle',progress:0,completed_runs:0,total_runs:0}, experimentTimer: null, experimentError: '',
       scenarioPresets: [], scenarioKey: 'medical_peak', scenarioBusy:false, scenarioError:'', scenarioHasRestore:false,
       checkpointName:'答辩节点', checkpointBusy:false, checkpointError:'', checkpointMessage:'', checkpointLimit:5,
@@ -1403,6 +1412,10 @@ createApp({
     compareBestRow() {
       const m = this.compareMetric;
       if (!m || !this.compareRows.length) return null;
+      // 方向随容量配置同向变化的指标不判优。名单由 /api/compare 从 experiments/reporting.py
+      // 的 DIRECTION_AMBIGUOUS 原样下发 —— 前端再抄一份必然漂移：实验报告已改成"不判"，
+      // 而本页当时仍在给它们高亮"最优算法"，同一份数据两个制品得出相反结论。
+      if ((this.compareAmbiguous || []).map(String).includes(String(m))) return null;
       // 命中"越小越好"关键词的指标取最小值，其余取最大值
       const lowerBetter = /时间|等待|时延|耗时|超时|绕飞|空载|消耗|能耗|距离/.test(String(m));
       const better = (cand, cur) => lowerBetter ? (cand < cur) : (cand > cur);
@@ -2678,6 +2691,7 @@ createApp({
       this.compareRows = d.rows; this.compareColumns = d.columns;
       // 口径守卫：/api/compare 报告基准规模与偏离算法，这里只做提示，不改数值。
       this.compareBasis = d.basis || null; this.compareInconsistent = d.inconsistent || [];
+      this.compareAmbiguous = d.direction_ambiguous || [];
       if (!this.compareMetric || !d.columns.includes(this.compareMetric)) this.compareMetric = d.columns[0] || '';
       this.compareError = '';
       this.$nextTick(() => this.drawCompare());
