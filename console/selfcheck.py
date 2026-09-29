@@ -52,8 +52,14 @@ def run_selfcheck(steps: int = 12) -> Dict[str, object]:
     _ok("真实 Environment 初始化", f"无人机={len(snap['drones'])}，初始任务={len(snap['tasks'])}")
 
     static = session.map_static()
-    _require(len(static.get("buildings") or []) > 0, "静态地图没有高层建筑几何")
-    _ok("本地 OSM 地图解析", f"高层建筑={len(static['buildings'])}，禁飞区={len(static.get('no_fly_zones') or [])}")
+    _require(len(static.get("buildings") or []) > 0, "静态地图没有建筑几何")
+    # 注意：static['buildings'] 是下发前端绘制的建筑**环**数（带孔洞的建筑会拆成多环，
+    # 且无高度标注的一律按 12 m 兜底），不是参与避障的高层碰撞集。两者曾混标为"高层建筑"。
+    _ok("本地 OSM 地图解析",
+        "前端建筑环=%d，避障高层=%d，禁飞区=%d"
+        % (len(static["buildings"]),
+           len(getattr(session.env, "high_buildings", []) or []),
+           len(static.get("no_fly_zones") or [])))
 
     # 自检只验证关键链路，不做性能评测。先确认真实初始任务已生成，再将
     # 待调度池缩成一条人工任务，避免启动脚本为了 10+ 条任务的首轮 A* 分配

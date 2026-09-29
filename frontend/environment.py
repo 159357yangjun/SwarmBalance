@@ -265,7 +265,13 @@ class Environment:
         self._episode_seed = None
 
         # print(get_building_location_by_name( self.high_buildings, "衷和楼"))
-        print(f"加载了 {len(self.high_buildings)} 个具有高度信息的建筑物")
+        # 这三个数历来被混成一句话：本行原先只印 high_buildings 并称之为"具有高度信息的建筑物"，
+        # 但它其实是">20 m 的碰撞体数"，而真正带高度信息的建筑数远大于它（多数为 NaN/缺失）。
+        _finite = sum(1 for b in buildings_with_height
+                      if b["height"] is not None
+                      and not (isinstance(b["height"], float) and math.isnan(b["height"])))
+        print("地图建筑 %d 栋：其中 %d 栋有可用高度、%d 栋 >20 m 进入避障碰撞集"
+              % (len(buildings_with_height), _finite, len(self.high_buildings)))
 
     @property
     def unassigned_tasks(self):
