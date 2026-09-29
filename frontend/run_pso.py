@@ -5,7 +5,7 @@
 表头统一由 metrics_schema 定义（中文列名 + `算法` 列 + 机巢周转率/泊位利用率），
 与 run_ga.py / run_ortools.py / evaluate_metrics.py 共用，保证绘图脚本可直接汇总。
 
-为了和 qmix（backend_wx）使用相同的任务场景，本脚本对第 ep 个 episode 使用
+为了和 ga 使用相同的任务场景，本脚本对第 ep 个 episode 使用
 seed = base_seed + ep（base_seed 默认 100），与 qmix 的
 episode_runner.py 中 `episode_seed = seed + episode_id`（seed=100）完全一致。
 

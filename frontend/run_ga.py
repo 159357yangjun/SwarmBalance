@@ -3,7 +3,7 @@
 与 frontend/run_pso.py 对齐：跑多个 episode，对指标求均值，并把汇总追加到
 results/compare/backend_ga_metrics.csv。
 
-为了和 qmix（backend_wx）、pso 使用相同的任务场景，本脚本对第 ep 个 episode 使用
+为了和 pso 使用相同的任务场景，本脚本对第 ep 个 episode 使用
 seed = base_seed + ep + 1（base_seed 默认 100），与 run_pso.py 完全一致。
 
 表头统一由 metrics_schema 定义（中文列名 + `算法` 列 + 机巢周转率/泊位利用率），

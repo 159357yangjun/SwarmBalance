@@ -182,10 +182,6 @@
     }
   },
   "metrics": {
-    "compare_dir": "results/compare",
-    "frontend_greedy_file": "frontend_greedy_metrics.csv",
-    "frontend_generation_file": "frontend_generation_metrics.csv",
-    "backend_si_file": "backend_si_metrics.csv",
-    "backend_wx_file": "backend_wx_metrics.csv"
+    "compare_dir": "results/compare"
   }
 }
