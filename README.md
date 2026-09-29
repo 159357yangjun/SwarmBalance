@@ -75,19 +75,27 @@ pip install -r requirements.txt
 ```bash
 cd frontend
 python evaluate_metrics.py --policy ga --episodes 1 --episode-steps 600 --seed 100
-
-# 只想看数、不想动 results/compare/ 里的对比页数据源，加 --output 改道：
-python evaluate_metrics.py --policy ga --episodes 1 --episode-steps 600 \n    --seed 100 --output ../results/adhoc/ga.csv
 ```
 
-> 该命令单次约 **4 秒**（Python 3.10 完整环境）。默认会把一行**追加**进 `results/compare/backend_ga_metrics.csv`；程序结束时会打印这次写入会不会影响「算法对比」页 —— 由于读取顺序末尾的 `one_click_latest.csv` 覆盖同名算法，前几份 CSV 的追加通常不改变页面显示，但页面标题会实时标出当前来源。
+> **这条命令会写入哪里**：默认只写 `results/adhoc/frontend_ga_metrics.csv`（一行均值），
+> 该目录已在 `.gitignore` 里，**跑完 `git status --porcelain` 仍为空**。
+> 想改道到别处用 `--output ../results/adhoc/ga.csv`；
+> 确实要刷新「算法对比」页的入库数据源时，必须显式加 `--record-into-evidence`，
+> 那会**追加一行到已入库的** `results/compare/<该算法>.csv` 并弄脏工作区。
+> 默认值过去是直接写 `results/compare/`，评审照本节跑一次就出现
+> `M results/compare/backend_ga_metrics.csv`（实测 7 行 → 8 行），故改为显式开关。
 
-输出示例（2026-09-29 在当前代码下实测）：
+输出示例（2026-09-29 在当前代码下实测；数值来自本机一次运行，非人工整理）：
 
 ```
 Episode 1 (seed=101): 完成率=0.7667, 超时率=0.0435, 平均时延=0.4565,
 完成=23/30, 利用率=0.705, 空载率=0.498, 顺路接入=5, 禁飞绕飞=7
 ```
+
+> 示例里 `利用率=0.705 / 空载率=0.498` 是同一份数据的 **`.3f` 显示值**，程序末尾的
+> Mean Metrics 用 `.4f` 打的是 `0.7045 / 0.4984` —— 差值来自显示位数，不是另一次运行。
+> 同命令连跑 5 次的逐位一致性见 [`docs/数据来源与可追溯性登记表.md`](docs/数据来源与可追溯性登记表.md) 的确定性小节，
+> 那里给的是实测方差而不是"应该是四舍五入"。
 
 ### 打开可视化
 
@@ -406,7 +414,27 @@ cd ../../..
 python results/plot_compare_metrics.py
 ```
 
-结果写入 `results/compare/*.csv`，图表输出到 `results/compare/plots/`。
+> **这两段默认都不碰已入库的东西**：上面四条评测只写 `results/adhoc/<算法>.csv`
+> （已在 `.gitignore` 里），出图只写 `results/adhoc/plots/`。
+> 只有**确实要把结果刷进答辩证据**时才加开关，且两者都会留下 git 改动、需要你显式处置：
+>
+> ```bash
+> # 追加一行到已入库的 results/compare/<该算法>.csv（Web 算法对比页数据源）
+> python evaluate_metrics.py --policy ga --episodes 5 --episode-steps 2000 --record-into-evidence
+> # 覆盖已入库的 results/compare/plots/ 下 15 个产物（12 张图 + 3 份派生表）
+> python results/plot_compare_metrics.py --record-into-evidence
+> ```
+>
+> **已知归档缺口（实测，未自行补齐）**：当前出图脚本实际生成 **20** 张图，而
+> `results/compare/plots/` 只归档了 **15** 个产物。加 `--record-into-evidence` 跑一次，
+> 除覆盖那 15 个之外，还会在已入库目录里**新添 5 个未跟踪 PNG**
+> （`bar_chain_insertions` / `bar_drone_utilization` / `bar_empty_load_ratio` /
+> `bar_no_fly_detours` / `bar_total_flight_distance`）—— 这正是 `git add -A` 会顺手扫进
+> 提交的那类残留。是否把这 5 张作为正式交付物入库，需要你拍板；在此之前请**不要**对该目录用 `git add -A`。
+>
+> 为什么默认改成只写 adhoc：原先默认直接写 `results/compare/` 与 `results/compare/plots/`，
+> 评审照本节跑一遍就会把入库的评测 CSV 追加行、并把 15 个已提交图表**就地覆盖**，
+> 工作区立刻变脏且说不清哪张图还是当初那张。
 
 **复现建议**
 
@@ -434,7 +462,20 @@ python run_conclusion.py --preset paper
 
 # 只看本次会跑哪些组合，不真正启动仿真
 python run_conclusion.py --preset conclusion --dry-run
+
+# 只有确认要用本次正式实验覆盖答辩页数据源时，才加发布开关：
+python run_conclusion.py --preset conclusion --publish-latest
 ```
+
+> **这条命令会写入哪里**：结果写到 `results/experiments/<preset>_<timestamp>/`
+> （新目录，按秒打时间戳，**不会**覆盖任何一轮归档实验；该命名模式已在 `.gitignore` 里，
+> 所以照 README 跑一遍不会给仓库添 `??`）。
+> 原先 `--preset conclusion` 跑完还会**截断重写**已入库的
+> `results/compare/one_click_latest.csv` —— 那是 Web「算法对比」页按 `keep="last"`
+> 实际展示的那份证据，等于一条文档命令悄悄替换答辩数据源。现在必须显式加
+> `--publish-latest` 才会写，且不加时会打印"已跳过"。
+> Web 控制台「实验」页签内部带 `--publish-latest` 启动，行为与文档一致：
+> 页面上点「跑结项实验」仍然会自动刷新对比页。
 
 Windows 也可以直接双击 `run_conclusion.bat`，或在命令行执行 `run_conclusion.bat quick`。Web 控制台右侧新增“**实验**”页签，可选择同样的预设并一键运行；底层与命令行共用 `ExperimentRunner`，不是两套实验逻辑。
 

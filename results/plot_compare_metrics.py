@@ -7,7 +7,12 @@ import pandas as pd
 
 ROOT = Path(__file__).resolve().parents[1]
 COMPARE_DIR = ROOT / "results" / "compare"
-OUT_DIR = COMPARE_DIR / "plots"
+# 默认写到 results/adhoc/plots（已 gitignore）。results/compare/plots 里 15 个产物是**已入库**
+# 的答辩图与派生表，就地截断重写；照 README 跑一次出图命令就会弄脏工作区，且换掉的是
+# 登记表引用过的证据（docs/数据来源与可追溯性登记表.md 引过 weighted_overall_score.csv）。
+# 确认要刷新入库图，显式加 --record-into-evidence。
+OUT_DIR = ROOT / "results" / "adhoc" / "plots"
+EVIDENCE_OUT_DIR = COMPARE_DIR / "plots"
 
 CSV_FILES = [
     "frontend_greedy_metrics.csv",
@@ -564,7 +569,23 @@ def save_processed_table(data):
     )
 
 
-def main():
+def main(argv=None):
+    global OUT_DIR
+    import argparse
+
+    parser = argparse.ArgumentParser(description="汇总 results/compare/*.csv 并出图")
+    parser.add_argument("--record-into-evidence", action="store_true",
+                        help="把图与派生表写进**已入库**的 results/compare/plots/（会覆盖其中 "
+                             "15 个答辩产物）。不加时只写 results/adhoc/plots/，工作区保持干净。")
+    parser.add_argument("--out", default=None, metavar="DIR",
+                        help="自定义输出目录（优先级最高）")
+    args = parser.parse_args(argv)
+
+    if args.out:
+        OUT_DIR = Path(args.out).resolve()
+    elif args.record_into_evidence:
+        OUT_DIR = EVIDENCE_OUT_DIR
+
     configure_matplotlib()
     OUT_DIR.mkdir(parents=True, exist_ok=True)
     data = load_compare_data()
@@ -576,6 +597,9 @@ def main():
     save_priority_delay_grouped_bar(data)
     save_weighted_overall_score(data)
     print(f"Saved plots to {OUT_DIR}")
+    if OUT_DIR == EVIDENCE_OUT_DIR:
+        print("!! 本次写入的是入库目录，results/compare/plots 下 15 个已提交产物已被覆盖，"
+              "git status 会出现改动；确认这就是要刷新答辩图时才这样做。")
     print("Algorithms:", ", ".join(data["Algorithm"].tolist()))
 
 

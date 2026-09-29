@@ -107,6 +107,11 @@ def start(preset: str) -> Dict[str, Any]:
         "--output-root", str(RESULT_ROOT),
         "--status-file", str(STATUS_FILE),
     ]
+    if preset == "conclusion":
+        # 页签上点「一键结项实验」是用户的明确动作，且页面承诺跑完对比页会显示最近一次
+        # 正式结果，所以这里显式带上发布开关；命令行默认不带，是为了评审照 README 跑
+        # 一遍时不去截断重写已入库的 results/compare/one_click_latest.csv。
+        cmd.append("--publish-latest")
     _process = subprocess.Popen(
         cmd,
         cwd=str(PROJECT_ROOT),

@@ -228,7 +228,8 @@ def _write_csv(path: Path, rows: List[Dict[str, Any]], fieldnames: List[str]) ->
 
 
 def _aggregate(raw_rows: List[Dict[str, Any]], output_dir: Path,
-               preset: Optional[Dict[str, Any]] = None) -> Dict[str, Path]:
+               preset: Optional[Dict[str, Any]] = None,
+               publish_latest: bool = False) -> Dict[str, Path]:
     outputs: Dict[str, Path] = {}
     meta_cols = ["实验", "变量", "取值", "重复", "Seed", "算法key", "算法", "成功", "耗时秒", "错误"]
     _write_csv(output_dir / "raw_runs.csv", raw_rows, meta_cols + METRIC_COLUMNS)
@@ -277,12 +278,15 @@ def _aggregate(raw_rows: List[Dict[str, Any]], output_dir: Path,
         outputs["paired_ga_vs_greedy"] = paired_path
 
     # 让「对比」页自动显示最近一次**正式**实验结果。只写算法对比汇总，不改历史文件。
-    # 闸门是必要的：此前 quick 预设（1200 步 / repeats=1）跑完也会覆盖这个共享文件，
-    # 而 /api/compare 按文件名排序 + keep="last" 读取，等于点一次「快速自检」就悄悄
-    # 换掉了答辩对比页的数据源。非 conclusion 预设的结果只留在自己的实验目录里。
+    # 两道闸门都是必要的：
+    # ① 预设闸门 —— 此前 quick 预设（1200 步 / repeats=1）跑完也会覆盖这个共享文件，
+    #    而 /api/compare 按 keep="last" 读取，等于点一次「快速自检」就悄悄换掉了答辩数据源。
+    # ② 显式发布闸门 —— 这个文件已入库，覆盖它是**写操作**：评审照 README 跑一遍
+    #    `run_conclusion.py --preset conclusion`，工作区立刻脏，且脏的是答辩页正在展示的那份
+    #    证据（不是新目录，是就地截断重写）。默认只写时间戳目录，要动共享证据必须点名。
     alg_path = outputs.get("algorithm_comparison")
     preset_key = (preset or {}).get("_preset_key") or ""
-    if alg_path and preset_key == "conclusion":
+    if alg_path and preset_key == "conclusion" and publish_latest:
         latest = PROJECT_ROOT / "results" / "compare" / "one_click_latest.csv"
         latest.parent.mkdir(parents=True, exist_ok=True)
         with open(alg_path, "r", encoding="utf-8-sig", newline="") as src:
@@ -294,6 +298,10 @@ def _aggregate(raw_rows: List[Dict[str, Any]], output_dir: Path,
             latest_rows.append(clean)
         _write_csv(latest, latest_rows, ["算法"] + METRIC_COLUMNS)
         outputs["compare_latest"] = latest
+    elif alg_path and preset_key == "conclusion":
+        print("[aggregate] 已跳过写入共享的 results/compare/one_click_latest.csv"
+              "（该文件已入库且是答辩「算法对比」页的数据源；确认要用本次实验覆盖它，"
+              "请加 --publish-latest）")
     elif alg_path:
         print(f"[aggregate] 预设 {preset_key or '未知'} 不写入共享的 results/compare/one_click_latest.csv"
               "（仅 conclusion 正式实验可覆盖答辩对比页数据源）")
@@ -429,7 +437,8 @@ def _write_summary(preset: Dict[str, Any], raw_rows: List[Dict[str, Any]], outpu
     return path
 
 
-def run_experiments(preset: Dict[str, Any], output_root: Path, status_file: Optional[Path] = None, dry_run: bool = False) -> Path:
+def run_experiments(preset: Dict[str, Any], output_root: Path, status_file: Optional[Path] = None,
+                    dry_run: bool = False, publish_latest: bool = False) -> Path:
     plan = build_plan(preset)
     if not plan:
         raise RuntimeError("预设没有启用任何实验")
@@ -559,7 +568,7 @@ def run_experiments(preset: Dict[str, Any], output_root: Path, status_file: Opti
         status["error_count"] = sum(1 for r in raw_rows if not r["成功"])
         _status_write(status_file, status)
 
-    outputs = _aggregate(raw_rows, output_dir, preset)
+    outputs = _aggregate(raw_rows, output_dir, preset, publish_latest=publish_latest)
     outputs["reproducibility"] = manifest_path
     figures = _plot(outputs, output_dir)
     summary = _write_summary(preset, raw_rows, outputs, figures, output_dir)
@@ -619,6 +628,10 @@ def main(argv: Optional[List[str]] = None) -> int:
     parser.add_argument("--regenerate-reports", metavar="EXP_DIR", default="",
                         help="只从该实验目录已有的 raw_runs.csv 重算派生报表"
                              "（均值表/统计表/配对表/summary.md），不重跑任何仿真")
+    parser.add_argument("--publish-latest", action="store_true",
+                        help="conclusion 正式实验跑完后，把 algorithm_comparison.csv 覆盖到"
+                             "已入库的 results/compare/one_click_latest.csv（Web「算法对比」页数据源）。"
+                             "不加此开关时结果只留在本次时间戳目录里，工作区保持干净。")
     args = parser.parse_args(argv)
 
     if args.regenerate_reports:
@@ -635,7 +648,8 @@ def main(argv: Optional[List[str]] = None) -> int:
     try:
         preset = load_preset(args.preset)
         status_file = Path(args.status_file).resolve() if args.status_file else None
-        out = run_experiments(preset, Path(args.output_root).resolve(), status_file=status_file, dry_run=args.dry_run)
+        out = run_experiments(preset, Path(args.output_root).resolve(), status_file=status_file,
+                              dry_run=args.dry_run, publish_latest=args.publish_latest)
         print(f"output_dir={out}")
         return 0
     except Exception as exc:

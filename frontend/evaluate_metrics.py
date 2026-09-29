@@ -49,9 +49,22 @@ POLICY_MAP = {
 }
 
 
-def _get_metrics_output(policy):
-    """解析输出路径：优先读 simulation.json 的 metrics 配置，否则用默认文件名。"""
+def _get_metrics_output(policy, record_into_evidence=False):
+    """解析默认输出路径。
+
+    默认写到 ``results/adhoc/``（已在 .gitignore 里），**不碰** ``results/compare/`` ——
+    后者是 Web「算法对比」页的数据源且已入库，照 README 跑一次示例命令就会往入库的
+    证据 CSV 追加一行，评审的工作区立刻变脏（已实测：porcelain 出现
+    ``M results/compare/backend_ga_metrics.csv``，文件从 7 行涨到 8 行）。
+    确实要刷新证据文件时显式加 ``--record-into-evidence``。
+
+    ``record_into_evidence=True`` 时优先读 simulation.json 的 metrics 配置
+    （compare_dir 与 ``<policy>_file`` 可覆盖），否则用默认文件名。
+    """
     _, default_filename = POLICY_MAP[policy]
+    if not record_into_evidence:
+        return PROJECT_ROOT / "results" / "adhoc" / default_filename
+
     cfg_path = PROJECT_ROOT / "config" / "simulation.json"
     compare_dir = PROJECT_ROOT / "results" / "compare"
     filename = default_filename
@@ -125,16 +138,18 @@ def main():
     parser.add_argument("--seed", type=int, default=100,
                         help="Base seed; episode ep uses seed+ep+1 (aligns with pso/ga).")
     parser.add_argument("--output", type=str, default=None, metavar="PATH",
-                        help="指标 CSV 输出路径。默认写进 results/compare/<该算法>.csv —— "
-                             "那是 Web 算法对比页读取的证据文件，追加一行就会改变对比页上该算法"
-                             "的显示值。只是想看数、不想动证据，请指到别处，"
-                             "例如 --output ../results/adhoc/ga.csv")
+                        help="指标 CSV 输出路径。默认写进 results/adhoc/<该算法>.csv（已 gitignore，"
+                             "不影响仓库与工作区）。")
+    parser.add_argument("--record-into-evidence", action="store_true",
+                        help="把这一行追加进 results/compare/<该算法>.csv —— 那是 Web「算法对比」"
+                             "页读取的**已入库证据文件**，只有确实要刷新答辩数据源时才加。")
     args = parser.parse_args()
 
     # 原先硬编码 1200 且完全不读配置，是"第二套默认"最典型的一处。
     episode_steps = args.episode_steps or get_episode_max_steps()
     algorithm_key, _ = POLICY_MAP[args.policy]
-    metrics_path = Path(args.output) if args.output else _get_metrics_output(args.policy)
+    metrics_path = (Path(args.output) if args.output
+                    else _get_metrics_output(args.policy, args.record_into_evidence))
     if args.output and not metrics_path.is_absolute():
         metrics_path = (PROJECT_ROOT / "frontend" / args.output).resolve()
 

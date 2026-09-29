@@ -40,5 +40,18 @@ _review/
 
 # 本地残留的 MARL 训练产物（模块已移除，整个目录永不入库，防止 git add -A 误扫 33MB .th）
 backend_wx/
-# CLI 探针/临时评测输出（--output 改道目标），不入库
+# CLI 探针/临时评测输出（evaluate_metrics 与 plot_compare_metrics 的默认改道目标），不入库
 results/adhoc/
+
+# ================= 评审首次运行不得弄脏仓库 =================
+# 已入库的结项证据（results/experiments/conclusion_20260911-043701、results/compare/*.csv
+# 与 results/compare/plots/*）是**已跟踪文件**，.gitignore 对它们无效 —— 改动照样会显示，
+# 这正是我们要看见的。下面这些只是"照 README 跑一遍"新产生的运行产物与运行时状态，
+# 默认不入库，避免评审的工作区一跑就脏（也防止 git add -A 把新实验目录扫进提交）。
+# 确实要把某次新实验作为证据入库：git add -f results/experiments/<该目录>
+results/experiments/quick_*/
+results/experiments/conclusion_*/
+results/experiments/paper_*/
+results/experiments/custom_*/
+results/experiments/web_status.json
+results/experiments/web_runner.log

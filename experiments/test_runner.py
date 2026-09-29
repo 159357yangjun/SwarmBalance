@@ -140,11 +140,13 @@ class AggregationTests(unittest.TestCase):
 
 
     def test_quick_preset_cannot_overwrite_shared_compare_table(self):
-        """只有 conclusion 正式实验可以覆盖答辩对比页的数据源。
+        """覆盖答辩对比页数据源需要**两道**闸门：预设是 conclusion，且显式 publish_latest。
 
-        此前 quick（1200 步 / repeats=1）跑完也写 results/compare/one_click_latest.csv，
-        而 /api/compare 按文件名排序 + keep="last" 读取，点一次「快速自检」就等于
-        悄悄换掉了对比页背后的一整批数字。
+        闸门①（预设）：此前 quick（1200 步 / repeats=1）跑完也写 results/compare/one_click_latest.csv，
+        而 /api/compare 按 keep="last" 读取，点一次「快速自检」就等于悄悄换掉了对比页背后的一整批数字。
+        闸门②（显式发布）：这个文件**已入库**，_write_csv 以 "w" 打开会就地截断重写。
+        评审照 README 跑 `--preset conclusion` 即使预设合法，也不该在没点名的情况下
+        替换掉答辩页正在展示的、已提交的那份证据。
         """
         raw_rows = [self._row("algorithm_comparison", "greedy", 完成率=0.9, 总步数=2000.0)]
         with tempfile.TemporaryDirectory() as td:
@@ -153,13 +155,21 @@ class AggregationTests(unittest.TestCase):
             runner.PROJECT_ROOT = root
             try:
                 shared = root / "results" / "compare" / "one_click_latest.csv"
-                quick = _aggregate(list(raw_rows), root / "quick", {"_preset_key": "quick"})
+                quick = _aggregate(list(raw_rows), root / "quick", {"_preset_key": "quick"},
+                                   publish_latest=True)
                 self.assertNotIn("compare_latest", quick)
-                self.assertFalse(shared.exists(), "quick 预设不应写共享对比表")
+                self.assertFalse(shared.exists(), "quick 预设即使带发布开关也不应写共享对比表")
 
-                concl = _aggregate(list(raw_rows), root / "concl", {"_preset_key": "conclusion"})
+                silent = _aggregate(list(raw_rows), root / "concl0", {"_preset_key": "conclusion"})
+                self.assertNotIn("compare_latest", silent,
+                                 "没带 publish_latest 就写了入库证据文件 —— 照 README 跑一遍结论预设"
+                                 "就会截断重写已提交文件，这正是第②道闸门要拦的")
+                self.assertFalse(shared.exists(), "默认（不加开关）不得写共享对比表")
+
+                concl = _aggregate(list(raw_rows), root / "concl", {"_preset_key": "conclusion"},
+                                   publish_latest=True)
                 self.assertIn("compare_latest", concl)
-                self.assertTrue(shared.exists(), "conclusion 应写入共享对比表")
+                self.assertTrue(shared.exists(), "conclusion + 显式开关才应写入共享对比表")
             finally:
                 runner.PROJECT_ROOT = original
 
