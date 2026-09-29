@@ -12,6 +12,84 @@
 - 新增 `stop_console.bat`：一键停止所有 `console.run` 进程并释放 8765 端口。
 - 纳入 `run_conclusion.py --preset conclusion` 的 68 次结项实验输出（`results/experiments/`）。
 
+### 仿真统计正确性（影响结项结论口径）
+
+- 修复 `Environment.reset()` 漏归零 6 个按步累计量（`drone_busy_steps`、
+  `total_flight_distance`、`total_empty_distance`、`total_loaded_distance`、
+  `total_no_fly_detours`、`total_chain_insertions`）：控制台每点一次「重置」就叠加
+  一轮，实测 `avg_drone_utilization` 走成 1.0 → 2.0 → 3.0（利用率 300%）。
+  实验侧不受影响（worker 每 episode 新建环境），只有复用同一实例的 Web 会话会踩。
+- 修复实验聚合 `_mean_rows` 的键名错位（用 `r.get("ok")` 筛「成功」行）：过滤后恒空，
+  导致 `algorithm_comparison.csv`、四张敏感性表、`summary.md` 与 8 张图**全部静默为 0**，
+  而 `raw_runs.csv` 数据正常、进程返回码 0。已改为「有输入却全被过滤掉」时抛错。
+- 任务生命周期视图不再恒空：快照原先读每步末尾就被 `clear()` 的临时缓冲，
+  实测 400 步后 `total_completed_tasks=15` 而 catalog 里 completed 为 0 条；
+  改为另存有界耐久日志（上限 120 行）。
+- 待分配队列去掉影子字段：`Environment.unassigned_tasks` 曾在 reset 里填过一次就
+  不再同步（实测跑 600 步后影子留 12 条、真实队列只剩 3 条），改为只读 property 转发。
+- 侧栏两处恒为 0 的假数字：「禁飞区」读快照里不存在的 `snap.no_fly_zones`（该字段在
+  `/api/map`），与同屏地图上画着的 2 块禁飞区自相矛盾；「低电」读
+  `snap.health.low_battery_drones`，后端实际发的是 `critical_battery`。
+  低电阈值标签原写「<30%」而真实值是 0.2，现由 `/api/meta` 下发、与计数同源。
+- 步长→秒的映射改为显式代码常量 `STEP_SECONDS`（`frontend/drone.py`）并在状态栏声明，
+  不再靠配置凑自洽。
+
+### 性能
+
+- OSM 解析结果落盘缓存：`Environment` 构建 5.01s → 0.20s（25×）。
+- `is_path_clear` 结果缓存 + 按障碍几何指纹分桶共享 + 落盘跨进程复用：
+  2000 步总耗时降 69%，重复回合 5.93s → 0.28s（19~21×），独立进程 7.63s → 0.38s。
+- 静态地图几何与环境结构指纹记忆化：`map_static()` 首次 94.1ms → 命中 0.0002ms，
+  `snapshot()` 稳态 0.415ms → 0.202ms。
+- 播放节拍随倍速收紧（每拍 1 步、间隔 `max(45, 350/倍速)` ms）：10x 重绘率从
+  2.9fps 提到约 22fps，步速比例保持不变。
+- 批量步进改为逐步放锁：快照最长排队从 7284ms 降到 325ms（30 秒压测，无失败请求）。
+- 2D 画布不再每帧重分配后备存储。
+
+### 控制台可用性与可访问性
+
+- 前端三库（Vue / ECharts / Three.js）**本地化**到 `console/static/vendor/`，优先本地加载、
+  失败回退 CDN，完全断网时显示诊断卡而非白屏。
+- 界面不再谎报当前算法：改下拉不点「重置」时，原先四处展示都读本地选择值，
+  表现为「选了 PSO 满屏写 PSO、跑的还是 Greedy」。改为展示读快照真值，
+  未生效的选择显式标「待生效」。
+- 回合结束不再留下死按钮：原先播放/单步静默无反应且界面无任何「已结束」提示。
+- 检查点不再被静默销毁：误点「保存并应用」曾会清空用户存的答辩快照且无法撤销；
+  现保留快照、跨环境代恢复被拒并给出可执行提示、显示「已用 N / 5」。
+- 配置弹窗加载失败时不再回填硬编码默认值（避免一次失败保存把真实配置覆盖成默认值）。
+- 算法对比页加「口径守卫」：分母（生成任务数）不一致时提示，每行标出来源 CSV；
+  并隔离 `quick` 预设，使其无法覆盖答辩对比页的共享数据源。
+- 灰阶文字对比度提到 WCAG AA（`--muted` 从 2.93~3.16:1 提到 4.99~5.55:1）；
+  承载整句中文的 10px 文字抬到 11px；状态色加形状冗余（●◆■▼△ 且字形本身着色）；
+  补 `:focus-visible` 焦点环与 `.tiny-btn:disabled` 禁用态。
+- 5 个弹窗支持 Esc 关闭（按层叠只关最上面一层）并补 `role="dialog"` / `aria-modal`。
+- 3D 视图声明「竖向放大约 4 倍、非真实比例」，避免评委按画面判断实际高差。
+- 平均时延单位标签从「步」改为「s」（该量纲本就是秒）；算法对比表列名补单位后缀。
+- 窄屏 ≤1150px 导航收为 64px 图标栏而非直接隐藏，5 个分层页入口不丢失。
+
+### 交付与运维
+
+- 复现清单 `reproducibility.json` 升级 schema v2：按算法登记实现源码哈希
+  （原先 8 个哈希全是 GA 侧依赖，greedy / PSO / OR-Tools 三行零源码证据），
+  文件缺失或未登记算法改为抛错而非静默记 `null`；路径一律相对仓库根，
+  不再把开发机绝对路径（含用户名）打进结项证据。
+  **注意**：已归档的 `conclusion_20260911-043701` 仍是 v1，未回改 —— 事后补哈希
+  等于把今天的源码伪装成产出那批数字的源码；要拿 v2 证据须重跑正式实验。
+- 结项证据包白名单缺文件时抛 `FileNotFoundError`（原先 `if exists: copy` 静默漏文件、
+  返回码 0）；补入 `结项最终验收清单.md`（它此前不会进包）。
+- `start_console*.bat` 启动前清理端口时**只终止命令行含 `console.run` 的 Python 进程**；
+  原先无条件 `Stop-Process -Force` 会误杀占用 8765 的无关程序（数据库、其他 dev server）。
+- 调度器配置的空保存不再抹掉 `backend_si/config.yaml` 的 111 行注释
+  （`safe_load`+`safe_dump` 是破坏性往返；真改动仍会丢注释，需 round-trip 解析器才能根治）。
+- 四个 bat 脚本统一虚拟环境探测（项目根 → 上级目录 → 系统 python 并告警）。
+- 文档：删除 3 份零独有内容的重复文档；修正 5 处与代码相反的陈述（含一处指向
+  不存在文件的引用）；README 项目结构树与文档索引重写为与目录一致、可双向校验。
+
+### 测试
+
+- 新增 `console/test_server_guards.py`（41 → 43 个用例）与实验聚合、复现清单、
+  配置写盘等回归测试。全仓 76 console + 21 experiments + 3 打包 = 100 个用例。
+
 ## [1.0.0] - 2026-09-11
 
 ### 结项冻结 / Reproducibility
