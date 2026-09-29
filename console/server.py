@@ -11,6 +11,7 @@
 
 from __future__ import annotations
 
+import copy
 import json
 import sys
 import threading
@@ -543,6 +544,14 @@ def _read_scheduler_yaml() -> Dict[str, Any]:
 
 def _write_scheduler_yaml(cfg: Dict[str, Any]) -> None:
     import yaml
+    # 内容没变就**一个字节都不要写**。safe_load + safe_dump 是破坏性往返：
+    # backend_si/config.yaml 实测 180 行里有 111 行注释（文件头写着"谁消费这个配置"、
+    # seed 为何固定以保证可复现、各段分隔线），往返一次只剩 67 行、注释全灭。
+    # 而界面上「保存并应用」即使什么都没改也会走到这里，等于一次空操作静默删掉
+    # 整个配置文件的文档。真正要保留注释需要 round-trip 解析器（ruamel.yaml），
+    # 那是新增依赖，得先征询；这里先堵住"没改也写"这条最坏路径。
+    if cfg == _read_scheduler_yaml():
+        return
     with open(_ALG_YAML, "w", encoding="utf-8") as f:
         yaml.safe_dump(cfg or {}, f, allow_unicode=True, sort_keys=False)
 
@@ -779,10 +788,18 @@ def save_scheduler_config(req: ConfigPatch):
         raise HTTPException(status_code=404, detail="config.yaml 不存在")
     with open(_ALG_YAML, "r", encoding="utf-8") as f:
         cfg = yaml.safe_load(f) or {}
-    cfg = _deep_merge(cfg, req.patch)
-    with open(_ALG_YAML, "w", encoding="utf-8") as f:
-        yaml.safe_dump(cfg, f, allow_unicode=True, sort_keys=False)
-    return {"ok": True, "config": cfg}
+    # 见 _write_scheduler_yaml 的注释：safe_load + safe_dump 是破坏性往返，会把
+    # backend_si/config.yaml 的 111 行注释全部抹掉。内容没变就一个字节都不写。
+    # 注意必须先留快照再合并：_deep_merge 是**原地改写 base 并返回同一个对象**，
+    # 直接写 `if _deep_merge(cfg, patch) != cfg` 等于自己和自己比，恒为假，
+    # 会把所有保存请求静默吞掉（我第一版就犯了这个错，靠"真改一个值"那侧的
+    # 测试才抓出来 —— 只测"空 patch 不该写"会给出假绿灯）。
+    before = copy.deepcopy(cfg)
+    merged = _deep_merge(cfg, req.patch)
+    if merged != before:
+        with open(_ALG_YAML, "w", encoding="utf-8") as f:
+            yaml.safe_dump(merged, f, allow_unicode=True, sort_keys=False)
+    return {"ok": True, "config": merged}
 
 
 

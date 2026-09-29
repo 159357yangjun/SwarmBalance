@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import json
 import os
+import pathlib
 import re
 import tempfile
 import unittest
@@ -237,6 +238,50 @@ class CheckpointGenerationTests(unittest.TestCase):
         self.session.save_checkpoint("ok-check")
         snap = self.session.load_checkpoint("ok-check")
         self.assertIn("step", snap)
+
+
+class SchedulerConfigWriteTests(unittest.TestCase):
+    """调度器配置写盘：空 patch 不许动文件，真改动必须动文件。
+
+    两半都要测。只测"空 patch 不该写"会给出假绿灯 —— 我第一版守卫写成
+    `if _deep_merge(cfg, patch) != cfg`，而 _deep_merge 是原地改写 base 并返回
+    同一对象，于是恒为假、把所有保存请求都吞掉了，空 patch 那侧照样"通过"。
+    """
+
+    def _tmp_yaml(self, td):
+        src = pathlib.Path(server._ALG_YAML)
+        dst = pathlib.Path(td) / "config.yaml"
+        dst.write_text(src.read_text(encoding="utf-8"), encoding="utf-8")
+        return dst
+
+    def test_noop_patch_does_not_rewrite_the_file(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as td:
+            dst = self._tmp_yaml(td)
+            original = server._ALG_YAML
+            server._ALG_YAML = dst
+            try:
+                before = dst.read_bytes()
+                server.save_scheduler_config(server.ConfigPatch(patch={}))
+                self.assertEqual(dst.read_bytes(), before,
+                                 "空 patch 也重写了文件 —— safe_dump 会抹掉全部注释")
+            finally:
+                server._ALG_YAML = original
+
+    def test_real_change_is_persisted(self):
+        import tempfile, yaml
+        with tempfile.TemporaryDirectory() as td:
+            dst = self._tmp_yaml(td)
+            original = server._ALG_YAML
+            server._ALG_YAML = dst
+            try:
+                before = dst.read_bytes()
+                server.save_scheduler_config(server.ConfigPatch(patch={"seed": 123}))
+                self.assertNotEqual(dst.read_bytes(), before,
+                                    "真改动没落盘 —— 守卫把该写的也挡了")
+                self.assertEqual(yaml.safe_load(dst.read_text(encoding="utf-8")).get("seed"), 123)
+            finally:
+                server._ALG_YAML = original
 
 
 class ConfigSignatureCacheTests(unittest.TestCase):
