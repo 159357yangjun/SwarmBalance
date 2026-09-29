@@ -35,6 +35,7 @@ FRONTEND_ROOT = Path(__file__).resolve().parent
 sys.path.insert(0, str(PROJECT_ROOT))
 sys.path.insert(0, str(FRONTEND_ROOT))
 
+from config.config_loder import get_episode_max_steps
 from environment import Environment
 from metrics_schema import (METRIC_COLUMNS, to_output_metrics, mean_metrics,
                             write_mean_metrics_row)
@@ -130,7 +131,8 @@ def main():
                              "例如 --output ../results/adhoc/ga.csv")
     args = parser.parse_args()
 
-    episode_steps = args.episode_steps or 1200
+    # 原先硬编码 1200 且完全不读配置，是"第二套默认"最典型的一处。
+    episode_steps = args.episode_steps or get_episode_max_steps()
     algorithm_key, _ = POLICY_MAP[args.policy]
     metrics_path = Path(args.output) if args.output else _get_metrics_output(args.policy)
     if args.output and not metrics_path.is_absolute():

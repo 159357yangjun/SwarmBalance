@@ -85,7 +85,10 @@ ENV_CFG = CFG.get("environment", {})
 DRONE_CFG = CFG.get("drone", {})
 HETERO_CFG = CFG.get("heterogeneous", {})
 FLEET_MIX = HETERO_CFG.get("fleet_mix", {})
-DEFAULT_EPISODE_MAX_STEPS = int(ENV_CFG.get("episode_max_steps", 1200))
+# 单一真源：缺配置就抛错，不再自带 1200 这套隐式默认（历史上它和 sim_session 的 2000、
+# evaluate_metrics 的 1200 并存，同一个"默认"能跑出三种长度的实验）。
+from config.config_loder import get_episode_max_steps as _get_episode_max_steps
+DEFAULT_EPISODE_MAX_STEPS = _get_episode_max_steps(config=CFG)
 DEFAULT_NUM_DRONES = int(ENV_CFG.get("num_drones", 3))
 PRINT_ROUTE_DEBUG = bool(ENV_CFG.get("print_route_debug", False))
 ALLOW_MULTI_TASK = bool(ENV_CFG.get("allow_multi_task", True))

@@ -41,7 +41,8 @@ ALGORITHMS = ["greedy", "pso", "ga", "ortools"]
 
 # 顶层只 import 模块（不 from import 值），便于 rebuild 时刷新到 reload 后的新类
 import environment as _env_module  # noqa: E402
-from config.config_loder import config_signature, get_shared_config  # noqa: E402
+from config.config_loder import (config_signature, get_episode_max_steps,
+                                get_shared_config)  # noqa: E402
 
 
 def reload_sim_modules():
@@ -107,8 +108,9 @@ class SimSession:
                  episode_max_steps: Optional[int] = None):
         self.osm_path = osm_path or str(_FRONTEND / "data" / "map" / "part_of_yangpu.osm")
         if episode_max_steps is None:
-            cfg = get_shared_config()
-            episode_max_steps = int((cfg.get("environment") or {}).get("episode_max_steps", 2000))
+            # 传自己解析到的配置：保留 sim_session 这一层可被 patch/被
+            # SWARM_BALANCE_SIM_CONFIG 影响的语义，同时仍然没有数字兜底。
+            episode_max_steps = get_episode_max_steps(config=get_shared_config())
         self.episode_max_steps = int(episode_max_steps)
         # 动态取类，保证 rebuild 后能拿到 reload 后的新 Environment
         env_cls = _env_module.Environment
@@ -643,8 +645,7 @@ class SimSession:
         reload_sim_modules()
         # episode_max_steps 属于可编辑场景配置。旧实现仅在 SimSession 创建时读取一次，
         # 导致 Web 修改“回合步数上限”后 rebuild 实际仍沿用旧值；这里每次重建都刷新。
-        cfg = get_shared_config()
-        self.episode_max_steps = int((cfg.get("environment") or {}).get("episode_max_steps", self.episode_max_steps))
+        self.episode_max_steps = get_episode_max_steps(config=get_shared_config())
         # reload 后 _env_module.Environment 已是最新类
         self.env = _env_module.Environment(
             self.osm_path, episode_max_steps=self.episode_max_steps)

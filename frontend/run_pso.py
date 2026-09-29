@@ -27,7 +27,7 @@ FRONTEND_ROOT = PROJECT_ROOT / "frontend"
 sys.path.insert(0, str(PROJECT_ROOT))
 sys.path.insert(0, str(FRONTEND_ROOT))
 
-from config.config_loder import get_shared_config
+from config.config_loder import get_episode_max_steps
 from environment import Environment
 from backend_si.pso_scheduler import PSOScheduler
 from metrics_schema import (METRIC_COLUMNS, to_output_metrics, mean_metrics,
@@ -41,10 +41,10 @@ ALGORITHM_KEY = "pso"
 # 不再在本文件重复维护一份表头 —— 之前就是两份表头打架导致绘图脚本崩溃。
 
 
-def _resolve_episode_steps(default_steps):
-    cfg = get_shared_config()
-    env_cfg = cfg.get("environment", {}) if isinstance(cfg, dict) else {}
-    return int(env_cfg.get("episode_max_steps", default_steps))
+def _resolve_episode_steps():
+    """单回合步数：只认 config/simulation.json 的 environment.episode_max_steps。
+    原先签名收一个 default_steps=1200 作为兜底，等于允许第二套默认值存在。"""
+    return get_episode_max_steps()
 
 
 def run_one_episode(osm_path, episode_steps, seed):
@@ -73,7 +73,7 @@ def main():
     parser.add_argument("--no-csv", action="store_true", help="Do not write the averaged CSV summary.")
     args = parser.parse_args()
 
-    episode_steps = args.episode_steps or _resolve_episode_steps(default_steps=1200)
+    episode_steps = args.episode_steps or _resolve_episode_steps()
     osm_path = FRONTEND_ROOT / args.osm
 
     output_rows = []

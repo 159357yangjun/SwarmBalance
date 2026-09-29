@@ -19,6 +19,7 @@ import shutil
 import importlib.util
 import subprocess
 import sys
+from config.config_loder import get_episode_max_steps
 import time
 from dataclasses import dataclass
 from datetime import datetime
@@ -437,7 +438,8 @@ def run_experiments(preset: Dict[str, Any], output_root: Path, status_file: Opti
 
     base_cfg = json.loads(BASE_CONFIG.read_text(encoding="utf-8"))
     base = preset.get("base", {}) or {}
-    episode_steps = int(base.get("episode_steps", base_cfg.get("environment", {}).get("episode_max_steps", 1200)))
+    # 预设可显式覆盖 episode_steps；否则回到唯一真源，缺配置即抛错（原先这里也藏了一个 1200）。
+    episode_steps = int(base.get("episode_steps") or get_episode_max_steps(config=base_cfg))
     osm_path = Path(base.get("osm", DEFAULT_OSM))
     if not osm_path.is_absolute():
         osm_path = (PROJECT_ROOT / osm_path).resolve()

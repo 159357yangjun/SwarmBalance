@@ -15,7 +15,7 @@ FRONTEND_ROOT = PROJECT_ROOT / "frontend"
 sys.path.insert(0, str(PROJECT_ROOT))
 sys.path.insert(0, str(FRONTEND_ROOT))
 
-from config.config_loder import get_shared_config
+from config.config_loder import get_episode_max_steps
 from environment import Environment
 from greedy.scheduler import greedy_action_from_observation
 
@@ -41,10 +41,10 @@ METRIC_COLUMNS = [
 ]
 
 
-def _resolve_episode_steps(default_steps):
-    cfg = get_shared_config()
-    env_cfg = cfg.get("environment", {}) if isinstance(cfg, dict) else {}
-    return int(env_cfg.get("episode_max_steps", default_steps))
+def _resolve_episode_steps():
+    """单回合步数：只认 config/simulation.json 的 environment.episode_max_steps。
+    原先签名收一个 default_steps=1200 作为兜底，等于允许第二套默认值存在。"""
+    return get_episode_max_steps()
 
 
 def _to_output_metrics(stats):
@@ -114,7 +114,7 @@ def main():
     parser.add_argument("--no-csv", action="store_true", help="Do not write the averaged CSV summary.")
     args = parser.parse_args()
 
-    episode_steps = args.episode_steps or _resolve_episode_steps(default_steps=1200)
+    episode_steps = args.episode_steps or _resolve_episode_steps()
     osm_path = FRONTEND_ROOT / args.osm
 
     output_rows = []
