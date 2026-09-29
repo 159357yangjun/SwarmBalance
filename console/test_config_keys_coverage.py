@@ -71,7 +71,8 @@ def _code_string_literals() -> set:
             if os.path.realpath(full) == here:
                 continue
             try:
-                text = io.open(full, encoding="utf-8", errors="replace").read()
+                with io.open(full, encoding="utf-8", errors="replace") as fh:
+                    text = fh.read()
             except OSError:
                 continue
             out.update(_LITERAL.findall(text))
@@ -109,12 +110,34 @@ def _load(rel: str):
     return yaml.safe_load(p.read_text(encoding="utf-8"))
 
 
+# 变异探针：这个字面量**只出现在本文件里**。它唯一的用途，是让"语料集排除门禁自身"
+# 这条逻辑被改坏时立刻有测试失败。否则门禁可以自证通过 —— 在自身源码里写出某个键名
+# 就等于"该键已被代码读取"，而这种失效是静默的：测试会变绿而不是变红。
+# 不要删除它，也不要在别的文件里引用它。
+_SELF_EXCLUSION_PROBE = "zz_self_exclusion_probe_marker_only_in_gate_file"
+
+
 class ConfigKeyCoverageTests(unittest.TestCase):
     """每个配置叶子键都必须至少被代码读取一次，否则视为遗留哑键。"""
 
     @classmethod
     def setUpClass(cls):
         cls.literals = _code_string_literals()
+
+    def test_gate_corpus_excludes_the_gate_itself(self):
+        """变异测试：把 _code_string_literals 里排除自身那行删掉或写反，本条必须失败。"""
+        with io.open(__file__, encoding="utf-8", errors="replace") as fh:
+            own = fh.read()
+        self.assertIn(_SELF_EXCLUSION_PROBE, own,
+                      "探针字面量必须真实存在于本文件，否则这条变异测试是空转")
+        # 用 assertFalse 而不是 assertNotIn：后者的默认消息是
+        # "'x' unexpectedly found in {整个容器}"，会把上万个字面量全打出来（实测 158KB）。
+        self.assertFalse(
+            _SELF_EXCLUSION_PROBE in self.literals,
+            "门禁自身源码的字面量进入了语料集 —— 说明语料集没有排除本文件。"
+            "那样只要在门禁代码里写出某个键名，就会被当成「该键已被代码读取」，"
+            "门禁可自证通过，哑键检查静默失效。"
+            "（语料集当前含 %d 个字面量，不在此打印）" % len(self.literals))
 
     def test_every_config_leaf_key_is_read_somewhere(self):
         orphans, stale_allow = [], []
