@@ -49,7 +49,7 @@ P2 清单第 10 条）与"待你拍板"那条 MARL 处置，都就地标注为�
 未按要求重跑 3600 步 / 5 回合 / seed 101–105 前不可重生成。
 
 
-### 同日续二：把输入地图本身钉住（此前只钉结论、没钉输入）
+### 同日续一：把输入地图本身钉住（此前只钉结论、没钉输入）
 
 `provenance_baseline.json` 早就钉住了加载器在 `frontend/data/map/part_of_yangpu.osm` 上
 跑出来的观测值（2889 栋 / 2864 个 NaN / 18 个碰撞体），登记簿那一整片"实测"数字也都来自它，
@@ -70,7 +70,7 @@ P2 清单第 10 条）与"待你拍板"那条 MARL 处置，都就地标注为�
 
 
 
-### 同日续三：6b8c4c8 撤除 MARL 时漏了 `results/compare/plots/`，该目录已就地标作废
+### 同日续二：6b8c4c8 撤除 MARL 时漏了 `results/compare/plots/`，该目录已就地标作废
 
 追"plots 归档 20 与 15 的差额"时挖出来的，比差额严重：
 
@@ -100,7 +100,7 @@ P2 清单第 10 条）与"待你拍板"那条 MARL 处置，都就地标注为�
 
 
 
-### 同日续：锚点补到全覆盖，新约定当场被自己的门抓了一个 bug
+### 同日续三：锚点补到全覆盖，新约定当场被自己的门抓了一个 bug
 
 把剩下 9 条没带锚点的引用补完（4 条指向已删文件的历史引用补锚点、3 条历史行号、
 2 条 README 里的历史提及）。其中那 3 条 `environment.py:282` 更难看：
@@ -118,6 +118,45 @@ P2 清单第 10 条）与"待你拍板"那条 MARL 处置，都就地标注为�
 另一条 README 里的深行号引用（`README.md:449#四类算法`）在同一轮里被 README 插行
 漂走、当场判红 —— 说明**正文深行号天生不适合当引用目标**，已改成按节描述，
 同处保留 `README.md:13#四类调度方法` 与 `experiments/runner.py:95#valid` 两条可核对的证据。
+
+### 同日续四：字节码纪律只覆盖了一半，补另一半时又踩出一个把仓库弄脏的 bug
+
+`isolated_env()` 只治**子进程**。同进程里的 `import` 与
+`importlib.util.spec_from_file_location` 不受它影响 —— 而按路径加载内核的
+`load_kernel_environment()` 走的正是后者。夹具实测（A 编译出 `.pyc` -> 保留 mtime
+写入内容不同的等长 B）：
+
+```
+① 同进程 importlib（默认环境）   -> 读到 A   ← 缺口是真的，不是想象
+② 子进程带 PYTHONPYCACHEPREFIX   -> 读到 B
+③ 同进程先设 sys.pycache_prefix  -> 读到 B   ← 这才是该补的地方
+```
+
+于是纪律改成两半都有：7 个入口脚本（`release_check.py`、`verify_data_provenance.py`、
+`console/_preflight.py`、`console/_citations.py`、`console/_readme_counts.py`、
+`results/compare_gate.py`、`results/plot_compare_metrics.py`）在任何本仓 import **之前**
+各写两行裸赋值。为什么宁可复制 7 份也不抽函数：抽函数就意味着先 import 本仓某个模块，
+而那次 import 本身就可能吃到过期缓存 —— 先有鸡的问题，只能就地写。
+
+补的过程中我自己造了第二个 bug，被自己新加的断言抓到：前缀原先指在 `ROOT/.pyc-offstage`，
+而 `release_check` 第一件事是 `compileall.compile_dir` —— **它显式写缓存，
+`dont_write_bytecode` 挡不住它**，于是在仓库里长出 77 个 `.pyc` 的深层目录
+（git 都被 "Filename too long" 噎住）。前缀改为系统临时目录下**每次运行唯一**的子目录：
+读必 miss、写下的不会被下一次当成"相符"的旧缓存、仓库也不再被弄脏。
+固定路径那种写法等于把同一个坑换个地方挖，所以唯一性也有一条断言（两次运行前缀不同）。
+
+`console/test_stale_bytecode.py` 从 4 条涨到 8 条，新加的问的都是行为而不是文本：
+① 复现同进程缺口，再逐个入口真跑一遍证明它关上了；
+② 读解释器**当前的** `sys.dont_write_bytecode` / `sys.pycache_prefix`，
+   不看启动命令里写了什么（被 `-E` 或 sitecustomize 改回去照样红）；
+③ 真跑一次带纪律的 `compileall`，再数仓库里有没有多出文件；
+④ 入口清单设 6 条下限 —— 两处循环都遍历它，清单被清空时断言会"零次通过"。
+
+`python release_check.py` 多印一行「字节码纪律（跑绿的前提）」，实测
+`dont_write_bytecode=True pycache_prefix=树外；子进程回报=True|True`。另外把错值**真写进**
+`provenance_baseline.json` 跑过一次：sha256 与 `paths.osmnx.buildings` 各自都能让
+`verify_data_provenance.py` 退出码变 1 并把实测值印出来，跑完按字节还原（cmp 一致）。
+结论一句话：**没声明字节码纪律的"跑绿了"，只能算未验证。**
 
 ### 2026-09-30：评审视角的"红"—— 缺依赖不再伪装成代码坏了（commit cb42080 / fff6b0f / adc7bf3）
 

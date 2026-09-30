@@ -165,7 +165,21 @@ Windows 直接双击 `start_console_portable.bat`。此模式会使用项目自�
 > 用例数与 `OK` 都是在测缓存。本机真实踩过一次（系统 python 报 7 个错、栈里那一行在当前
 > 源文件里 grep 命中 0 次），`console/test_stale_bytecode.py` 把这一类复现并防住：
 > 计数、skip 归因、发布检查的子进程统一走 `console/_preflight.py:isolated_env()`，
-> 把缓存前缀指到树外，读不到旧 `.pyc` 就只能从源码编译。
+> 纪律分两半，少一半都不算：
+> - **子进程**：`console/_preflight.py:isolated_env()` —— 计数、skip 归因、发布检查起的
+>   子进程都走它；
+> - **同进程**：每个入口脚本（`release_check.py`、`verify_data_provenance.py`、
+>   `console/_preflight.py`、`console/_citations.py`、`console/_readme_counts.py`、
+>   `results/compare_gate.py`、`results/plot_compare_metrics.py`）在任何本仓 import **之前**
+>   自己设两行裸赋值 —— 这条抽不成公共函数，因为"调函数"本身就得先 import，
+>   而那次 import 就可能已经吃到过期缓存。
+> 缓存前缀取系统临时目录下**每次运行唯一**的子目录：读必 miss，又不会把仓库弄脏
+> （前缀指在仓库里时，`release_check` 第一步的 `compileall` 在树里长出 77 个 `.pyc`，
+> git 都被 "Filename too long" 噎住 —— 这坑是我自己踩的，之后由
+> `console/test_stale_bytecode.py` 逐条钉住）。`python release_check.py` 现在印一行
+> 「字节码纪律（跑绿的前提）」，值是从子进程里问出来的（`sys.dont_write_bytecode` /
+> `sys.pycache_prefix`），不是看启动命令里写了什么。
+> 反过来一句话：**任何"跑绿了"的证据，只要没声明字节码纪律，就只算未验证。**
 
 ```bash
 python console/_preflight.py        # 依赖预检：缺包时直接说清缺哪些、用哪个解释器
@@ -329,7 +343,7 @@ swarm-balance/
 │  ├─ static/spec.html           # 「规范」页正文，由 /spec 路由渲染进 iframe
 │  ├─ static/vendor/             # 内置 vue.global.prod.js / echarts.min.js /
 │  │                             #   three.min.js + README（版本、来源、SHA-256）
-│  └─ test_*.py                  # 18 个文件 / 159 个用例（标准库 unittest）
+│  └─ test_*.py                  # 18 个文件 / 163 个用例（标准库 unittest）
 │
 ├─ frontend/                     # 仿真内核与可视化
 │  ├─ environment.py             # 2017 行 · 世界状态、障碍判定、统计口径
