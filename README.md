@@ -180,6 +180,8 @@ python -m unittest console.test_config_keys_coverage -v   # 或单独跑这一�
 
 # 数据来源可追溯性 + 环境基线漂移门禁（默认阻断，退出码非零）：
 python verify_data_provenance.py
+python verify_data_provenance.py --mapfile       # 只核输入地图的内容哈希是否就是被钉住那份
+python verify_data_provenance.py --write-mapfile-baseline   # 重新钉：只在确认盘上这份就是归档那份时用
 python verify_data_provenance.py --allow-loader-drift     # 确认接受当前环境时才加
 ```
 
@@ -327,7 +329,7 @@ swarm-balance/
 │  ├─ static/spec.html           # 「规范」页正文，由 /spec 路由渲染进 iframe
 │  ├─ static/vendor/             # 内置 vue.global.prod.js / echarts.min.js /
 │  │                             #   three.min.js + README（版本、来源、SHA-256）
-│  └─ test_*.py                  # 16 个文件 / 148 个用例（标准库 unittest）
+│  └─ test_*.py                  # 17 个文件 / 153 个用例（标准库 unittest）
 │
 ├─ frontend/                     # 仿真内核与可视化
 │  ├─ environment.py             # 2017 行 · 世界状态、障碍判定、统计口径
