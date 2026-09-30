@@ -226,6 +226,38 @@ class SidecarConsistencyTests(unittest.TestCase):
         self.assertIn("2000", txt)
         self.assertIn("不可与", txt, "README 没写明哪个文件不能与谁并列")
 
+    def test_readme_carries_every_declared_field(self):
+        """README 里必须出现每个文件声明的 note 文本。
+
+        为什么不能只靠上面那条逐字相等：相等断言只看"两边一样"，渲染器少读一个字段时
+        两边会**一起缺**，测试照样绿。本轮真实踩过：`backend_ga_metrics.csv` 的
+        "400 步的 GA 行不可与 2000 步的基线并列"只存在于 manifest.note，
+        渲染器当时根本不读 note —— README 里 0 次命中，而漂移测试全绿。
+        拿 CSV 的人看的是 README，所以这条按**字段是否落到读者眼前**来判。
+        """
+        txt = (COMPARE_DIR / "README.md").read_text(encoding="utf-8")
+        missing = []
+        checked = 0
+        for name, decl in MAN["files"].items():
+            note = (decl.get("note") or "").strip()
+            if not note:
+                continue
+            checked += 1
+            probe = note[:24]
+            if probe not in txt:
+                missing.append("%s 的 note（%r…）没进 README" % (name, probe))
+        self.assertEqual(checked, len(MAN["files"]),
+                         "%d/%d 个文件有 note，声明本身就不齐" % (checked, len(MAN["files"])))
+        self.assertEqual(missing, [], "\n  ".join(missing))
+
+    def test_ga_verdict_sentence_reaches_the_csv_reader(self):
+        """把你那句要求钉死：'400 步…不可与 2000 步…并列' 必须在 sidecar 里可见。"""
+        txt = (COMPARE_DIR / "README.md").read_text(encoding="utf-8")
+        self.assertIn("400 步的 GA 行不可与 2000 步的基线并列", txt,
+                      "sidecar 里没有这句结论 —— 只在 manifest / 提交信息里说不算")
+        self.assertIn('不画这根柱子', txt,
+                      "matplotlib 侧缺列的读者观感（三根柱子根本不出现）必须写进 sidecar")
+
     def test_missing_column_policy_is_written_down(self):
         txt = (COMPARE_DIR / "README.md").read_text(encoding="utf-8")
         for col in ("无人机利用率", "空载率", "总飞行距离", "顺路接入次数", "禁飞区绕飞次数"):

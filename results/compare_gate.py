@@ -415,7 +415,13 @@ def render_readme(man: Dict[str, Any]) -> str:
             can_txt += "；同文件内 %s 共用同一口径" % d.get("algorithm", "多算法")
         cannot_txt = ("、".join("`%s`" % c for c in cannot) if cannot else "（无）")
         lines.append("| `%s` | %s | 不可与 %s 并列 |" % (name, can_txt, cannot_txt))
-    lines += ["", "## 能与谁并列、不能与谁并列", ""]
+    lines += ["", "### 逐文件说明", ""]
+    for name in sorted((man.get("files") or {}).keys()):
+        note = (man["files"][name].get("note") or "").strip()
+        if note:
+            lines.append("- `%s`：%s" % (name, note))
+    lines.append("")
+    lines += ["## 能与谁并列、不能与谁并列", ""]
     for g in man.get("comparison_groups", []):
         lines.append("### %s" % g["title"])
         lines.append("")

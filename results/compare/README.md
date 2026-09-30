@@ -39,6 +39,16 @@
 | `hetero_vs_homo_homo.csv` | `hetero_vs_homo_hetero.csv` | 不可与 `frontend_greedy_metrics.csv`、`backend_si_metrics.csv`、`backend_ortools_metrics.csv`、`backend_ga_metrics.csv`、`one_click_latest.csv` 并列 |
 | `one_click_latest.csv` | （跨文件：**无**）本文件内部各行彼此可比；同文件内 greedy/pso/ga/ortools（四个算法各一行） 共用同一口径 | 不可与 `frontend_greedy_metrics.csv`、`backend_si_metrics.csv`、`backend_ortools_metrics.csv`、`backend_ga_metrics.csv`、`hetero_vs_homo_hetero.csv`、`hetero_vs_homo_homo.csv` 并列 |
 
+### 逐文件说明
+
+- `backend_ga_metrics.csv`：**400 步的 GA 行不可与 2000 步的基线并列。** 本文件 6 行里 5 行是 400 步 / 22 任务、1 行是 600 步 / 30 任务，其中第 2/3/4 行逐字节相同（同种子重复执行的产物，见 docs/数据来源与可追溯性登记表.md 第七点五节的确定性实测）。两个入口都用 keep="last"，所以真正进入图与表的是最后那行 600 步 / 30 任务。文件已隔离：不得与任何 2000 步文件或 one_click_latest.csv 同图。
+- `backend_ortools_metrics.csv`：同上。
+- `backend_si_metrics.csv`：同 frontend_greedy_metrics.csv：2000 步 / 60 任务，缺机队 5 列。
+- `frontend_greedy_metrics.csv`：单行 ad-hoc 均值。episode 数与随机种子集当时没有写进 CSV，无法证明是哪一次运行；口径列只有步数/任务数可信。
+- `hetero_vs_homo_hetero.csv`：另一个实验族（异构 vs 同构机队）。列名是英文 snake_case，13 列，completion_rate 等是**占比不是计数**；与前 5 个文件同目录同命名风格，容易被误当成同一张对比表的行。两个生成入口都不读它。
+- `hetero_vs_homo_homo.csv`：同 hetero_vs_homo_hetero.csv，是同族的对照组。
+- `one_click_latest.csv`：总步数是 5 次重复的**均值**（2112.6 等），不是 episode 上限；上限是配置里的 3600，实际提前终止。四个算法彼此可比（同族、同 3600/5/seeds/60 任务）。**不可与任何 ad-hoc 文件并列**：步数口径不同，且 ad-hoc 侧没有登记种子集。
+
 ## 能与谁并列、不能与谁并列
 
 ### A 组 · 正式结项实验（唯一可直接对外的一组图/表）
