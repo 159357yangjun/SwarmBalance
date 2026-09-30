@@ -2,6 +2,50 @@
 
 ## [Unreleased]
 
+### 2026-09-30：`results/compare/` 混口径门禁（commit bae9523 / 1224506）
+
+`VERSION` 保持 `1.0.0` 未动，未打 tag、未发 release、未 push。
+
+**问题**：上一轮我把口径声明做在 `/api/compare` 的字段里，层次错了 —— 这个仓是给结项与
+交接用的，拿 CSV 的人在 Excel/WPS 里打开或粘进论文表格，API 字段一行都帮不到他。
+**不受控的那一份是文件本身。** 盘上实测七份 CSV 混着三种口径：
+
+| 文件 | 列数 | `keep="last"` 选中行 | 完成率 |
+|---|---|---|---|
+| `frontend_greedy_metrics.csv` | 20 | 2000 步 / 58–60 任务 | 0.9667 |
+| `backend_si_metrics.csv` | 20 | 2000 步 / 58–60 | 0.9667 |
+| `backend_ortools_metrics.csv` | 20 | 2000 步 / 57–60 | 0.9500 |
+| `backend_ga_metrics.csv` | 25 | **600 步 / 23–30** | **0.7667** |
+| `one_click_latest.csv` | 25 | 2142.6（5 次均值）/ 60–60 | 1.0000 |
+| `hetero_vs_homo_{hetero,homo}.csv` | 13 | 无总步数列（另一实验族） | — |
+
+**处置**：
+- `results/compare_gate.py` 门禁，判据取**磁盘实测**（表头指纹 + 总步数取值集合 + 生成任务数取值集合），
+  不是手抄标签。判别式用例把 `quarantined` / `not_comparable_with` 标签全删掉后仍要求拒绝。
+- 同目录 sidecar：`manifest.json`（机器可读单一真源）+ `README.md`（由 manifest 渲染，
+  测试断言两者一致），逐文件写清能与谁并列、不能与谁并列。
+- 两个生成入口默认拒：出图入口 `SystemExit 1` 并打印分组原文；`/api/compare` 不 500，
+  改为 `comparable=false` + 拒绝原文，前端据此不高亮"最优算法"、不画对比图。
+- `index.html:2712` 的 `r[m] ?? 0` 是假胜利的直接来源（缺列被补成 0），改为保留 null。
+  浏览器实测 ECharts 对 `[null,null,0.4994,null]` 原样保留 null（断柱，不是 0 高柱）。
+
+**重复行归因**：`backend_ga_metrics.csv` 第 2/3/4 行逐字节相同。全仓 22 份 tracked CSV 扫描，
+**只有这一个文件**有重复行 → 不是导出通病。导出每次调用只写 1 行，而 `run_ga.py` 同参数
+连跑两次产出逐字节相同的行（两次 md5 `c839329c`），结合同 seed 方差为 0 的实测，
+重复行可由重复执行自然产生，不需要"手工粘贴"假设。真正的缺陷是**行里没有 seed/时间戳列**，
+所以"跑 3 次"与"粘 3 遍"在盘上无法区分。
+
+**顺带修 4 处失效引用**（行号对、路径过期）：`paper/main.tex` → 真路径
+`paper/AAMAS-2023 Formatting Instructions/main.tex`；`simulation.json:191` → `:166`；
+`index.html:2260` → `:2285`；`environment.py:901` → `:896`。三个 6b8c4c8 删除的文件
+不删结论，改按 `path:line 已移除@<sha>` 约定标注并附取回命令（逐条 `git show` 验过内容），
+并把该约定做成 `CitationIntegrityTests` 机器断言。
+
+**仍未闭合**：论文图**不能靠重新生成一次就算修好** —— `paper/figure/*.png` 9 张与当前重跑产物
+md5 全不一致，归档 `combined_compare_metrics.csv` 里 ga 记 2000 步、而该文件全部已提交修订的
+`总步数` 只出现过 200/300/400/600，从未有 2000。要出对外的 GA 柱状图，得先按 3600/5/seeds
+重跑对齐口径（本轮未跑，属需要你确认的交付变更）。
+
 ### 2026-09-29 晚：回合步数单一真源 + 指标方向判据 + 门禁自证 + 文档命令副作用（commit 01ce4da / 8d8a60f / eea30a9 / c686064 / 本轮新增）
 
 `VERSION` 保持 `1.0.0` 未动，未打 tag、未发 release、未 push。
