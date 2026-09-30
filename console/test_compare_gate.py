@@ -40,6 +40,7 @@ for _p in (str(ROOT), str(RESULTS_DIR)):
         sys.path.insert(0, _p)
 
 import compare_gate as G  # noqa: E402
+from console import _preflight  # noqa: E402
 
 MAN = G.load_manifest()
 
@@ -162,7 +163,15 @@ class GateDiskFactsTests(unittest.TestCase):
 
 
 class EntryWiringTests(unittest.TestCase):
-    """门禁必须真的接在生成入口上，而不是只有一个能被单独调用的库函数。"""
+    """门禁必须真的接在生成入口上，而不是只有一个能被单独调用的库函数。
+
+    本类需要 fastapi/pandas：缺依赖时整体 skip 并写明该用哪个解释器，
+    而不是留一个 ImportError 让评审以为代码坏了。
+    """
+
+    def setUp(self):
+        _preflight.require("fastapi", "pandas",
+                           gated_in="console/test_compare_gate.py::EntryWiringTests")
 
     def test_plot_entry_refuses_by_default(self):
         proc = subprocess.run(
@@ -199,6 +208,10 @@ class EntryWiringTests(unittest.TestCase):
                          "one_click_latest 缺失后仍判可比 —— 门禁没接在 API 上")
         self.assertIn("口径组", bad["comparability_refusal"])
         self.assertEqual(latest.read_bytes(), saved, "还原失败，会把别人的工作区弄脏")
+
+
+class FrontendStaticTests(unittest.TestCase):
+    """纯文本断言，不需要任何第三方依赖 —— 单独成类，不被上面的 fastapi 连坐 skip。"""
 
     def test_frontend_does_not_coerce_missing_columns_to_zero(self):
         """`r[m] ?? 0` 是那个假胜利的直接来源，禁止再回来。"""
@@ -306,44 +319,75 @@ class CitationIntegrityTests(unittest.TestCase):
     def _docs(self):
         return [ROOT / "docs" / "数据来源与可追溯性登记表.md", ROOT / "README.md"]
 
+    def _scan_lines(self, lines, origin=""):
+        """扫描一批文本行，返回 (引用条数, 失效清单)。真文档与合成样本共用同一判据。"""
+        checked = 0
+        bad = []
+        for i, line in enumerate(lines, 1):
+            for path_txt, lineno_s in self.CITE.findall(line):
+                checked += 1
+                cands = self._resolve(path_txt)
+                if cands:
+                    ok_line = False
+                    for target in cands:
+                        with io.open(target, encoding="utf-8", errors="replace") as fh:
+                            n = sum(1 for _ in fh)
+                        if int(lineno_s) <= n:
+                            ok_line = True
+                            break
+                    if not ok_line:
+                        bad.append("%s:%d 引用 %s:%s，但同名文件最长只有 %d 行"
+                                   % (origin, i, path_txt, lineno_s, n))
+                    continue
+                m = self.REMOVED.search(line)
+                if not m:
+                    bad.append("%s:%d 引用了找不到的文件 %s（若该文件已删除，"
+                               "请按约定写成 `path:line 已移除@<sha>` 并附取回命令）"
+                               % (origin, i, path_txt))
+                    continue
+                n = self._git_show_lines(m.group(1), path_txt.replace("\\", "/"))
+                if n is None:
+                    bad.append("%s:%d 标了已移除@%s，但 `git show %s^:%s` 取不回来"
+                               % (origin, i, m.group(1), m.group(1), path_txt))
+                elif int(lineno_s) > n:
+                    bad.append("%s:%d 引用 %s:%s，但该修订只有 %d 行"
+                               % (origin, i, path_txt, lineno_s, n))
+        return checked, bad
+
     def test_cited_path_line_targets_exist(self):
         checked = 0
         bad = []
         for doc in self._docs():
             if not doc.is_file():
                 continue
-            for i, line in enumerate(doc.read_text(encoding="utf-8").splitlines(), 1):
-                for path_txt, lineno_s in self.CITE.findall(line):
-                    checked += 1
-                    cands = self._resolve(path_txt)
-                    if cands:
-                        ok_line = False
-                        for target in cands:
-                            with io.open(target, encoding="utf-8", errors="replace") as fh:
-                                n = sum(1 for _ in fh)
-                            if int(lineno_s) <= n:
-                                ok_line = True
-                                break
-                        if not ok_line:
-                            bad.append("%s:%d 引用 %s:%s，但同名文件最长只有 %d 行"
-                                       % (doc.name, i, path_txt, lineno_s, n))
-                        continue
-                    # 盘上找不到：只有按约定标了"已移除@<sha>"且真能在该修订取回才算合格
-                    m = self.REMOVED.search(line)
-                    if not m:
-                        bad.append("%s:%d 引用了找不到的文件 %s（若该文件已删除，"
-                                   "请按约定写成 `path:line 已移除@<sha>` 并附取回命令）"
-                                   % (doc.name, i, path_txt))
-                        continue
-                    n = self._git_show_lines(m.group(1), path_txt.replace("\\", "/"))
-                    if n is None:
-                        bad.append("%s:%d 标了已移除@%s，但 `git show %s^:%s` 取不回来"
-                                   % (doc.name, i, m.group(1), m.group(1), path_txt))
-                    elif int(lineno_s) > n:
-                        bad.append("%s:%d 引用 %s:%s，但该修订只有 %d 行"
-                                   % (doc.name, i, path_txt, lineno_s, n))
+            c, b = self._scan_lines(doc.read_text(encoding="utf-8").splitlines(), doc.name)
+            checked += c
+            bad += b
         self.assertGreater(checked, 0, "一条引用都没扫到，本用例是空转")
         self.assertEqual(bad, [], "引用失效：\n  " + "\n  ".join(bad))
+
+    def test_detector_itself_is_not_vacuous(self):
+        """判别式：喂合成文本，检测器必须**该红的红、该绿的绿**。
+
+        为什么专门加一条：上面那条只读真文档，若哪天有人把判据放宽（例如给
+        "文件不存在"加个 except 跳过），真文档里没有坏引用时它照样绿 —— 这就是
+        "门从此刻意看不见那一类"。合成样本能主动把它测红。
+        本轮实测过：往登记表临时插一条 `frontend/does_not_exist_anywhere.py:9999`
+        → test_cited_path_line_targets_exist FAILED（退出码 1），随后已还原。
+        """
+        good = ["引用 `console/server.py:1` 合法",
+                "历史 `frontend/map_drawer_3d.py:40` 已移除@6b8c4c8 取回可用"]
+        gc, gb = self._scan_lines(good, "合成")
+        self.assertEqual(gc, 2, "合成样本没被扫到引用，判据没跑起来")
+        self.assertEqual(gb, [], "合法引用被判失效：%s" % gb)
+
+        bad = ["`frontend/does_not_exist_anywhere.py:9999`",
+               "`frontend/map_drawer_3d.py:40` 已移除@deadbee"]
+        bc, bb = self._scan_lines(bad, "合成")
+        self.assertEqual(bc, 2)
+        self.assertEqual(len(bb), 2, "两条坏引用只报了 %d 条：%s" % (len(bb), bb))
+        self.assertIn("找不到", "\n".join(bb))
+        self.assertIn("取不回来", "\n".join(bb))
 
     def test_removed_marker_convention_is_exercised(self):
         """正面用一次约定本身：登记簿里确实有按 `已移除@sha` 标注的历史引用，

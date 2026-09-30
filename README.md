@@ -122,7 +122,31 @@ Windows 直接双击 `start_console_portable.bat`。此模式会使用项目自�
 
 发布/答辩前可以先运行真实主链路自检：
 
+> ⚠️ **先激活 `.venv310`，否则下面这些用例里有 12 条不可跑。**
+> 用系统 `python`（例如 Anaconda 3.13）直接跑会缺 `shapely / fastapi / uvicorn / osmnx / ortools`。
+> 现在这类情况**不再报 traceback** —— 以前会报 `ModuleNotFoundError`，以及一个
+> `AttributeError: module 'environment' has no attribute 'DEFAULT_EPISODE_MAX_STEPS'`
+> （后者是被别的测试装的 `environment` 桩顶掉了：名字对了但不是那个文件，
+> 看起来像仿真坏了，其实只是解释器不对）。缺依赖时相关测试整体 skip 并打印该用的解释器绝对路径。
+>
+> 两种解释器下同一条命令的实测结果：
+>
+>     python -m unittest discover -s console -p "test_*.py"
+>       系统 python（缺依赖） → Ran 77 tests ... OK (skipped=12)   退出码 0
+>       .venv310 的 python    → Ran 130 tests ... OK               退出码 0
+>
+> （系统 python 只收集到 77 条：缺依赖的测试模块在导入期就整模块 skip，
+> 那些用例因而进不了计数 —— 这正是要的行为：不可跑要说清为什么，而不是抛 traceback。）
+>
+> 不确定环境就先跑 `python console/_preflight.py`，它会列出缺哪些包与该用哪个解释器。
+>
+> 上面那 **130 / 77 / 12 与目录树里那两处"N 个文件 / M 个用例"不是手抄的**：
+> 由 `python console/_readme_counts.py --verify` 每次真 discover 一遍核对，
+> 不一致退出码 1（`console/test_readme_counts.py` 把同一段判据接进 discover）；
+> 改了测试请重跑 `--fix`。
+
 ```bash
+python console/_preflight.py        # 依赖预检：缺包时直接说清缺哪些、用哪个解释器
 python -m console.selfcheck
 python release_check.py             # 普通发布检查
 python release_check.py --strict    # Python 3.10 正式环境最终检查
@@ -280,7 +304,7 @@ swarm-balance/
 │  ├─ static/spec.html           # 「规范」页正文，由 /spec 路由渲染进 iframe
 │  ├─ static/vendor/             # 内置 vue.global.prod.js / echarts.min.js /
 │  │                             #   three.min.js + README（版本、来源、SHA-256）
-│  └─ test_*.py                  # 7 个文件 / 74 个用例（标准库 unittest）
+│  └─ test_*.py                  # 14 个文件 / 130 个用例（标准库 unittest）
 │
 ├─ frontend/                     # 仿真内核与可视化
 │  ├─ environment.py             # 2017 行 · 世界状态、障碍判定、统计口径
@@ -313,7 +337,7 @@ swarm-balance/
 │  ├─ reporting.py               # 统计与配对检验
 │  ├─ reproducibility.py         # 复现清单（schema v2：按算法登记源码哈希）
 │  ├─ presets/                   # quick.yaml / conclusion.yaml / paper.yaml
-│  └─ test_*.py                  # 2 个文件 / 21 个用例
+│  └─ test_*.py                  # 2 个文件 / 24 个用例
 │
 ├─ results/
 │  ├─ compare/                   # 8 份对比 CSV（答辩对比页数据源）+ plots/
