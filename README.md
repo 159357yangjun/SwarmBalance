@@ -183,6 +183,20 @@ Windows 直接双击 `start_console_portable.bat`。此模式会使用项目自�
 > `main.tex` 最后一次入库改动停在 `4d8ac93`，10 张图最后一次改动全部早于该撤除
 > （图的**像素内容未单独核验**，位图读不出列，能核的只有入库批次）。
 >
+> **门报红的每一行都以 ASCII 短码开头**（`[FAIL][ANCHOR_MISS] 文档:行 … | fix: …`，中文解释跟在
+> 后面）。原因实测过：这台机的通道是 GBK 系，中文会被换成 `??????` —— **只有中文诊断的红等于
+> 没有门**。短码与 `_citations.py` 头部那张表的互印、以及"整行按 ASCII 有损编码后短码/文件:行/
+> `| fix:` 仍在"都由 `console/test_gate_ascii_diagnostics.py` 钉住。断言一律打在短码上而不是
+> 中文措辞上（`assertIn("找不到", …)` 那种写法，文案一改判据就假红 —— 与 `env_shortfall`
+> 那一轮"判据寄生在报错文案上"是同一个错）。
+>
+> **非 raw 字符串里的非法转义**（`"\cite"` 那一类，被 import 就喷一行噪声）有常驻门：
+> `console/test_source_escape_sequences.py` 逐文件 `compile()` 并强制 `simplefilter("always")`，
+> 带范围下限（实测 83 个 `.py`，下限 80）、两面夹具（植一条必红、当前仓必绿），
+> 普查数印在行上（`[ESCAPE_CENSUS] py_files=… hits=…`）。为什么不用 `-W error` 当证据、
+> 以及为什么不能按警告类别过滤（3.10 抛 `DeprecationWarning`、3.12+ 才升成 `SyntaxWarning`），
+> 实测表写在那个文件的模块注释里。
+>
 > **别用 `cp -p`（或任何保留 mtime 的拷贝/还原）往这棵树里写 `.py`。**
 > CPython 默认按「源文件 mtime + size」判定 `.pyc` 是否过期：内容改了而 mtime 被按回旧值、
 > 长度又没变，旧的字节码就"仍然相符"，import 跑的是**盘上已经不存在的代码**，
@@ -368,7 +382,7 @@ swarm-balance/
 │  ├─ static/spec.html           # 「规范」页正文，由 /spec 路由渲染进 iframe
 │  ├─ static/vendor/             # 内置 vue.global.prod.js / echarts.min.js /
 │  │                             #   three.min.js + README（版本、来源、SHA-256）
-│  └─ test_*.py                  # 20 个文件 / 178 个用例（标准库 unittest）
+│  └─ test_*.py                  # 21 个文件 / 181 个用例（标准库 unittest）
 │
 ├─ frontend/                     # 仿真内核与可视化
 │  ├─ environment.py             # 2017 行 · 世界状态、障碍判定、统计口径

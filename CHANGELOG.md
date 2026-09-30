@@ -354,6 +354,52 @@ heredoc 的收尾行写成 `MSG; <命令>` 时 bash 不认它是定界符，整�
 旧链仍在 reflog 里（`git reflog` 可见 `370b9fc`/`6f83007`），可回退。
 规则同批生效：**多行 message 一律 `git commit -F <文件>`，不再用内嵌 heredoc。**
 
+### 同日续九：把"本轮手动跑的一次普查"做成常驻门（只这一件）
+
+上一轮那句"82 个 `.py` 里命中 1、修完归零"是**手动一次性普查**，不是门 —— 它只会在我恰好
+跑它的那一次为真。这轮做成 `console/test_source_escape_sequences.py`（3 条用例）：
+
+- **机制自己选**：逐文件 `compile(src, path, "exec")` 包在
+  `warnings.catch_warnings(record=True)` 里并**强制 `simplefilter("always")`**；
+  命中只看**消息文本** `invalid escape sequence`。理由的两档解释器实测表写在模块注释里：
+  3.10 抛 `DeprecationWarning`、3.13 抛 `SyntaxWarning`；裸进程不加 `always` 时 3.10 记到 **0 条**；
+  **同一模块第二次 import 吃 `.pyc` 缓存后 0 条** ⇒ `-W error` 与"跑一次没喷"都不能当证据。
+- **范围下限**：`FLOOR = 80`（实测 83 个 `.py`）。塌到下限以下直接红，且报警写明
+  "是**扫描范围塌了**，不是没有缺陷" —— 没有下限的扫描只会永远绿。
+- **普查数印在行上**：`[ESCAPE_CENSUS] py_files=83 hits=0 floor=80 broken=0`，
+  外加 `broken`（compile 不过的文件）必须为 0 —— 编不过不能算"这个文件没问题"。
+- **两面夹具**：植一条非 raw 的 `\cite` 必红（含"真放进被扫目录、走完整 `scan_repo()`"那条，
+  只测函数挡不住"目录名单把第一方排除了"这类失效）；当前仓必绿；raw 反面样本必须 0 命中。
+- **变异 5 条，连没咬到的那条一起报**：匹配只认 `SyntaxWarning` 类别（红 2）、
+  下限抬到 9999（红 1）、反面样本丢掉 r 前缀（红 1）、判据乱抓每文件塞一条假命中（红 2）、
+  **摘掉 `simplefilter("always")`（不红）**。最后一条不红是实测出来的原因：
+  unittest 进程自己给 `DeprecationWarning` 开了滤镜。所以那行是**抗环境保险**，
+  不是被判据抓到的 bug —— 模块注释②与用例文档里都明写"这条没被变异证明"，不占功。
+
+**我自己在这条上写坏过两处，两处都是当场被抓**：
+① 反面样本写成 `r'…'` 再去拼接 —— 那只让我这边的字面量变 raw，**产出的源码里没有 r**，
+   于是"应当 0 命中"的对照组带着 1 条命中回来，用例判红。这就是假对照组。
+② 新门的模块注释里嵌了三引号示例，把 docstring 提前终止成 `SyntaxError`；
+   而同一次运行我打的 `echo "gate rc=$?"` 取到的是管道尾巴（`tail`）的退出码，不是测试的。
+   同一个坑本轮第二次踩，写在这儿当账。
+
+**另一次操作自报**：那批变异脚本用 Python 去读 bash 的 `/tmp` 备份路径 —— Windows Python
+不认 `/tmp`，脚本崩在还原那一步，把 `console/test_source_escape_sequences.py` 留在了
+"摘掉 `simplefilter`"的变异态。发现后从备份还原，用 `cmp -s` 与 sha256 双向确认逐字节相同，
+之后改用 `tempfile.gettempdir()` 的绝对路径。教训是流程级的：**改盘上文件之前，
+还原那一步必须做成不可能失败**（备份路径两侧同源），否则变异本身就是事故源。
+
+现况：venv `Ran 181 tests OK`（21 个文件，无 skip）、experiments `Ran 24 tests OK`、
+`_citations --verify` 68/68 带锚点 + 作废引用 3/3 已声明 + 论文清单逐字节一致、
+`_readme_counts --verify` 一致（console=21/181、experiments=2/24）、
+`[ESCAPE_CENSUS] py_files=83 hits=0 floor=80 broken=0`。
+
+**还欠着的一件（等他拍板，不自作范围）**：全仓 `^MSG;` 普查命中 3 条，已处理 2 条，
+剩 `e3b7db8` 尾部一行；它在更前面，改它要把 `e3b7db8 / 76825e0 / b9d37c7 / 4adc947 /
+5b4048b / 9fc3be5 / 34e3730` 共 7 个指针一起重落。dry-run 断言（含"每条都不在
+`origin/master` 里"这道闸门）已跑过全绿，未拍板就不动。
+
+
 
 
 ### 2026-09-30：评审视角的"红"—— 缺依赖不再伪装成代码坏了（commit cb42080 / fff6b0f / adc7bf3）
