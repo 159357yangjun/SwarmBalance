@@ -157,6 +157,13 @@ Windows 直接双击 `start_console_portable.bat`。此模式会使用项目自�
 > 所以代码事实类引用要写成 `config/simulation.json:88#carrying_capacity` ——
 > 锚点是被引行必须含的一段字，改了代码位置而忘了改引用就会红。
 > 引用已删除的文件时按约定写 `path:line 已移除@<sha>` 并附 `git show <sha>^:<path>` 取回命令。
+> **引用「作废产物」必须声明行集合**：被标作废的目录（判定=目录里有写着「作废」的
+> `README.md`，不写死名单，写死的清单会过期）里的 `.csv`/`.png` 被引用时，紧跟其后写
+> `行集=core4`（只取 4 个核心算法）或 `行集=all10`（含 6 个已撤除）。为什么值得这么严：
+> 同一列在两种行集合下能差出 0.24（`Weighted Overall Score` 0.833768 vs 0.588907，
+> 全表见 `results/compare/plots/ROW_SETS.md`，由 `python results/row_set_delta.py --write`
+> 生成、`--verify` 不一致退出码 1），且混进来的是六个较弱变体、方向是拉低。
+> 声明 `all10` 还要与表里实际算法集合相符 —— 表重生成后标注自己会红（双向）。
 > 汇总行会印「扫到几条 / 其中几条带锚点」：没带锚点的只判越界，别把这条门当成全覆盖。
 > 两种历史标注**紧跟在它描述的那条引用后面**（一行里两条引用时各管各的，不整行共享）：
 > `path:line 已移除@<sha>` 表示文件在该提交被删，`path:line#锚点 已失效@<sha>` 表示文件还在、
@@ -347,7 +354,7 @@ swarm-balance/
 │  ├─ static/spec.html           # 「规范」页正文，由 /spec 路由渲染进 iframe
 │  ├─ static/vendor/             # 内置 vue.global.prod.js / echarts.min.js /
 │  │                             #   three.min.js + README（版本、来源、SHA-256）
-│  └─ test_*.py                  # 18 个文件 / 164 个用例（标准库 unittest）
+│  └─ test_*.py                  # 18 个文件 / 166 个用例（标准库 unittest）
 │
 ├─ frontend/                     # 仿真内核与可视化
 │  ├─ environment.py             # 2017 行 · 世界状态、障碍判定、统计口径

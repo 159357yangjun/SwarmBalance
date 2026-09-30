@@ -84,6 +84,71 @@ def git_show_text(sha: str, rel: str):
     return None if proc.returncode else proc.stdout.splitlines()
 
 
+ROWSET_MARK = re.compile(r"行集=(core4|all10)")
+# 不带行号的数据文件引用（`x.csv`、`y.png`）：CITE 只认 `path:数字`，
+# 而这些表恰恰是按名字引用的 —— 不另开一条匹配，作废标注就永远扫不到它们。
+BARE_PATH = re.compile(r"`([^`\n]*?\.(?:csv|png|jpe?g))`")
+
+
+def _inside_any(path, dirs):
+    for d in dirs:
+        try:
+            if path.is_relative_to(d):
+                return True
+        except (ValueError, OSError):
+            continue
+    return False
+
+
+def rowset_violations(lines, origin="", vdirs=None):
+    """作废目录里的 .csv/.png 被引用时必须声明行集合；声明 all10 的还得真是那张脏表。
+
+    为什么值得单独一条：`results/compare/plots/ROW_SETS.md`（由 results/row_set_delta.py
+    生成、可 --verify）实测 27 个统计量里 **22 个** 在两种行集合下读数不同 ——
+    `Weighted Overall Score` 0.833768(核心4) vs 0.588907(含撤除10)，差 -0.244861，
+    而混进来的恰好是六个较弱变体，方向确定（拉低）。所以"这批表作废"若不写清
+    **按哪几行算**，同一个列名就还能被两头引用而没人报警。
+    """
+    vdirs = void_dirs() if vdirs is None else list(vdirs)
+    if not vdirs:
+        return 0, 0, []
+    checked = marked = 0
+    bad = []
+    for i, line in enumerate(lines, 1):
+        bounds = sorted([m.end() for m in CITE.finditer(line)]
+                        + [m.end() for m in BARE_PATH.finditer(line)])
+        starts = sorted([m.start() for m in CITE.finditer(line)]
+                        + [m.start() for m in BARE_PATH.finditer(line)])
+        for m in BARE_PATH.finditer(line):
+            rel = m.group(1).replace("\\", "/")
+            target = ROOT / rel
+            if not _inside_any(target, vdirs):
+                continue
+            nxt = [s for s in starts if s > m.start()]
+            tail_end = min([s for s in nxt], default=len(line))
+            tail = line[m.end():tail_end]
+            checked += 1
+            mm = ROWSET_MARK.search(tail)
+            if not mm:
+                bad.append("%s:%d 作废产物 %s 被引用却没声明行集合：紧跟写 `行集=core4`"
+                           "（只取 4 个核心算法）或 `行集=all10`（含 6 个已撤除）；"
+                           "两种读数的差异见 results/compare/plots/ROW_SETS.md"
+                           % (origin, i, rel))
+                continue
+            marked += 1
+            if mm.group(1) == "all10":
+                try:
+                    from console import _rowsets
+                except ImportError:
+                    import _rowsets
+                algs = table_algorithms(target)
+                if algs is not None and algs != _rowsets.ALL_NAMED:
+                    bad.append("%s:%d %s 声明 `行集=all10`，但表里的算法集合实际是 %s ——"
+                               " 表已重生或本就不是 10 行，这个作废标注过期了"
+                               % (origin, i, rel, sorted(algs)))
+    return checked, marked, bad
+
+
 def scan_lines(lines, origin=""):
     """返回 (引用条数, 带锚点条数, 失效清单)。真文档与合成样本共用同一判据。
 
@@ -180,24 +245,70 @@ def scan_lines(lines, origin=""):
     return checked, anchored, bad
 
 
+def void_dirs(root=None):
+    """被标作废的产物目录 = 目录内有 README.md 且其中写着"作废"。
+
+    为什么靠发现而不是写死名单：写死的作废清单会过期 —— 目录清干净了它还红，
+    新加了个作废目录它不管。判据只看"那份作废通知在不在"，通知撤了约束就没了。
+    """
+    root = Path(root) if root is not None else (ROOT if "ROOT" in globals() else Path("."))
+    out = []
+    for notice in sorted(root.rglob("README.md")):
+        parts = set(notice.parts)
+        if ".venv310" in parts or "__pycache__" in parts or ".git" in parts:
+            continue
+        try:
+            if "作废" in notice.read_text(encoding="utf-8", errors="replace")[:4000]:
+                out.append(notice.parent)
+        except OSError:
+            continue
+    return out
+
+
+def table_algorithms(path):
+    """读 CSV 第一列的算法名集合；非 CSV / 读不到返回 None。"""
+    p = Path(path)
+    if p.suffix.lower() != ".csv" or not p.is_file():
+        return None
+    import csv
+    import io as _io
+    with _io.open(p, encoding="utf-8-sig", newline="") as fh:
+        rd = csv.reader(fh)
+        try:
+            next(rd)
+        except StopIteration:
+            return set()
+        return {r[0].strip() for r in rd if r and r[0].strip()}
+
+
+ROWSET_MARK = re.compile(r"行集=(core4|all10)")
+
+
 def scan_docs(doc_names=DEFAULT_DOCS):
-    checked = anchored = 0
+    checked = anchored = rs_checked = rs_marked = 0
     bad = []
+    vdirs = void_dirs()                      # 只发现一次，别每行都遍历仓库
     for name in doc_names:
         p = ROOT / name
         if not p.is_file():
             continue
-        c, a, b = scan_lines(p.read_text(encoding="utf-8").splitlines(), name)
+        text = p.read_text(encoding="utf-8").splitlines()
+        c, a, b = scan_lines(text, name)
+        rc, rm, rb = rowset_violations(text, name, vdirs=vdirs)
         checked += c
         anchored += a
-        bad += b
-    return checked, anchored, bad
+        rs_checked += rc
+        rs_marked += rm
+        bad += b + rb
+    return checked, anchored, bad, rs_checked, rs_marked
 
 
 def render() -> str:
-    checked, anchored, bad = scan_docs()
+    checked, anchored, bad, rs_checked, rs_marked = scan_docs()
     lines = ["文档引用核对：%d 条 path:line，其中 %d 条带 #锚点（其余只判路径与越界）"
-             % (checked, anchored)]
+             % (checked, anchored),
+             "作废产物引用：%d 处，其中 %d 处已声明行集合（core4 / all10）"
+             % (rs_checked, rs_marked)]
     for b in bad:
         lines.append("[FAIL] " + b)
     if bad:
@@ -211,7 +322,7 @@ def main(argv=None) -> int:
         sys.stdout.reconfigure(encoding="utf-8", errors="replace")
     except Exception:  # noqa: BLE001 - 老解释器没有 reconfigure
         pass
-    checked, anchored, bad = scan_docs()
+    checked, anchored, bad, _rs_checked, _rs_marked = scan_docs()
     if "--list-bad" in argv:
         for b in bad:
             print(b)

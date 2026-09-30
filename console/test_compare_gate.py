@@ -395,13 +395,17 @@ class CitationIntegrityTests(unittest.TestCase):
         只在红的时候才打印数字，等于"没人知道自己被半盲的门放过去"——
         与 skipped=12 被读成"过了 12 条"是同一种失败。
         """
-        checked, anchored, bad = self.CJ.scan_docs()
+        checked, anchored, bad, rs_checked, rs_marked = self.CJ.scan_docs()
         text = self.CJ.render()
         self.assertGreater(checked, 0, "一条引用都没扫到，判据空转")
         self.assertGreater(anchored, 0, "一条锚点都没有，行号漂移无人能测")
         self.assertIn("条 path:line", text)
         for n in (checked, anchored):
             self.assertIn("%d 条" % n, text, "汇总行没把 %d 印出来" % n)
+        # 行集合声明也要印：作废产物被引用了几处、声明了几处，少一个就是有人在裸引
+        self.assertIn("作废产物引用", text)
+        self.assertEqual(rs_checked, rs_marked,
+                         "%d 处引用作废产物，只有 %d 处声明了行集合" % (rs_checked, rs_marked))
         self.assertEqual(text.count("[FAIL]"), len(bad),
                          "打印的失效条数与真实失效条数不一致（%d vs %d）"
                          % (text.count("[FAIL]"), len(bad)))

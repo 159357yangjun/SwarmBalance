@@ -91,6 +91,94 @@ class PlotsArchiveVoidTests(unittest.TestCase):
             self.assertIn(alg, text, "%s 没被点名" % alg)
         self.assertIn("6b8c4c8", text, "要说清是哪次撤除没到达这里")
 
+    def test_rowset_marker_is_required_and_bidirectional(self):
+        """作废产物被引用时必须声明行集合；声明 all10 的还必须真是那张 10 行表。
+
+        为什么双向：只查"有没有写标注"，那标注可以永远挂着 —— 表哪天重生成了
+        只剩核心 4 行，`行集=all10` 就成了新的假话。所以两个方向都要能红：
+        缺标注红，标注与表内容不符也红。
+        这里在 results/adhoc/（已 gitignore）下造一个临时作废目录，跑完删，不碰仓库产物。
+        """
+        import shutil
+        import sys as _sys
+        _sys.path.insert(0, str(ROOT / "console"))
+        import _citations as CJ
+        import _rowsets as RS
+
+        sandbox = ROOT / "results" / "adhoc" / "_rowset_probe"
+        shutil.rmtree(sandbox, ignore_errors=True)
+        try:
+            sandbox.mkdir(parents=True)
+            (sandbox / "README.md").write_text("本目录已作废（探针）", encoding="utf-8")
+            dirty = sandbox / "ten.csv"
+            cols = "Algorithm,Score\n"
+            dirty.write_text(cols + "\n".join("%s,%d" % (a, n)
+                                              for n, a in enumerate(sorted(RS.ALL_NAMED))) + "\n",
+                             encoding="utf-8")
+            clean = sandbox / "four.csv"
+            clean.write_text(cols + "\n".join("%s,%d" % (a, n)
+                                              for n, a in enumerate(sorted(RS.CORE))) + "\n",
+                             encoding="utf-8")
+            rel_d, rel_c = dirty.relative_to(ROOT).as_posix(), clean.relative_to(ROOT).as_posix()
+            vdirs = [sandbox]
+
+            # ① 缺标注 -> 红
+            _c, _m, bad = CJ.rowset_violations(["引用 `%s` 的均值" % rel_d], "探针", vdirs=vdirs)
+            self.assertEqual(len(bad), 1, "裸引用作废表却没报警：%s" % bad)
+            self.assertIn("行集=", bad[0], "报警要给出该写什么标注")
+
+            # ② 标注齐全且与表内容相符 -> 绿
+            _c, m, bad = CJ.rowset_violations(["引用 `%s` 行集=all10 的均值" % rel_d],
+                                              "探针", vdirs=vdirs)
+            self.assertEqual(bad, [], "已声明且与 10 行相符却报警：%s" % bad)
+            self.assertEqual(m, 1, "标注计数没跟上，说明作用域绑定错了")
+
+            # ③ 声明 all10 但表只有核心 4 行 -> 红（标注过期）
+            _c, _m, bad = CJ.rowset_violations(["引用 `%s` 行集=all10 的均值" % rel_c],
+                                               "探针", vdirs=vdirs)
+            self.assertEqual(len(bad), 1, "过期标注没报警：%s" % bad)
+            self.assertIn("过期", bad[0])
+
+            # ④ 声明 core4 是允许的子集读法，不该被当假话
+            _c, _m, bad = CJ.rowset_violations(["引用 `%s` 行集=core4 的均值" % rel_d],
+                                               "探针", vdirs=vdirs)
+            self.assertEqual(bad, [], "core4 声明被误判：%s" % bad)
+
+            # ⑤ 真文档必须已经全部声明过（否则这条门等于没关门）
+            real = CJ.rowset_violations(
+                (ROOT / "docs" / "数据来源与可追溯性登记表.md").read_text(
+                    encoding="utf-8").splitlines(), "登记簿")
+            self.assertEqual(real[2], [], "登记簿里有裸引用作废产物：%s" % real[2])
+            self.assertGreaterEqual(real[0], 3, "登记簿里的作废产物引用少于 3 处，判据覆盖面变了")
+        finally:
+            shutil.rmtree(sandbox, ignore_errors=True)
+
+    def test_rowset_delta_generator_is_pinned_and_goes_red(self):
+        """差异表由代码生成，手改一个数字就要红（数字不许手抄进文档）。"""
+        import importlib.util
+        spec = importlib.util.spec_from_file_location(
+            "row_set_delta_probe", ROOT / "results" / "row_set_delta.py")
+        gen = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(gen)
+        text = gen.render()
+        self.assertEqual(gen.OUT.read_text(encoding="utf-8"), text,
+                         "ROW_SETS.md 与代码重算不一致 —— 跑 --write 而不是手改")
+        # 非空转：改动一个读数后，核对必须判不一致
+        perturbed = text.replace("0.833768", "0.833769", 1)
+        self.assertNotEqual(perturbed, text, "扰动没改动任何字节，下面的核对是空转")
+        original = gen.OUT.read_bytes()
+        try:
+            gen.OUT.write_bytes(perturbed.encode("utf-8"))
+            self.assertEqual(gen.main(["--verify"]), 1, "盘上产物被改了却不红")
+        finally:
+            gen.OUT.write_bytes(original)
+        self.assertEqual(gen.OUT.read_bytes(), original, "还原失败会留下假差异表")
+        self.assertEqual(gen.main(["--verify"]), 0)
+        # 差异确实存在（不是"两列都是 0"的摆设）：核心4 与 含撤除10 至少有一列读数不同
+        differs = [r for r in gen.compute() if r[6]]
+        self.assertGreaterEqual(len(differs), 10,
+                                "两种行集合只有 %d 列不同，与实测的 22 列对不上" % len(differs))
+
     def test_notice_separates_measured_from_inferred(self):
         """PNG 的像素内容没人核过 —— 通知必须自己承认这一点。
 
