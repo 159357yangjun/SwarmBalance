@@ -284,86 +284,71 @@ class CitationIntegrityTests(unittest.TestCase):
     这条是被本轮的真实事故逼出来的：登记表一直写 `paper/main.tex:303`，
     而 `.tex` 的真路径是 `paper/AAMAS-2023 Formatting Instructions/main.tex` ——
     行号对、路径不存在，人照着翻是找不到的。手抄引用会过期，所以变成机器断言。
+
+    本轮又补了两层，因为发现上一层是**半盲**的：
+    ① 旧正则只认 `:123`，登记簿里 `:118-121`、`:141-145,153,195` 这类写法
+       一条都没进断言 —— 拿 HEAD 的文档喂新判据，实测 5 条立刻红（含 1 条
+       指向 6b8c4c8 已删除的文件却不带 已移除@ 标注）。旧门禁不是"没报错"，
+       是**根本没看见**。
+    ② 只判"路径存在 + 行号不越界"挡不住**行号在范围内却指向别处**：本轮逐条
+       对着盘上内容核，发现相当一部分引用属于这一类（如 P1 抄 :112 实为 :88，
+       M1 抄 :926 实为 :921）。所以加了 `#锚点`：被引行必须含这段字。
+       没带锚点的仍然只判越界，因此每条断言都把「扫到几条 / 带锚点几条」一起报出来
+       —— 具体数字只在报警行里印，不抄进这段说明，免得它自己也过期。
     """
 
-    CITE = re.compile(r"`([^`\n]*?\.(?:tex|py|csv|json|md|html)):(\d+)`")
-    # 登记簿约定：引用已删除的文件时写成 `path:line 已移除@<sha>`，
-    # 并给出取回命令。这样"历史证据"不被抹掉，但也不会假装文件还在。
-    REMOVED = re.compile(r"已移除@([0-9a-f]{7,40})")
+    # 判据只有一份实现：console/_citations.py。用例负责喂样本，不再抄一遍，
+    # 否则"门禁与测试各判各的"就是下一轮假绿灯的来源。按路径加载，不接受同名撞车。
+    CJ = None
 
-    def _resolve(self, path_txt: str):
-        """把引用解析成磁盘上的文件。
+    @classmethod
+    def setUpClass(cls):
+        import importlib.util
+        path = ROOT / "console" / "_citations.py"
+        spec = importlib.util.spec_from_file_location("console_citations_gate", path)
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        cls.CJ = mod
+        if Path(mod.__file__).resolve() != path.resolve():
+            raise AssertionError("加载到了别的 _citations.py：" + mod.__file__)
 
-        带目录分隔的是完整路径，必须原样存在（本轮就是被 `paper/main.tex` 这种
-        "行号对、路径不存在"的引用逼出这条用例的）。
-        只写裸文件名的（`environment.py:927`）是登记簿里的常用简写，不判错 ——
-        但全仓必须能找到同名文件，且行号不越界。
-        """
-        rel = path_txt.replace("\\", "/")
-        if "/" in rel:
-            target = ROOT / rel
-            return [target] if target.is_file() else []
-        # 裸文件名：全仓找同名
-        return [p for p in ROOT.rglob(Path(rel).name)
-                if p.is_file() and ".git" not in p.parts and "__pycache__" not in p.parts
-                and ".venv310" not in p.parts]
+    @property
+    def CITE(self):
+        return self.CJ.CITE
 
-    def _git_show_lines(self, sha: str, rel: str):
-        proc = subprocess.run(["git", "show", "%s^:%s" % (sha, rel)],
-                              cwd=str(ROOT), capture_output=True, text=True,
-                              encoding="utf-8", errors="replace")
-        if proc.returncode != 0:
-            return None
-        return len([l for l in proc.stdout.splitlines()])
+    @property
+    def REMOVED(self):
+        return self.CJ.REMOVED
+
+    def _ranges(self, spec):
+        return self.CJ.ranges(spec)
+
+    def _resolve(self, path_txt):
+        return self.CJ.resolve(path_txt)
+
+    def _git_show_text(self, sha, rel):
+        return self.CJ.git_show_text(sha, rel)
+
+    def _scan_lines(self, lines, origin=""):
+        return self.CJ.scan_lines(lines, origin)
 
     def _docs(self):
         return [ROOT / "docs" / "数据来源与可追溯性登记表.md", ROOT / "README.md"]
 
-    def _scan_lines(self, lines, origin=""):
-        """扫描一批文本行，返回 (引用条数, 失效清单)。真文档与合成样本共用同一判据。"""
-        checked = 0
-        bad = []
-        for i, line in enumerate(lines, 1):
-            for path_txt, lineno_s in self.CITE.findall(line):
-                checked += 1
-                cands = self._resolve(path_txt)
-                if cands:
-                    ok_line = False
-                    for target in cands:
-                        with io.open(target, encoding="utf-8", errors="replace") as fh:
-                            n = sum(1 for _ in fh)
-                        if int(lineno_s) <= n:
-                            ok_line = True
-                            break
-                    if not ok_line:
-                        bad.append("%s:%d 引用 %s:%s，但同名文件最长只有 %d 行"
-                                   % (origin, i, path_txt, lineno_s, n))
-                    continue
-                m = self.REMOVED.search(line)
-                if not m:
-                    bad.append("%s:%d 引用了找不到的文件 %s（若该文件已删除，"
-                               "请按约定写成 `path:line 已移除@<sha>` 并附取回命令）"
-                               % (origin, i, path_txt))
-                    continue
-                n = self._git_show_lines(m.group(1), path_txt.replace("\\", "/"))
-                if n is None:
-                    bad.append("%s:%d 标了已移除@%s，但 `git show %s^:%s` 取不回来"
-                               % (origin, i, m.group(1), m.group(1), path_txt))
-                elif int(lineno_s) > n:
-                    bad.append("%s:%d 引用 %s:%s，但该修订只有 %d 行"
-                               % (origin, i, path_txt, lineno_s, n))
-        return checked, bad
-
     def test_cited_path_line_targets_exist(self):
-        checked = 0
+        checked = anchored = 0
         bad = []
         for doc in self._docs():
             if not doc.is_file():
                 continue
-            c, b = self._scan_lines(doc.read_text(encoding="utf-8").splitlines(), doc.name)
+            c, a, b = self._scan_lines(doc.read_text(encoding="utf-8").splitlines(), doc.name)
             checked += c
+            anchored += a
             bad += b
         self.assertGreater(checked, 0, "一条引用都没扫到，本用例是空转")
+        # 锚点是"行号对但内容不对"的唯一防线；一条都没标就等于这道防线没架起来
+        self.assertGreater(anchored, 0,
+                           "全仓没有一条引用带 #锚点，行号漂移（在范围内指错处）无人能测")
         self.assertEqual(bad, [], "引用失效：\n  " + "\n  ".join(bad))
 
     def test_detector_itself_is_not_vacuous(self):
@@ -376,18 +361,58 @@ class CitationIntegrityTests(unittest.TestCase):
         → test_cited_path_line_targets_exist FAILED（退出码 1），随后已还原。
         """
         good = ["引用 `console/server.py:1` 合法",
-                "历史 `frontend/map_drawer_3d.py:40` 已移除@6b8c4c8 取回可用"]
-        gc, gb = self._scan_lines(good, "合成")
-        self.assertEqual(gc, 2, "合成样本没被扫到引用，判据没跑起来")
+                "区间 `console/server.py:1-3` 合法",
+                "多段 `config/simulation.json:166,162-163` 合法",
+                "锚点 `config/simulation.json:166#battery_low_threshold` 合法",
+                "历史 `frontend/map_drawer_3d.py:40` 已移除@6b8c4c8 取回可用",
+                "历史区间 `backend_wx/pymarl-master/analyze_sacred_run.py:74-101`"
+                " 已移除@6b8c4c8 取回可用"]
+        gc, ga, gb = self._scan_lines(good, "合成")
+        self.assertEqual(gc, 6, "合成样本没被全部扫到引用（%d/6），判据没跑起来" % gc)
         self.assertEqual(gb, [], "合法引用被判失效：%s" % gb)
+        self.assertEqual(ga, 1, "锚点计数应当只认带 # 的那条，实得 %d" % ga)
 
         bad = ["`frontend/does_not_exist_anywhere.py:9999`",
-               "`frontend/map_drawer_3d.py:40` 已移除@deadbee"]
-        bc, bb = self._scan_lines(bad, "合成")
-        self.assertEqual(bc, 2)
-        self.assertEqual(len(bb), 2, "两条坏引用只报了 %d 条：%s" % (len(bb), bb))
+               "`frontend/map_drawer_3d.py:40` 已移除@deadbee",
+               # 下面三条是上一版**完全扫不到**的形式：区间越界、区间指向已删文件却无标注、
+               # 以及行号在范围内但内容不对（锚点失配）
+               "`config/simulation.json:1-99999`",
+               "`frontend/map_drawer_3d.py:145-149`",
+               "`config/simulation.json:166#not_a_real_key_in_that_block`"]
+        bc, ba, bb = self._scan_lines(bad, "合成")
+        self.assertEqual(bc, 5, "区间/多段形式仍然没进扫描（%d/5）" % bc)
+        self.assertEqual(len(bb), 5, "5 条坏引用只报了 %d 条：%s" % (len(bb), bb))
+        self.assertEqual(ba, 1)
         self.assertIn("找不到", "\n".join(bb))
         self.assertIn("取不回来", "\n".join(bb))
+        self.assertIn("最长只有", "\n".join(bb))
+        self.assertIn("已移除", "\n".join(bb))
+        self.assertIn("锚点", "\n".join(bb))
+
+    def test_coverage_is_printed_not_just_asserted(self):
+        """绿的时候也要看得见覆盖率：判据扫到几条、其中几条真带锚点。
+
+        只在红的时候才打印数字，等于"没人知道自己被半盲的门放过去"——
+        与 skipped=12 被读成"过了 12 条"是同一种失败。
+        """
+        checked, anchored, bad = self.CJ.scan_docs()
+        text = self.CJ.render()
+        self.assertGreater(checked, 0, "一条引用都没扫到，判据空转")
+        self.assertGreater(anchored, 0, "一条锚点都没有，行号漂移无人能测")
+        self.assertIn("条 path:line", text)
+        for n in (checked, anchored):
+            self.assertIn("%d 条" % n, text, "汇总行没把 %d 印出来" % n)
+        self.assertEqual(text.count("[FAIL]"), len(bad),
+                         "打印的失效条数与真实失效条数不一致（%d vs %d）"
+                         % (text.count("[FAIL]"), len(bad)))
+        # 答辩机控制台常是 GBK：一个打不出来的字符会把整条命令崩掉，
+        # 而崩掉的检查比没有检查更糟（_preflight 第一版就是这么坏的）。
+        try:
+            text.encode("gbk")
+        except UnicodeEncodeError as exc:
+            self.fail("引用汇总含 GBK 打不出的字符：%s" % exc)
+        self.assertEqual(self.CJ.main(["--verify"]), 1 if bad else 0,
+                         "--verify 的退出码没有跟随失效条数")
 
     def test_removed_marker_convention_is_exercised(self):
         """正面用一次约定本身：登记簿里确实有按 `已移除@sha` 标注的历史引用，
@@ -400,14 +425,15 @@ class CitationIntegrityTests(unittest.TestCase):
             m = self.REMOVED.search(line)
             if not m:
                 continue
-            for path_txt, lineno_s in self.CITE.findall(line):
+            for path_txt, spec, _anchor in self.CITE.findall(line):
                 if "/" not in path_txt or (ROOT / path_txt).exists():
                     continue
-                n = self._git_show_lines(m.group(1), path_txt)
-                self.assertIsNotNone(n, "取回命令失效：%s" % path_txt)
+                blob = self._git_show_text(m.group(1), path_txt)
+                self.assertIsNotNone(blob, "取回命令失效：%s" % path_txt)
+                hi = max(b for _, b in self._ranges(spec))
                 self.assertGreaterEqual(
-                    n, int(lineno_s),
-                    "%s 在 %s^ 里只有 %d 行，引用却指 :%s" % (path_txt, m.group(1), n, lineno_s))
+                    len(blob), hi,
+                    "%s 在 %s^ 里只有 %d 行，引用却指 :%s" % (path_txt, m.group(1), len(blob), spec))
                 verified += 1
         self.assertGreater(verified, 0, "一条历史引用都没验到，本用例空转")
 
