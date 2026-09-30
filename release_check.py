@@ -66,6 +66,20 @@ def main() -> None:
     _print_result("console 单元测试", ok, out.splitlines()[-1] if out else "")
     failures += 0 if ok else 1
 
+    # skip 归因：`OK (skipped=12)` 会被读成"过了 12 条"，而它真正的意思是
+    # "这 12 条在这台机器上根本没跑"。答辩机上这必须是显眼的、带包名与模块的一行行清单。
+    try:
+        sys.path.insert(0, str(ROOT / "console"))
+        import _preflight
+        info = _preflight.collect_skips()
+        if info["skipped"]:
+            print("[INFO] 本次不可跑的用例（不是通过，是没跑）：")
+            print(_preflight.render_skips(info["skipped"]))
+            print("       要换解释器就跑：python console/_preflight.py --skips")
+    except Exception as exc:  # noqa: BLE001 - 归因失败不该让整个发布检查崩掉
+        print("[WARN] skip 归因没能生成：%s: %s" % (type(exc).__name__, exc))
+        failures += 1
+
     ok, out = _run([sys.executable, "-m", "unittest", "discover", "-s", "experiments", "-p", "test_*.py"])
     _print_result("experiments 单元测试", ok, out.splitlines()[-1] if out else "")
     failures += 0 if ok else 1

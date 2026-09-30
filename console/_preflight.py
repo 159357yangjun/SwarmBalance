@@ -29,6 +29,7 @@ from __future__ import annotations
 
 import importlib
 import os
+import re
 import sys
 import unittest
 from pathlib import Path
@@ -165,6 +166,102 @@ def load_frontend_package_module(pkg: str, basename: str):
     return module
 
 
+_CHILD_SKIP = r'''
+import json, sys, unittest
+top = sys.argv[1]
+suite = unittest.TestLoader().discover("console", pattern="test_*.py", top_level_dir=top)
+res = unittest.TextTestRunner(stream=open(__import__("os").devnull, "w"), verbosity=0).run(suite)
+out = {
+    "tests": res.testsRun,
+    "failures": len(res.failures),
+    "errors": len(res.errors),
+    "skipped": [[t.id(), str(rin)] for t, rin in res.skipped],
+}
+sys.stdout.write(json.dumps(out, ensure_ascii=False))
+'''
+
+
+def collect_skips(interpreter=None):
+    """跑一遍 console 发现，返回 {tests, failures, errors, skipped:[[test_id, reason], ...]}。
+
+    为什么解析结果对象而不是 grep `-v` 文本：第一版我用正则去匹配 `skipped '...'`，
+    而原因里带换行（explain() 本来就是多行），12 条只认出 1 条 —— 幸好这条探针会自报
+    "扫到几条"，才当场暴露。`result.skipped` 是 (test, reason) 的列表，不用猜格式。
+    """
+    import json
+    import subprocess
+
+    exe = interpreter or sys.executable
+    proc = subprocess.run([exe, "-c", _CHILD_SKIP, str(ROOT)], cwd=str(ROOT),
+                          capture_output=True, text=True,
+                          encoding="utf-8", errors="replace",
+                          env={**os.environ, "PYTHONUTF8": "1", "PYTHONIOENCODING": "utf-8"})
+    line = [l for l in proc.stdout.splitlines() if l.startswith("{")]
+    if not line:
+        raise RuntimeError("子进程没吐结果（exit=%d）：%s"
+                           % (proc.returncode, (proc.stderr or "")[-600:]))
+    return json.loads(line[-1])
+
+
+_SKIP_BUCKET_NOTE = "缺包 -> 测试模块 -> 用例数"
+
+
+def _pkgs_of(reason: str) -> str:
+    """从 skip 原因里取缺的包名。
+
+    两种来源都要认：① `_preflight.explain()` 写的「缺少依赖：X（pip 包名：Y）」；
+    ② 别的用例自己写的 `No module named 'X'`（常裹在整段 traceback 里）。
+    只认一种格式，就会把一半 skip 归到"没写缺哪个包"，等于归因白做。
+    """
+    m = re.search(r"缺少依赖：([^（）\n]+)", reason)
+    if m:
+        return m.group(1).strip()
+    mods = re.findall(r"No module named '([^']+)'", reason)
+    if mods:
+        return ", ".join(dict.fromkeys(mods))
+    m2 = re.search(r"缺(?:少)?依赖\S*?\s*[:：]?\s*([\w, ]+)", reason)
+    if m2:
+        return m2.group(1).strip()
+    return "(原因里没写缺哪个包)"
+
+
+def bucket_skips(skipped):
+    """[(test_id, reason)] -> {(缺的包, 模块): 条数}，并原样保留识别失败的情况。"""
+    buckets = {}
+    for tid, reason in skipped:
+        pkgs = _pkgs_of(reason)
+        m2 = re.search(r"(console/\S+?\.py(?:::\S+)?)", reason)
+        mod = m2.group(1) if m2 else (tid.rsplit(".", 2)[0] if "." in tid else tid)
+        buckets[(pkgs, mod)] = buckets.get((pkgs, mod), 0) + 1
+    return buckets
+
+
+def render_skips(skipped) -> str:
+    if not skipped:
+        return "（本次运行没有 skip）"
+    buckets = bucket_skips(skipped)
+    lines = []
+    for (pkgs, mod), n in sorted(buckets.items(), key=lambda kv: (-kv[1], kv[0])):
+        lines.append("  缺 %-40s -> %-50s %d 条不可跑" % (pkgs, mod, n))
+    lines.append("  合计 %d 条 skip，分布在 %d 个「缺包 x 模块」组合上（%s）"
+                 % (len(skipped), len(buckets), _SKIP_BUCKET_NOTE))
+    return "\n".join(lines)
+
+
+def list_skips(interpreter=None) -> int:
+    """真跑一遍，把 skip 归因打印出来：`skipped=12` 不该被读成"过了 12 条"。"""
+    try:
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:  # noqa: BLE001 - 老解释器没有 reconfigure，退化成原样输出
+        pass
+    data = collect_skips(interpreter)
+    print("解释器：%s" % (interpreter or sys.executable))
+    print("Ran %d tests，failures=%d errors=%d skipped=%d"
+          % (data["tests"], data["failures"], data["errors"], len(data["skipped"])))
+    print(render_skips(data["skipped"]))
+    return 0 if (not data["failures"] and not data["errors"]) else 1
+
+
 def report() -> int:
     miss = missing(list(DEPS))
     vp = venv_python()
@@ -180,4 +277,6 @@ def report() -> int:
 
 
 if __name__ == "__main__":
+    if "--skips" in sys.argv[1:]:
+        sys.exit(list_skips())
     sys.exit(report())
