@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 
 import matplotlib.pyplot as plt
@@ -164,13 +165,36 @@ def normalize_columns(df):
     return renamed
 
 
+# 由 results/compare_gate.py 控制的口径开关。默认 False = 混口径直接拒。
+# 打开它只是"按口径组分桶出图"的许可，**不会**把两组并进同一张图。
+ALLOW_MIXED = False
+
+
 def load_compare_data():
     """读取各算法指标 CSV 并合并。
 
     容错策略：历史上 `evaluate_metrics.py` 曾写英文表头且缺 `算法` 列，一遇到就
     整个脚本崩掉。现在改为**跳过不兼容的文件并告警**，其余算法照常出图，
     同时在终端明确提示需要重跑哪个入口。
+
+    口径门禁：CSV_FILES 里混着三种口径（400/600 步的 GA 短跑、2000 步的三个基线、
+    3600 步 5 次重复的 one_click_latest）。以前这里直接 pd.concat + keep="last"，
+    于是图上会出现"GA 600 步/30 任务 vs Greedy 2000 步/60 任务"并排 —— 完成率之差里
+    混着 episode 长度，不是算法差异；而那 5 个机队列在 20 列 schema 的基线上是 NaN。
+    现在默认拒绝，除非显式 --allow-mixed-comparisons（且那时也只允许分桶，不许并图）。
     """
+    present = [n for n in CSV_FILES if (COMPARE_DIR / n).exists()]
+    import compare_gate as _gate
+    try:
+        buckets = _gate.check_entry_inputs("plot", present, _gate.load_manifest(),
+                                           allow_mixed=ALLOW_MIXED)
+    except _gate.GateRefused as exc:
+        raise SystemExit("[REFUSED] 出图入口拒绝混口径输入：\n%s\n"
+                         "      口径声明见 results/compare/README.md；\n"
+                         "      要按口径组分桶出图，加 --allow-mixed-comparisons。" % exc.message)
+    print("[gate] 出图输入 %d 个文件，落在 %d 个可比组：%s"
+          % (len(present), len(buckets), json.dumps(buckets, ensure_ascii=False)))
+
     frames = []
     skipped = []
     for name in CSV_FILES:
@@ -570,7 +594,7 @@ def save_processed_table(data):
 
 
 def main(argv=None):
-    global OUT_DIR
+    global OUT_DIR, ALLOW_MIXED
     import argparse
 
     parser = argparse.ArgumentParser(description="汇总 results/compare/*.csv 并出图")
@@ -579,7 +603,12 @@ def main(argv=None):
                              "15 个答辩产物）。不加时只写 results/adhoc/plots/，工作区保持干净。")
     parser.add_argument("--out", default=None, metavar="DIR",
                         help="自定义输出目录（优先级最高）")
+    parser.add_argument("--allow-mixed-comparisons", action="store_true",
+                        help="允许输入跨口径，但只允许**按口径组分桶出图**，"
+                             "不会把两组并进同一张图。默认拒绝。")
     args = parser.parse_args(argv)
+
+    ALLOW_MIXED = bool(args.allow_mixed_comparisons)
 
     if args.out:
         OUT_DIR = Path(args.out).resolve()

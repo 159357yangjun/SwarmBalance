@@ -23,7 +23,9 @@ from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from pydantic import BaseModel
 
 _PROJECT_ROOT = Path(__file__).resolve().parents[1]
-for _p in (str(_PROJECT_ROOT),):
+# results/ 里有口径门禁 compare_gate.py，两个生成入口（本文件的 /api/compare 与
+# results/plot_compare_metrics.py）共用同一份判据，不能各写一套。
+for _p in (str(_PROJECT_ROOT), str(_PROJECT_ROOT / "results")):
     if _p not in sys.path:
         sys.path.insert(0, _p)
 
@@ -922,6 +924,33 @@ def compare():
     # 同一算法取最后一条（保留最近一次评测），但只从有效行里取
     data = data.drop_duplicates("算法", keep="last").reset_index(drop=True)
 
+    # 口径门禁（results/compare_gate.py）：按**实际被选中**的来源文件判可比性。
+    # 必须在这里判而不是在文件清单上判 —— 清单是混的（20 列/25 列、400~3600 步），
+    # 但 keep="last" 今天恰好把四行都落到 one_click_latest.csv，所以页面是安全的；
+    # 那份文件一旦缺失或被 quick 覆盖，页面就会把 600 步/30 任务的 GA 与 2000 步/60 任务
+    # 的基线并排显示。不可比时不 500（那是把门禁变成故障），而是拒绝给出对比结论：
+    # comparable=False + 原文理由，前端据此不画对比图、不高亮"最优算法"。
+    selected_sources = []
+    for src in data["_来源"].tolist():
+        if src not in selected_sources:
+            selected_sources.append(src)
+    compare_refusal = None
+    try:
+        import compare_gate as _gate
+        _gate.check_entry_inputs("api_compare", selected_sources, _gate.load_manifest())
+    except SystemExit as exc:          # check_entry_inputs 内不抛 SystemExit，双保险
+        compare_refusal = str(exc)
+    except Exception as exc:
+        # 门禁自身不可用（缺 manifest / 未登记文件）也算拒绝给出对比结论，
+        # 但 ImportError 这类环境问题要区分开：那不该把页面变成永久红。
+        if type(exc).__name__ == "GateRefused":
+            compare_refusal = getattr(exc, "message", str(exc))
+        elif "No module named" in str(exc):
+            print("[口径门禁] compare_gate 不可用，本次未拦：%s" % exc, file=sys.stderr)
+        else:
+            compare_refusal = "口径门禁未能完成判定（%s: %s）—— 保守起见不给出对比结论" % (
+                type(exc).__name__, exc)
+
     # 口径守卫：只有分母（生成任务数）不一致才算不可比。历史上的真实反例是 ga 以
     # 30 任务进图、其余算法 60 任务。这里只标注、不改数值、不剔除行。
     # 只保留数值列 + 算法列，去掉总步数/完成任务数等冗余
@@ -967,4 +996,8 @@ def compare():
         # 前端另写一份必然漂移（实验报告已改成"不判"，而对比页当时仍在判，
         # 就是两份名单各走各的实测后果）。
         "direction_ambiguous": sorted(AMBIGUOUS_DIRECTION_METRICS),
+        # 门禁判据：false 时前端不得画对比图、不得高亮"最优算法"，并原样显示 refusal。
+        "comparable": compare_refusal is None,
+        "comparability_refusal": compare_refusal,
+        "compared_sources": selected_sources,
     }

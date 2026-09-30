@@ -484,6 +484,10 @@ document.addEventListener('DOMContentLoaded', function () {
   .basis-warn{ margin:0 0 8px; padding:7px 10px; border:1px solid #f0d9a8; border-left:3px solid #d99a2b;
     border-radius:8px; background:#fdf7ec; color:#7a5a17; font-size:11.5px; line-height:1.55; }
   .basis-warn b{ color:#5c4310; }
+  /* 门禁拒绝原文要逐字可读（含桶分组），不能折成一坨；保留换行、允许横向滚动。 */
+  .refusal-text{ margin:6px 0 4px; padding:6px 8px; background:#fffaf0; border:1px solid #ead6ab;
+    border-radius:6px; font-family:ui-monospace,SFMono-Regular,Consolas,monospace; font-size:11px;
+    line-height:1.5; color:#5c4310; white-space:pre; overflow-x:auto; }
   .cmp-table{ display:flex; flex-direction:column; gap:2px; font-size:12px; }
   .cmp-head,.cmp-row{ display:grid; grid-template-columns:1.25fr repeat(6,minmax(0,1fr)); gap:6px;
     align-items:center; padding:7px 9px; border-radius:7px; }
@@ -1037,7 +1041,12 @@ document.addEventListener('DOMContentLoaded', function () {
 
         <div class="dispatch-box">
           <div class="h"><span>当前对比读数</span><span class="hint">{{ compareMetric || '—' }} · 来源 {{ compareSources || 'results/compare/*.csv' }}</span></div>
-          <div class="basis-warn" v-if="compareInconsistent.length && compareBasis">
+          <div class="basis-warn" v-if="!compareComparable">
+            <b>口径门禁已拒绝本次对比</b>（页面仍列出原始读数，但<b>不给出"最优算法"、不并列成一张对比图</b>）：
+            <pre class="refusal-text">{{ compareRefusal }}</pre>
+            口径声明见仓库里的 <code>results/compare/README.md</code>；判据在 <code>results/compare_gate.py</code>。
+          </div>
+          <div class="basis-warn" v-else-if="compareInconsistent.length && compareBasis">
             口径提示：本页以 <b>{{ compareBasis['生成任务数'] }} 个生成任务</b> 为基准，
             其中 <b>{{ compareInconsistent.map(x => x['算法']).join('、') }}</b>
             的评测规模与基准不同，完成率等以任务数为分母的指标不可直接横向比较（数值未做任何调整）。
@@ -1370,6 +1379,7 @@ createApp({
       radarChart: null, rankChart: null, gaugeChart: null, fleetPieChart: null,
       compareRows: [], compareColumns: [], compareMetric: '', compareBasis: null, compareInconsistent: [], compareError: '',
       compareAmbiguous: [],
+      compareComparable: true, compareRefusal: '',
       experimentPresets: [], experimentPreset: 'quick', experimentStatus: {state:'idle',progress:0,completed_runs:0,total_runs:0}, experimentTimer: null, experimentError: '',
       scenarioPresets: [], scenarioKey: 'medical_peak', scenarioBusy:false, scenarioError:'', scenarioHasRestore:false,
       checkpointName:'答辩节点', checkpointBusy:false, checkpointError:'', checkpointMessage:'', checkpointLimit:5,
@@ -1412,6 +1422,8 @@ createApp({
     compareBestRow() {
       const m = this.compareMetric;
       if (!m || !this.compareRows.length) return null;
+      // 门禁判为不可比时不给出"最优算法" —— 混口径表里挑出来的最大值不是算法差异。
+      if (this.compareComparable === false) return null;
       // 方向随容量配置同向变化的指标不判优。名单由 /api/compare 从 experiments/reporting.py
       // 的 DIRECTION_AMBIGUOUS 原样下发 —— 前端再抄一份必然漂移：实验报告已改成"不判"，
       // 而本页当时仍在给它们高亮"最优算法"，同一份数据两个制品得出相反结论。
@@ -2692,6 +2704,8 @@ createApp({
       // 口径守卫：/api/compare 报告基准规模与偏离算法，这里只做提示，不改数值。
       this.compareBasis = d.basis || null; this.compareInconsistent = d.inconsistent || [];
       this.compareAmbiguous = d.direction_ambiguous || [];
+      this.compareComparable = d.comparable !== false;
+      this.compareRefusal = d.comparability_refusal || '';
       if (!this.compareMetric || !d.columns.includes(this.compareMetric)) this.compareMetric = d.columns[0] || '';
       this.compareError = '';
       this.$nextTick(() => this.drawCompare());
@@ -2701,6 +2715,13 @@ createApp({
       if (typeof window.echarts === 'undefined') return;
       const el = document.getElementById('compare');
       if (!el) return;
+      // 门禁拒绝并列时不画这张图：混口径的柱状图本身就是要拦的东西，
+      // 只在表格上写"不比较"而图照画，等于一边声明不可比一边产出可比视觉结论。
+      if (this.compareComparable === false) {
+        const inst = window.echarts && window.echarts.getInstanceByDom(el);
+        if (inst) inst.clear();
+        return;
+      }
       // 高度交给 CSS（.chart-box > #compare { flex:1 }）随栏高自适应。
       // 原先用 host.clientHeight - 118 估算，不仅硬编码易失准，还会被 CSS 的
       // height !important 覆盖，等于无效代码。
@@ -2709,7 +2730,21 @@ createApp({
       chart.resize();
       const m = this.compareMetric; if (!m) return;
       const algos = this.compareRows.map(r => r['算法']);
-      const vals = this.compareRows.map(r => r[m] ?? 0);
+      // 缺列必须保持 null（ECharts 遇 null 断柱），**不能补 0**。
+      // 原先写的是 `r[m] ?? 0`：20 列 schema 的基线没有机队 5 列，补 0 后图上就是
+      // "基线空载率 0、优于 GA 的 0.4994" —— 把"没测"画成"测了且为 0"，
+      // 在越低越好的指标上直接造出假胜利。表格侧的 cmpFmt 本来就渲染成「—」，是对的。
+      const vals = this.compareRows.map(r => {
+        const v = r[m];
+        if (v === null || v === undefined || v === '') return null;
+        const n = Number(v);
+        return isFinite(n) ? n : null;
+      });
+      const missingCount = vals.filter(v => v === null).length;
+      if (missingCount) {
+        console.info(`[对比图] ${m}：${missingCount}/${vals.length} 个算法无该列读数，` +
+                     `已断柱显示而不是补 0`);
+      }
       chart.setOption({
         backgroundColor: 'transparent',
         grid: { left: 46, right: 16, top: 22, bottom: 34 },
