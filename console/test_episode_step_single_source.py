@@ -88,19 +88,41 @@ class EpisodeStepSingleSourceTests(unittest.TestCase):
                          "发现残留的 episode 步数兜底默认值：\n  " + "\n  ".join(offenders))
 
     def test_every_entry_point_resolves_to_the_same_number(self):
-        """所有入口必须给出同一个数，否则就是第二套默认换了个形式活着。"""
+        """所有入口必须给出同一个数，否则就是第二套默认换了个形式活着。
+
+        为什么不能用 `import environment`：本仓的 discover 里 `test_command_console.py`
+        会往 `sys.modules["environment"]` 装一个轻量桩，并且在真实导入失败时**故意把桩留下**
+        （对它自己合理）。于是这条守门用例拿到的是假模块，报
+        `AttributeError: module 'environment' has no attribute 'DEFAULT_EPISODE_MAX_STEPS'`
+        —— 一个"名字对了但不是那个文件"的错误结论，在非作者机器上会被读成"仿真坏了"。
+        现在按**文件路径**加载，并断言加载到的确实是那个文件（把判据从"属性存在吗"
+        升级成"是不是同一个文件的同一个值"）。
+        """
+        from console import _preflight
+
         cfg = get_shared_config()
         expected = cfg["environment"]["episode_max_steps"]
-        # 内核模块级常量
-        sys.path.insert(0, str(ROOT / "frontend"))
-        import environment as env_mod
+
+        try:
+            env_mod, env_path = _preflight.load_kernel_environment()
+        except BaseException as exc:      # 缺 numpy/shapely 等 → 这是环境不够，不是判据失败
+            self.skipTest("%s: %s\n%s" % (type(exc).__name__, exc,
+                                          _preflight.explain(_preflight.DEPS)))
+        self.assertEqual(Path(env_mod.__file__).resolve(),
+                         (ROOT / "frontend" / "environment.py").resolve(),
+                         "加载到的不是内核文件，断言会打在别的东西上")
+        self.assertIn("DEFAULT_EPISODE_MAX_STEPS", vars(env_mod),
+                      "内核文件里没有该常量（不是被桩顶掉，就是它真被删了）")
         self.assertEqual(int(env_mod.DEFAULT_EPISODE_MAX_STEPS), int(expected))
-        # 四个 CLI 解析器
+
         for mod_name in ("run_ga", "run_pso", "run_ortools"):
-            mod = __import__(mod_name)
+            try:
+                mod = _preflight.load_frontend_module(mod_name)
+            except BaseException as exc:
+                self.skipTest("%s 无法加载（环境不够）：%s: %s" % (mod_name, type(exc).__name__, exc))
             self.assertEqual(int(mod._resolve_episode_steps()), int(expected),
                              "%s 解析到的步数与真源不一致" % mod_name)
-        import greedy.run_greedy as rg
+        rg = _preflight.load_frontend_package_module("greedy", "run_greedy")
         self.assertEqual(int(rg._resolve_episode_steps()), int(expected))
 
 
