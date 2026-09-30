@@ -414,6 +414,47 @@ class CitationIntegrityTests(unittest.TestCase):
         self.assertEqual(self.CJ.main(["--verify"]), 1 if bad else 0,
                          "--verify 的退出码没有跟随失效条数")
 
+    def test_obsolete_marker_is_bound_to_its_own_citation(self):
+        """`已失效@sha` 只对它**紧跟其后**的那一条引用生效，不是整行共享。
+
+        这条是加约定当下一轮门自己抓出来的 bug：一行里同时写"历史行号"和"现状行号"时，
+        按整行找标注会把历史标注错扣到现状那条上，于是它被判去跟旧修订比内容 ——
+        报出来的"失效"是假的，而假的报警比没报警更容易把人带偏。
+        """
+        hist = "`frontend/environment.py:268#具有高度信息的建筑物` 已失效@66016b7"
+        live = "`frontend/environment.py:276-277#地图建筑`"
+        both = "10. ~~%s~~ 已做：现在分三数打印 %s" % (hist, live)
+        c, a, b = self._scan_lines([both], "合成")
+        self.assertEqual(c, 2, "两条引用都应被扫到")
+        self.assertEqual(b, [], "现状那条不该被历史标注连坐：%s" % b)
+        self.assertEqual(a, 2, "历史那条带锚点也要计进覆盖率")
+
+        # 摘掉标注后，两条都被判去跟**磁盘**比：现状那条照旧绿，历史那条当场红 ——
+        # 因为 268 在磁盘上早已是另一行。这个对照证明标注真的改变了比对对象，
+        # 而不是"加了个没人读的记号"。
+        c2, a2, b2 = self._scan_lines([both.replace(" 已失效@66016b7", "")], "合成")
+        self.assertEqual((c2, a2), (2, 2), "摘掉标注后两条仍应被扫到并带锚点")
+        self.assertEqual(len(b2), 1, "摘掉标注后历史那条必须红：%s" % b2)
+        self.assertIn("找不到锚点", b2[0])
+
+    def test_obsolete_marker_branches_go_red_when_wrong(self):
+        """历史引用四种错法都要红：缺锚点、行号手抄时就错、sha 取不回、越界。"""
+        cases = [
+            ("`frontend/environment.py:268` 已失效@66016b7", "却不带 #锚点"),
+            ("`frontend/environment.py:282#具有高度信息的建筑物` 已失效@66016b7", "没有锚点"),
+            ("`frontend/environment.py:268#具有高度信息的建筑物` 已失效@deadbee", "取不回来"),
+            ("`frontend/environment.py:268-999999#具有高度信息的建筑物` 已失效@66016b7", "只有"),
+        ]
+        for text, expect in cases:
+            _c, _a, b = self._scan_lines([text], "合成")
+            self.assertEqual(len(b), 1, "%s 没被判红" % text)
+            self.assertIn(expect, b[0], "%s 的报警文不对题：%s" % (text, b[0]))
+        # 正面：登记簿里实际用的那两条历史标注必须能用（否则上面四种错法都走不到分支）
+        doc = (ROOT / "docs" / "数据来源与可追溯性登记表.md").read_text(encoding="utf-8")
+        _c, a, b = self._scan_lines(doc.splitlines(), "登记簿")
+        self.assertEqual(b, [], "真文档里有失效引用：%s" % b)
+        self.assertGreater(a, 0)
+
     def test_removed_marker_convention_is_exercised(self):
         """正面用一次约定本身：登记簿里确实有按 `已移除@sha` 标注的历史引用，
         而且它们的取回命令真的能用 —— 否则上面那条拒绝分支永远走不到，等于没测。"""

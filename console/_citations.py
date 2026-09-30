@@ -14,6 +14,13 @@
    对策是 `#锚点`：`config/simulation.json:88#carrying_capacity` 要求第 88 行
    含 `carrying_capacity` 这段字。没写锚点的引用仍只判 ①，覆盖率随结果一起印出来。
 
+两种标注让"历史证据"既可翻又不会被当成现状：
+  `path:line 已移除@<sha>`   —— 文件在 <sha> 被删，正文按 `git show <sha>^:<path>` 取；
+  `path:line#锚点 已失效@<sha>` —— 文件还在但引的是 <sha> 修复**之前**的行号，
+      正文同样按 `git show <sha>^:<path>` 判，且**必须带锚点**：历史行号没法跟磁盘比，
+      只有锚点能证明它当时真的对过（本轮三条 `environment.py:282` 就是这么错的，
+      它在任何修订里都不是那行，真正那行在 `66016b7^` 的 :268）。
+
     python console/_citations.py                # 人读版汇总
     python console/_citations.py --verify       # 有失效则退出码 1
     python console/_citations.py --list-bad     # 只列失效行
@@ -35,6 +42,11 @@ CITE = re.compile(
     r"(?:#([^`\s]+))?`")
 # 登记簿约定：引用已删除的文件时写成 `path:line 已移除@<sha>`，并给出取回命令。
 REMOVED = re.compile(r"已移除@([0-9a-f]{7,40})")
+# 另一种：文件还在，但引用的行号属于**某个提交之前**的状态（描述的是已修好的历史缺陷）。
+# 写成 `path:line#锚点 已失效@<sha>`，正文按 `git show <sha>^:<path>` 取 ——
+# 否则"历史行号"就永远只能靠人自觉：本轮三条 `environment.py:282` 就是这么错的，
+# 它在任何修订里都不是那行（真正那行在 66016b7^ 的 :268）。
+OBSOLETE = re.compile(r"已失效@([0-9a-f]{7,40})")
 
 DEFAULT_DOCS = ("docs/数据来源与可追溯性登记表.md", "README.md")
 
@@ -67,15 +79,49 @@ def git_show_text(sha: str, rel: str):
 
 
 def scan_lines(lines, origin=""):
-    """返回 (引用条数, 带锚点条数, 失效清单)。真文档与合成样本共用同一判据。"""
+    """返回 (引用条数, 带锚点条数, 失效清单)。真文档与合成样本共用同一判据。
+
+    标注（已移除@/已失效@）**绑定到紧跟其后的那一条引用**，不是整行共享：
+    一行里写两条引用时（一条现状、一条历史），按整行找会把历史标注错扣到现状那条上，
+    于是它被判去跟旧修订比内容 —— 这个坑是我给 已失效@ 加完第一件事就被门自己抓到的。
+    """
     checked = anchored = 0
     bad = []
     cache = {}
     for i, line in enumerate(lines, 1):
-        for path_txt, spec, anchor in CITE.findall(line):
+        ms = list(CITE.finditer(line))
+        for k, m in enumerate(ms):
+            path_txt, spec, anchor = m.group(1), m.group(2), m.group(3)
+            # 标注的作用域：本引用结束 -> 下一条引用开始（或行尾）
+            tail = line[m.end(): ms[k + 1].start() if k + 1 < len(ms) else len(line)]
             checked += 1
             rr = ranges(spec)
             hi = max(b for _, b in rr)
+            obs = OBSOLETE.search(tail)
+            if obs:
+                # 行号属于该提交之前的状态：正文只按 `git show <sha>^:<path>` 判，不看磁盘
+                blob = git_show_text(obs.group(1), path_txt.replace("\\", "/"))
+                if blob is None:
+                    bad.append("%s:%d 标了已失效@%s，但 `git show %s^:%s` 取不回来"
+                               % (origin, i, obs.group(1), obs.group(1), path_txt))
+                    continue
+                if hi > len(blob):
+                    bad.append("%s:%d 引用 %s:%s（已失效@%s 之前），但该修订只有 %d 行"
+                               % (origin, i, path_txt, spec, obs.group(1), len(blob)))
+                elif anchor:
+                    anchored += 1
+                    joined = "\n".join(l for (a, b) in rr for l in blob[a - 1:b])
+                    if anchor not in joined:
+                        bad.append("%s:%d 引用历史 %s:%s#%s（已失效@%s），"
+                                   "但那个修订的对应行里没有锚点 —— 行号可能是手抄时就已经错了。"
+                                   " 实际内容：%s"
+                                   % (origin, i, path_txt, spec, anchor, obs.group(1),
+                                      joined.strip().replace("\n", " / ")[:160]))
+                else:
+                    bad.append("%s:%d 用 已失效@%s 引历史行号却不带 #锚点：%s:%s"
+                               " —— 历史行号没法跟磁盘比，只有锚点能证明它当时真的对过"
+                               % (origin, i, obs.group(1), path_txt, spec))
+                continue
             cands = resolve(path_txt)
             if cands:
                 hit = None
@@ -105,7 +151,7 @@ def scan_lines(lines, origin=""):
                             % (origin, i, path_txt, spec, anchor, anchor,
                                blob.strip().replace("\n", " / ")[:160]))
                 continue
-            m = REMOVED.search(line)
+            m = REMOVED.search(tail)
             if not m:
                 bad.append("%s:%d 引用了找不到的文件 %s（若该文件已删除，"
                            "请按约定写成 `path:line 已移除@<sha>` 并附取回命令）"
