@@ -132,12 +132,20 @@ Windows 直接双击 `start_console_portable.bat`。此模式会使用项目自�
 >
 > 不确定环境就先跑 `python console/_preflight.py`，它会列出缺哪些包与该用哪个解释器。
 >
+> **skip 不算通过。** `OK (skipped=12)` 这种尾行很容易被读成"过了 12 条"，
+> 所以 `python console/_preflight.py --skips`（`release_check.py` 的控制台测试步骤也会自动打印）
+> 会把每条 skip 归因成 **缺哪个包 → 哪个测试模块 → 几条不可跑**。
+> 数字直接取自 `unittest` 结果对象的 `skipped` 列表，不是手工维护的"哪个用例要哪个包"对照表
+> （那种表一定过期，本仓已被手抄计数咬过两次）。
+>
 > 本 README 里所有"N 个文件 / M 个用例"都**不是手抄的**：由
 > `python console/_readme_counts.py --verify` 每次真 discover 一遍核对，不一致退出码 1
 > （`console/test_readme_counts.py` 把同一段判据接进 discover，所以漂了会让测试红）。
 > 测量固定用项目 venv 解释器起子进程跑，**换解释器不会得到不同的数**；
 > 找不到 `.venv310` 时直接报错，不会退化成"用当前解释器凑一个数"。
-> 改了测试请重跑 `--fix`。这里刻意不写"系统 python 下你会看到 Ran X tests"，
+> **改了测试就跑 `python console/_readme_counts.py --fix`** —— 它是这两处数字的唯一写入者，
+> 别手改；它按字节读写、只动数字不动行尾，README 已是实测值时是零改动（有测试钉着这点）。
+> 这里刻意不写"系统 python 下你会看到 Ran X tests"，
 > 因为那个数取决于读者机器上缺哪些包 —— 写死它就是一个必然过期、又没人核对的手抄值。
 
 ```bash
@@ -299,7 +307,7 @@ swarm-balance/
 │  ├─ static/spec.html           # 「规范」页正文，由 /spec 路由渲染进 iframe
 │  ├─ static/vendor/             # 内置 vue.global.prod.js / echarts.min.js /
 │  │                             #   three.min.js + README（版本、来源、SHA-256）
-│  └─ test_*.py                  # 14 个文件 / 131 个用例（标准库 unittest）
+│  └─ test_*.py                  # 14 个文件 / 134 个用例（标准库 unittest）
 │
 ├─ frontend/                     # 仿真内核与可视化
 │  ├─ environment.py             # 2017 行 · 世界状态、障碍判定、统计口径

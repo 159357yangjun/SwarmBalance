@@ -92,23 +92,40 @@ def render_lines():
     return out
 
 
+COUNT_PAT = re.compile(r"(test_\*\.py\s+#\s*)(\d+)( 个文件 / )(\d+)( 个用例)")
+
+
+def read_text_lossy(path: Path) -> str:
+    """读成文本但**保留原始行尾**（不用 read_text：它会把 \\r\\n 折成 \\n）。"""
+    return path.read_bytes().decode("utf-8")
+
+
+def write_text_lossy(path: Path, text: str) -> None:
+    """按字节写回（不用 write_text：Windows 下它会把 \\n 翻译回 \\r\\n，
+    于是对 LF 检出的工作副本做一次 --fix 就把整份文件的行尾翻掉）。"""
+    path.write_bytes(text.encode("utf-8"))
+
+
+def line_ending_stats(path: Path):
+    return line_ending_stats_from_bytes(path.read_bytes())
+
+
+def line_ending_stats_from_bytes(raw: bytes):
+    """(CRLF 数, 裸 LF 数) —— 用来证明"只改数字"没有顺手翻行尾。"""
+    crlf = raw.count(b"\r\n")
+    return crlf, raw.count(b"\n") - crlf
+
+
 def verify() -> int:
-    text = README.read_text(encoding="utf-8")
-    claims = {}
-    for m in re.finditer(r"(test_\*\.py)\s+#\s*(\d+) 个文件 / (\d+) 个用例", text):
-        # 用上一行里的目录名区分 console / experiments 两处
-        prefix = text[:m.start()].rsplit("\n", 1)[0] if "\n" in text[:m.start()] else ""
-        claims.setdefault(m.group(1), []).append((m.start(), int(m.group(2)), int(m.group(3))))
+    text = read_text_lossy(README)
+    claims = [(int(m.group(2)), int(m.group(4))) for m in COUNT_PAT.finditer(text)]
 
     rows = render_lines()
     problems = []
-    # 顺序与 README 出现顺序一致：console 在前、experiments 在后
-    occ = claims.get("test_*.py", [])
-    for i, (label, subdir, nf, nt, _) in enumerate(rows):
-        if i >= len(occ):
-            problems.append("README 里找不到 %s/ 的计数字位" % subdir)
-            continue
-        _, cn, ct = occ[i]
+    if len(claims) != len(rows):
+        problems.append("README 里有 %d 处计数字位，实测了 %d 个目录 —— 对不上"
+                        % (len(claims), len(rows)))
+    for (cn, ct), (_label, subdir, nf, nt, _t) in zip(claims, rows):
         if (cn, ct) != (nf, nt):
             problems.append("%s/：README 写 %d 个文件 / %d 个用例，实测 %d / %d"
                             % (subdir, cn, ct, nf, nt))
@@ -124,21 +141,25 @@ def verify() -> int:
 
 
 def fix() -> int:
-    """按 README 中出现顺序，把每个 `test_*.py  # N 个文件 / M 个用例` 换成实测值。
+    """按 README 中出现顺序，把每个计数字位换成实测值。
 
-    一次只替换第 pos 处、且每轮重新扫描，避免"上一处替换改变了文本长度导致下一处偏移"。
+    每轮重新扫描并按偏移替换，避免"上一处替换改变文本长度导致下一处偏移"。
     """
     rows = render_lines()
-    pat = re.compile(r"(test_\*\.py\s+#\s*)\d+ 个文件 / \d+ 个用例")
+    before = line_ending_stats(README)
     for pos, (_, _subdir, nf, nt, _txt) in enumerate(rows):
-        text = README.read_text(encoding="utf-8")
-        matches = list(pat.finditer(text))
+        text = read_text_lossy(README)
+        matches = list(COUNT_PAT.finditer(text))
         if pos >= len(matches):
             print("[WARN] README 里第 %d 处计数字位不存在，跳过" % (pos + 1))
             continue
         m = matches[pos]
-        README.write_text(text[:m.start()] + "%s%d 个文件 / %d 个用例" % (m.group(1), nf, nt)
-                          + text[m.end():], encoding="utf-8")
+        write_text_lossy(README, text[:m.start()] + "%s%d%s%d%s"
+                         % (m.group(1), nf, m.group(3), nt, m.group(5)) + text[m.end():])
+    after = line_ending_stats(README)
+    if before != after:
+        print("[FAIL] --fix 改动了行尾（%s → %s），这会把整份文件显示成已修改" % (before, after))
+        return 1
     return verify()
 
 
