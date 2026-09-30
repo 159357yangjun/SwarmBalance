@@ -2,6 +2,50 @@
 
 ## [Unreleased]
 
+### 2026-09-30：评审视角的"红"—— 缺依赖不再伪装成代码坏了（commit cb42080 / fff6b0f / adc7bf3）
+
+`VERSION` 保持 `1.0.0` 未动，未打 tag、未发 release、未 push。
+
+起因是可复现性最硬的一条反例：**评审照 README 原文跑就是红的**。
+
+```
+$ python -m unittest discover -s console -p "test_*.py"     # README:131 原文
+Ran 75 tests ... FAILED (errors=5, skipped=6)                # 系统 python 3.13.5
+  ModuleNotFoundError: No module named 'fastapi' / 'shapely'
+  AttributeError: module 'environment' has no attribute 'DEFAULT_EPISODE_MAX_STEPS'
+```
+
+他不会先建 venv 再跑，看到这屏会以为**仿真坏了**。修完两个解释器都干净：
+系统 python `OK (skipped=12)`、`.venv310` `Ran 130 tests OK`，退出码均 0。
+
+**① `console/_preflight.py`**：测试模块在重导入之前 `require(...)`，缺包就整模块 skip，
+原因里写清缺哪些模块、对应 pip 名、受影响测试模块，以及项目 venv 解释器的**绝对路径**
+与可粘贴的重跑命令。`python console/_preflight.py` 单独跑也一眼可见。
+
+**② 那条 AttributeError 不是缺包，是名字撞车**：`console/test_command_console.py`
+会往 `sys.modules["environment"]` 装轻量桩，并在真实导入失败时**故意留着桩**（对它自己合理），
+于是"episode 步数单一真源"这条**地基守门用例**拿到假模块 —— 常量确实在
+`frontend/environment.py:91`，名字对了但不是那个文件。改为 importlib 按**文件路径**加载、
+不写进 sys.modules，判据从"属性存在吗"升级为"是不是那个文件的那个值"。
+单独跑报 ModuleNotFoundError、聚合跑报 AttributeError，这个差异本身就是撞车的证据。
+
+**③ README 计数从手抄变成跑出来**：原先写"7 个文件 / 74 个用例"（实测 14 / 130）与
+"2 个文件 / 21 个用例"（实测 2 / 24）。`console/_readme_counts.py --verify` 不一致退出码 1，
+并接进 discover。两个坑都记下了：
+- **测量随解释器漂**（缺依赖时 12 条所属模块整模块 skip、不进计数，同一命令量出 130 与 77），
+  所以 `measure()` 固定用项目 venv 解释器起子进程量，找不到 venv 就报错，绝不凑数；
+- **自证用例自己硬编码了 "13 个文件 / 128 个用例" 当锚点**，`--fix` 一跑锚点就失效 ——
+  检测手抄计数的用例自己不能靠手抄锚点，已改为正则取当前值再 +7 扰动。
+
+另补 `test_detector_itself_is_not_vacuous`：合成喂合法/坏引用各两条，要求 0 报 / 2 报。
+只读真文档的检测器一旦被放宽成"跳过不存在的文件"，真文档干净时它照样绿 —— 这条主动测红它。
+
+**本轮未验证 / 未闭合**：论文图仍需按 3600/5/seeds 重跑 GA 才能对齐口径（未跑）；
+`part_of_yangpu.osm` 仍无内容哈希被钉（只有 loader 计数作行为代理）；
+`results/compare/plots` 20-vs-15 归档缺口待拍板；`--record-into-evidence` /
+`--publish-latest` 的正向写盘只在可回滚前提下验过；对比页拒绝横幅只验到接口契约与
+`v-if` 存在性，没拿到屏幕截图。
+
 ### 2026-09-30：`results/compare/` 混口径门禁（commit bae9523 / 1224506）
 
 `VERSION` 保持 `1.0.0` 未动，未打 tag、未发 release、未 push。
