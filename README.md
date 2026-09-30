@@ -10,7 +10,7 @@
 [![Algorithms](https://img.shields.io/badge/algorithms-4%20families-orange.svg)](README.md)
 
 面向城市低空物流配送场景，构建**任务生成 → 调度决策 → 飞行仿真 → 指标评估 → 可视化**的完整闭环，
-在同一物理口径下横向对比五类调度方法。
+在同一物理口径下横向对比四类调度方法。
 
 </div>
 
@@ -147,9 +147,17 @@ Windows 直接双击 `start_console_portable.bat`。此模式会使用项目自�
 > 别手改；它按字节读写、只动数字不动行尾，README 已是实测值时是零改动（有测试钉着这点）。
 > 这里刻意不写"系统 python 下你会看到 Ran X tests"，
 > 因为那个数取决于读者机器上缺哪些包 —— 写死它就是一个必然过期、又没人核对的手抄值。
+>
+> 登记表/README 里的 `路径:行号` 引用由 `console/_citations.py` 核对（同一份判据也接进 discover）。
+> 光判"文件存在 + 行号不越界"是**半盲**的：行号漂到范围内另一处时它照样绿。
+> 所以代码事实类引用要写成 `config/simulation.json:88#carrying_capacity` ——
+> 锚点是被引行必须含的一段字，改了代码位置而忘了改引用就会红。
+> 引用已删除的文件时按约定写 `path:line 已移除@<sha>` 并附 `git show <sha>^:<path>` 取回命令。
+> 汇总行会印「扫到几条 / 其中几条带锚点」：没带锚点的只判越界，别把这条门当成全覆盖。
 
 ```bash
 python console/_preflight.py        # 依赖预检：缺包时直接说清缺哪些、用哪个解释器
+python console/_citations.py --verify   # 文档引用门禁：行号越界 / 锚点找不到都退出码 1
 python -m console.selfcheck
 python release_check.py             # 普通发布检查
 python release_check.py --strict    # Python 3.10 正式环境最终检查
@@ -307,7 +315,7 @@ swarm-balance/
 │  ├─ static/spec.html           # 「规范」页正文，由 /spec 路由渲染进 iframe
 │  ├─ static/vendor/             # 内置 vue.global.prod.js / echarts.min.js /
 │  │                             #   three.min.js + README（版本、来源、SHA-256）
-│  └─ test_*.py                  # 14 个文件 / 134 个用例（标准库 unittest）
+│  └─ test_*.py                  # 15 个文件 / 142 个用例（标准库 unittest）
 │
 ├─ frontend/                     # 仿真内核与可视化
 │  ├─ environment.py             # 2017 行 · 世界状态、障碍判定、统计口径
@@ -430,7 +438,7 @@ env = Environment("data/map/part_of_yangpu.osm", data_source=ds)
 ```bash
 cd frontend
 
-# 五类算法（seed 统一 = 100 + episode_id，保证跑同一批场景）
+# 四类算法（seed 统一 = 100 + episode_id，保证跑同一批场景）
 python evaluate_metrics.py --policy greedy  --episodes 5 --episode-steps 2000
 python evaluate_metrics.py --policy pso     --episodes 5 --episode-steps 2000
 python evaluate_metrics.py --policy ga      --episodes 5 --episode-steps 2000
