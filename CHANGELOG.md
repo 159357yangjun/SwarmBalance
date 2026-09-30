@@ -24,10 +24,25 @@
 `release_check.py` 现在每次发布检查都把它跑一遍，`--verify` 不一致退出码 1。
 
 **顺带清掉两笔自己的欠账：** MARL 撤除（6b8c4c8）后 README 还剩两处「五类」，
-而 `experiments/runner.py` 的合法算法集合只有 4 个 —— 已改为四类；
+而 `experiments/runner.py` 的合法算法集合只有 greedy/ga/ortools/pso 四个，第五类是被移除的
+MARL —— 那句"四类算法统一评测"当时改对了，这两处漏了，现已改为四类；
 `frontend/environment.py` 那句"加载了 N 个具有高度信息的建筑物"（把 >20 m 碰撞体数
 说成有高度建筑数）也早已改成三数分印，登记簿里指它的那两处记载（第三节建筑高度的第 2 条、
 P2 清单第 10 条）与"待你拍板"那条 MARL 处置，都就地标注为已完成。
+
+**同一轮里更糟的一条：数字可能来自盘上不存在的代码。** 收尾复跑时系统 python 报
+`console/test_run_determinism` 7 个错，栈里那一行 `env = _load()` 在当前源文件里 grep
+命中 0 次 —— 它跑的是一个 `cpython-313.pyc`。CPython 默认按 **(源文件 mtime, size)**
+判缓存过期：内容改了但 mtime 被按回旧值（`cp -p`、还原备份、部分同步盘就是这么干的）、
+长度又没变，旧字节码就"仍然相符"。于是 README 的用例数、skip 归因、`release_check` 的 OK
+全可能是在测缓存而不是代码。
+现在计数/skip 归因/发布检查起的子进程统一走 `console/_preflight.py:isolated_env()`
+（`PYTHONPYCACHEPREFIX` 指到树外 + 不写字节码），读不到旧缓存就只能从源码编译；
+`console/test_stale_bytecode.py` 先用一个等长改写的探针**复现**"旧缓存盖住现源码"
+（不复现就不知道这扇门在防什么），再断言 `isolated_env()` 挡得住它。
+清掉那个旧 pyc 后同一条命令 `OK (skipped=2)`；两个解释器的用例数在缓存隔离下重测过，
+与隔离前报的一致 —— 也就是说本轮印出去的那些数不是缓存产物（具体条数以
+`python console/_readme_counts.py --verify` 现印为准）。
 
 **没有验证的**：锚点目前只覆盖 62/71 条引用（数字以 `python console/_citations.py` 现印为准，
 抄进文档就又会过期），其余仍是只判越界；论文图仍拿 600 步 GA 与 2000 步基线并列，

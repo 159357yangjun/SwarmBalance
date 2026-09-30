@@ -154,6 +154,14 @@ Windows 直接双击 `start_console_portable.bat`。此模式会使用项目自�
 > 锚点是被引行必须含的一段字，改了代码位置而忘了改引用就会红。
 > 引用已删除的文件时按约定写 `path:line 已移除@<sha>` 并附 `git show <sha>^:<path>` 取回命令。
 > 汇总行会印「扫到几条 / 其中几条带锚点」：没带锚点的只判越界，别把这条门当成全覆盖。
+>
+> **别用 `cp -p`（或任何保留 mtime 的拷贝/还原）往这棵树里写 `.py`。**
+> CPython 默认按「源文件 mtime + size」判定 `.pyc` 是否过期：内容改了而 mtime 被按回旧值、
+> 长度又没变，旧的字节码就"仍然相符"，import 跑的是**盘上已经不存在的代码**，
+> 用例数与 `OK` 都是在测缓存。本机真实踩过一次（系统 python 报 7 个错、栈里那一行在当前
+> 源文件里 grep 命中 0 次），`console/test_stale_bytecode.py` 把这一类复现并防住：
+> 计数、skip 归因、发布检查的子进程统一走 `console/_preflight.py:isolated_env()`，
+> 把缓存前缀指到树外，读不到旧 `.pyc` 就只能从源码编译。
 
 ```bash
 python console/_preflight.py        # 依赖预检：缺包时直接说清缺哪些、用哪个解释器
@@ -315,7 +323,7 @@ swarm-balance/
 │  ├─ static/spec.html           # 「规范」页正文，由 /spec 路由渲染进 iframe
 │  ├─ static/vendor/             # 内置 vue.global.prod.js / echarts.min.js /
 │  │                             #   three.min.js + README（版本、来源、SHA-256）
-│  └─ test_*.py                  # 15 个文件 / 142 个用例（标准库 unittest）
+│  └─ test_*.py                  # 16 个文件 / 146 个用例（标准库 unittest）
 │
 ├─ frontend/                     # 仿真内核与可视化
 │  ├─ environment.py             # 2017 行 · 世界状态、障碍判定、统计口径
