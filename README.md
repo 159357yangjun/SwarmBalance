@@ -329,7 +329,7 @@ swarm-balance/
 │  ├─ static/spec.html           # 「规范」页正文，由 /spec 路由渲染进 iframe
 │  ├─ static/vendor/             # 内置 vue.global.prod.js / echarts.min.js /
 │  │                             #   three.min.js + README（版本、来源、SHA-256）
-│  └─ test_*.py                  # 17 个文件 / 153 个用例（标准库 unittest）
+│  └─ test_*.py                  # 18 个文件 / 159 个用例（标准库 unittest）
 │
 ├─ frontend/                     # 仿真内核与可视化
 │  ├─ environment.py             # 2017 行 · 世界状态、障碍判定、统计口径
@@ -474,8 +474,23 @@ python results/plot_compare_metrics.py
 > python results/plot_compare_metrics.py --record-into-evidence
 > ```
 >
+> **但今天这两条都会先被口径门禁拒绝**（实测：`plot_compare_metrics.py` 退出码 1，
+> 原文以 `[REFUSED]` 开头，把 400/600 步的 GA 与 2000 步的三个基线分成了两个桶）。
+> 想真的刷进证据，得先按结项口径重跑 GA（3600 步 / 5 回合 / seed 101–105），
+> 让 `python results/compare_gate.py --check-all` 通过 —— 顺序写在
+> `results/compare/plots/README.md` 里。
+>
+> **`results/compare/plots/` 整目录已标作废**：3 份派生表的算法列仍含 6 个
+> 已被 6b8c4c8 撤除的 MARL 算法（数字在登记表 R2 被逐格证伪），因为
+> `git log -1 -- results/compare/plots` 停在 `fcc7c5f`（2026-09-11），是 `6b8c4c8` 的祖先 ——
+> 撤除从未到达这里；12 张 PNG 逐张查也都是同一次提交（像素里画的是什么没单独核验，
+> 该目录的通知里把这条写成"未实测"）。同一目录还并存两份口径不同的 GA
+> （归档表 2000 步，入库 CSV 400/600 步）。
+> 这件事不再只写在纸上：`console/test_plots_archive_void.py` 逐条断言，并且是**双向**的 ——
+> 哪天清掉 MARL 行重生了这个目录，测试会红并要求撤销作废通知。
+>
 > **已知归档缺口（实测，未自行补齐）**：当前出图脚本实际生成 **20** 张图，而
-> `results/compare/plots/` 只归档了 **15** 个产物。加 `--record-into-evidence` 跑一次，
+> `results/compare/plots/` 只归档了 **15** 个产物。若门禁放行后再加 `--record-into-evidence`，
 > 除覆盖那 15 个之外，还会在已入库目录里**新添 5 个未跟踪 PNG**
 > （`bar_chain_insertions` / `bar_drone_utilization` / `bar_empty_load_ratio` /
 > `bar_no_fly_detours` / `bar_total_flight_distance`）—— 这正是 `git add -A` 会顺手扫进
