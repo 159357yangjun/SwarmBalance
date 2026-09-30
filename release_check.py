@@ -18,8 +18,14 @@ from pathlib import Path
 from typing import Callable, List, Tuple
 
 ROOT = Path(__file__).resolve().parent
+# —— 字节码纪律（必须在任何本仓 import 之前；解释见 console/test_stale_bytecode.py）——
+# .pyc 默认只按 (源 mtime, 源 size) 判过期：两者相符就跑旧字节码，内容对不对没人问。
+# 指往一个不存在的目录 = 读必 miss；写由 dont_write_bytecode 挡住，不在树里留东西。
+sys.dont_write_bytecode = True
+import os as _bc_os, tempfile as _bc_tf, uuid as _bc_ud
+sys.pycache_prefix = _bc_os.path.join(_bc_tf.gettempdir(), "swarmbalance-pyc", _bc_ud.uuid4().hex)
 sys.path.insert(0, str(ROOT))
-from console._preflight import isolated_env  # noqa: E402  缓存隔离只留一份实现
+from console._preflight import isolated_env, bytecode_discipline  # noqa: E402  缓存隔离只留一份实现
 
 
 def _run(cmd: List[str], *, cwd: Path = ROOT) -> Tuple[bool, str]:
@@ -67,6 +73,24 @@ def main() -> None:
     ok = compileall.compile_dir(str(ROOT), quiet=1, maxlevels=10)
     _print_result("Python compileall", ok)
     failures += 0 if ok else 1
+
+    # 字节码纪律要**印在报告里**：这条命令给出的每个 OK 都只在本进程不读过期 .pyc 时才有意义。
+    # 只看"启动命令里写了 PYTHONDONTWRITEBYTECODE"不够 —— 从子进程里把实际值问出来。
+    try:
+        bc = bytecode_discipline()
+        probe = _run([sys.executable, "-c",
+                      "import sys; print('%s|%s' % (sys.dont_write_bytecode, "
+                      "bool(sys.pycache_prefix)))"], cwd=ROOT)
+        _print_result("字节码纪律（跑绿的前提）",
+                      bc["dont_write_bytecode"] and bool(bc["pycache_prefix"]) and probe[0],
+                      "dont_write_bytecode=%s pycache_prefix=%s；子进程回报=%s"
+                      % (bc["dont_write_bytecode"],
+                         "树外" if bc["pycache_prefix"] else None,
+                         (probe[1] or "?").splitlines()[-1]))
+        failures += 0 if (bc["dont_write_bytecode"] and bc["pycache_prefix"]) else 1
+    except Exception as exc:  # noqa: BLE001 - 纪律没能自证时，后面的 OK 都不可信
+        print("[FAIL] 字节码纪律没能自证：%s: %s" % (type(exc).__name__, exc))
+        failures += 1
 
     ok, out = _run([sys.executable, "-m", "unittest", "discover", "-s", "console", "-p", "test_*.py"])
     _print_result("console 单元测试", ok, out.splitlines()[-1] if out else "")

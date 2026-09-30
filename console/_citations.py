@@ -34,6 +34,12 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
+# —— 字节码纪律（必须在任何本仓 import 之前；解释见 console/test_stale_bytecode.py）——
+# .pyc 默认只按 (源 mtime, 源 size) 判过期：两者相符就跑旧字节码，内容对不对没人问。
+# 指往一个不存在的目录 = 读必 miss；写由 dont_write_bytecode 挡住，不在树里留东西。
+sys.dont_write_bytecode = True
+import os as _bc_os, tempfile as _bc_tf, uuid as _bc_ud
+sys.pycache_prefix = _bc_os.path.join(_bc_tf.gettempdir(), "swarmbalance-pyc", _bc_ud.uuid4().hex)
 
 # `路径:行号[#锚点]`；行号支持 单行 / 区间 / 逗号多段
 CITE = re.compile(

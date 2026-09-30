@@ -31,8 +31,19 @@ import importlib
 import os
 import re
 import sys
+import tempfile
 import unittest
+import uuid
 from pathlib import Path
+
+# —— 字节码纪律：必须在任何本仓 import 之前生效，所以这段不能抽成函数让别人调 ——
+# `.pyc` 默认按 (源 mtime, 源 size) 判过期；只要两者相符就用旧字节码，源码内容是否真是那份
+# 没人问。`cp -p`、还原备份、部分同步盘都能造出"内容变了而 mtime/size 没变"的文件，
+# 于是导入的是盘上不存在的代码。本轮实测踩过两次（详见 console/test_stale_bytecode.py）。
+# 指往一个不存在的目录：读必 miss；写由 dont_write_bytecode 挡住，不会在树里留目录。
+sys.dont_write_bytecode = True
+import os as _bc_os, tempfile as _bc_tf, uuid as _bc_ud
+sys.pycache_prefix = _bc_os.path.join(_bc_tf.gettempdir(), "swarmbalance-pyc", _bc_ud.uuid4().hex)
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -63,6 +74,25 @@ def venv_python() -> Path | None:
     return None
 
 
+def _offstage_prefix():
+    """每次运行一个唯一的树外缓存目录：读必 miss，也不会把仓库弄脏。"""
+    return os.path.join(tempfile.gettempdir(), "swarmbalance-pyc", uuid.uuid4().hex)
+
+
+def bytecode_discipline():
+    """当前进程实际生效的字节码设置 —— 打印出来，别只信"启动命令里写了"。
+
+    为什么要单独问一遍：环境变量写了不等于生效（解释器可能被 `-E`/`-I` 起、或被
+    sitecustomize 改回去）。凡是拿"跑绿了"当证据的地方，都该把这三个值印出来。
+    """
+    return {"dont_write_bytecode": bool(sys.dont_write_bytecode),
+            "pycache_prefix": sys.pycache_prefix,
+            "prefix_outside_repo": not str(sys.pycache_prefix or "").startswith(
+                str(ROOT)),
+            "prefix_under_temp": str(sys.pycache_prefix or "").startswith(
+                tempfile.gettempdir())}
+
+
 def isolated_env(base=None):
     """测量用的子进程环境：UTF-8 输出 + 让树里的 .pyc 够不着。
 
@@ -73,13 +103,18 @@ def isolated_env(base=None):
     栈里那一行 `env = _load()` 在当前源文件里 grep 命中 0；删掉那个 3.13 旧 pyc 后同一条命令 OK。
 
     所以凡"要给人当一个数字来源"的子进程都走这里：读不到树内缓存就只能从源码编译。
+
+    注意这条只管**子进程**。同进程内的 `import` 与 `importlib.util.spec_from_file_location`
+    不受它影响 —— 那是另一条路，靠本文件顶部那三行裸赋值（每个入口脚本都得在自己
+    import 本仓任何东西之前复制一份，因为那时还没有本项目可 import）。
+    实测对照见 `console/test_stale_bytecode.py::test_in_process_importlib_is_the_gap`。
     """
     out = dict(base if base is not None else os.environ)
     out["PYTHONUTF8"] = "1"
     out["PYTHONIOENCODING"] = "utf-8"
     out["PYTHONDONTWRITEBYTECODE"] = "1"
     # 指往一个不存在的目录：读必miss，写又被 DONTWRITEBYTECODE 挡住，不会在树里留东西
-    out["PYTHONPYCACHEPREFIX"] = str(ROOT / ".pyc-offstage")
+    out["PYTHONPYCACHEPREFIX"] = sys.pycache_prefix or _offstage_prefix()
     return out
 
 

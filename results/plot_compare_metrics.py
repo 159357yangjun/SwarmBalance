@@ -7,6 +7,16 @@ import pandas as pd
 
 
 ROOT = Path(__file__).resolve().parents[1]
+# —— 字节码纪律：必须在任何本仓 import 之前生效，所以这几行不能抽成公共函数 ——
+# .pyc 默认只按 (源 mtime, 源 size) 判过期：两者相符就跑旧字节码，内容对不对没人问；
+# cp -p / 还原备份 / 某些同步盘就能造出这种文件。前缀取系统临时目录下的**每次运行
+# 唯一**子目录 = 读必 miss，且不会把仓库弄脏（release_check 第一件事 compileall 会显式写）。
+# 实测对照与由来见 console/test_stale_bytecode.py。
+import sys as _bc_sys
+_bc_sys.dont_write_bytecode = True
+import os as _bc_os, tempfile as _bc_tf, uuid as _bc_ud
+_bc_sys.pycache_prefix = _bc_os.path.join(_bc_tf.gettempdir(), "swarmbalance-pyc", _bc_ud.uuid4().hex)
+del _bc_sys
 COMPARE_DIR = ROOT / "results" / "compare"
 # 默认写到 results/adhoc/plots（已 gitignore）。results/compare/plots 里 15 个产物是**已入库**
 # 的答辩图与派生表，就地截断重写；照 README 跑一次出图命令就会弄脏工作区，且换掉的是
