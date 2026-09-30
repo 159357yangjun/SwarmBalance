@@ -11,9 +11,12 @@
 | 事实 | 实测方式 |
 |---|---|
 | 三份派生表各 10 行算法：greedy / pso / ga / ortools + 上面那 6 个 | `csv.reader` 读第一列，断言写在 `console/test_plots_archive_void.py` |
-| 整个目录最后一次入库改动停在 `fcc7c5f`（2026-09-11） | `git log -1 -- results/compare/plots` |
-| `fcc7c5f` 是 `6b8c4c8`（2026-09-29 撤除 MARL）的**祖先** —— 即那次撤除从未碰过这里 | `git merge-base --is-ancestor fcc7c5f 6b8c4c8` |
+| 15 件产物（3 表 + 12 图）**逐件**查最后一次入库改动，都是 `fcc7c5f`（2026-09-11） | `git log -1 --format=%H -- results/compare/plots/<每个文件>`，由 `console/test_plots_archive_void.py` 跑 |
+| 这些提交都是 `6b8c4c8`（2026-09-29 撤除 MARL）的**祖先** —— 即撤除从未碰过这 15 件 | `git merge-base --is-ancestor fcc7c5f 6b8c4c8` |
 | 当前出图脚本在这批数据上**拒绝**出图（混口径），所以也不可能"顺手刷新"过这里 | `python results/plot_compare_metrics.py` → 退出码 1，原文以 `[REFUSED]` 开头 |
+
+> 这里刻意**不**用"整个目录最后一次改动"当证据：本通知自己就是往这个目录里新加一个文件，
+> 一旦以目录为准，"撤除没到达这里"会被这条通知的提交推翻。判据必须逐件问产物。
 
 另有一处口径不一致值得记下：本目录 `combined_compare_metrics.csv` 里 `ga` 记的是
 **2000 步 / 60 任务**，而现已入库的 `results/compare/backend_ga_metrics.csv` 是

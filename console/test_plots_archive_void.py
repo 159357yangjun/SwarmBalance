@@ -102,13 +102,28 @@ class PlotsArchiveVoidTests(unittest.TestCase):
         self.assertIn("未实测", text, "通知没区分已实测/未实测")
         self.assertIn("像素", text, "要说清未核的是像素内容")
 
-    def test_purge_never_reached_this_directory(self):
-        """"撤除没到达这个目录"是可机器证的，不该靠人记。"""
-        last = _last_commit_touching("results/compare/plots")
-        self.assertRegex(last, r"^[0-9a-f]{40}$", "拿不到该目录的最后一次提交")
-        self.assertTrue(_is_ancestor(last, "6b8c4c8"),
-                        "%s 不是 6b8c4c8 的祖先 —— 那这个目录已被撤除之后的改动碰过，"
-                        "作废通知需要重新评估" % last[:7])
+    def test_purge_never_reached_the_artifacts(self):
+        """"撤除没到达这里"逐件证，且不拿"整个目录的最后一次改动"当判据。
+
+        第一版写的是 `git log -1 -- results/compare/plots`，我把它自己的作废通知提交进
+        那个目录之后，这条立刻红 —— 因为"目录最后一次改动"变成了那次新增通知的提交。
+        一个会被"记录缺陷的动作"本身推翻的判据是坏判据；改成对 15 件产物逐件问
+        最后一次入库改动，并各自要求它是 6b8c4c8 的祖先。
+        """
+        artifacts = [PLOTS / n for n in TABLES] + sorted(PLOTS.glob("*.png"))
+        self.assertEqual(len(artifacts), 15,
+                         "产物应有 3 表 + 12 图 = 15 件，实得 %d 件 —— 目录内容变了，"
+                         "本用例与通知都要重新核" % len(artifacts))
+        stale = {}
+        for p in artifacts:
+            rel = p.relative_to(ROOT).as_posix()
+            last = _last_commit_touching(rel)
+            self.assertRegex(last, r"^[0-9a-f]{40}$", "%s 拿不到最后一次入库提交" % rel)
+            if not _is_ancestor(last, "6b8c4c8"):
+                stale[rel] = last[:7]
+        self.assertEqual(stale, {},
+                         "这些产物在撤除 MARL（6b8c4c8）之后又被改过，作废通知需要重新评估：%s"
+                         % stale)
 
     def test_two_different_ga_calibers_coexist(self):
         """同目录并存两份口径不同的 GA —— 这是"图里那根 GA 柱说不清来源"的直接证据。"""
