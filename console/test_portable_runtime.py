@@ -12,6 +12,10 @@ for p in (str(ROOT), str(FRONTEND)):
     if p not in sys.path:
         sys.path.insert(0, p)
 
+from console import _preflight
+
+_preflight.require("shapely", gated_in="console/test_portable_runtime.py")
+
 from console.capabilities import runtime_capabilities
 from tools.osm import _height_from_tags, _load_map_data_fallback, _utm_epsg
 

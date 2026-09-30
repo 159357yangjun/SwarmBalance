@@ -16,6 +16,10 @@ for p in (str(ROOT), str(FRONTEND)):
     if p not in sys.path:
         sys.path.insert(0, p)
 
+from console import _preflight
+
+_preflight.require("numpy", "shapely", gated_in="console/test_environment_incidents.py")
+
 sys.modules.setdefault("osmnx", types.ModuleType("osmnx"))
 # 其它测试可能先把 environment 替换成轻量 fake；这里明确恢复真实模块。
 if "environment" in sys.modules and getattr(sys.modules["environment"], "__file__", None) is None:

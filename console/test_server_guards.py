@@ -13,6 +13,12 @@ import tempfile
 import unittest
 from pathlib import Path
 
+# 依赖预检放在重导入之前：缺 fastapi/shapely 时本模块整体 skip 并写明该用哪个解释器，
+# 而不是抛 ImportError 变成 `_FailedTest` 的 error —— 评审看到 traceback 会以为仿真坏了。
+from console import _preflight
+
+_preflight.require("fastapi", "shapely", "pandas", gated_in="console/test_server_guards.py")
+
 import console.server as server
 from frontend.tools import osm
 
