@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import argparse
 import csv
+import hashlib
 import io
 import json
 import math
@@ -307,6 +308,85 @@ def write_loader_baseline():
 
 
 
+def mapfile_digest(rel_path):
+    """分块算 sha256 与字节数 —— 这文件 10+ MB，不该整份进内存。"""
+    h = hashlib.sha256()
+    size = 0
+    with open(os.path.join(ROOT, rel_path), "rb") as mf:
+        for chunk in iter(lambda: mf.read(1 << 20), b""):
+            size += len(chunk)
+            h.update(chunk)
+    return h.hexdigest(), size
+
+
+def check_mapfile(report, baseline=None):
+    """钉住输入地图本身的内容哈希 —— 登记表里那一堆数字全部来自这一个文件。
+
+    为什么单独一条：`provenance_baseline.json` 早就钉住了加载器在该文件上跑出来的观测值
+    （2889 栋 / 2864 NaN / 18 个碰撞体…），却**没有任何地方钉住被读的那个 .osm 本身**。
+    只钉结论不钉输入，等于"数字可复现"只在换文件之前成立：谁换了一版地图、或从别的
+    机器拷来一份同名不同内容的，加载观测会红，但没人能一眼看出**原因是输入文件变了**，
+    而且"这张图是不是答辩用的那张"这个问题本身仍然无法回答。
+    哈希由代码现算，基线里只有期望值；期望值错了就红（不是改判据，是改那份手抄值）。
+    """
+    if baseline is None:
+        bpath = os.path.join(ROOT, "provenance_baseline.json")
+        if not os.path.isfile(bpath):
+            report.append(("FAIL", "MAPFILE", "缺基线文件 provenance_baseline.json，无从核对地图哈希"))
+            return 1
+        with open(bpath, encoding="utf-8") as bf:
+            baseline = json.load(bf)
+
+    pinned = baseline.get("map_file_sha256")
+    rel = baseline.get("map_file")
+    if not pinned or not rel:
+        report.append(("FAIL", "MAPFILE",
+                       "基线里没有 map_file_sha256 —— 输入地图没被钉住；"
+                       "采集：python verify_data_provenance.py --write-mapfile-baseline"))
+        return 1
+    path = os.path.join(ROOT, rel)
+    if not os.path.isfile(path):
+        report.append(("FAIL", "MAPFILE", "基线指向的地图文件不在盘上：%s" % rel))
+        return 1
+    got, size = mapfile_digest(rel)
+    if got != pinned:
+        report.append(("FAIL", "MAPFILE",
+                       "%s 的 sha256=%s，基线钉的是 %s（大小 %d 字节）—— "
+                       "输入地图已与产出登记表数字的那份不同，全部地图类结论需重跑"
+                       % (rel, got, pinned, size)))
+        return 1
+    if baseline.get("map_file_bytes") not in (None, size):
+        report.append(("FAIL", "MAPFILE", "%s 实际 %d 字节，基线记 %s 字节 —— "
+                                          "哈希对得上而大小对不上不可能同时成立，基线自相矛盾"
+                                          % (rel, size, baseline.get("map_file_bytes"))))
+        return 1
+    report.append(("OK", "MAPFILE",
+                   "%s sha256=%s…（%d 字节）与基线一致" % (rel, got[:12], size)))
+    return 0
+
+
+def write_mapfile_baseline():
+    """把当前磁盘上的地图内容哈希写进基线。只在确认"这份就是要归档的那份"时用。"""
+    bpath = os.path.join(ROOT, "provenance_baseline.json")
+    with open(bpath, encoding="utf-8") as bf:
+        doc = json.load(bf)
+    rel = doc.get("map_file") or "frontend/data/map/part_of_yangpu.osm"
+    path = os.path.join(ROOT, rel)
+    if not os.path.isfile(path):
+        print("找不到 %s" % rel)
+        return 2
+    digest, size = mapfile_digest(rel)
+    doc["map_file"] = rel.replace("\\", "/")
+    doc["map_file_sha256"] = digest
+    doc["map_file_bytes"] = size
+    with io.open(bpath, "w", encoding="utf-8", newline=chr(10)) as f:
+        json.dump(doc, f, ensure_ascii=False, indent=2)
+        f.write(chr(10))
+    print("已钉住 %s：sha256=%s（%d 字节）" % (rel, digest, size))
+    print("只有确认盘上这份就是产出登记表数字的那一份时才该这么做。")
+    return 0
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--marl", action="store_true", help="只跑 MARL 发布值核对")
@@ -316,19 +396,26 @@ def main():
                     help="显式放行与基线不一致的环境（默认阻断，退出码非零）")
     ap.add_argument("--write-loader-baseline", action="store_true",
                     help="用当前环境实测值重写 provenance_baseline.json")
+    ap.add_argument("--mapfile", action="store_true",
+                    help="只核对输入地图文件的内容哈希是否就是被钉住的那一份")
+    ap.add_argument("--write-mapfile-baseline", action="store_true",
+                    help="把当前盘上地图文件的 sha256 钉进 provenance_baseline.json")
     args = ap.parse_args()
 
     if args.write_loader_baseline:
         return write_loader_baseline()
+    if args.write_mapfile_baseline:
+        return write_mapfile_baseline()
 
-    selected = [k for k in ("marl", "experiments", "loader") if getattr(args, k)]
+    selected = [k for k in ("marl", "experiments", "loader", "mapfile") if getattr(args, k)]
     if not selected:
-        selected = ["marl", "experiments", "loader"]
+        selected = ["marl", "experiments", "loader", "mapfile"]
 
     report = []
     rc = 0
     runners = {"marl": check_marl, "experiments": check_experiments,
-               "loader": lambda rep: check_loader(rep, allow_drift=args.allow_loader_drift)}
+               "loader": lambda rep: check_loader(rep, allow_drift=args.allow_loader_drift),
+               "mapfile": check_mapfile}
     for name in selected:
         rc = max(rc, runners[name](report))
 

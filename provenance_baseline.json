@@ -30,5 +30,7 @@
       "colliders_gt_20m": 108
     }
   },
-  "why_this_matters": "碰撞体规模决定 is_path_clear / A* 可行图，18 与 108 栋意味着不同的航线与不同的能耗/绕飞统计。该差异取决于目标机器 import osmnx 是否成功，因此它是『结果可复现』的前提条件，而不是一个显示口径问题。"
+  "why_this_matters": "碰撞体规模决定 is_path_clear / A* 可行图，18 与 108 栋意味着不同的航线与不同的能耗/绕飞统计。该差异取决于目标机器 import osmnx 是否成功，因此它是『结果可复现』的前提条件，而不是一个显示口径问题。",
+  "map_file_sha256": "72c3ef9ca19c804387bc2985d3a2dd76a772fc28fc9add8872b003419e78a65b",
+  "map_file_bytes": 11098582
 }
