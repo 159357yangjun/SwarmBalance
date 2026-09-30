@@ -158,6 +158,36 @@ P2 清单第 10 条）与"待你拍板"那条 MARL 处置，都就地标注为�
 `verify_data_provenance.py` 退出码变 1 并把实测值印出来，跑完按字节还原（cmp 一致）。
 结论一句话：**没声明字节码纪律的"跑绿了"，只能算未验证。**
 
+### 同日续五：一条永不运行的门 + 一个把真兜底洗白的散文豁免
+
+回答「这些断言删掉哪个行为会变」时，顺手把那条门自己测了一遍，结果两条都是真的：
+
+① **`test_every_entry_point_resolves_to_the_same_number` 在两个解释器下都 skip。**
+   上一轮把 `import environment` 改成按文件路径加载之后，内核自己的扁平 import
+   （`from drone import ...`）找不到同级模块，报 `ModuleNotFoundError: No module named 'drone'`，
+   而 except 分支一律 skipTest —— 于是**它从来没跑过**，venv 里也一样。修法是加载时临时把
+   `frontend/` 放进 sys.path（用完还原，仍断言 `module.__file__` 就是那个文件），并把 skip
+   收窄成只在缺**第三方依赖**时成立，缺本仓模块就是 fail。现在 venv 6 例全跑、无 skip；
+   系统 python 因缺 numpy 才是 skip。「一条总是绿的门」和「一条总是 skip 的门」是同一件事：
+   都在假装把关。
+
+② 静态扫描器原先按整行放行：`if "原先" in line or "历史上" in line or "不再" in line: continue`。
+   放一行 `PROBE_A = cfg.get("episode_max_steps", 1200)   # 不再使用` 进被扫目录，扫描**照样 OK**
+   —— 一个词就能洗白一条真兜底，正是「修完假红换来假绿」。改成按语法事实放行：用 ast 只抹
+   **作为语句出现的字符串**（docstring 与孤立文本）和 tokenize 的注释列，代码里的字符串字面量
+   原样保留（`cfg.get("episode_max_steps", 1200)` 的键名本身就是字符串，抹了它就是漏检）；
+   解析失败退回整行，宁可多报不可漏报。`_samples()` 的 11 条样本走的是与真文件完全相同的判据，
+   含「含 `#` 的字符串不该截断后面的兜底」与两条 docstring 散文放行。本文件也不整文件豁免：
+   豁免范围由 ast 现算成 `_samples()` 的函数体行号。
+
+③ 顺带回答那两个下界：`assertGreater(nfiles, 0)` / `assertGreater(ntests, 10)` 删掉之后，
+   「发现机制全坏 + 恰好跑过一次 `--fix`」这条路径会让 README 抄成 0/0 且门永久绿；
+   `test_no_numeric_fallback_left_in_sources` 的 `nfiles > 50` 同理（清单为空时
+   offenders 必然为空，那是零次通过不是通过）。这三条都是挡"门自己失效"的，不是挡代码的。
+
+现况：venv `Ran 164 tests OK`（无 skip）、系统 python `Ran 111 tests OK (skipped=12)`、
+`_citations.py --verify` 68/68、`release_check.py` 退出码 0。
+
 ### 2026-09-30：评审视角的"红"—— 缺依赖不再伪装成代码坏了（commit cb42080 / fff6b0f / adc7bf3）
 
 `VERSION` 保持 `1.0.0` 未动，未打 tag、未发 release、未 push。

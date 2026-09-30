@@ -163,16 +163,32 @@ def load_kernel_environment():
     """按**文件路径**加载 frontend/environment.py，不接受名字撞车。
 
     返回 (module, real_path)。任何依赖缺失都原样抛出 ImportError，由调用方决定 skip。
+
+    为什么要临时把 frontend/ 放进 sys.path：内核自己用扁平 import（`from drone import ...`），
+    只按路径 exec 它的话，`drone` 这个同级模块找不到 —— 于是这条守门用例在**两个解释器下
+    都 skip**（实测原因是 `ModuleNotFoundError: No module named 'drone'`），
+    等于一条永不运行的门。加路径只是为了让扁平 import 解析得到；
+    文件身份仍由断言 `module.__file__ == path` 保证，且用完就把 sys.path 还原，
+    不把 `environment` 这个名字塞进 sys.modules（那是另一类撞车事故）。
     """
     import importlib.util
 
     path = ROOT / "frontend" / "environment.py"
     if not path.is_file():
         raise AssertionError("内核文件不存在：%s" % path)
+    pkg_dir = str(path.parent)
     spec = importlib.util.spec_from_file_location("swarmbalance_kernel_environment", path)
+    if spec is None or spec.loader is None:
+        raise AssertionError("无法为 %s 建 spec（加载器不可用）" % path)
     module = importlib.util.module_from_spec(spec)
-    # 注意：不塞进 sys.modules，免得污染后续按名字 import 的用例（这正是本函数要防的那类事故）
-    spec.loader.exec_module(module)
+    sys.path.insert(0, pkg_dir)
+    try:
+        spec.loader.exec_module(module)
+    finally:
+        try:
+            sys.path.remove(pkg_dir)
+        except ValueError:
+            pass
     if Path(module.__file__).resolve() != path.resolve():
         raise AssertionError("加载到的不是那个文件：%s != %s" % (module.__file__, path))
     return module, path
