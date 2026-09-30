@@ -192,7 +192,7 @@ Windows 直接双击 `start_console_portable.bat`。此模式会使用项目自�
 >
 > **非 raw 字符串里的非法转义**（`"\cite"` 那一类，被 import 就喷一行噪声）有常驻门：
 > `console/test_source_escape_sequences.py` 逐文件 `compile()` 并强制 `simplefilter("always")`，
-> 带范围下限（实测 83 个 `.py`，下限 80）、两面夹具（植一条必红、当前仓必绿），
+> 带范围下限（下限 80，实测条数**不写在文档里**，只印在行上）、两面夹具（植一条必红、当前仓必绿），
 > 普查数印在行上（`[ESCAPE_CENSUS] py_files=… hits=…`）。为什么不用 `-W error` 当证据、
 > 以及为什么不能按警告类别过滤（3.10 抛 `DeprecationWarning`、3.12+ 才升成 `SyntaxWarning`），
 > 实测表写在那个文件的模块注释里。
@@ -378,15 +378,15 @@ swarm-balance/
 │  ├─ scenario_presets.py        # 答辩预设（应急医疗高峰 / 机巢拥堵 / …）
 │  ├─ scene_library.py           # 场景库持久化（config/scenes/）
 │  ├─ experiment_service.py      # 一键实验的子进程编排与状态文件
-│  ├─ static/index.html          # 2982 行 · 单文件 Vue 3 应用（无构建步骤）
+│  ├─ static/index.html          # 单文件 Vue 3 应用（无构建步骤；行数用 wc -l 现数）
 │  ├─ static/spec.html           # 「规范」页正文，由 /spec 路由渲染进 iframe
 │  ├─ static/vendor/             # 内置 vue.global.prod.js / echarts.min.js /
 │  │                             #   three.min.js + README（版本、来源、SHA-256）
-│  └─ test_*.py                  # 21 个文件 / 181 个用例（标准库 unittest）
+│  └─ test_*.py                  # 21 个文件 / 182 个用例（标准库 unittest）
 │
 ├─ frontend/                     # 仿真内核与可视化
-│  ├─ environment.py             # 2017 行 · 世界状态、障碍判定、统计口径
-│  ├─ drone.py                   # 289 行 · STEP_SECONDS 等显式常量在此
+│  ├─ environment.py             # 世界状态、障碍判定、统计口径
+│  ├─ drone.py                   # STEP_SECONDS 等显式常量在此
 │  ├─ task.py / charging_station.py / no_fly_zone.py / matching.py
 │  ├─ scheduling_interface.py    # 调度器抽象基类
 │  ├─ metrics_schema.py          # 统一指标列名（CSV 表头单一来源）
@@ -410,7 +410,7 @@ swarm-balance/
 │  └─ import/                    # 外部数据导入工作区
 │
 ├─ experiments/
-│  ├─ runner.py                  # 609 行 · 预设解析、子进程编排、聚合
+│  ├─ runner.py                  # 预设解析、子进程编排、聚合
 │  ├─ worker.py                  # 单个 episode 的隔离执行（独立配置副本）
 │  ├─ reporting.py               # 统计与配对检验
 │  ├─ reproducibility.py         # 复现清单（schema v2：按算法登记源码哈希）

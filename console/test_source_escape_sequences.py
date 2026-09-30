@@ -38,6 +38,7 @@ r"""非 raw 字符串里的非法转义（`"\cite"` 那一类）是常驻判据�
 from __future__ import annotations
 
 import io
+import json
 import os
 import sys
 import unittest
@@ -49,7 +50,8 @@ ROOT = Path(__file__).resolve().parents[1]
 #: 第三方与产物目录。第一方代码一律不许进这个名单 —— 名单每加一项，覆盖面就塌一寸，
 #: 所以范围下限（下面 FLOOR）才是真正兜住"扫了个空"的东西。
 SKIP_DIRS = {"__pycache__", "node_modules", ".idea", "vendor", "data", ".git"}
-FLOOR = 80          # 实测 82（2026-09-30）；留 2 个的余量，掉到 79 就该问为什么
+FLOOR = 80          # 下限；**实测条数不写在这儿**（写死一次就过期一次），它只印在
+                    # [ESCAPE_CENSUS] 那行上，并由下面那条 `n >= FLOOR` 断言兜着。
 MSG = "invalid escape sequence"
 
 
@@ -152,11 +154,82 @@ class EscapeSequenceGateTests(unittest.TestCase):
             mine = [h for h in hits if h[0].endswith("_escape_probe_bad.py")]
             self.assertEqual(len(mine), 1, "种进仓库却没扫到：%s" % hits[:5])
             self.assertGreater(n, old_n, "文件数没跟着涨，说明 walk 根本没看到它")
+            # 第二遍也必须抓到 —— 只有"复扫仍红"才排除掉吃缓存的那一类瞎法：
+            # 换成 import 来扫的话，这一句就是它当场露馅的地方（实测见
+            # test_compile_is_what_keeps_the_second_pass_alive）。
+            n2, hits2, _b2 = scan_repo()
+            again = [h for h in hits2 if h[0].endswith("_escape_probe_bad.py")]
+            self.assertEqual(len(again), 1,
+                             "同一个坏文件第二遍扫不到了（%s）—— 判据依赖了 compile 之外的状态"
+                             % (hits2[:3],))
         finally:
             plant.unlink(missing_ok=True)
         _n2, hits2, _b2 = scan_repo()
         self.assertEqual([h for h in hits2 if h[0].endswith("_escape_probe_bad.py")], [],
                          "临时文件没删干净，下一轮会红在探针上")
+
+
+    def test_compile_is_what_keeps_the_second_pass_alive(self):
+        """`compile()` 到底替什么买单 —— 两边结果都在这里测，不是注释里的说法。
+
+        子进程（干净解释器，`PYTHONPYCACHEPREFIX` 指到仓外临时目录，缓存真会落盘）跑两条路：
+          A. `import` 同一个坏模块两次 —— 期望 1 条 then **0 条**（第二次吃缓存）；
+          B. `scan_source()` 的 compile 路数三次 —— 期望 **1/1/1**。
+        哪天 A 的第二次也能抓到（解释器改了重编译策略），这条会红 —— 那就不是"门坏了"，
+        而是模块注释③里"`-W error` 与'跑一次没喷'都不能当证据"这句失去依据，要连注释一起改。
+        """
+        import subprocess
+        import tempfile
+        work = tempfile.mkdtemp(prefix="esc-import-")
+        child = r'''
+import io, os, sys, warnings, importlib, json
+sys.path.insert(0, os.getcwd())
+from console.test_source_escape_sequences import scan_source
+d = sys.argv[1]
+Q = chr(34) * 3                    # 三引号；子进程自己的代码里不许出现非法转义
+BS = chr(92)                       # （否则它一启动就喷我们正要门控的那一行）
+src = Q + 'docstring ' + BS + 'cite here.' + Q + chr(10) + 'X = 1'
+io.open(os.path.join(d, "badimp.py"), "w", encoding="utf-8", newline="\n").write(src)
+sys.path.insert(0, d)
+imports = []
+for _ in range(2):
+    with warnings.catch_warnings(record=True) as w:
+        warnings.simplefilter("always")
+        sys.modules.pop("badimp", None)
+        importlib.import_module("badimp")
+        imports.append(sum(1 for x in w if "invalid escape" in str(x.message)))
+compiles = [len(scan_source(src, "badimp.py")[0]) for _ in range(3)]
+pc = os.path.join(os.environ.get("PYTHONPYCACHEPREFIX", ""), d)
+found = []
+for root, _dirs, files in os.walk(os.environ["PYTHONPYCACHEPREFIX"]):
+    found += [f for f in files if f.startswith("badimp") and f.endswith(".pyc")]
+print(json.dumps({"imports": imports, "compiles": compiles, "pyc": len(found)}))
+'''
+        env = dict(os.environ)
+        env.pop("PYTHONDONTWRITEBYTECODE", None)
+        env["PYTHONPYCACHEPREFIX"] = work          # 仓外，不污染树
+        env["PYTHONIOENCODING"] = "utf-8"
+        try:
+            pr = subprocess.run([sys.executable, "-c", child, work], cwd=str(ROOT),
+                                capture_output=True, env=env)
+        finally:
+            import shutil
+            shutil.rmtree(work, ignore_errors=True)
+        self.assertEqual(pr.returncode, 0, "子进程没跑成：%s" % pr.stderr.decode("utf-8", "replace")[-300:])
+        got = json.loads(pr.stdout.decode("utf-8", "replace").strip())
+        imports, compiles, pyc = got["imports"], got["compiles"], got["pyc"]
+        print("[ESCAPE_MECHANISM] import=%s compile=%s pyc=%d"
+              " | import 路：%s -> compile 路：%s -> 缓存文件 %d 个"
+              % (imports, compiles, pyc, imports, compiles, pyc))
+        self.assertGreaterEqual(pyc, 1,
+                                "缓存压根没落盘，'第二次 import'不是真吃缓存，这条判据空转")
+        self.assertEqual(imports[0], 1, "第一次 import 都没抓到 —— 对照基线变了，重写判据")
+        self.assertEqual(imports[1], 0,
+                         "第二次 import 也抓到了（%s）：缓存不再掩盖警告，"
+                         "模块注释③那句'-W error / 跑一次没喷 不能当证据'失去依据，"
+                         "要连注释一起改；compile 路此时依然正确" % (imports,))
+        self.assertEqual(compiles, [1, 1, 1],
+                         "compile 路不再稳定复现（%s）：本门的前提塌了" % (compiles,))
 
 
 if __name__ == "__main__":

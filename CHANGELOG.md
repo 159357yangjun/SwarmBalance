@@ -399,6 +399,43 @@ heredoc 的收尾行写成 `MSG; <命令>` 时 bash 不认它是定界符，整�
 5b4048b / 9fc3be5 / 34e3730` 共 7 个指针一起重落。dry-run 断言（含"每条都不在
 `origin/master` 里"这道闸门）已跑过全绿，未拍板就不动。
 
+### 同日续十：他自己量到的那条失配（注释写 82、门印 83），和"注释里的数"这一族
+
+**失配是他测出来的，不是我。** `console/test_source_escape_sequences.py:52` 写着
+"实测 82（2026-09-30）；下限 80 ⇒ 余量 2"，而同一个文件跑出来的 census 印的是
+`py_files=83`。porcelain=0 ⇒ **这条已经提交在仓里**。最便宜的核对方式就是
+"注释里的数 vs 它自己印出来的数"，我没做，他做了。成因很具体：83 = 82 + 门自己那个文件，
+我上一轮报告用的是加进门之后的数，注释用的是加进之前的数。
+
+按"数要么删、要么由代码生成"处理：
+- `FLOOR` 那行注释里的**实测条数删掉**，只留"下限与实测的差由断言兜着"这个语义；
+  条数只存在于 `[ESCAPE_CENSUS]` 那一行（每次现算）。
+- README 里同一族四处 `# N 行` 全删（**四条当场全是错的**，实测：
+  index.html 写 2982 实为 3030、environment.py 写 2017 实为 2007、drone.py 写 289 实为 291、
+  runner.py 写 609 实为 674）。没有任何用例钉过它们 —— 也就是说它们错了多久没人知道。
+  行数交给 `wc -l` 现数，树状图那几行只留职责描述。
+
+**`.pyc` 那条从"注释里的说法"变成"测出来的事实"**（两边结果都报）：
+- 机制层（干净子进程，`PYTHONPYCACHEPREFIX` 指到仓外、缓存真落盘）：
+  `[ESCAPE_MECHANISM] import=[1, 0] compile=[1, 1, 1] pyc=1` ——
+  同一个坏文件，**import 路第二遍就 0 条**，compile 路三遍都是 1 条。
+- 接线层（真把 `scan_repo()` 里探针那一路换成 `import`）：4 条用例红 1 条，红的是
+  `AssertionError: 0 != 1 : 同一个坏文件第二遍扫不到了（[]）—— 判据依赖了 compile 之外的状态`。
+  这条断言是本轮新加的（复扫必须仍红），它是"换成 import 就漏检"的**承重**，
+  所以 `compile()` 确实替什么买单，现在是事实而不是说法。
+- 新常驻用例 `test_compile_is_what_keeps_the_second_pass_alive` 把这个对照钉住，并且
+  **反过来也可证伪**：哪天真让 import 第二遍也抓得到，它会红，报警直接写着
+  "注释③那句'不能当证据'失去依据，要连注释一起改"。
+- 变异过程自己翻车两次，都报出来：第一次把 helper 插成缩进块 ⇒ 红在 `NameError` 上
+  （无效变异，我没当成证据）；第二次前置断言写错期望数（`_by_import` 出现次数）⇒ 脚本
+  自己崩，没碰盘上文件。第三次才拿到上面那条有效变异。
+
+现况：venv `Ran 182 tests OK`（21 个文件，无 skip）、experiments `Ran 24 tests OK`、
+`_citations --verify` rc=0、`_readme_counts --verify` 一致（console=21/182）、
+`[ESCAPE_CENSUS] py_files=83 hits=0 floor=80 broken=0`、`[ESCAPE_MECHANISM] import=[1, 0]
+compile=[1, 1, 1] pyc=1`。
+
+
 
 
 
