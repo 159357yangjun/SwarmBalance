@@ -9,6 +9,7 @@
 from __future__ import annotations
 
 import io
+import re
 import subprocess
 import sys
 import unittest
@@ -118,6 +119,44 @@ class PaperVoidScanTests(unittest.TestCase):
         self.assertTrue(all(f["before_purge"] for f in facts["figures"]),
                         "有图在撤除之后重生成了：%s" % [f["name"] for f in facts["figures"]
                                                         if not f["before_purge"]])
+
+    def test_greppable_line_numbers_exist_and_match(self):
+        """`不得当缺陷报` 必须挂在一行、且那一行就是全集。
+
+        为什么盯这个形状（而不是"有没有行号"）：保护名单是按短语 grep 来用的 ——
+        谁 grep `不得当缺陷报` 决定"哪些不许动"。若这个字样只挂在某个子集上（第一版就是这样，
+        只挂了 3 个相关工作的行号），少列的那几处就会被当缺陷删掉，而这正是这套分类要防的事故。
+        逐字节核对只挡"手改产物"，挡不住"把 render() 里这段删掉然后重生"，也挡不住挂错集合。
+        """
+        def ids_of(line):
+            return sorted(int(x) for x in re.findall(r"\d+", line.rsplit("：", 1)[1]))
+        text, rows, _facts = PS.render(ROOT)
+        legal = sorted(r[0] for r in rows if r[1] not in PS.NEEDS_DECISION)
+        need = sorted(r[0] for r in rows if r[1] in PS.NEEDS_DECISION)
+        # 只数"带冒号带数字"的那些行 —— 章节标题 `## 合法，不得当缺陷报（共 6 处）`
+        # 也含这个短语，但它不列行号，不构成"读半张名单"的风险
+        protect = [l for l in text.split("\n")
+                   if "不得当缺陷报" in l and "：" in l]
+        self.assertEqual(len(protect), 1,
+                         "列行号的保护名单只能有一行（多行就会有人只读其中一行）：%s" % protect)
+        self.assertEqual(ids_of(protect[0]), legal,
+                         "保护名单与 classify 现算的合法集合不等：名单 %s / 现算 %s"
+                         % (ids_of(protect[0]), legal))
+        self.assertIn("共 %d 处" % len(legal), protect[0],
+                      "名单里印的处数与行号个数不符：%s" % protect[0])
+        # 子集拆分只当定位用：并集必须等于全集，且不许互相重叠（否则数两遍）
+        subs = [l for l in text.split("\n") if l.startswith("- ├ 子集")]
+        self.assertEqual(len(subs), 2, "子集行数变了：%s" % subs)
+        parts = [ids_of(l) for l in subs]
+        self.assertEqual(sorted(sum(parts, [])), legal,
+                         "子集并集 != 全集（%s vs %s）" % (sorted(sum(parts, [])), legal))
+        self.assertFalse(set(parts[0]) & set(parts[1]), "两个子集有重叠，合起来会数两遍")
+        need_line = [l for l in text.split("\n") if l.startswith("- 待作者定夺")]
+        self.assertEqual(len(need_line), 1, "缺待夺那行汇总")
+        self.assertEqual(ids_of(need_line[0]), need, "待夺汇总与现算不符")
+        # 盘上的产物也得有这一行（不是只在 render 里）
+        disk = (ROOT / PS.OUT_REL).read_text(encoding="utf-8")
+        self.assertIn(protect[0], disk, "盘上清单缺这行 —— 跑 --paper-report --write")
 
     def test_verify_mode_goes_red_when_the_report_is_stale(self):
         """判别式：改清单里一个数，`--verify` 必须不通过（否则清单就是手抄件）。"""
