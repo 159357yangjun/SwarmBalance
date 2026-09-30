@@ -77,8 +77,12 @@ P2 清单第 10 条）与"待你拍板"那条 MARL 处置，都就地标注为�
 - 那 3 份派生表的算法列是 **10 个** —— greedy/pso/ga/ortools 之外还带
   `iql` / `iql_u` / `vdn` / `vdn_u` / `qmix` / `qmix_u`，正是登记表 R2 逐格证伪、
   并在 6b8c4c8 从数据源与对比页撤掉的那六行；12 张 PNG 同批。
-- "撤除没到达这里"不是我推测的，是 git 自己说的：`git log -1 -- results/compare/plots`
-  等于 `fcc7c5f`（2026-09-11），且 `git merge-base --is-ancestor fcc7c5f 6b8c4c8` 成立。
+- "撤除没到达这里"不是我推测的，是 git 自己说的 —— 但**按 15 件产物逐件问**
+  （3 份派生表 + 12 张 PNG，最后一次入库改动都是 `fcc7c5f`，2026-09-11，
+  且 `git merge-base --is-ancestor fcc7c5f 6b8c4c8` 成立）。
+  一开始我写的是问"整个目录"的最后一次改动，结果把作废通知提交进那个目录之后
+  这条断言立刻自翻 —— 目录的最新提交变成了"写这张纸"本身。判据问的是产物还是记录动作，
+  这是本轮自己踩到的一次，`console/test_plots_archive_void.py` 里留了注释。
 - 同目录还并存**两份口径不同的 GA**：归档表里 `ga` = 2000 步 / 60 任务，
   入库的 `backend_ga_metrics.csv` = 400/600 步、22/30 任务 —— 图上那根 GA 柱说不清来源。
 - 顺带纠正 README 的一处说法：原文写"加 `--record-into-evidence` 跑一次"就能补齐，
