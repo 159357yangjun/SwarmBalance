@@ -154,6 +154,10 @@ Windows 直接双击 `start_console_portable.bat`。此模式会使用项目自�
 > 锚点是被引行必须含的一段字，改了代码位置而忘了改引用就会红。
 > 引用已删除的文件时按约定写 `path:line 已移除@<sha>` 并附 `git show <sha>^:<path>` 取回命令。
 > 汇总行会印「扫到几条 / 其中几条带锚点」：没带锚点的只判越界，别把这条门当成全覆盖。
+> 两种历史标注**紧跟在它描述的那条引用后面**（一行里两条引用时各管各的，不整行共享）：
+> `path:line 已移除@<sha>` 表示文件在该提交被删，`path:line#锚点 已失效@<sha>` 表示文件还在、
+> 但引的是那次修复**之前**的行号 —— 两者都按 `git show <sha>^:<path>` 取正文核对，
+> 且 `已失效@` 必须带锚点：历史行号没法跟磁盘比，只有锚点能证明它当时真的对过。
 >
 > **别用 `cp -p`（或任何保留 mtime 的拷贝/还原）往这棵树里写 `.py`。**
 > CPython 默认按「源文件 mtime + size」判定 `.pyc` 是否过期：内容改了而 mtime 被按回旧值、
@@ -323,7 +327,7 @@ swarm-balance/
 │  ├─ static/spec.html           # 「规范」页正文，由 /spec 路由渲染进 iframe
 │  ├─ static/vendor/             # 内置 vue.global.prod.js / echarts.min.js /
 │  │                             #   three.min.js + README（版本、来源、SHA-256）
-│  └─ test_*.py                  # 16 个文件 / 146 个用例（标准库 unittest）
+│  └─ test_*.py                  # 16 个文件 / 148 个用例（标准库 unittest）
 │
 ├─ frontend/                     # 仿真内核与可视化
 │  ├─ environment.py             # 2017 行 · 世界状态、障碍判定、统计口径
