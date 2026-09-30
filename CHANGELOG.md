@@ -220,6 +220,142 @@ A 项（干净 shell、只读 README 第一段）实测：
 现况：venv `Ran 164 tests OK`、系统 python `Ran 111 tests OK (skipped=12)`、experiments 24 OK、
 `_citations --verify` 68/68、`_readme_counts --verify` 一致、`release_check.py` 退出码 0。
 
+### 同日续七：上一轮那条门自己没记账；这一轮把同一把尺子伸进 `paper/`（只报不改）
+
+**先记一笔自己的欠账。** 加行集合差异表与"引用必须声明行集合"那笔提交（现 `ab830e7`，
+改写前的旧号 `370b9fc` 还在 reflog 里）
+**当时没写 CHANGELOG 小节** —— README、登记表、`results/compare/plots/README.md` 都跟着改了，
+唯独这本流水漏了。这正是这一整轮在修的那类东西：文档说做过，但记录里翻不到。补上摘要：
+
+- 量出来的结论：作废目录那三份派生表 **27 个统计量里 22 个**在 `core4` / `all10` 两种行集合下
+  读数不同（`Weighted Overall Score` 0.833768 vs 0.588907，差 −0.244861；`Total Energy`
+  13699.87 vs 61220.86；`Priority-1 Average Delay` 0.000000 vs 9.705890）。
+  全表由 `results/row_set_delta.py --write` 生成、`--verify` 不一致退出码 1，
+  落 `results/compare/plots/ROW_SETS.md`（禁止手改）。
+- 引用作废产物的每一行必须紧跟 `行集=core4` 或 `行集=all10`；声明 `all10` 还要与表里
+  实际算法集合相符 —— 表重生成后标注自己会红（双向）。
+- 剩下 5 列两读数相同（`Generated Tasks`、`Berth Utilization Rate`、`Nest Turnover Rate`、
+  `Avg Berth Wait Time`、`Total Swap Sessions`）。**这条只当线索，不当结论**：
+  同值不代表该列不该声明行集合，只代表这一批数据上它恰好没差。
+
+**这一轮：同一把尺子伸进 `paper/`，但只报不改。** `console/_paperscan.py` 扫
+`main.tex` 与 `paper/figure/*`，产出 `docs/论文侧撤除未达清单.md`
+（`--paper-report --write` 生成、`--paper-report --verify` 逐字节不一致退出码 1），
+并接进 `console/_citations.py --verify` 那条总门 —— 现在 `--verify` 一次核三件事：
+文档引用、作废产物行集合标注、论文侧清单是否还是代码现在算出来的那份。
+
+**为什么必须分类，而不是"见名就报"。** `IQL / VDN / QMIX` 在论文里有两种身份：
+
+- **待作者定夺 17 处** —— 结果表里那六行数据、伪代码表的图注、以及摘要/关键词/贡献/方法/
+  结论里"我们评了这六个"的正文主张（逐条行号见清单，这里刻意不重抄：重抄一遍就是
+  再造一个没人核对的手抄值，而清单本身是逐字节核过的）；
+- **合法 6 处** —— 「相关工作」里引 Qie et al. 等别人方法的三行、文献条目
+  （`\bibitem{qmix}` 那一段）三行。
+
+把两类混成一锅报，下一轮为了变绿就会去删**真的相关工作引用** —— 那是比重复数字更坏的修法。
+所以分类本身就是判据：`console/test_paper_void_scan.py` 双向钉（待夺类漏报要红、
+合法类误报也要红），四条变异实测都变红 —— 放宽 `RELATED_HINTS` 含 introduction（红 3）、
+默认分类改成合法（红 4）、正则改成手抄（红 1）、去掉词边界（红 1）。
+词边界那条不是装饰：`QMIXv2`、`preQMIX`、`dynamically` 都会被子串匹配算成"已撤除的数据行"。
+
+**算法名单不再手抄。** `NAME_RE` 现在由 `console/_rowsets.py:WITHDRAWN` 现算
+（`qmix_u` → `QMIX-U`），改那边一个键这边就跟着变；用例既验现值全覆盖，也验 `name_re()`
+真的按传入集合算 —— 清单顶部那句"同一把尺子"因此是可证伪的，不是一句话。
+
+**清单里那句"撤除从未到达论文"是算出来的**（同一用例核逐字节）：`6b8c4c8` 动过 `paper/`
+的文件数 = **0**，`main.tex` 最后一次入库改动停在 `4d8ac93`（2026-09-08），
+10 张图最后一次改动全部早于该撤除。图的**像素内容未单独核验** —— 位图读不出列，
+这道门能核的只有入库批次；这条欠账长期挂着的前提，是引用它的每一行都声明了行集合。
+
+**README 里去掉一个必然过期的数字**：`docs/` 那行原本写"16 份文档"，我新增一份它就错了
+（而且这类"份数"上一轮已经错过一次），改成不写份数、逐份看文末索引。
+
+现况：venv `Ran 178 tests OK`（20 个文件，无 skip）、experiments `Ran 24 tests OK`、
+`_citations --verify` 68/68 带锚点 + 作废引用 3/3 已声明 + 论文清单逐字节一致、
+`_readme_counts --verify` 一致（console=20/178、experiments=2/24）、`release_check.py` 退出码 0。
+
+### 同日续八：一条门禁模块只要被 import 就喷脏话；以及"红得没人读得懂"也算坏
+
+两件都是别人跑我的产物时发现的，不是我跑出来的 —— 这个区别很重要，写在下面。
+
+**① `_paperscan.py` 的 docstring 里写了 `\cite` 而没加 `r`。**
+别人跑 `python -m unittest console.test_paper_void_scan` 时，输出里多了一行
+`_paperscan.py:5: SyntaxWarning: invalid escape sequence '\c'`：
+**一个门禁模块只要被 import 就喷一行噪声**，而它自己那条"输出要干净"的门当然也看不见自己。
+改成 `r"""`。
+
+顺手普查这个类别，并且**先认错**：我第一遍扫出来是 0 命中，判据是
+`issubclass(x.category, SyntaxWarning)` —— 而 3.10 对这一类抛的是 **DeprecationWarning**
+（3.12+ 才升成 SyntaxWarning），所以那台机器上量具整个是瞎的。第二次扫把类别去掉、只按
+消息文本匹配，并把 `results/`、`experiments/` 这些生成器目录纳入范围（82 个 `.py`）：
+**1 处命中，就是 `_paperscan.py`**；改成 raw 后归零。
+量具本身也证了非空转：把那个 docstring 改回非 raw → 立刻 1 条命中，改回来 → 0 条。
+这一类**没有新增门禁**（他只要"一句命中数"），加了就是为假想场景盖层。
+
+**② 更要紧的一条：我的门在这台机上"红得读不懂"。**
+同一次运行里那行 warning 中的中文整片变成 `??????`（GBK 系通道 vs UTF-8）。
+这不是我的 bug，但后果是真的：**门报红时如果诊断只有中文，值班的人看得见 `[FAIL]`、
+看不见它在说什么** —— 那这条门在真事故时等于没有。
+
+三个选项里选了 ②（关键诊断行附 ASCII 短码），没选 ①/③，理由具体：
+`_citations.py` 已经在 `main()` 里 `sys.stdout.reconfigure(encoding="utf-8")`，
+① 对该模块自己无效，而"被重定向到管道/文件"才是别人实际遇到中文丢失的通道；
+③ 会造出第二个事实源（一份 UTF-8 log 与屏幕上的红互不核对），是新的漂移面。
+所以形状固定为：
+
+    [FAIL][<ASCII 短码>] <文档>:<行> <ASCII 事实> | fix: <ASCII 方向><中文解释>
+
+新门 `console/test_gate_ascii_diagnostics.py`（5 条）钉三层，都由变异证过生效：
+- **每条判据都能被真的弄红**（8 条引用样本 + 2 条行集合样本 + paper 三条分支），
+  且整行 `.encode("ascii","replace")` 之后短码、`文档:行`、`| fix:` 仍在；
+- **非空转**在两侧都断：中文必须*确实丢掉*（`faded != msg`），
+  且样本必须*恰好*弄红一条（第一版样本把 `已失效@` 写进了反引号里，
+  CITE 整条匹配不上，于是 5 个样本全绿 —— 是"样本没生效"而不是"判据坏"，靠这条抓到）；
+- **短码表与实发短码互印**：`_citations.py` 头部那张表的 14 个短码，
+  少发一个红、多发一个也红（防止代码换了叫法而表还在讲旧故事）。
+四次变异实测：摘掉 `[ANCHOR_MISS]` 前缀（红 2）、摘掉 `| fix:`（红 1）、
+把表里一行改名（红 1）、成功行退回纯中文（红 2）；`_citations.py` 还原后逐字节相同。
+
+**改文案把自己的旧用例打红了 4 条 —— 同一课第二次上。**
+`test_compare_gate` 里三条、`test_plots_archive_void` 里一条，断言写的是
+`assertIn("找不到", ...)`、`assertIn("却不带 #锚点", ...)`、`assertIn("过期", ...)`：
+判据寄生在**中文文案**上，文案一改成 ASCII 优先就当场假红。
+这与上一轮 `_preflight.env_shortfall()`（判据寄生在报错文案上，文案一好人就坏）是同一个错误，
+只是这次犯在我自己的门禁用例上。全部改成断言短码，并因此多拿到一处判别力：
+磁盘分支与历史分支旧文案都写"找不到锚点"，分不出来；现在分别是
+`[ANCHOR_MISS]` 与 `[ANCHOR_MISS_HISTORY]`，摘掉 `已失效@` 标注后走哪条支路是可断言的。
+
+**欠账照旧（不混进这条）**：`.venv310` 在仓库外而 README 教的是仓内形式（一句话定性已在
+同日续六记下）；GA 按结项口径重跑（3600 步 / 5 回合 / seed 101–105）排在 `paper/` 那条之后；
+`release_check.py` 已重跑退出码 0（同日续六里那句"退出码 0"是修剪 CHANGELOG 之前测的，
+现在这句是修剪之后重测的）。
+
+**③ 提交信息里的 shell 残文：只改 message、树未变，全过程留痕。**
+`4520523` 的 message 尾部混进了 `MSG; git status --porcelain; echo "[STATUS-END]"` ——
+heredoc 的收尾行写成 `MSG; <命令>` 时 bash 不认它是定界符，整行被当正文吞进 commit。
+它不是 HEAD，`--amend` 够不着，所以用 `commit-tree` 按原 tree/parent/author/committer
+重落，最后一步才 `update-ref`（带 old-value 守卫）。普查用了 `^MSG;` 这个通用形状
+（不是那一条字面量），全仓 106 条提交里命中 **3 条**，其中 2 条已处理：
+
+| 旧 sha | 新 sha | 做了什么 |
+|---|---|---|
+| `4520523` | `328b6f4` → `873f069` | 删去尾部那行 shell 残文（两轮改写各换一次指针） |
+| `2294adc` | `007be71` → `b9d37c7` | 同一形状的另一条：`MSG; git status -sb \| head -3` |
+| `370b9fc` | `6f83007` → `ab830e7` | message 一个字节没动，只因父提交被重落而换指针 |
+| `2550328` | `5d3d153` → `4adc947` | 同上 |
+| `76825e0` | — → `1fc3425` | 同上（第三轮待批的那条链里） |
+| `e3b7db8` | **未处理，等你拍板** | 尾部一行 `MSG; PYTHONIOENCODING=utf-8 …… echo "[END]"`；它在更前面，改它要把上面 6 个指针一起重落 |
+
+断言（每一条都跑过、不是叙述）：`git diff <旧HEAD> <新HEAD>` 为空、`rev-parse ^{tree}`
+逐条相同、author/committer 与时间戳原样、未改动的提交 message 逐字节相同、
+`git rev-list --count origin/master..main` 改前改后都是 **42**（一条没多没少）、
+工作区状态改写前后逐行相同。安全闸门：每条被重落的提交都先验过
+`merge-base --is-ancestor <sha> origin/master` **不成立** —— 推出去的历史不改写。
+旧链仍在 reflog 里（`git reflog` 可见 `370b9fc`/`6f83007`），可回退。
+规则同批生效：**多行 message 一律 `git commit -F <文件>`，不再用内嵌 heredoc。**
+
+
+
 ### 2026-09-30：评审视角的"红"—— 缺依赖不再伪装成代码坏了（commit cb42080 / fff6b0f / adc7bf3）
 
 `VERSION` 保持 `1.0.0` 未动，未打 tag、未发 release、未 push。

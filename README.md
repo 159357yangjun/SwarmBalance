@@ -170,6 +170,19 @@ Windows 直接双击 `start_console_portable.bat`。此模式会使用项目自�
 > 但引的是那次修复**之前**的行号 —— 两者都按 `git show <sha>^:<path>` 取正文核对，
 > 且 `已失效@` 必须带锚点：历史行号没法跟磁盘比，只有锚点能证明它当时真的对过。
 >
+> **同一把尺子伸进 `paper/`，但只报不改。** `console/_paperscan.py` 扫 `main.tex` 与
+> `paper/figure/*`，产出 `docs/论文侧撤除未达清单.md`（`--paper-report --write` 生成、
+> `--paper-report --verify` 不一致退出码 1，并已接进上面那条 `--verify` 总门）。
+> 清单**按语义分两类**：结果表行/图注/正文里的"我们评了这六个"＝待作者定夺，
+> 「相关工作」叙述与 `\cite`/`\bibitem` 引用键＝合法、**不当缺陷报**。
+> 分类本身就是判据的一半：混成一锅报，下一轮为了变绿就会去删真的相关工作引用，
+> 那是比重复数字更坏的修法 —— 所以 `console/test_paper_void_scan.py` 双向钉：
+> 待夺类漏报要红，合法类误报也要红。删哪几行、改成什么口径是**作者权决定**，
+> 这道门只核「清单还是不是代码现在算出来的那一份」，不自动改 `paper/` 任何文件。
+> 清单里那句"撤除从未到达论文"也是算出来的：`6b8c4c8` 动过 `paper/` 的文件数 = 0，
+> `main.tex` 最后一次入库改动停在 `4d8ac93`，10 张图最后一次改动全部早于该撤除
+> （图的**像素内容未单独核验**，位图读不出列，能核的只有入库批次）。
+>
 > **别用 `cp -p`（或任何保留 mtime 的拷贝/还原）往这棵树里写 `.py`。**
 > CPython 默认按「源文件 mtime + size」判定 `.pyc` 是否过期：内容改了而 mtime 被按回旧值、
 > 长度又没变，旧的字节码就"仍然相符"，import 跑的是**盘上已经不存在的代码**，
@@ -195,6 +208,7 @@ Windows 直接双击 `start_console_portable.bat`。此模式会使用项目自�
 ```bash
 python console/_preflight.py        # 依赖预检：缺包时直接说清缺哪些、用哪个解释器
 python console/_citations.py --verify   # 文档引用门禁：行号越界 / 锚点找不到都退出码 1
+python console/_citations.py --paper-report --write   # 论文侧「撤除未达」具名清单（只报不改）
 python -m console.selfcheck
 python release_check.py             # 普通发布检查
 python release_check.py --strict    # Python 3.10 正式环境最终检查
@@ -354,7 +368,7 @@ swarm-balance/
 │  ├─ static/spec.html           # 「规范」页正文，由 /spec 路由渲染进 iframe
 │  ├─ static/vendor/             # 内置 vue.global.prod.js / echarts.min.js /
 │  │                             #   three.min.js + README（版本、来源、SHA-256）
-│  └─ test_*.py                  # 18 个文件 / 166 个用例（标准库 unittest）
+│  └─ test_*.py                  # 20 个文件 / 178 个用例（标准库 unittest）
 │
 ├─ frontend/                     # 仿真内核与可视化
 │  ├─ environment.py             # 2017 行 · 世界状态、障碍判定、统计口径
@@ -396,7 +410,7 @@ swarm-balance/
 │
 ├─ deliverables/                 # 作品图片、界面展示
 ├─ paper/                        # 论文正文与图件
-└─ docs/                         # 16 份文档 + 1 份 Word 交付（见文末索引）
+└─ docs/                         # 说明文档 + Word 交付（逐份见文末索引，不写份数）
 ```
 
 > 根目录另有结项工具链（`release_check.py`、`run_conclusion.py`、`build_conclusion_package.py`、`finalize_project.bat`）、
@@ -602,6 +616,7 @@ Windows 也可以直接双击 `run_conclusion.bat`，或在命令行执行 `run_
 | [`离线便携与端到端自检.md`](docs/离线便携与端到端自检.md) | v0.9 离线 OSM 回退、便携启动、真实端到端自检与发布检查 |
 | [`结项最终验收清单.md`](docs/结项最终验收清单.md) | v1.0 正式环境、系统交互、实验、口径与证据归档的最终验收门槛 |
 | [`结项修改说明.md`](docs/结项修改说明.md) | 结项阶段的修改清单与口径说明 |
+| [`论文侧撤除未达清单.md`](docs/论文侧撤除未达清单.md) | 由 `console/_paperscan.py` 现算的具名清单：论文里哪几处是**待作者定夺**的结论形式、哪几处是**合法**的相关工作引用；只报不改 |
 | `frontend/README.md` · `backend_si/README.md` | 仿真环境入口 / PSO 调度器参数与双通道机制详解 |
 
 ---

@@ -383,11 +383,16 @@ class CitationIntegrityTests(unittest.TestCase):
         self.assertEqual(bc, 5, "区间/多段形式仍然没进扫描（%d/5）" % bc)
         self.assertEqual(len(bb), 5, "5 条坏引用只报了 %d 条：%s" % (len(bb), bb))
         self.assertEqual(ba, 1)
-        self.assertIn("找不到", "\n".join(bb))
-        self.assertIn("取不回来", "\n".join(bb))
-        self.assertIn("最长只有", "\n".join(bb))
-        self.assertIn("已移除", "\n".join(bb))
-        self.assertIn("锚点", "\n".join(bb))
+        # 断言打在**短码**上而不是中文文案上：文案是给值班的人看的，随时能改措辞；
+        # 短码才是契约（寄生在报错文案上的判据，文案一好它就坏 —— 见 _preflight.env_shortfall
+        # 那一轮的同一个教训）。每条还必须以 `[短码]` 开头，形状也是契约的一部分。
+        joined_codes = {b.split("]", 1)[0] + "]" for b in bb}
+        self.assertEqual(joined_codes, {"[CITE_NOFILE]", "[GIT_SHOW_FAIL]",
+                                        "[CITE_RANGE]", "[ANCHOR_MISS]"},
+                         "五类失效各自落在哪个短码上变了：%s" % bb)
+        for b in bb:
+            self.assertTrue(b.startswith("["), "失效行必须以 ASCII 短码开头：%s" % b[:60])
+            self.assertIn("| fix:", b, "每条报警都要带 ASCII 的 fix 方向：%s" % b[:70])
 
     def test_coverage_is_printed_not_just_asserted(self):
         """绿的时候也要看得见覆盖率：判据扫到几条、其中几条真带锚点。
@@ -439,20 +444,32 @@ class CitationIntegrityTests(unittest.TestCase):
         c2, a2, b2 = self._scan_lines([both.replace(" 已失效@66016b7", "")], "合成")
         self.assertEqual((c2, a2), (2, 2), "摘掉标注后两条仍应被扫到并带锚点")
         self.assertEqual(len(b2), 1, "摘掉标注后历史那条必须红：%s" % b2)
-        self.assertIn("找不到锚点", b2[0])
+        # 摘掉标注后走的是**磁盘**分支，所以短码是 [ANCHOR_MISS] 而不是 [ANCHOR_MISS_HISTORY] ——
+        # 两个短码分开才有这个判别力（旧的中文措辞两边都写"找不到锚点"，分不出来）。
+        self.assertIn("[ANCHOR_MISS]", b2[0])
 
     def test_obsolete_marker_branches_go_red_when_wrong(self):
-        """历史引用四种错法都要红：缺锚点、行号手抄时就错、sha 取不回、越界。"""
+        """历史引用四种错法都要红：缺锚点、行号手抄时就错、sha 取不回、越界。
+
+        断言打在**短码**上：中文措辞是给值班的人看的、随时能改，短码才是契约。
+        （上一版这里断言 "却不带 #锚点" 之类的话，本轮把报警改成 ASCII 优先之后，
+        四条全部假红 —— 判据寄生在文案上，文案一改它就坏。）
+        """
         cases = [
-            ("`frontend/environment.py:268` 已失效@66016b7", "却不带 #锚点"),
-            ("`frontend/environment.py:282#具有高度信息的建筑物` 已失效@66016b7", "没有锚点"),
-            ("`frontend/environment.py:268#具有高度信息的建筑物` 已失效@deadbee", "取不回来"),
-            ("`frontend/environment.py:268-999999#具有高度信息的建筑物` 已失效@66016b7", "只有"),
+            ("`frontend/environment.py:268` 已失效@66016b7", "[ANCHOR_REQUIRED]"),
+            ("`frontend/environment.py:282#具有高度信息的建筑物` 已失效@66016b7",
+             "[ANCHOR_MISS_HISTORY]"),
+            ("`frontend/environment.py:268#具有高度信息的建筑物` 已失效@deadbee",
+             "[GIT_SHOW_FAIL]"),
+            ("`frontend/environment.py:268-999999#具有高度信息的建筑物` 已失效@66016b7",
+             "[CITE_RANGE_HISTORY]"),
         ]
         for text, expect in cases:
             _c, _a, b = self._scan_lines([text], "合成")
             self.assertEqual(len(b), 1, "%s 没被判红" % text)
-            self.assertIn(expect, b[0], "%s 的报警文不对题：%s" % (text, b[0]))
+            self.assertTrue(b[0].startswith(expect),
+                            "%s 的报警短码不是 %s：%s" % (text, expect, b[0][:90]))
+            self.assertIn("| fix:", b[0], "历史类报警也要给 ASCII 的修法：%s" % b[0][:80])
         # 正面：登记簿里实际用的那两条历史标注必须能用（否则上面四种错法都走不到分支）
         doc = (ROOT / "docs" / "数据来源与可追溯性登记表.md").read_text(encoding="utf-8")
         _c, a, b = self._scan_lines(doc.splitlines(), "登记簿")

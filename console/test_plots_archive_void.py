@@ -137,7 +137,9 @@ class PlotsArchiveVoidTests(unittest.TestCase):
             _c, _m, bad = CJ.rowset_violations(["引用 `%s` 行集=all10 的均值" % rel_c],
                                                "探针", vdirs=vdirs)
             self.assertEqual(len(bad), 1, "过期标注没报警：%s" % bad)
-            self.assertIn("过期", bad[0])
+            # 打在短码上而不是中文措辞上（文案随时能改，短码才是契约）
+            self.assertTrue(bad[0].startswith("[ROWSET_STALE]"),
+                            "标注过期那条的短码不对：%s" % bad[0][:90])
 
             # ④ 声明 core4 是允许的子集读法，不该被当假话
             _c, _m, bad = CJ.rowset_violations(["引用 `%s` 行集=core4 的均值" % rel_d],
