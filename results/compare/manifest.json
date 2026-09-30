@@ -1,0 +1,171 @@
+{
+  "_comment": [
+    "results/compare/ 的口径单一真源。README.md 由 `python results/compare_gate.py --render-readme`",
+    "从本文件渲染，两边一致性由 console/test_compare_gate.py 断言。",
+    "metrics_schema_version 是表头指纹（列数 + 列名集合 sha1 前 12 位），由门禁与磁盘实际表头核对；",
+    "episode_max_steps / generated_tasks 之类若能从盘上算出来，也一并核对，声明不能只靠人抄。"
+  ],
+  "headline": "**一句话**：这个目录里的文件分属三种口径，不能随手并到一张表或一张图里。`backend_ga_metrics.csv` 的 GA 是 400/600 步、22/30 个任务的短跑，其余三个基线是 2000 步 / 60 个任务 —— 完成率 0.7667 与 0.9667 的差里混着 episode 长度，不全是算法差异。",
+  "schema_versions": {
+    "n25-e5c7244bc840": "25 列：算法 + 24 个指标，含机队 5 列（无人机利用率/空载率/总飞行距离/顺路接入次数/禁飞区绕飞次数）。当前 frontend/metrics_schema.py 的 CSV_HEADER。",
+    "n20-75f2e8bdb73e": "20 列：算法 + 19 个指标，**不含机队 5 列**。历史 schema。",
+    "n13-566c12dc2ab5": "13 列：英文 snake_case，异构/同构对照实验专用，与前两者完全不同实验族。"
+  },
+  "files": {
+    "frontend_greedy_metrics.csv": {
+      "family": "algorithm_comparison",
+      "algorithm": "greedy",
+      "episode_max_steps": 2000,
+      "episode_count": "unknown",
+      "seed_set": "unknown",
+      "generated_tasks": 60,
+      "metrics_schema_version": "n20-75f2e8bdb73e",
+      "declared_total_steps_on_disk": ["2000.0"],
+      "provenance_recorded": false,
+      "rows_on_disk": 1,
+      "comparable_with": ["backend_si_metrics.csv", "backend_ortools_metrics.csv"],
+      "not_comparable_with": ["backend_ga_metrics.csv", "one_click_latest.csv", "hetero_vs_homo_hetero.csv", "hetero_vs_homo_homo.csv"],
+      "note": "单行 ad-hoc 均值。episode 数与随机种子集当时没有写进 CSV，无法证明是哪一次运行；口径列只有步数/任务数可信。"
+    },
+    "backend_si_metrics.csv": {
+      "family": "algorithm_comparison",
+      "algorithm": "pso",
+      "episode_max_steps": 2000,
+      "episode_count": "unknown",
+      "seed_set": "unknown",
+      "generated_tasks": 60,
+      "metrics_schema_version": "n20-75f2e8bdb73e",
+      "declared_total_steps_on_disk": ["2000.0"],
+      "provenance_recorded": false,
+      "rows_on_disk": 1,
+      "comparable_with": ["frontend_greedy_metrics.csv", "backend_ortools_metrics.csv"],
+      "not_comparable_with": ["backend_ga_metrics.csv", "one_click_latest.csv", "hetero_vs_homo_hetero.csv", "hetero_vs_homo_homo.csv"],
+      "note": "同 frontend_greedy_metrics.csv：2000 步 / 60 任务，缺机队 5 列。"
+    },
+    "backend_ortools_metrics.csv": {
+      "family": "algorithm_comparison",
+      "algorithm": "ortools",
+      "episode_max_steps": 2000,
+      "episode_count": "unknown",
+      "seed_set": "unknown",
+      "generated_tasks": 60,
+      "metrics_schema_version": "n20-75f2e8bdb73e",
+      "declared_total_steps_on_disk": ["2000.0"],
+      "provenance_recorded": false,
+      "rows_on_disk": 1,
+      "comparable_with": ["frontend_greedy_metrics.csv", "backend_si_metrics.csv"],
+      "not_comparable_with": ["backend_ga_metrics.csv", "one_click_latest.csv", "hetero_vs_homo_hetero.csv", "hetero_vs_homo_homo.csv"],
+      "note": "同上。"
+    },
+    "backend_ga_metrics.csv": {
+      "family": "algorithm_comparison",
+      "algorithm": "ga",
+      "episode_max_steps": "400 或 600（同一文件内两种）",
+      "episode_count": "unknown",
+      "seed_set": "unknown",
+      "generated_tasks": "22 或 30（同一文件内两种）",
+      "metrics_schema_version": "n25-e5c7244bc840",
+      "declared_total_steps_on_disk": ["400.0", "600.0"],
+      "provenance_recorded": false,
+      "rows_on_disk": 6,
+      "quarantined": true,
+      "comparable_with": [],
+      "not_comparable_with": ["frontend_greedy_metrics.csv", "backend_si_metrics.csv", "backend_ortools_metrics.csv", "one_click_latest.csv", "hetero_vs_homo_hetero.csv", "hetero_vs_homo_homo.csv"],
+      "note": "**400 步的 GA 行不可与 2000 步的基线并列。** 本文件 6 行里 5 行是 400 步 / 22 任务、1 行是 600 步 / 30 任务，其中第 2/3/4 行逐字节相同（同种子重复执行的产物，见 docs/数据来源与可追溯性登记表.md 第七点五节的确定性实测）。两个入口都用 keep=\"last\"，所以真正进入图与表的是最后那行 600 步 / 30 任务。文件已隔离：不得与任何 2000 步文件或 one_click_latest.csv 同图。"
+    },
+    "one_click_latest.csv": {
+      "family": "conclusion_experiment_summary",
+      "algorithm": "greedy/pso/ga/ortools（四个算法各一行）",
+      "episode_max_steps": 3600,
+      "episode_count": 5,
+      "seed_set": ["101", "102", "103", "104", "105"],
+      "generated_tasks": 60,
+      "metrics_schema_version": "n25-e5c7244bc840",
+      "declared_total_steps_on_disk": ["2112.6", "2118.4", "2142.6", "2270.4"],
+      "provenance_recorded": true,
+      "rows_on_disk": 4,
+      "comparable_with": ["one_click_latest.csv"],
+      "not_comparable_with": ["frontend_greedy_metrics.csv", "backend_si_metrics.csv", "backend_ortools_metrics.csv", "backend_ga_metrics.csv", "hetero_vs_homo_hetero.csv", "hetero_vs_homo_homo.csv"],
+      "source": "results/experiments/conclusion_20260911-043701/algorithm_comparison.csv",
+      "note": "总步数是 5 次重复的**均值**（2112.6 等），不是 episode 上限；上限是配置里的 3600，实际提前终止。四个算法彼此可比（同族、同 3600/5/seeds/60 任务）。**不可与任何 ad-hoc 文件并列**：步数口径不同，且 ad-hoc 侧没有登记种子集。"
+    },
+    "hetero_vs_homo_hetero.csv": {
+      "family": "hetero_vs_homo",
+      "algorithm": "hetero",
+      "episode_max_steps": "unknown（本族 CSV 没有总步数列）",
+      "episode_count": 3,
+      "seed_set": "unknown",
+      "generated_tasks": "unknown（只有比率列与 total_generated）",
+      "metrics_schema_version": "n13-566c12dc2ab5",
+      "provenance_recorded": false,
+      "rows_on_disk": 3,
+      "comparable_with": ["hetero_vs_homo_homo.csv"],
+      "not_comparable_with": ["frontend_greedy_metrics.csv", "backend_si_metrics.csv", "backend_ortools_metrics.csv", "backend_ga_metrics.csv", "one_click_latest.csv"],
+      "note": "另一个实验族（异构 vs 同构机队）。列名是英文 snake_case，13 列，completion_rate 等是**占比不是计数**；与前 5 个文件同目录同命名风格，容易被误当成同一张对比表的行。两个生成入口都不读它。"
+    },
+    "hetero_vs_homo_homo.csv": {
+      "family": "hetero_vs_homo",
+      "algorithm": "homo",
+      "episode_max_steps": "unknown（本族 CSV 没有总步数列）",
+      "episode_count": 3,
+      "seed_set": "unknown",
+      "generated_tasks": "unknown",
+      "metrics_schema_version": "n13-566c12dc2ab5",
+      "provenance_recorded": false,
+      "rows_on_disk": 3,
+      "comparable_with": ["hetero_vs_homo_hetero.csv"],
+      "not_comparable_with": ["frontend_greedy_metrics.csv", "backend_si_metrics.csv", "backend_ortools_metrics.csv", "backend_ga_metrics.csv", "one_click_latest.csv"],
+      "note": "同 hetero_vs_homo_hetero.csv，是同族的对照组。"
+    }
+  },
+  "comparison_groups": [
+    {
+      "title": "A 组 · 正式结项实验（唯一可直接对外的一组图/表）",
+      "members": ["one_click_latest.csv"],
+      "notes": [
+        "3600 步上限 / 每算法 5 次重复 / seeds 101–105 / 60 个生成任务，四算法同口径。",
+        "`/api/compare` 今天显示的正是这一组（keep=\"last\" 恰好让它盖住其余文件），所以**当前页面读数是全 1.0 完成率**、不是 0.9667。",
+        "口径可查：results/experiments/conclusion_20260911-043701/（raw_runs.csv 68 行、reproducibility.json）。"
+      ]
+    },
+    {
+      "title": "B 组 · 2000 步 ad-hoc 基线（三者内部可比，但不得与 A 组或 ga 短跑并列）",
+      "members": ["frontend_greedy_metrics.csv", "backend_si_metrics.csv", "backend_ortools_metrics.csv"],
+      "notes": [
+        "2000 步 / 60 任务，完成率 0.9667、0.9667、0.9500。",
+        "缺机队 5 列，所以任何用到那 5 列的图对这一组都不成立（见「缺失列」一节）。",
+        "episode 数与种子集当年没写进 CSV，所以这一组只能给描述性读数，不能声称可复现。"
+      ]
+    },
+    {
+      "title": "C 组 · 已隔离：backend_ga_metrics.csv",
+      "members": ["backend_ga_metrics.csv"],
+      "notes": [
+        "400/600 步、22/30 任务的短跑，与 A、B 两组都不同口径。",
+        "**不得单独成图，也不得与 A/B 并列**。要拿 GA 的对外柱状图，必须按 3600/5/seeds 重跑，或直接用 A 组里已有的 GA 行。",
+        "留在目录里不删，是为了保住\"论文图当年是怎么生成的\"这份物证；隔离靠门禁拒绝并列，不靠人的记性。"
+      ]
+    },
+    {
+      "title": "D 组 · hetero_vs_homo_*（独立实验族，自成一组）",
+      "members": ["hetero_vs_homo_hetero.csv", "hetero_vs_homo_homo.csv"],
+      "notes": [
+        "只与同族另一文件并列；与前 5 个文件没有任何共同口径列。",
+        "两个生成入口都不读它们，放在这里是防止接手的人在 Excel 里把它们接成一张表。"
+      ]
+    }
+  ],
+  "missing_column_policy": [
+    "`无人机利用率`、`空载率`、`总飞行距离`、`顺路接入次数`、`禁飞区绕飞次数` 这 5 列**只存在于 25 列 schema**（backend_ga_metrics.csv、one_click_latest.csv）；三个 2000 步基线是 20 列 schema，根本没有这 5 列。",
+    "`pd.concat` 按列对齐后，缺失方是 **NaN**，不是 0。渲染规则：**必须显示为空/断口，绝不能补 0**。补 0 会把\"没测\"变成\"测了且为 0\"，在越低越好的指标上直接制造假胜利（空载率 0 优于 GA 的 0.4994 就是这种假胜利）。",
+    "Web 表格 `cmpFmt()` 已按此渲染成「—」（正确）；柱状图原先写的是 `r[m] ?? 0`（错误），已改为保留 null 让 ECharts 断柱。",
+    "matplotlib 侧 NaN 是\"不画这根柱子\"，视觉上像\"只有 GA 有数据\"，同样构成误导 —— 所以缺列时必须由门禁拒绝该指标成图，而不是出半张图。"
+  ],
+  "why_it_matters": [
+    "这个目录是给**结项与交接**用的。拿 CSV 的人是在 Excel/WPS 里打开、或把它粘进论文表格，`/api/compare` 的 `口径` 字段一行都帮不到他 —— 所以口径声明必须做成同目录的文件，而不是只做在 API 层。",
+    "25 列与 20 列混放时，Excel 按列对齐会把基线的机队 5 列留空，图表工具常把空值当 0。",
+    "`results/plot_compare_metrics.py` 与 `console/server.py` 读的是**不同的文件清单**（只有后者带 one_click_latest.csv），所以同一批文件在图和页上会选出不同的行。"
+  ],
+  "expected_comparable_group": ["frontend_greedy_metrics.csv", "backend_si_metrics.csv", "backend_ortools_metrics.csv"],
+  "expected_refused_group": ["backend_ga_metrics.csv", "backend_ortools_metrics.csv"]
+}
