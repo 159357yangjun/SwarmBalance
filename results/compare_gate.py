@@ -229,22 +229,7 @@ def check_group(names: List[str], man: Dict[str, Any],
     if len(names) < 2:
         raise GateRefused("并列判据至少需要 2 个成员，收到 %d 个" % len(names))
     decls = {n: entry_for(man, n) for n in names}
-
     quarantined = sorted(n for n, d in decls.items() if d.get("quarantined"))
-    if quarantined:
-        raise GateRefused(
-            "拒绝并列：%s 已被隔离，不得与任何文件同图/同表。\n      隔离理由见 manifest：%s"
-            % (", ".join(quarantined),
-               " ".join(str(decls[n].get("note", ""))[:80] for n in quarantined)),
-            conflicts=[{"kind": "quarantined", "file": n} for n in quarantined])
-
-    # 显式声明过"不可与谁并列"的，检查对侧
-    for n in names:
-        for other in decls[n].get("not_comparable_with", []):
-            if other in names:
-                raise GateRefused(
-                    "拒绝并列：manifest 明确登记 %s 与 %s 不可并列。" % (n, other),
-                    conflicts=[{"kind": "declared_incompatible", "a": n, "b": other}])
 
     conflicts = []
 
@@ -271,10 +256,27 @@ def check_group(names: List[str], man: Dict[str, Any],
             label = "盘上实测" if c["kind"] == "disk_mismatch" else "声明口径"
             pairs = ", ".join("%s=%s" % (n, c["values"][n]) for n in names)
             pretty.append("  [%s] 字段 %s 不一致 → %s" % (label, c["field"], pairs))
+        if quarantined:
+            pretty.append("  另：%s 已被隔离（manifest.quarantined），即使口径补齐也不得并列。"
+                          % ", ".join(quarantined))
         raise GateRefused(
             "拒绝并列：%d 个成员口径不一致，混进同一张表/图后，读数差异里混着实验设置差异，"
             "不再是算法差异。\n%s" % (len(names), "\n".join(pretty)),
             conflicts=conflicts)
+
+    # 口径算不出差别时，标签仍然要拦 —— 否则"同指纹但被判定不可对外"的文件会被放行。
+    if quarantined:
+        raise GateRefused(
+            "拒绝并列：%s 已被隔离，不得与任何文件同图/同表。\n      隔离理由见 manifest：%s"
+            % (", ".join(quarantined),
+               " ".join(str(decls[n].get("note", ""))[:80] for n in quarantined)),
+            conflicts=[{"kind": "quarantined", "file": n} for n in quarantined])
+    for n in names:
+        for other in decls[n].get("not_comparable_with", []):
+            if other in names:
+                raise GateRefused(
+                    "拒绝并列：manifest 明确登记 %s 与 %s 不可并列。" % (n, other),
+                    conflicts=[{"kind": "declared_incompatible", "a": n, "b": other}])
 
     warnings = []
     for n, d in decls.items():

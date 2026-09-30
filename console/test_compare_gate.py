@@ -96,6 +96,36 @@ class GateRefusesTests(unittest.TestCase):
         self.assertIn("隔离", cm.exception.message)
 
 
+    def test_quarantine_still_blocks_when_signatures_match(self):
+        """盘上算不出差别时标签仍要拦 —— 否则那条分支是死代码。
+
+        这里不新增文件，只是把 ortools 临时标成隔离：它与 greedy 的实测签名完全相同
+        （n20 / 2000 步 / 60 任务），所以口径判据放行，只能靠隔离声明拦。
+        真实场景对应"口径没错但不该对外"的判定。
+        """
+        bare = copy.deepcopy(MAN)
+        bare["files"]["backend_ortools_metrics.csv"]["quarantined"] = True
+        pair = ["frontend_greedy_metrics.csv", "backend_ortools_metrics.csv"]
+        self.assertEqual(G.disk_signature(pair[0]), G.disk_signature(pair[1]),
+                         "前提破了：这两个文件的实测签名本应相同")
+        with self.assertRaises(G.GateRefused) as cm:
+            G.check_group(pair, bare)
+        self.assertIn("隔离", cm.exception.message)
+        self.assertEqual({c["kind"] for c in cm.exception.conflicts}, {"quarantined"})
+
+    def test_data_reason_is_reported_before_label_reason(self):
+        """操作者第一眼看到的必须是实测差异，而不是我抄的标签。"""
+        with self.assertRaises(G.GateRefused) as cm:
+            G.check_group(MIXED, MAN)
+        lines = cm.exception.message.splitlines()
+        first_conflict = next(i for i, l in enumerate(lines) if "[盘上实测]" in l)
+        label_line = next((i for i, l in enumerate(lines) if "已被隔离" in l), None)
+        self.assertIsNotNone(label_line, "隔离信息应当一并显示")
+        self.assertLess(first_conflict, label_line,
+                        "标签理由排在实测理由之前，运维看到的会是『因为某个布尔值被拒』"
+                        "而不是因为哪个数字不一致")
+
+
 class GateDiskFactsTests(unittest.TestCase):
     """声明必须与磁盘一致 —— 手抄的口径表会过期，这里把它变成机器断言。"""
 
