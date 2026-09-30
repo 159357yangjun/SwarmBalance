@@ -59,9 +59,14 @@ def measure(subdir: str):
     if vp is None:
         raise RuntimeError("找不到项目 .venv310 解释器，无法给出解释器无关的用例数；"
                            "请先按 README 建 venv，或修 TARGETS 指向实际环境")
+    # 缓存隔离只有一份实现（console/_preflight.py）：这个数是 README 里那两处计数的真值来源，
+    # 若它读到过期的 .pyc，报出来的就是"盘上不存在的代码"的用例数。
+    import sys as _sys
+    _sys.path.insert(0, str(Path(__file__).resolve().parent))
+    from _preflight import isolated_env
     proc = subprocess.run([str(vp), "-c", _CHILD, str(ROOT), subdir],
                           cwd=str(ROOT), capture_output=True, text=True,
-                          encoding="utf-8", errors="replace")
+                          encoding="utf-8", errors="replace", env=isolated_env())
     if proc.returncode != 0:
         raise RuntimeError("在 %s 下测量失败：\n%s" % (vp, (proc.stderr or "")[-600:]))
     nf, nt = proc.stdout.strip().splitlines()[-1].split(",")

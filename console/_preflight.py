@@ -63,6 +63,26 @@ def venv_python() -> Path | None:
     return None
 
 
+def isolated_env(base=None):
+    """测量用的子进程环境：UTF-8 输出 + 让树里的 .pyc 够不着。
+
+    为什么必须指到树外：`.pyc` 默认按 (源文件 mtime, size) 校验。用 `cp -p`/还原备份
+    改过源码时，新源码可以**保留旧 mtime**，只要长度也碰巧一样，旧 .pyc 就"仍然相符"，
+    于是导入的是盘上已经不存在的代码 —— 而计数、skip 归因、断言全都变成在测缓存。
+    本轮实测过一次：系统 python 直接跑 `console.test_run_determinism` 报 7 个错，
+    栈里那一行 `env = _load()` 在当前源文件里 grep 命中 0；删掉那个 3.13 旧 pyc 后同一条命令 OK。
+
+    所以凡"要给人当一个数字来源"的子进程都走这里：读不到树内缓存就只能从源码编译。
+    """
+    out = dict(base if base is not None else os.environ)
+    out["PYTHONUTF8"] = "1"
+    out["PYTHONIOENCODING"] = "utf-8"
+    out["PYTHONDONTWRITEBYTECODE"] = "1"
+    # 指往一个不存在的目录：读必miss，写又被 DONTWRITEBYTECODE 挡住，不会在树里留东西
+    out["PYTHONPYCACHEPREFIX"] = str(ROOT / ".pyc-offstage")
+    return out
+
+
 def missing(needed) -> list:
     """返回装不上的模块名。用 find_spec + 真 import 双重判，避免半成品模块骗人。"""
     out = []
@@ -195,7 +215,7 @@ def collect_skips(interpreter=None):
     proc = subprocess.run([exe, "-c", _CHILD_SKIP, str(ROOT)], cwd=str(ROOT),
                           capture_output=True, text=True,
                           encoding="utf-8", errors="replace",
-                          env={**os.environ, "PYTHONUTF8": "1", "PYTHONIOENCODING": "utf-8"})
+                          env=isolated_env())
     line = [l for l in proc.stdout.splitlines() if l.startswith("{")]
     if not line:
         raise RuntimeError("子进程没吐结果（exit=%d）：%s"

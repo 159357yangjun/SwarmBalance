@@ -18,13 +18,19 @@ from pathlib import Path
 from typing import Callable, List, Tuple
 
 ROOT = Path(__file__).resolve().parent
+sys.path.insert(0, str(ROOT))
+from console._preflight import isolated_env  # noqa: E402  缓存隔离只留一份实现
 
 
 def _run(cmd: List[str], *, cwd: Path = ROOT) -> Tuple[bool, str]:
     # Windows 上 text=True 会按父进程 locale（cp936）解码子进程输出，而子进程打印的是
     # UTF-8，reader 线程直接 UnicodeDecodeError 死掉、stdout 变 None —— 于是失败时
     # 下面那些 `if not ok and out` 拿不到任何诊断文本，闸门会"FAIL 但不说为什么"。
-    env = dict(os.environ, PYTHONUTF8="1", PYTHONIOENCODING="utf-8")
+    #
+    # 环境走 isolated_env()：其中 PYTHONPYCACHEPREFIX 让子进程读不到树里的 .pyc。
+    # 发布检查跑的就是"这些用例真的过没过"，若它按 (mtime,size) 相符的过期缓存跑，
+    # 报出来的 OK 描述的是盘上已经不存在的代码。
+    env = isolated_env()
     proc = subprocess.run(cmd, cwd=str(cwd), text=True, capture_output=True,
                           encoding="utf-8", errors="replace", env=env)
     out = (proc.stdout or "") + (proc.stderr or "")
