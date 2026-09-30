@@ -188,6 +188,38 @@ P2 清单第 10 条）与"待你拍板"那条 MARL 处置，都就地标注为�
 现况：venv `Ran 164 tests OK`（无 skip）、系统 python `Ran 111 tests OK (skipped=12)`、
 `_citations.py --verify` 68/68、`release_check.py` 退出码 0。
 
+### 同日续六：陌生人照第一条应用命令跑，缺依赖时拿到的是满屏栈
+
+A 项（干净 shell、只读 README 第一段）实测：
+
+- `cd frontend && python evaluate_metrics.py --policy ga --episodes 1 --episode-steps 600
+  --seed 100` 用系统 python 就能跑完，退出码 0，输出与 README 示例**逐位吻合**
+  （完成率 0.7667 / 超时率 0.0435 / 平均时延 0.4565 / 完成 23/30 / 利用率 0.705 与 .4f 的
+  0.7045 / 空载率 0.498 与 0.4984 / 顺路 5 / 绕飞 7），只写
+  `results/adhoc/backend_ga_metrics.csv`，跑完 `git status --porcelain` 为空 ——
+  文档那句"会写到哪"是真的，不需要背景知识也能跑完。
+- 一处对不上：本机 `.venv310` 在仓库**外面**（父目录），README 教的
+  `python -m venv .venv310` + `source .venv310/bin/activate` 照敲在这台机器上不成立
+  （工具两个位置都认，文档只写了一个）。
+- 缺依赖的表现不一致：`console.run` 与 `console.selfcheck` 早就打印可读前置检查并退出码 2，
+  而 README 第一条**应用**命令 `evaluate_metrics.py` 直接抛
+  `ModuleNotFoundError: No module named 'shapely'` —— 评审会读成"仿真坏了"。
+
+补 `_preflight.guard_or_exit()`，退出码 3（与 0/1/2 分开），打印缺的包名、项目解释器绝对路径
+与**同一条命令**的重跑写法；只补这一个入口，另两个已有自己的前置检查。
+
+顺带修掉我自己造成的连带失败：`test_run_determinism` 与 `test_readme_command_side_effects`
+原先用 `"No module named" in out` 识别"这台机器跑不了"。哨兵把 traceback 换成一句人话后
+这个匹配失效，3 条用例当场从 skip 变 FAIL —— **判据寄生在报错文案上，文案一好它就坏**。
+统一成 `_preflight.env_shortfall(rc, out)`（认退出码 3、统一标题，旧字样向后兼容），
+两处调用点都换掉；修完系统 python `Ran 111 tests OK (skipped=12)`。
+
+顺手量了一下这件事的暴露面：仓库第一方代码里现有 **325 个** `.pyc`，
+每一个都与其源码的 (mtime,size) 相符 —— 也就是 325 处"缓存说了算"的地方。
+
+现况：venv `Ran 164 tests OK`、系统 python `Ran 111 tests OK (skipped=12)`、experiments 24 OK、
+`_citations --verify` 68/68、`_readme_counts --verify` 一致、`release_check.py` 退出码 0。
+
 ### 2026-09-30：评审视角的"红"—— 缺依赖不再伪装成代码坏了（commit cb42080 / fff6b0f / adc7bf3）
 
 `VERSION` 保持 `1.0.0` 未动，未打 tag、未发 release、未 push。

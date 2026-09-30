@@ -82,6 +82,10 @@ python evaluate_metrics.py --policy ga --episodes 1 --episode-steps 600 --seed 1
 > 想改道到别处用 `--output ../results/adhoc/ga.csv`；
 > 确实要刷新「算法对比」页的入库数据源时，必须显式加 `--record-into-evidence`，
 > 那会**追加一行到已入库的** `results/compare/<该算法>.csv` 并弄脏工作区。
+> **解释器不对时的退出码**：`evaluate_metrics.py` 缺依赖会打印一句人话（缺哪个包 +
+> 项目正式解释器的绝对路径 + 同一条命令的重跑写法）并以 **退出码 3** 结束，不再抛
+> `ModuleNotFoundError` 的满屏栈；`python -m console.run` 与 `python -m console.selfcheck`
+> 走各自的前置检查，退出码是 2。CI 与文档自检据此把「环境不够」与「仿真跑挂了」分开。
 > 默认值过去是直接写 `results/compare/`，评审照本节跑一次就出现
 > `M results/compare/backend_ga_metrics.csv`（实测 7 行 → 8 行），故改为显式开关。
 

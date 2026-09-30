@@ -35,6 +35,19 @@ FRONTEND_ROOT = Path(__file__).resolve().parent
 sys.path.insert(0, str(PROJECT_ROOT))
 sys.path.insert(0, str(FRONTEND_ROOT))
 
+# —— 依赖哨兵：必须先于下面的扁平 import ——
+# README「快速开始」第一条应用命令是
+#     cd frontend && python evaluate_metrics.py --policy ga ...
+# 没建 venv 的机器上它原先直接抛 `ModuleNotFoundError: No module named 'shapely'`，
+# 满屏 traceback 会被评审读成"仿真坏了"，而真实原因只是解释器不对（同 _preflight 治的那类）。
+# 现在打印一句人话并以退出码 3 结束，让"环境不够"与"跑挂了"可分。
+from console import _preflight as _PF  # noqa: E402
+
+_RC = _PF.guard_or_exit(("numpy", "shapely", "pandas"),
+                        entry="python evaluate_metrics.py（README「跑一次评测」）")
+if _RC:
+    sys.exit(_RC)
+
 from config.config_loder import get_episode_max_steps
 from environment import Environment
 from metrics_schema import (METRIC_COLUMNS, to_output_metrics, mean_metrics,

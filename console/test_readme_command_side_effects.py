@@ -33,6 +33,8 @@ import unittest
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
+
+from console import _preflight as _PF  # noqa: E402
 for p in (str(ROOT), str(ROOT / "frontend")):
     if p not in sys.path:
         sys.path.insert(0, p)
@@ -207,7 +209,7 @@ class ReadmeCommandCleanTreeRunTests(unittest.TestCase):
             env={**os.environ, "PYTHONUTF8": "1", "PYTHONIOENCODING": "utf-8"})
 
         out = proc.stdout + proc.stderr
-        if "No module named" in out:
+        if _PF.env_shortfall(proc.returncode, out):
             self.skipTest("当前解释器缺仿真依赖（numpy/osmnx 等），"
                           "行为验证改由上面的 AST 静态用例覆盖：%s" % out[-300:])
         self.assertEqual(proc.returncode, 0,

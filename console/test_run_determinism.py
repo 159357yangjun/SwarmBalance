@@ -24,6 +24,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 
+from console import _preflight as _PF  # noqa: E402  "环境不够"的判据只留一份
+
 # 与 README「跑一次评测」那条命令逐字相同 —— 用例测的就是文档里那条，不是另编一条。
 README_CMD = ["evaluate_metrics.py", "--policy", "ga", "--episodes", "1",
               "--episode-steps", "600", "--seed", "100"]
@@ -66,7 +68,7 @@ class RunDeterminismTests(unittest.TestCase):
         runs = []
         for i in range(cls.repeats):
             rc, out = _run_once()
-            if "No module named" in out:
+            if _PF.env_shortfall(rc, out):
                 raise unittest.SkipTest(
                     "解释器缺仿真依赖，无法测确定性（这是未执行，不是通过）：%s" % out[-200:])
             if rc != 0:

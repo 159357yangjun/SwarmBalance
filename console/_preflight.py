@@ -118,6 +118,60 @@ def isolated_env(base=None):
     return out
 
 
+def current_command():
+    """把当前命令行还原成 "<脚本名> <参数...>"，供哨兵打印可直接照抄的重跑命令。"""
+    argv = list(sys.argv)
+    if not argv:
+        return ""
+    return " ".join([Path(argv[0]).name] + argv[1:])
+
+
+ENV_SHORTFALL_RC = 3
+
+
+def env_shortfall(rc, output=""):
+    """子进程是"环境不够"还是"真跑挂了"—— 判据要稳定，别去匹配 traceback 的字样。
+
+    为什么要单独收口：有两处测试原先用 `"No module named" in out` 识别"这台机器跑不了"。
+    我给入口加了哨兵之后，输出从 traceback 变成一句人话，那个字符串匹配就失效了，
+    两条用例当场从 skip 变 FAIL —— 判据寄生在报错文案上，文案一好它就坏。
+    现在认三样：约定的退出码、哨兵的统一标题、以及旧 traceback 字样（向后兼容，
+    万一某个入口还没接哨兵）。
+    """
+    if rc == ENV_SHORTFALL_RC:
+        return True
+    if not output:
+        return False
+    return ("缺少依赖：" in output) or ("No module named" in output)
+
+
+def guard_or_exit(needed, entry="这条命令"):
+    """运行入口的依赖哨兵：缺包就打印一句人话并以 3 退出，别丢 traceback。
+
+    为什么需要：`_preflight` 原先只护测试那条路，而 README「快速开始」里第一个
+    **应用**命令（`cd frontend && python evaluate_metrics.py ...`）在没建 venv 的机器上
+    直接抛 `ModuleNotFoundError: No module named 'shapely'`。评审看到的就是满屏栈，
+    他会读成"仿真坏了"，不会想到"我解释器不对"—— 与本轮修掉的那类失败一模一样。
+
+    退出码选 3：与"跑成功 0"、"参数/用法错 2"、"仿真内部异常 1"都不同，
+    这样"环境不够"在 CI 与文档自检里都能被单独识别。
+    """
+    miss = missing(needed)
+    if not miss:
+        return 0
+    try:
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:  # noqa: BLE001 - 老解释器没有 reconfigure
+        pass
+    cmd = current_command()
+    print("")
+    print("=" * 78)
+    print(explain(needed, audience="app", rerun=cmd))
+    print("=" * 78)
+    print("这一步不是仿真出错：是解释器/依赖不够。上面第一行就是缺的包名。")
+    return 3
+
+
 def missing(needed) -> list:
     """返回装不上的模块名。用 find_spec + 真 import 双重判，避免半成品模块骗人。"""
     out = []
@@ -129,19 +183,30 @@ def missing(needed) -> list:
     return out
 
 
-def explain(needed, gated_modules=None) -> str:
-    """给读者的一句人话：缺什么 ⇒ 多少用例不可跑 ⇒ 用哪个解释器。"""
+def explain(needed, gated_modules=None, audience="test", rerun=None) -> str:
+    """给读者的一句人话：缺什么 ⇒ 哪条路不可跑 ⇒ 用哪个解释器重跑。
+
+    audience="test"（默认）：面向 unittest 的 skip 原因，措辞是"受影响测试模块"。
+    audience="app"：面向 README 里那条**应用**命令（evaluate_metrics.py 等），
+    这时"测试模块"和"跑 discover"都是误导，得换成入口本身与同一条命令的重跑写法。
+    """
     miss = missing(needed)
     if not miss:
         return ""
     pip_list = " ".join(DEPS.get(m, m) for m in miss)
     lines = ["缺少依赖：%s（pip 包名：%s）" % (", ".join(miss), pip_list)]
-    if gated_modules:
+    if audience == "app":
+        pass                     # 入口与重跑命令在下面的 rerun 行里给全
+    elif gated_modules:
         lines.append("受影响测试模块：%s" % ", ".join(gated_modules))
     vp = venv_python()
     if vp:
         lines.append("本项目正式解释器：%s" % vp)
-        lines.append("请用该解释器重跑，而不是判定仿真出错：%s -m unittest discover -s console -p \"test_*.py\"" % vp)
+        if audience == "app":
+            again = ("%s %s" % (vp, rerun)) if rerun else ("%s <同一条命令>" % vp)
+            lines.append("请用该解释器重跑同一条命令，而不是判定仿真出错：%s" % again)
+        else:
+            lines.append("请用该解释器重跑，而不是判定仿真出错：%s -m unittest discover -s console -p \"test_*.py\"" % vp)
     else:
         lines.append("未找到 .venv310；当前解释器 %s" % sys.executable)
     return "\n".join("  " + l for l in lines)
