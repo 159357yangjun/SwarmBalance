@@ -84,6 +84,19 @@ def main() -> None:
     _print_result("experiments 单元测试", ok, out.splitlines()[-1] if out else "")
     failures += 0 if ok else 1
 
+    # 文档引用的核对结果要**在绿的时候也看得见覆盖率**：
+    # 只判"路径存在 + 行号不越界"的门，看不见"行号对但指向别处"那一类，
+    # 所以这里印的是「扫到几条 / 其中几条带锚点」，而不是只印一个 OK。
+    try:
+        sys.path.insert(0, str(ROOT / "console"))
+        import _citations
+        rc = _citations.main(["--verify"])
+        _print_result("文档 path:line 引用核对", rc == 0)
+        failures += 0 if rc == 0 else 1
+    except Exception as exc:  # noqa: BLE001 - 归因失败不该让整个发布检查崩掉
+        print("[WARN] 引用门禁没能生成：%s: %s" % (type(exc).__name__, exc))
+        failures += 1
+
     ok, out = _check_js()
     _print_result("Web inline JavaScript 语法", ok, out.splitlines()[-1] if out else "")
     failures += 0 if ok else 1
