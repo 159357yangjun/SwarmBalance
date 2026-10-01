@@ -89,6 +89,25 @@ class RewriteMapTests(unittest.TestCase):
                                 % c["rewritten"])
         self.assertIn("| 恒等式（配对 + 悬空 = 不可达） | 成立 |", text)
 
+    def test_artifact_has_no_self_referential_counts(self):
+        """产物里不许有"每一笔提交都会变"的绝对量 —— 否则承载它的那笔提交自己就把表弄过期。
+
+        这不是理论：第一版印了 `对象库 commit 总数` 与 `从 HEAD 可达`，
+        我提交完再跑一次 --write，两个数各自 +1，`--verify` 立刻红 ——
+        一份永远"刚交付就过期"的产物，等于给下一个人留了个假故障。
+        """
+        text, _c = RW.report(ROOT)
+        for banned in ("对象库里的 commit 总数", "从 HEAD 可达"):
+            self.assertNotIn(banned, text,
+                             "产物里出现了每笔提交都会变的量 %r；它只能出现在运行时读数行上"
+                             % banned)
+        # 提一句字段名是可以的（`cost_ms` 出现在说明里），把某个时刻的值烤进产物不行
+        self.assertNotIn("cost_ms=", text, "产物里烤进了某一时刻的门成本值")
+        # 反过来：不可达数、配对数、欠账数必须真的在（否则删过头，表就没内容可核了）
+        for need in ("不可达（旧指针 + 无关悬空对象）", "改写配对出来的旧指针",
+                     "仍含 `^MSG;` 的条数"):
+            self.assertIn(need, text, "产物少了这一项：%s" % need)
+
     def test_table_is_deterministic_across_hash_seeds(self):
         """同一份仓、不同 PYTHONHASHSEED，必须产出逐字节相同的表。"""
         code = ("import sys, hashlib; sys.path.insert(0, %r);"

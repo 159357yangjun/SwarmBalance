@@ -547,6 +547,19 @@ author/committer 与时间戳原样、非目标提交 message 逐字节不变、
 `_citations --verify` rc=0、`_readme_counts --verify` 一致（console=22/189）、
 `release_check.py` 见下一条。
 
+**紧接着就被自己的验证抓到一处自指**（同一轮内，上一笔提交 `750bd26` 之后立刻跑到）：
+产物里印了 `对象库里的 commit 总数` 与 `从 HEAD 可达` 两个绝对量 —— 而**承载这份产物的那笔提交
+自己也是一笔提交**。所以时序是：`--write` → `--verify` 绿 → commit → 再 `--write` 就产生 diff
+（实测 `objects` 133→134、`reachable` 111→112），也就是"交付即过期"，`--verify` 从此每次红一次。
+这是我在给"表交给代码算"之后**新引入**的一类错，不是老错复现。
+
+处理：产物里只留与"新提交"无关的量（不可达数、配对数、分类各桶、欠账数、问题数、恒等式）；
+绝对总数与门成本只出现在运行时读数行上。加断言
+`test_artifact_has_no_self_referential_counts` 把这两个行名和 `cost_ms=` 钉住，
+同时反向断言"不可达 / 配对 / 欠账"必须仍在（防止我用"删干净"来通过这条）。
+现况重测：`Ran 190 tests OK`（22 文件）、`--rewrite-report --verify` rc=0、
+提交后再 `--write` 产生 **0 行 diff**（这才是这条修好的证据）。
+
 
 
 
