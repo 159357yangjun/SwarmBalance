@@ -302,13 +302,20 @@ def load_frontend_package_module(pkg: str, basename: str):
     return module
 
 
+_CHILD_MARK = "__PREFLIGHT_JSON__\t"
+
 _CHILD_SKIP = r'''
 import io, json, sys, unittest
 top = sys.argv[1]
+MARK = "__PREFLIGHT_JSON__\t"
+_stdout0, _stderr0 = sys.__stdout__, sys.__stderr__
 suite = unittest.TestLoader().discover("console", pattern="test_*.py", top_level_dir=top)
 _buf = io.StringIO()
-res = unittest.TextTestRunner(stream=_buf, verbosity=0).run(suite)
-out = {
+# verbosity=1，不是 0：A/B 逐行比对时唯一一处实质差异就是进度点行（`..F.`）——
+# 改前那条 `python -m unittest discover` 默认 verbosity=1。用 0 就等于为了"合成一遍"
+# 顺手把一种输出关掉，那属于丢信息，不属于省时间。
+res = unittest.TextTestRunner(stream=_buf, verbosity=1).run(suite)
+data = {
     "tests": res.testsRun,
     "failures": len(res.failures),
     "errors": len(res.errors),
@@ -317,7 +324,16 @@ out = {
     "detail": _buf.getvalue(),
     "skipped": [[t.id(), str(rin)] for t, rin in res.skipped],
 }
-sys.stdout.write(json.dumps(out, ensure_ascii=False))
+# 哨兵 + 前后各一个换行：**不能**假设 stdout 干净。有一条测试不带换行地 print 一个以 `{`
+# 开头的内容，JSON 就会和它粘成同一行，`startswith("{")` 选中的是那条混合行 ——
+# 实测这会让整份诊断归零（A/B 取证：改前 14 行可见、改后 0 行 + JSONDecodeError）。
+for _s in (_stdout0, _stderr0):
+    try:
+        _s.flush()
+    except Exception:
+        pass
+_stdout0.write("\n" + MARK + json.dumps(data, ensure_ascii=False) + "\n")
+_stdout0.flush()
 '''
 
 
@@ -333,6 +349,10 @@ def run_console_suite(interpreter=None):
     为什么解析结果对象而不是 grep `-v` 文本：第一版我用正则去匹配 `skipped '...'`，
     而原因里带换行（explain() 本来就是多行），12 条只认出 1 条 —— 幸好这条探针会自报
     "扫到几条"，才当场暴露。`result.skipped` 是 (test, reason) 的列表，不用猜格式。
+
+    `detail` 收的是**三路合一**：TextTestRunner 的正文 + 子进程 stdout（测试自己 print 的）
+    + 子进程 stderr。少任何一路都是把"看得见"改成"看不见"—— A/B 那次就是少了 stdout 那一路，
+    而且被一条 print 粘连直接打崩。哨兵行本身不进 detail，免得 JSON 整份再抄一遍。
     """
     import json
     import subprocess
@@ -342,15 +362,25 @@ def run_console_suite(interpreter=None):
                           capture_output=True, text=True,
                           encoding="utf-8", errors="replace",
                           env=isolated_env())
-    line = [l for l in proc.stdout.splitlines() if l.startswith("{")]
-    if not line:
+    payload, rest = None, []
+    for line in (proc.stdout or "").splitlines():
+        if line.startswith(_CHILD_MARK):
+            payload = line[len(_CHILD_MARK):]      # 取最后一条：哨兵是套件跑完后才写的
+        else:
+            rest.append(line)
+    if payload is None:
         raise RuntimeError("子进程没吐结果（exit=%d）：%s"
-                           % (proc.returncode, (proc.stderr or "")[-600:]))
-    info = json.loads(line[-1])
+                           % (proc.returncode, ((proc.stdout or "")[-300:] +
+                                                (proc.stderr or "")[-600:])))
+    info = json.loads(payload)
     if "detail" not in info:
         raise RuntimeError("子进程回来的 JSON 缺 detail —— 覆盖面不能靠猜")
+    detail = info["detail"]
+    if rest:
+        detail += "\n[stdout]\n" + "\n".join(rest)
     if proc.stderr and proc.stderr.strip():
-        info["detail"] += "\n[stderr]\n" + proc.stderr
+        detail += "\n[stderr]\n" + proc.stderr
+    info["detail"] = detail
     return info
 
 

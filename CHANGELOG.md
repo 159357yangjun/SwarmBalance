@@ -918,6 +918,58 @@ a1/a2 慢 ~13 s —— 而 `s3` 起始采样是 `node=27 cpu=[90,37]`，所以**
 边界：`VERSION` 仍 `1.0.0`、未 push、无新依赖、未动 DDL、`paper/` 未碰、`.git` 内未动、
 那 5 张 PNG 未删、未结束任何其他人的进程。
 
+### 同日续二十：A/B 逐行比对合批改动 —— 抓到的不是"少一路 stdout"，是"整份诊断归零"
+
+主控令只做一条：关掉我自己在"仍然没验证"里列的第 3 条 —— **没比对过改前/改后可见输出是否等价**。
+方法：一份固定的 5 标记探针套件（两条 print 到 stdout、一条写 stderr、一条**不带换行**地 print
+以 `{` 开头的内容、一条真 fail），改前那侧按当时 `release_check` 的调用形态取 `stdout+stderr` 全集，
+改后那侧取 `run_console_suite()["detail"]`，逐行比集合。
+
+**第一面（改后 = 上一笔 `adb38ed` 的实现）结果比预想糟**：
+
+| 数 | 值 |
+|---|---|
+| 改前可见行数 | 14 |
+| 改后可见行数 | **0** |
+| 只在改前出现的行 | **14（= 全部）**，且 `run_console_suite()` 抛 `JSONDecodeError: Extra data: line 1 column 36 (char 35)` |
+
+也就是说：测试自己 print 到 stdout 的东西确实被丢了（那是我以为的最坏情况），**但更坏的是** ——
+④ 那个反例不是理论问题：一条不带换行的 `{` 开头输出会和 JSON 粘成同一行，
+`startswith("{")` 选中混合行 ⇒ 解析崩 ⇒ `release_check` 把"跑过的套件"报成
+"套件没能跑起来"，顺手吞掉失败正文与 skip 清单。**一条正常的测试 print 能让发布检查说谎。**
+
+**修法**（`console/_preflight.py`）：JSON 走带制表符的哨兵行 `__PREFLIGHT_JSON__\t{...}`，
+前后各一个换行；父侧按哨兵取**最后**一条，其余非哨兵行不再丢弃，而是作为具名的
+`[stdout]` 段并进 `detail`，stderr 保留 `[stderr]` 段；`verbosity` 从 0 回到 1。
+
+**第二面（同一份探针，改后 = 本次实现）三个数**：改前 **14** 行 / 改后 **17** 行 /
+只在改前出现 **3** 行，五个标记两面全在（`PFMARK-STDOUT-001/004`、`STDERR-002`、`GLUE-003`、
+`FAIL-005`），解析不再崩，计数 `tests=5 failures=1 errors=0`。那 3 行逐条对上，各有对应：
+
+1. `{...}.PFMARK-STDERR-002 …`（改前把两路粘成一行）⇒ 改后拆成 `[stdout]` 与 `[stderr]` 两行；
+2. 进度点 `..F.` ⇒ 改后 `...F.`（`verbosity=1` 补回来的，见下）；
+3. `FAIL: test_d_fail (test_probe_io.ProbeIO)` ⇒ 改后是 `(console.test_probe_io.ProbeIO)` ——
+   **测试 id 变成带包名**。不丢信息，但会破"按 id 字符串匹配 release_check 输出"的用法，
+   具名记在这里，不假装它没变。
+
+进度点那一条按令**没有用"报告正文已含失败信息"抵**：它是 `verbosity` 的产物，属于"为了合成一遍
+顺手关掉一种输出"，所以补回 `verbosity=1` 而不是解释掉。
+
+**钉成常驻用例**：新增 `console/test_preflight_capture.py`（4 条，整套跑完 0.612 s）——
+三路各一个标记、`[stdout]`/`[stderr]` 段必须有具名标头、进度点行必须在、`Ran 5 tests` 必须在、
+计数与正文不得互相替代、哨兵行不得漏进 detail。三条变异各自 RED、还原核 sha
+（`7c86482ada95a83e identical=True`）：`verbosity` 退回 0 ⇒ 红在"三路"那条；
+丢掉 `[stdout]` 那一路 ⇒ 同一条红；解析退回 `startswith("{")` ⇒ 4 条里 1 红 3 错（哨兵是承重的）。
+
+现况：`Ran 213 tests OK`（161.527 s）、`release_check.py` rc=0（186.128 s）、
+`_citations --verify` rc=0、`_readme_counts --verify` rc=0。
+**继续挂账**：14.2 s 余量与 ~58 s 台阶本轮没动、也没顺手归因 —— 这次改的是采集与解析，
+不产生新的耗时结论。
+
+边界：`VERSION` 仍 `1.0.0`、未 push、无新依赖、未动 DDL、`paper/` 未碰、`.git` 内未动、
+5 张 PNG 未删；取证脚本在 `%TEMP%`，还原一律用快照 + 核 sha（不用 `git checkout`）。
+
+
 
 
 
