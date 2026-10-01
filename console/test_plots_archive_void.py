@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import csv
 import io
+import re
 import subprocess
 import unittest
 from pathlib import Path
@@ -26,13 +27,23 @@ ROOT = Path(__file__).resolve().parents[1]
 PLOTS = ROOT / "results" / "compare" / "plots"
 NOTICE = PLOTS / "README.md"
 
-TABLES = ("combined_compare_metrics.csv",
-          "weighted_overall_score.csv",
-          "normalized_capability_scores.csv")
+# 名单只有一份：`console/_rowsets.py`。本用例原先在这里抄了第二份（CORE / WITHDRAWN /
+# VOID_SET，连注释都是同一句），于是"改了唯一真源、这条门还按旧名单绿着"是可能的。
+import sys as _sys
+if str(ROOT / "console") not in _sys.path:
+    _sys.path.insert(0, str(ROOT / "console"))
+import _rowsets as RS                                     # noqa: E402
 
-CORE = {"greedy", "pso", "ga", "ortools"}
-WITHDRAWN = {"iql", "iql_u", "vdn", "vdn_u", "qmix", "qmix_u"}   # 6b8c4c8 撤除的六个
-VOID_SET = CORE | WITHDRAWN
+CORE, WITHDRAWN, VOID_SET = RS.CORE, RS.WITHDRAWN, RS.ALL_NAMED
+
+
+def _tables():
+    """归档目录里的派生表 —— 与 `results/row_set_delta.py:_tables()` 同一条口径（不写死文件名）。"""
+    return sorted(p for p in PLOTS.glob("*.csv"))
+
+
+def _pngs():
+    return sorted(PLOTS.glob("*.png"))
 
 
 def _algorithms(path):
@@ -73,15 +84,21 @@ class PlotsArchiveVoidTests(unittest.TestCase):
 
     def test_archived_tables_still_carry_the_withdrawn_rows(self):
         """归档仍是那 10 行 -> 作废通知成立；不再是 -> 红，逼着撤销通知（双向）。"""
-        for name in TABLES:
-            got = _algorithms(PLOTS / name)
+        tables = _tables()
+        self.assertGreaterEqual(len(tables), 1,
+                                "归档目录里一份派生表都没有 —— 扫描瞎了，本用例不许报绿")
+        for p in tables:
+            got = _algorithms(p)
             if got != VOID_SET:
                 self.fail("%s 的算法集合已经是 %s，不再含 6 个已撤除算法 —— "
                           "results/compare/plots/README.md 的作废声明随之过期，"
                           "请把那份通知撤掉或改写成新状态，别留下会误导人的旧结论"
-                          % (name, sorted(got)))
+                          % (p.name, sorted(got)))
         self.assertTrue((PLOTS / "bar_weighted_overall_score.png").is_file(),
                         "归档图不在，本用例的判据会空转")
+        print("[PLOT_VOID_CENSUS] csv=%d png=%d withdrawn=%d all_named=%d"
+              " —— 件数只在运行行上印，纸面不许再抄它"
+              % (len(tables), len(_pngs()), len(WITHDRAWN), len(VOID_SET)))
 
     def test_notice_names_every_withdrawn_algorithm(self):
         """纸面声明必须逐个点名 —— 只写"含过期数据"等于没说。"""
@@ -197,13 +214,16 @@ class PlotsArchiveVoidTests(unittest.TestCase):
 
         第一版写的是 `git log -1 -- results/compare/plots`，我把它自己的作废通知提交进
         那个目录之后，这条立刻红 —— 因为"目录最后一次改动"变成了那次新增通知的提交。
-        一个会被"记录缺陷的动作"本身推翻的判据是坏判据；改成对 15 件产物逐件问
+        一个会被"记录缺陷的动作"本身推翻的判据是坏判据；改成对目录里**每一件**产物逐件问
         最后一次入库改动，并各自要求它是 6b8c4c8 的祖先。
+        件数不在这里当常量（原先写死 15，而 15 同时抄在通知与登记表里 —— 三处任一处漂了就互相打）：
+        两个桶都要求非空（空桶 = 扫描到不了，不是"没问题"），真实数字印在运行行上。
         """
-        artifacts = [PLOTS / n for n in TABLES] + sorted(PLOTS.glob("*.png"))
-        self.assertEqual(len(artifacts), 15,
-                         "产物应有 3 表 + 12 图 = 15 件，实得 %d 件 —— 目录内容变了，"
-                         "本用例与通知都要重新核" % len(artifacts))
+        artifacts = _tables() + _pngs()
+        self.assertTrue(_tables(), "归档目录里没有派生表：这一路扫描到不了，不许报绿")
+        self.assertTrue(_pngs(), "归档目录里没有 PNG：同上")
+        print("[PLOT_VOID_ARTIFACTS] 逐件问祖先：%d 件（csv=%d png=%d）"
+              % (len(artifacts), len(_tables()), len(_pngs())))
         stale = {}
         for p in artifacts:
             rel = p.relative_to(ROOT).as_posix()
@@ -224,6 +244,8 @@ class PlotsArchiveVoidTests(unittest.TestCase):
         self.assertNotEqual(str(archived), str(current),
                             "归档表与入库 CSV 的 GA 步数现在一致了（都是 %s）—— "
                             "本用例描述的那份 README 说法要跟着改" % archived)
+        print("[PLOT_VOID_GA_CALIBER] archived_ga_steps=%s current_ga_steps=%s —— "
+              "通知里不再抄这两个数" % (archived, current))
 
     def test_detector_is_not_vacuous(self):
         """判别式：把 MARL 六行从同一份表里去掉，判据必须认不出它是"作废那批"。"""
@@ -233,6 +255,37 @@ class PlotsArchiveVoidTests(unittest.TestCase):
         self.assertNotEqual(cleaned, VOID_SET)
         # 判据就是"集合相等"，所以清过的表必须被判为不同 —— 这就是双向那一路
         self.assertEqual(cleaned, CORE, "去掉六行后剩下的应当正好是四个核心算法")
+
+
+    def test_no_second_copy_of_the_counts_or_the_list(self):
+        """R8 那对里"改哪边都要动另一边"的机制版：纸面不许再抄件数、读数，也不许抄第二份名单。
+
+        这条是本轮真正要的牙 —— 上一版三处（登记表行 / 作废通知 / 本用例）各自抄了
+        `15 / 12 / 10 / 0.833768 / 2000 步`，任一处漂了另外两处都不知道。
+        现在数只在运行行与生成的 `ROW_SETS.md` 上，名单只在 `console/_rowsets.py` 里。
+        """
+        docs = {"作废通知": NOTICE.read_text(encoding="utf-8"),
+                "登记表 R8": next(l for l in io.open(ROOT / "docs" / "数据来源与可追溯性登记表.md",
+                                                    encoding="utf-8").read().split("\n")
+                                  if l.startswith("| R8 "))}
+        banned = [(r"\d+\s*件", "产物件数"), (r"\d+\s*张", "图张数"),
+                  (r"\d+\s*个(?:算法|已撤除)", "算法个数"), (r"0\.\d{6}", "ROW_SETS 的读数"),
+                  (r"\d+\s*步\s*/\s*\d+\s*任务", "GA 口径读数"),
+                  (r"episode_max_steps\s*=\s*\d+", "manifest 里的声明值")]
+        bad = []
+        for label, text in docs.items():
+            for pat, what in banned:
+                m = re.search(pat, text)
+                if m:
+                    bad.append("%s 仍抄着%s：`%s`" % (label, what, m.group(0)))
+        self.assertEqual(bad, [], "手抄数又回到纸面上了：\n  " + "\n  ".join(bad))
+        # 用例自己也不许留第二份名单（本轮之前它就在文件头部抄了一份）
+        src = io.open(Path(__file__), encoding="utf-8").read()
+        body = src.split("import _rowsets as RS", 1)[-1]
+        self.assertIsNone(re.search(r"[{（(]\s*[\"']iql_u[\"']", body),
+                          "本用例里又出现了第二份撤除名单 —— 请用 RS.WITHDRAWN")
+        self.assertEqual(set(CORE | WITHDRAWN), set(RS.ALL_NAMED),
+                         "本用例的集合与唯一真源不同步（改了 _rowsets 就得改这里，那正是漂移的起点）")
 
 
 if __name__ == "__main__":

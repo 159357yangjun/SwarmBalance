@@ -722,8 +722,51 @@ A1 两个方案里他选了 **b**：不把 R4 那几个数改对，而是把数�
 每条跑完都从备份还原并核 sha256（`a893cabd…`，`identical=True`）。
 
 现况：`console/test_compare_csv_census.py` 13 条用例；`_readme_counts --fix` 后 README 一致；
-`--csv-census --verify` rc=0。R8 那行仍带着手抄数（它的数同时是 `test_plots_archive_void.py`
-的判据输入，属于"改了要连测试一起改"的另一件事，这轮没动）。
+`--csv-census --verify` rc=0。（当时写"R8 那行仍带着手抄数、这轮没动" —— 下一笔就动了，见续十六。）
+
+边界照旧：`VERSION` 仍 `1.0.0`、未 push、无新依赖、未动 DDL、`paper/` 一处未碰。
+
+### 同日续十六：R8 那对里的三处互抄收成一份（含我丢掉又重放的一次工作）
+
+主控令：①提交上一笔（`f15ded5`，批准语已写进提交信息）②只推进 R8 ↔ `console/test_plots_archive_void.py`
+那对 ③`A2` 两行死字段不动，只落一条待批记录。本节记②。
+
+**盘上原来有三处在抄同一批数**：登记表 R8 行、作废通知 `results/compare/plots/README.md`、
+以及用例本体 —— 后者在文件头部把 `CORE / WITHDRAWN / VOID_SET` **抄了第二份**（连注释都是
+`_rowsets.py` 里那句），于是"改了唯一真源、这条门还按旧名单绿着"是可能的。收成一份：
+
+- 名单只留 `console/_rowsets.py`；用例改成 `import _rowsets as RS` 并派生三个集合，
+  另加一条自源断言 `set(CORE|WITHDRAWN) == set(RS.ALL_NAMED)`。
+- 表清单不再写死三个文件名，与 `results/row_set_delta.py:_tables()` 同一条口径（`glob("*.csv")`）；
+  产物件数**不再是常量 15** —— 两个桶各要求非空（空桶 = 扫描到不了，不是"没问题"），
+  真数印在运行行上：`[PLOT_VOID_CENSUS] csv=3 png=12 withdrawn=6 all_named=10`、
+  `[PLOT_VOID_ARTIFACTS] 逐件问祖先：15 件（csv=3 png=12）`、
+  `[PLOT_VOID_GA_CALIBER] archived_ga_steps=2000.0 current_ga_steps=400.0`。
+- 通知与 R8 行里的 `15 件 / 12 张 / 10 个 / 0.833768 / 2000 步 / episode_max_steps=3600`
+  全部改成指路（各自的唯一真源是运行行、`ROW_SETS.md`、`manifest.json`），
+  并由新用例 `test_no_second_copy_of_the_counts_or_the_list` 禁掉这些形状。
+
+**一次真实红（不是措辞，是运行输出）**：把 `results/compare/plots/combined_compare_metrics.csv`
+里 `iql` 那一行删掉 ⇒ `FAILED (failures=4)`，红的四条是
+`test_archived_tables_still_carry_the_withdrawn_rows`、`test_detector_is_not_vacuous`、
+`test_rowset_delta_generator_is_pinned_and_goes_red`、`test_rowset_marker_is_required_and_bidirectional`；
+还原后逐字节等于 `HEAD`（扰动态 `4681545f0adc49c7` → 还原 `b465b781f5420996`），用例重新 `OK`。
+
+三条变异（还原一律用 %TEMP% 快照，见下面那条教训）：
+N-A 通知里抄回"15 件产物、12 张图" ⇒ `failures=1`，红的正是新加那条禁抄数用例；
+N-B 用例里再造一份 `{"iql_u"}` 名单 ⇒ `failures=1`，同一条；
+N-C 往 `_rowsets.WITHDRAWN` 里加一个不存在的算法名 ⇒ `failures=4`（表判定、判别式、
+通知逐个点名都跟着红）—— 这条证的是"名单只有一份"真的贯通到纸面，不是嘴上说说。
+三个文件跑完 `restored_all_identical=True`，`git status` 收尾只剩该动的三个。
+
+**②里我自己砸了一次工作，重放了一遍**：第一版取证脚本用 `git checkout HEAD -- <文件>` 做还原，
+而那两个文件带着本轮**未提交**的修改 ⇒ 一次 `checkout` 把用例与通知的②改动一起冲掉了
+（`git status` 当场只剩登记表一行）。这是台账里已经写过的那条（别把 `checkout` 接在要保留的改动后）
+被我原地再犯。处置：按对话里的原文逐条重放 9 处编辑 ⇒ `py_compile` + 9 条用例回到 `OK`；
+取证脚本改成"快照到 %TEMP% / 从快照还原 / 逐个核 sha256"，并把这句写进脚本 docstring 当提醒。
+另一次红也来自我自己：重写 R8 时把带 `行集=all10` 标注的引用一起删了 ⇒ 登记簿的作废引用
+从 3 处掉到 2 处，`test_rowset_marker_is_required_and_bidirectional` 自己红。
+**没有放宽那条下限**，而是把带标注的引用放回 R8 行（`[ROWSET_SUMMARY] void_refs=3 declared=3` 回到原值）。
 
 边界照旧：`VERSION` 仍 `1.0.0`、未 push、无新依赖、未动 DDL、`paper/` 一处未碰。
 
