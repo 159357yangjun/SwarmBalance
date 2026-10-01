@@ -5,10 +5,14 @@
 
 `results/compare/` 里七个 CSV 被两个入口当同一批数据用：
 - `console/server.py:_CSV_FILES` → `/api/compare` → Web「算法对比」页
-- `results/plot_compare_metrics.py:CSV_FILES` → 20 张图 + 3 份派生表（论文图就来自这条链）
+- `results/plot_compare_metrics.py:CSV_FILES` → 17 张图 + 3 份派生表（论文图就来自这条链；
+  归档侧只落了 12 张图 + 3 份表，差额见 README「已知归档缺口」，那里给了当次复算的跑法）
 
-两个入口都用 `drop_duplicates(算法, keep="last")`，但**文件清单不一样**（只有 server
-带 `one_click_latest.csv`），于是同一批文件在两条链上选出的是**不同的行**：
+两个入口都用 `drop_duplicates(算法, keep="last")`，但**文件清单不一样**：两份各 5 项，
+只有 4 项相同 —— server 多 `one_click_latest.csv`，图侧多 `backend_wx_metrics.csv`
+（后者已随后端 MARL 移除删掉，`plot_compare_metrics.load_compare_data()` 用
+`[n for n in CSV_FILES if (COMPARE_DIR / n).exists()]` 静默过滤，
+所以这条差异今天只剩"清单里挂着一个不存在的文件名"）。于是同一批文件在两条链上选出的是**不同的行**：
 
     图侧:  greedy 2000步/60任务  pso 2000/60  ga 600/30  ortools 2000/60
     页侧:  四个算法全部来自 one_click_latest.csv（3600 步上限、5 次重复、60 任务）

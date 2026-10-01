@@ -382,7 +382,7 @@ swarm-balance/
 │  ├─ static/spec.html           # 「规范」页正文，由 /spec 路由渲染进 iframe
 │  ├─ static/vendor/             # 内置 vue.global.prod.js / echarts.min.js /
 │  │                             #   three.min.js + README（版本、来源、SHA-256）
-│  └─ test_*.py                  # 22 个文件 / 190 个用例（标准库 unittest）
+│  └─ test_*.py                  # 22 个文件 / 191 个用例（标准库 unittest）
 │
 ├─ frontend/                     # 仿真内核与可视化
 │  ├─ environment.py             # 世界状态、障碍判定、统计口径
@@ -418,7 +418,9 @@ swarm-balance/
 │  └─ test_*.py                  # 2 个文件 / 24 个用例
 │
 ├─ results/
-│  ├─ compare/                   # 8 份对比 CSV（答辩对比页数据源）+ plots/
+│  ├─ compare/                   # 对比 CSV（答辩对比页数据源；两份清单见 console/server.py
+│  │                             #   的 _CSV_FILES 与 results/plot_compare_metrics.py 的 CSV_FILES，
+│  │                             #   两边不一致 —— 差异与后果写在 results/compare_gate.py 开头）+ plots/
 │  ├─ experiments/               # conclusion_<时间戳>/ 正式实验目录
 │  └─ plot_compare_metrics.py
 │
@@ -543,8 +545,13 @@ python results/plot_compare_metrics.py
 > 这件事不再只写在纸上：`console/test_plots_archive_void.py` 逐条断言，并且是**双向**的 ——
 > 哪天清掉 MARL 行重生了这个目录，测试会红并要求撤销作废通知。
 >
-> **已知归档缺口（实测，未自行补齐）**：当前出图脚本实际生成 **20** 张图，而
-> `results/compare/plots/` 只归档了 **15** 个产物。若门禁放行后再加 `--record-into-evidence`，
+> **已知归档缺口（实测，未自行补齐）**：出图脚本一次生成 **17 张 PNG + 3 份派生表 = 20 个
+> 文件**，而 `results/compare/plots/` 只归档了 **12 张图 + 3 份表 = 15 个产物**（目录另有
+> `README.md` 与 `ROW_SETS.md` 两份说明，不归这条出图链生成 —— `ROW_SETS.md` 由
+> `results/row_set_delta.py --write` 生成）。复算这条不要靠这里的数字：
+> `python results/plot_compare_metrics.py --allow-mixed-comparisons` 只写 gitignore 的
+> `results/adhoc/plots/`，跑完 `ls results/adhoc/plots/*.png | wc -l` 就是当次张数。
+> 若门禁放行后再加 `--record-into-evidence`，
 > 除覆盖那 15 个之外，还会在已入库目录里**新添 5 个未跟踪 PNG**
 > （`bar_chain_insertions` / `bar_drone_utilization` / `bar_empty_load_ratio` /
 > `bar_no_fly_detours` / `bar_total_flight_distance`）—— 这正是 `git add -A` 会顺手扫进

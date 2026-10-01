@@ -55,18 +55,72 @@ def _obj_lines(root, typ):
     return [ln.split()[1] for ln in out.splitlines() if ln.startswith(typ + " ")]
 
 
+_BATCH = {}
+_FIELDS_FMT = "%T%x00%P%x00%an <%ae>%x00%at%x00%s"
+
+
+def _commit_batch(root):
+    """一次 `git log --no-walk --format=… --stdin` 读完所有 commit 的头部字段。
+
+    为什么不是自己解析 `cat-file` 出来的原始对象：`%s` 的口径不是"第一行"——
+    实测三条边界（标题行前置空行 → git 取第一个非空行；标题**前导空格保留**、尾随空格去掉；
+    普通标题一致），我自己那版 `.split(换行)[0].strip()` 会把前导空格也吃掉，
+    于是配对的键就和 git 给的不一样了。让 git 自己格式化，等价性是构造出来的，
+    不靠我比对样本碰运气（`console/test_rewrite_map.py` 的 `test_batch_read_matches_per_object_read`
+    逐字段比对批读与单条 `git show`，并用三类边界标题钉住 `%s` 的口径）。
+    进程数与对象数无关：**按 commit 取字段**这件事只有一次 `git log --stdin`（按仓缓存），
+    之后 `fields()` 全查内存；表里其它调用（`rev-list` / `reflog` / 逐对 `git diff`）与本句无关。
+    """
+    key = str(root)
+    if key in _BATCH:
+        return _BATCH[key]
+    shas = _obj_lines(root, "commit")
+    info = {}
+    if shas:
+        # 记录之间用 %x01 分隔：字段内可能出现制表/空格，但绝不会出现 \x01。
+        pr = subprocess.run(
+            ["git", "log", "--no-walk", "--format=%x01%H%x00" + _FIELDS_FMT, "--stdin"],
+            cwd=str(root), input=("\n".join(shas) + "\n").encode("utf-8"),
+            capture_output=True)
+        if pr.returncode:
+            raise SystemExit("git log --no-walk --stdin 失败：%s"
+                             % pr.stderr.decode("utf-8", "replace")[:200])
+        for rec in pr.stdout.decode("utf-8", "replace").split("\x01"):
+            rec = rec.strip("\r\n")
+            if not rec.strip():
+                continue
+            parts = rec.split("\x00")
+            if len(parts) != 6:
+                raise SystemExit("git log 返回的记录形状不对（%d 段）：%r"
+                                 % (len(parts), rec[:80]))
+            info[parts[0]] = parts[1:]
+        if len(info) != len(set(shas)):
+            raise SystemExit("批读只取到 %d / %d 个 commit，宁可停下也不要用半份数据出表"
+                             % (len(info), len(set(shas))))
+    _BATCH[key] = info
+    return info
+
+
 def fields(root, sha):
-    return git(root, "show", "-s", "--format=%T%x00%P%x00%an <%ae>%x00%at%x00%s",
-               sha).split("\x00")
+    """commit 的 (tree, parents, `作者 <邮箱>`, 时间戳, 标题)。
+
+    批读取不到时退回单条 `git show -s`（调用方可能传缩写 sha 或批读窗口外的 sha）。
+    """
+    got = _commit_batch(root).get(sha)
+    if got is None:
+        return git(root, "show", "-s", "--format=" + _FIELDS_FMT, sha).split("\x00")
+    return list(got)
 
 
 def classify_dangling(subject, parents):
     """给"配不上对的不可达提交"一个名字，而不是把它当失败。
 
-    不可达 != 改写产物。本仓实测有 17 个不可达 commit，其中只有 12 个是改写造出来的；
-    剩下的是 `git stash` 留下的（`On <branch>: …` / `index on <branch>: …` 是它的固定格式）
-    和三段孤儿初始提交。**一个都不会红** —— 但要被点到名字：
+    不可达 != 改写产物。本仓第一次跑这道判据时，不可达对象里就混着**不是**改写造出来的
+    那一类：`git stash` 留下的（`On <branch>: …` / `index on <branch>: …` 是它的固定格式）
+    和孤儿初始提交。**一个都不会红** —— 但要被点到名字：
     把解释不了的悬空对象当"已说明"放过去，就等于给下一次改写留了个隐身位。
+    各多少不抄在这里（它们随仓动）：`--rewrite-report` 把每个对象连归类印成表，
+    恒等式 `pairs + dangling == unreachable` 写在同一份输出里，当场可核。
     """
     if not parents:
         return "孤儿根提交（另一段历史，无父）"
@@ -85,7 +139,7 @@ def report(root=ROOT):
     # 跟着 set 的迭代序走 —— 而 set 序受 PYTHONHASHSEED 影响，于是同一份仓两次生成的
     # 表文本不同，`--verify` 在刚 --write 完之后就会红。（这不是理论问题：第一次跑就是这样。）
     def _dkey(s):
-        return (git(root, "show", "-s", "--format=%at", s), s)
+        return (fields(root, s)[3], s)
     unreachable = sorted(allc - live, key=_dkey)
     tips = set(git(root, "reflog", "show", "--format=%H", BRANCH).split())
     # 活集合：优先用"未推的那一段"；`origin/master` 这个 ref 不在（换机器/新克隆）就退回

@@ -186,6 +186,10 @@ class RewriteMapTests(unittest.TestCase):
             pref.add(x[:7])
         assert len(pref) == len(full), "7 字前缀有相撞，按前缀判可达不成立"
         reachable = full | pref
+        commits = set(RW._obj_lines(ROOT, "commit"))
+        commit_pref = {s[:7] for s in commits}
+        assert len(commit_pref) == len(commits), \
+            "commit 的 7 字前缀有相撞，按前缀判类型不成立 —— 该退回逐条 cat-file"
         table = (ROOT / RW.OUT_REL).read_text(encoding="utf-8")
         listed = set(sha_re.findall(table))
         checked = bad = 0
@@ -195,10 +199,9 @@ class RewriteMapTests(unittest.TestCase):
             for ln, line in enumerate(io.open(ROOT / rel, encoding="utf-8",
                                               errors="replace").read().split("\n"), 1):
                 for tok in sha_re.findall(line):
-                    # 只问像 sha 的、且在 git 里确实存在的（排除版本号之类的假命中）
-                    pr = subprocess.run(["git", "cat-file", "-t", tok], cwd=str(ROOT),
-                                        capture_output=True, text=True)
-                    if pr.returncode or "commit" not in pr.stdout:
+                    # 一次批读代替 N 次 `git cat-file -t`（实测 172 次 ≈ 4.5 s，
+                    # 占这条用例的九成时间）。语义不变：仍只问"这 token 是不是 commit 对象"。
+                    if tok not in commits and tok not in commit_pref:
                         continue
                     checked += 1
                     if tok not in reachable and tok not in {s[:len(tok)] for s in listed}:
@@ -212,6 +215,76 @@ class RewriteMapTests(unittest.TestCase):
                                 % checked)
         self.assertEqual(bad, 0, "这些 sha 在活文档里被引用，却既不可达也没进映射表：\n  %s"
                          % "\n  ".join(where[:10]))
+
+
+    def test_batch_read_matches_per_object_read(self):
+        """批读通道必须与逐条 `git show -s --format=` 给出同样的字段，含三类边界标题。
+
+        为什么值得单独一条：性能优化把取数搬进了 `git log --stdin` 一次读全量。
+        上一版这里是我自己解析 commit 原文 + `.strip()` 取标题 —— 变异"去掉 strip"当场全绿，
+        不是判据瞎，而是本仓没有能区分它的标题。**造数据之后才看得见**：
+        git 的 `%s` 保留前导空格、去掉尾随空格，而我那版把两头都吃了。
+
+        本轮记三条（都可复算）：
+        - 变异 M1（把 `.strip()` 加回批读的标题字段）⇒ 红，`不一致=1`。
+          同一个变异在加边界标题夹具之前是**绿**的，这才是夹具在承重。
+        - 变异 M3（提前建批表，让边界对象落到单条兜底）⇒ 红，`assertIn` 点名标题。
+        - 消融（删掉 `_BATCH.pop`）⇒ 绿，所以那句兜底已删，只留断言。
+        """
+        def read(root, args):
+            """按字节读再用 utf-8 解 —— 这条不是风格选择：`text=True` 在这台机上用
+            GBK 解 git 的 UTF-8 输出，reader 线程抛 UnicodeDecodeError 后
+            subprocess 把 stdout 变成 **None**（异常只打到 stderr，rc 仍是 0）。
+            第一版就是这样：样本里换一批 sha 就从绿变崩，判据本身跟着数据漂。"""
+            pr = subprocess.run(["git"] + args, cwd=str(root), capture_output=True)
+            assert pr.returncode == 0, "git %s 失败：%s" % (" ".join(args), pr.stderr[:120])
+            return pr.stdout.decode("utf-8", "replace").rstrip("\r\n").split("\x00")
+
+        def both(sha):
+            # 批读必须真的供货：落在 `fields()` 的单条兜底分支上就等于没核批读通道。
+            assert sha in RW._commit_batch(ROOT), \
+                "%s 没进批读表，fields() 会走单条兜底 —— 这条用例就没测到批读" % sha[:7]
+            batched = RW.fields(ROOT, sha)
+            single = read(ROOT, ["show", "-s", "--format=" + RW._FIELDS_FMT, sha])
+            return batched, single
+        shas = RW._obj_lines(ROOT, "commit")
+        reachable = set(RW.git(ROOT, "rev-list", "HEAD").split())
+        sample = [s for s in shas if s not in reachable] + \
+                 [s for s in shas if s in reachable][:20]
+        mism = ["%s\n   批读 %r\n   逐条 %r" % (s[:7], *both(s))
+                for s in sample if both(s)[0] != both(s)[1]]
+        # 边界标题：前导空格、尾随空格、首个非空行之前有空行。
+        # 三个 commit 先全部造完、再一次性读批表，然后用 assertIn 钉住"这几个对象
+        # 确实在批表里"：批读是按仓缓存的，边造边读时后两个会静默落到单条兜底上，
+        # 那"边界标题测的是批读"就变成一句空话（变异 M3：提前建表 ⇒ 三条全红）。
+        # 曾在这里加过 `RW._BATCH.pop(...)` 兜这个坑，消融后确认不需要 —— 仓目录来自
+        # mkdtemp、每次都是新键，缓存不可能预先有值 —— 所以只留下断言，不留兜底。
+        d, _tip, _new = make_repo("message_only")
+        edge = ["   前导空格的标题", "尾随空格的标题   ", "普通标题"]
+        made = []
+        for i, msg in enumerate(edge):
+            p = os.path.join(d, "edge%d.txt" % i)
+            io.open(p, "w", encoding="utf-8").write("x\n")
+            _g(d, "add", p)
+            _g(d, "commit", "-q", "-m", ("\n\n" + msg) if i == 2 else msg)
+            made.append((msg, _g(d, "rev-parse", "HEAD")))
+        tb = RW._commit_batch(Path(d))
+        for msg, sha in made:
+            self.assertIn(sha, tb, "边界标题 %r 的对象没进批读表" % msg)
+            b, s = list(tb[sha]), read(d, ["show", "-s", "--format=" + RW._FIELDS_FMT, sha])
+            if b != s:
+                mism.append("边界标题 %r：批读 %r vs 逐条 %r" % (msg, b[4], s[4]))
+        # 逐条读自己也得复核一遍口径：git 的 %s 保留前导空格、去掉尾随空格。
+        # 断言这条，是为了"批读==逐条"之外再钉住"两边都不是我手工切的标题"。
+        self.assertEqual(read(d, ["show", "-s", "--format=%s", made[0][1]])[0],
+                         "   前导空格的标题", "git 不再保留前导空格：这条用例的前提变了")
+        self.assertEqual(read(d, ["show", "-s", "--format=%s", made[1][1]])[0],
+                         "尾随空格的标题", "git 不再去掉尾随空格：这条用例的前提变了")
+        print("[BATCH_EQUIV] 比对=%d（不可达 %d + 可达 20，全部走批读）+ 边界标题 %d，不一致=%d"
+              % (len(sample) + 3, len(sample) - 20, 3, len(mism)))
+        self.assertGreaterEqual(len(sample), 40,
+                                "只比对了 %d 个对象，样本塌了就等于没核" % len(sample))
+        self.assertEqual(mism, [], "批读与逐条读不等价：\n  " + "\n  ".join(mism[:4]))
 
 
 if __name__ == "__main__":

@@ -2,9 +2,13 @@
 """配置键覆盖率门禁 —— 由 `python -m unittest discover -s console` 自动收集。
 
 要治的病：模块被删掉之后，它在配置文件里留下的键没人读、也没人发现。
-第一个案例是 `config/simulation.json` 的 metrics 段：5 个键里 4 个永远不会被读到
-（`evaluate_metrics.py` 拼的是 f"{policy}_file"，而配置写的是 frontend_greedy_file 这类
-对不上的名字），改这些键完全无效却无人报警。
+第一个案例是 `config/simulation.json` 的 metrics 段：那里写的键名与读它的一侧
+（`frontend/evaluate_metrics.py:92` 拼的是 f"{policy}_file"）对不上，
+改这些键完全无效却无人报警。当时那段有几个键、其中几个是哑的，不抄在这里
+（当场数：`python -c "import json;print(len(json.load(open('config/simulation.json',encoding='utf-8'))['metrics']))"`
+—— `encoding` 那个参数在本机是承重的：默认 GBK 读这份带中文注释的 JSON 会直接 UnicodeDecodeError。）
+那四个对不上名字的键是哪一轮清掉的不写在这里，
+`git log -p -- config/simulation.json` 一次就能追到。
 
 判定方式：把全部源码里的**字符串字面量**收成一个集合，配置叶子键若不在其中，
 就是"改了不起作用"的哑键。这个判据偏保守 —— 只要键名以任何形式出现在代码里就算通过，

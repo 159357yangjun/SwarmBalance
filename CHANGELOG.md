@@ -560,6 +560,90 @@ author/committer 与时间戳原样、非目标提交 message 逐字节不变、
 现况重测：`Ran 190 tests OK`（22 文件）、`--rewrite-report --verify` rc=0、
 提交后再 `--write` 产生 **0 行 diff**（这才是这条修好的证据）。
 
+### 同日续十三：B 组手抄数清干净 + C 组把取数搬进一次批读（一笔 commit）
+
+顺序按他定的：先 C 再 B，B+C 一次单独 commit；A 组只做证据，不进这笔。
+
+**C（性能）**：`console/_rewrites.py` 原先对每个 commit 起一次 `git show -s`（45 个对象 ⇒ 45 个
+进程）。现在按仓缓存一次 `git log --no-walk --format=%x01%H%x00… --stdin` 读全量，`fields()`
+与排序键 `_dkey` 都只查内存。本轮读数（项目 venv `../.venv310`，Python 3.10.11）：
+
+| 量 | 读数 | 复算 |
+|---|---|---|
+| 门自己的成本 | `cost_ms=1685` | 印在 `[REWRITE_MAP_MATCH]` 那一行上 |
+| `_citations --verify` 全套 | rc=0，4.68 s | `python console/_citations.py --verify` |
+| `test_rewrite_map` 单模块 | `Ran 8 tests in 17.4 s`（另两次 16.67 / 17.61） | `python -m unittest console.test_rewrite_map` |
+| 活文档 sha 普查 | `[DOC_SHA_CENSUS] 172 / 0`（与优化前同一个数） | 上面那条用例自己印 |
+| 生成的表 | 逐字节一致（`--verify` rc=0，表未重生） | `--rewrite-report --verify` |
+
+跨解释器的两组数不混算：先前那组 45.3 s→17.8 s 是在 anaconda 3.13 上测的，只与同解释器的
+前值比；本轮全部读数出自 3.10.11。
+
+**等价性不靠"看起来一样"**：新用例 `test_batch_read_matches_per_object_read` 逐字段比 45 个对象
+（22 个不可达 + 20 个可达，且**先断言这些 sha 真在批读表里**，否则它们会静默落到单条兜底、
+这条用例就没测到批读）+ 三类边界标题（前置空行、前导空格、尾随空格）。三条实测都可复算：
+
+- 变异 M1（把 `.strip()` 加回批读的标题字段）⇒ 红，`不一致=1`。**同一个变异在加边界标题夹具之前是绿的** ——
+  本仓没有能区分它的标题，所以先造数据再谈判据生效。
+- 变异 M3（提前建批表，让边界对象落到单条兜底）⇒ 红，`assertIn` 直接点名标题。
+- 消融（删掉我先加的 `RW._BATCH.pop(...)` 兜底）⇒ 绿 ⇒ 那句是装饰（临时仓目录来自
+  `mkdtemp`，键每次都是新的，缓存不可能预先有值），已删，只留断言。
+
+**我自己产的量具崩过一次，成因值得记**：`both()` 里用了 `subprocess.run(..., text=True)`。
+本机默认编码 GBK，解 git 的 UTF-8 输出时 reader 线程抛 `UnicodeDecodeError`，
+而 `subprocess` 把这件事表现成 **`stdout=None`、rc 仍然是 0** —— 于是 `.stdout.strip()` 崩
+`AttributeError`。第一版是绿的、换了样本就崩：判据跟着数据漂，比恒红更坏。
+改成按字节读再 `decode("utf-8","replace")`，并在 `read()` 里 `assert returncode==0`。
+
+**B（六处手抄静态数）**：`_citations.py` 开头（覆盖率改指 `[CITE_SUMMARY]`，现印 68/68）、
+`_rewrites.py` 两处（悬空分类改指表里的恒等式行；删掉 `实测 3 条 33 ms` 这种随仓漂的成本数）、
+`README.md` 目录树里"8 份对比 CSV"（实为 7，且两份清单不一致 ⇒ 去掉数、指向清单本身）、
+`results/compare_gate.py` 开头、`console/test_config_keys_coverage.py` 开头、
+`console/test_server_guards.py` 的 `:disabled` 注释（改指 `grep -ac ':disabled' console/static/index.html`，
+本轮现数 32；引入断言那笔 `c819118` 的父提交上 `.tiny-btn:disabled` 为 0 而 `.btn:disabled` 已存在，
+所以"样式只写了 `.btn`"这句是核过的）。
+
+**其中一处是我自己数错的，纠正如下**：我上一轮把 `compare_gate.py` 的"20 张图"记成
+"应为 17 PNG + 3 表"。实测：`plot_compare_metrics.py` 一次生成 **17 张 PNG + 3 份派生表 = 20 个文件**
+（默认被口径门拒绝，要 `--allow-mixed-comparisons`；它只写 gitignore 的 `results/adhoc/plots/`，
+本轮跑完已删），归档侧是 **12 PNG + 3 CSV**（那 15 个才是出图链的入库产物；目录另有
+`README.md` 与 `ROW_SETS.md` 两份说明，不归这条链生成 —— `ROW_SETS.md` 的生成器是
+`results/row_set_delta.py --write`）。
+所以 20 这个数没错，**错的是标签**（把 3 份 CSV 说成图）。README「已知归档缺口」那段现在
+同时给了标签正确的数和当次复算的跑法。
+
+顺带查到、**不改**（属 A 组边界）：`results/plot_compare_metrics.py:CSV_FILES` 仍挂着
+`backend_wx_metrics.csv` —— 该文件已随后端 MARL 移除删掉，`load_compare_data()` 用
+`[n for n in CSV_FILES if (COMPARE_DIR / n).exists()]` **静默过滤**，所以今天只剩"清单里
+挂着一个不存在的文件名"；而它下面那句逐文件 `if not path.exists()` 的告警分支因此永不触发。
+已把差异写进 `compare_gate.py` 开头，代码留给他定。
+
+本轮全部门禁读数（都是这一轮打印的，不是上一轮的）：
+`Ran 191 tests OK`（22 文件，无 skip）、`_citations --verify` rc=0
+（`[CITE_SUMMARY] checked=68 anchored=68`、`[ROWSET_SUMMARY] void_refs=3 declared=3`）、
+`[ESCAPE_CENSUS] py_files=85 hits=0 floor=80 broken=0`（83→85 = 上一轮新增的
+`console/_rewrites.py` 与 `console/test_rewrite_map.py` 两个文件进了扫描范围，命中仍 0）、
+`[REWRITE_MAP_MATCH] objects=135 reachable=113 unreachable=22 pairs=17 pending=0 problems=0`（恒等式成立）、
+`_readme_counts --fix` 后 `--verify` 一致（console=22/191）、`python release_check.py` rc=0。
+**解释器这条要单独记**：我第一次用 anaconda 3.13 跑 `release_check.py` 得 rc=2，
+预检印的是 `便携预检失败：便携 Web 模式缺少依赖：shapely、pyproj、fastapi、uvicorn` ——
+那是预检按设计把"环境不对"和"代码坏了"分开报，不是我这轮改出来的；换项目 venv 3.10.11 即 rc=0。
+
+**本轮还有一起与代码无关的事故，必须留痕**：全量跑到一半，
+`console/test_readme_command_side_effects.py` 三条红了，原文是
+`git status 失败（128）：error: bad signature 0x00000000 / fatal: index file corrupt`。
+实测 `.git/index` 是 42356 字节、**逐字节全 0**（`NONZERO_BYTES 0`），无 `index.lock`，
+盘剩 21 G。**归不到我跑过的任何一条命令上 —— 这条只能写"未解释"**。
+处理：坏索引改名保留（`.git/index.allzero-20261001`，不删），`git read-tree HEAD` 只重建索引、
+不碰工作树；修完 `git status` 列出 8 个改动文件（正是本轮改的那 8 个），
+`HEAD^{tree}` 与损坏前测到的同一个号（`5e06f6eb51c6…`，对象库未伤）。
+判别式：**同一条命令、同一批文件，只把索引换掉 ⇒ `Ran 191 tests OK`** ——
+所以那三条红的是索引，不是我改的逻辑。
+
+边界照旧：`VERSION` 仍 `1.0.0`、未打 tag、未 push、无新依赖、未动 DDL、`paper/` 一处未碰
+（那十七处仍只报不改）。A 组的 R4 与 `total_charging_energy` 两套方案证据在下一轮。
+
+
 
 
 

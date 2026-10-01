@@ -507,7 +507,9 @@ class FrontendGuardTests(unittest.TestCase):
         self.assertIn(".legend .lg {", self.html)
 
     def test_disabled_and_focus_styles_cover_the_small_buttons(self):
-        # 30 处 :disabled 绑定里 17 处落在 .tiny-btn，原先只有 .btn 有禁用态
+        # 引入这条断言时（c819118）`console/static/index.html` 里有一批 `:disabled` 落在
+        # `.tiny-btn` 上、而样式只写了 `.btn` ⇒ 禁用后外观不变。
+        # 现在有几处不在这里记数：`grep -ac ':disabled' console/static/index.html` 一行就是现数。
         self.assertIn(".tiny-btn:disabled", self.html)
         # 焦点环曾是旧主题的钴蓝，贴在绿色品牌上
         self.assertNotIn("#1d4ed8", self.html)
