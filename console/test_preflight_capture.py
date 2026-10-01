@@ -110,6 +110,24 @@ class PreflightCaptureTests(unittest.TestCase):
         self.assertEqual(self.info["tests"], 5)
         self.assertEqual(len(self.info["skipped"]), 0)
 
+    def test_summary_line_is_the_verdict_not_the_last_print(self):
+        """给人看的那一行必须是 `OK`/`FAILED (…)`，不能是三路合并后碰巧排最后的某条 print。
+
+        这是本次改完真撞到的：`release_check` 的 `[OK] console 单元测试 · …` 末尾
+        变成了 `[ESCAPE_MECHANISM] import=…`（一条测试自己的 print），扫输出找 OK 的人会读空。
+        """
+        det = self.info["detail"]
+        picked = PF.summary_line(det)
+        self.assertTrue(picked.startswith(("OK", "FAILED (", "ERROR")),
+                        "挑出来的总结行不是裁决行：%r" % picked[:80])
+        # 反例形状：detail 末尾挂一条 print，中间才有 FAILED
+        fake = ("....\nFAIL: x\nAssertionError: boom\nRan 4 tests in 0.1s\nFAILED (failures=1)\n"
+                + "[stdout]\nSOME-TEST-PRINT [X] import=[1, 0]\n")
+        self.assertEqual(PF.summary_line(fake), "FAILED (failures=1)")
+        self.assertEqual(PF.summary_line("Ran 1 test in 0.0s\nOK\n"), "OK")
+        self.assertEqual(PF.summary_line("only a print\n"), "only a print")
+        self.assertEqual(PF.summary_line(""), "")
+
     def test_parser_takes_the_last_sentinel_not_the_first_brace(self):
         """解析按哨兵、且取**最后**一条：JSON 是套件跑完后才写的。"""
         self.assertTrue(PF._CHILD_MARK.endswith("\t"), "哨兵要能挡住正常输出行")

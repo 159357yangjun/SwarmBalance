@@ -427,6 +427,22 @@ def bucket_skips(skipped):
     return buckets
 
 
+def summary_line(detail: str) -> str:
+    """从合并后的 detail 里挑那一行给人看的总结（`OK` / `FAILED (failures=…)`）。
+
+    不能取"最后一行"：detail 现在是三路合一，末行很可能是某条测试自己的 print
+    （实测就变成 `[ESCAPE_MECHANISM] import=…`），扫输出找 "OK" 的人会读不到结果。
+    """
+    lines = [l.strip() for l in (detail or "").splitlines() if l.strip()]
+    for l in reversed(lines):
+        if l.startswith("OK") or l.startswith("FAILED (") or l.startswith("ERROR"):
+            return l
+    for l in reversed(lines):
+        if l.startswith("Ran "):
+            return l
+    return lines[-1] if lines else ""
+
+
 def render_skips(skipped) -> str:
     if not skipped:
         return "（本次运行没有 skip）"

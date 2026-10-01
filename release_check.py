@@ -110,11 +110,11 @@ def main() -> None:
         # tests=0 必须算失败：一个什么都没收集的"套件"报 OK，就是最贵的假绿灯
         ok = (info["failures"] == 0 and info["errors"] == 0
               and info["tests"] > 0 and isinstance(info.get("detail"), str))
-        tail = [l for l in info["detail"].splitlines() if l.strip()]
+        tail = _preflight.summary_line(info["detail"])   # 不取末行：末行现在常是某条测试的 print
         _print_result("console 单元测试", ok,
                       "Ran %d tests（failures=%d errors=%d skipped=%d）· %s"
                       % (info["tests"], info["failures"], info["errors"],
-                         len(info["skipped"]), tail[-1] if tail else ""))
+                         len(info["skipped"]), tail))
         failures += 0 if ok else 1
         if not ok:
             print(info["detail"][-3000:])   # 红的时候正文必须看得见，不能只报计数

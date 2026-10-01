@@ -969,6 +969,26 @@ a1/a2 慢 ~13 s —— 而 `s3` 起始采样是 `node=27 cpu=[90,37]`，所以**
 边界：`VERSION` 仍 `1.0.0`、未 push、无新依赖、未动 DDL、`paper/` 未碰、`.git` 内未动、
 5 张 PNG 未删；取证脚本在 `%TEMP%`，还原一律用快照 + 核 sha（不用 `git checkout`）。
 
+### 同日续二十·补：三路合一之后，给人看的那一行被某条 print 顶掉了
+
+上一笔把 stdout/stderr 并进 `detail` 之后，`release_check` 的摘要行取的是 **detail 末行** ——
+于是 `[OK] console 单元测试 · …` 末尾变成了某条测试自己的 print
+（实测为 `[ESCAPE_MECHANISM] import=[1, 0] compile=[1, 1, 1] pyc=1`）。信息没丢（计数与
+`FAILED (…)` 都还在结构里），但**扫输出找 OK 的人会读空**。这条是我自己这次改动引进的，
+不是历史遗留，所以记在同一天的账上。
+
+处置：新增 `_preflight.summary_line(detail)`，按 `OK` / `FAILED (` / `ERROR` 优先、
+再退到 `Ran N tests`、最后才退到末行；`release_check` 用它。
+`console/test_preflight_capture.py` 加第 5 条用例，反例形状照实测写死
+（detail 末尾挂 `SOME-TEST-PRINT [X] import=…`，中间才有 `FAILED (failures=1)` ⇒ 必须挑出后者），
+并钉 `summary_line("")` 返回空串（不许抛）。
+
+实测：`Ran 5 tests OK`（0.526 s，这个模块）；改后第一次 `release_check` 报
+`failures=1`，那条失败是**我自己的用例数门**（README 写 213、实为 214），
+`--fix` 后 `Ran 214 tests in 152.612s OK`、`release_check.py rc=0`（184.023 s），
+摘要行回到 `… errors=0 skipped=0）· OK`。**这次没有跳过那一次红**：先让它红、再改、再复跑。
+
+
 
 
 
