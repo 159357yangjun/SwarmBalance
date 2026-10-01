@@ -417,6 +417,15 @@ def paper_report(argv):
     return 0
 
 
+def rewrite_report(argv):
+    """提交改写映射表：整张表从对象库现算（`console/_rewrites.py`），表里不许有手抄值。"""
+    try:
+        from console import _rewrites
+    except ImportError:
+        import _rewrites
+    return _rewrites.main(argv, ROOT)
+
+
 def main(argv=None) -> int:
     argv = list(sys.argv[1:] if argv is None else argv)
     try:  # GBK 控制台上打中文没问题，但打不出来的字符不能把整条命令崩掉
@@ -425,6 +434,8 @@ def main(argv=None) -> int:
         pass
     if "--paper-report" in argv:
         return paper_report(argv)
+    if "--rewrite-report" in argv:
+        return rewrite_report(argv)
     checked, anchored, bad, _rs_checked, _rs_marked = scan_docs()
     if "--list-bad" in argv:
         for b in bad:
@@ -436,7 +447,8 @@ def main(argv=None) -> int:
         # 同一把尺子也伸到 paper/：清单过期即红。这边只核"清单还是不是代码现在算出来的
         # 那一份"，不核论文正文 —— 删哪几行是作者权决定，不是这道门能替做的。
         prc = paper_report(["--verify"])
-        return rc or prc
+        wrc = rewrite_report(["--verify"])
+        return rc or prc or wrc
     return 0
 
 
