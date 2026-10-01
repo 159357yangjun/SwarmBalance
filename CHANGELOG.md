@@ -770,6 +770,38 @@ N-C 往 `_rowsets.WITHDRAWN` 里加一个不存在的算法名 ⇒ `failures=4`�
 
 边界照旧：`VERSION` 仍 `1.0.0`、未 push、无新依赖、未动 DDL、`paper/` 一处未碰。
 
+### 同日续十七：A2 落成仓里一条 awaiting-user 记录（代码一行未动）+ 一条现状门
+
+主控令 ③：`A2` 那两行死字段**先别动**，删对外结论属作者权；要做的是写成仓里一条待批记录，
+标 `awaiting-user`，写清是哪两行、怎么复算、"删"与"不删"各自的后果。
+
+- 记录落在 `docs/数据来源与可追溯性登记表.md`：M10 那行改成同时点名两个键
+  （`frontend/environment.py:252#total_charging_energy`、`frontend/environment.py:253#total_charging_sessions`，
+  带锚点的形式才让引用门禁翻得开），并新增「待批（awaiting-user）」一节：
+  两条复算命令、为什么它们是死的（活键是 `total_swap_sessions`，`:800` 写、`:821` 导出，
+  对应 CSV 列 `换电总次数`；`charging_station.py:11` 自述 `charging_power` 仅作向后兼容）、
+  「删」的后果（对外零变化 + 唯一风险是仓外按键取值，仓内检索为 0，**仓外我不知道**）、
+  「不删」的后果（不影响产物，但纸面上永久留着两个"看起来是指标"的恒 0 名字，前科就是 R6），
+  以及第三条路「接上真值」为什么不推荐（动对外口径 + 68 次运行产物要重跑）。
+- 顺带纠正记录自己：M10 原先写"全文件检索命中 1 次"，**漏了兄弟键**，现为两处定义。
+- 新增 `console/test_dead_charging_fields.py`（4 条）：它不替谁做决定，它保证"决定还没做"这件事
+  不会悄悄过期 —— 定义/写入/读取/导出四桶分类、扫描**下限 60 个 `.py`**（本轮实扫 88）、
+  记录与现状同生共死（撤记录不撤字段 ⇒ 红，接上字段不撤记录 ⇒ 红），
+  外加一面反夹具：同一分类函数必须能把"有人读"的键判成活键，否则那些 `== []` 只是我的正则谁都不匹配。
+  本轮读数：`[DEAD_FIELD] name=total_charging_energy defs=1 writers=0 readers=0 exports=0 定义处=['frontend/environment.py:252']`
+  （`total_charging_sessions` 同形，定义处 :253）。
+- **一次真实红（运行输出，不是措辞）**：临时放一个 `frontend/_deadfield_probe_tmp.py`
+  只读这两个键 ⇒ `FAILED (failures=1)`，原文
+  `AssertionError: Lists differ: ['frontend/_deadfield_probe_tmp.py:2'] != []`（"出现了读取点"那条）；
+  删掉探针 ⇒ `Ran 4 tests OK`。探针是我自己造的散件，用完即删，没碰任何被跟踪文件
+  —— 这次还原用的是"造文件/删文件"，不是 `git checkout`（②里那条教训）。
+
+现况（本轮实测，不是上一轮的数）：`Ran 209 tests OK`（console 全量，2.5 分钟）、
+`_citations --verify` rc=0、`_readme_counts --verify` rc=0、
+`[ESCAPE_CENSUS] py_files=88 hits=0 floor=80 broken=0`（87→88 = 新加的那个用例文件）。
+
+边界照旧：`VERSION` 仍 `1.0.0`、未 push、无新依赖、未动 DDL、`paper/` 一处未碰；A2 代码一行未动。
+
 
 
 
