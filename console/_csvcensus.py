@@ -136,13 +136,38 @@ def scan(root=ROOT, subdir=COMPARE_DIR):
             # 记成一行 + 一条问题，让 `--verify` 红并把它印出来。
             rows.append({"name": p.name, "cols": 0, "data_rows": 0, "bom": has_bom,
                          "first": "（读不出表头）", "seed_cols": [], "has_algo": False,
-                         "unreadable": True})
+                         "hdr": [], "unreadable": True})
             continue
         rows.append({"name": p.name, "cols": len(hdr), "data_rows": n, "bom": has_bom,
                      "first": hdr[0], "seed_cols": [c for c in hdr if "seed" in c.lower()],
                      "has_algo": any(c.strip() == "算法" for c in hdr),
-                     "unreadable": False})
+                     "hdr": hdr, "unreadable": False})
     return rows
+
+
+def column_gap(rows):
+    """同一批对比 CSV 里，宽表比窄表多出哪些列 —— 登记表 R6 那句手抄话的现算版。
+
+    只比**含 `算法` 列**的那些文件：`hetero_vs_homo_*.csv` 讲的是另一件事（13 列、连步数列
+    都没有），把它拉进来这张表九成是噪音，而 R6 说的正是"对比表缺列被补 0"。
+    分组键用完整列集合，**不去借门禁的 `schema_fingerprint`** —— 两边各自数同一件事、
+    数出来不一样就该红，那才叫外部重数；借它的函数等于自己给自己作证。
+    """
+    fam = [r for r in rows if r["has_algo"] and r["hdr"]]
+    groups = {}
+    for r in fam:
+        groups.setdefault(tuple(sorted(c.strip() for c in r["hdr"])), []).append(r["name"])
+    if len(groups) < 2:
+        return {"distinct_schemas": len(groups), "algo_files": len(fam), "pairs": [],
+                "empty_reason": "含`算法`列的文件只剩 0 或 1 种表头 —— 这一节没有差异可报；"
+                                "空着是有原因的，不是扫描漏了"}
+    keys = sorted(groups, key=lambda k: (-len(k), k))
+    widest = keys[0]
+    pairs = [{"wide": sorted(groups[widest]), "narrow": sorted(groups[k]),
+              "only_in_wide": sorted(set(widest) - set(k)),
+              "only_in_narrow": sorted(set(k) - set(widest))} for k in keys[1:]]
+    return {"distinct_schemas": len(groups), "algo_files": len(fam), "pairs": pairs,
+            "empty_reason": ""}
 
 
 def _deleted_via(root, name):
@@ -175,6 +200,7 @@ def report(root=ROOT, subdir=COMPARE_DIR):
     widths = sorted({r["cols"] for r in rows})
     no_bom = [r["name"] for r in rows if not r["bom"]]
     with_seed = [r["name"] for r in rows if r["seed_cols"]]
+    gap = column_gap(rows)          # 下面 counts 与正文都用这一份，不各算一遍
     problems = []
     # 两类失败分开：`blind`（扫描瞎了 ⇒ 整轮不作数，短码 RANGE）与真正的内容缺陷（PROBLEM）。
     # 混在一条码上，读红的人就不知道该去修目录还是该去查扫描器。
@@ -199,6 +225,8 @@ def report(root=ROOT, subdir=COMPARE_DIR):
         watch.append("`%s` 被清单声明、磁盘上没有%s"
                      % (name, "（`%s` 删的）" % sha if sha else "（git 里没找到删除记录）"))
     counts = {"files": len(rows), "widths": widths, "no_bom": no_bom,
+              "gap_schemas": gap["distinct_schemas"],
+              "gap_only_in_wide": sum(len(p["only_in_wide"]) for p in gap["pairs"]),
               "with_seed": with_seed, "disk_only": disk_only, "watch": watch,
               "blind": blind, "unreadable": unreadable,
               "declared_only": declared_only, "both": both,
@@ -250,6 +278,24 @@ def report(root=ROOT, subdir=COMPARE_DIR):
             r["name"], r["cols"], r["data_rows"], "是" if r["bom"] else "**否**",
             r["first"], "是" if r["has_algo"] else "否",
             ", ".join("`%s`" % c for c in r["seed_cols"]) or "—"))
+    lines += ["", "## 宽表比窄表多出哪些列（R6 那句手抄话的现算版）", "",
+              "含 `算法` 列的文件共 %d 份，出现 %d 种完整列集合。"
+              % (gap["algo_files"], gap["distinct_schemas"])]
+    if gap["pairs"]:
+        for pr in gap["pairs"]:
+            lines += ["", "- 宽：%s（%d 列）vs 窄：%s ⇒ **宽表多 %d 列**：%s；"
+                      "窄表多 %d 列：%s"
+                      % (", ".join("`%s`" % x for x in pr["wide"]),
+                         max(r["cols"] for r in rows if r["name"] in pr["wide"]),
+                         ", ".join("`%s`" % x for x in pr["narrow"]),
+                         len(pr["only_in_wide"]),
+                         ", ".join("`%s`" % c for c in pr["only_in_wide"]) or "（无）",
+                         len(pr["only_in_narrow"]),
+                         ", ".join("`%s`" % c for c in pr["only_in_narrow"]) or "（无）")]
+        lines += ["", "缺的那批列在窄表里是**不存在**，不是 0 —— 谁把它们 `fillna(0)` "
+                  "或在前端写 `v ?? 0`，图就会把\"没测\"画成\"零缺陷\"。"]
+    else:
+        lines += ["- %s" % gap["empty_reason"]]
     lines += ["", "## 两份清单各自声明了什么", ""]
     for src, names in sorted(dec.items()):
         lines.append("- `%s`：%s" % (src, ", ".join("`%s`" % n for n in names)))
@@ -320,11 +366,13 @@ def main(argv, root=ROOT):
         return 1
     if "--verify" in argv:
         print("[CSV_CENSUS] files=%d declared=%d both=%d disk_only=%d declared_only=%d "
-              "widths=%s no_bom=%d seed_cols=%d cost_ms=%d | 产物与盘上现算逐字节一致"
+              "widths=%s no_bom=%d seed_cols=%d gap_schemas=%d gap_only_in_wide=%d "
+              "cost_ms=%d | 产物与盘上现算逐字节一致"
               % (counts["files"], counts["declared_total"], len(counts["both"]),
                  len(counts["disk_only"]), len(counts["declared_only"]),
                  ",".join(str(w) for w in counts["widths"]), len(counts["no_bom"]),
-                 len(counts["with_seed"]), counts["ms"]))
+                 len(counts["with_seed"]), counts["gap_schemas"],
+                 counts["gap_only_in_wide"], counts["ms"]))
         return 0
     print(text)
     return 0

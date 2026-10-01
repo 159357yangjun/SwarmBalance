@@ -294,6 +294,67 @@ class CsvCensusTests(unittest.TestCase):
         self.assertTrue(seen <= doc, "发出来的码不在表里：%s" % sorted(seen - doc))
         print("[CSV_CENSUS_CODES] 表里 %d 条全部被驱动过：%s" % (len(doc), sorted(doc)))
 
+    def test_column_gap_matches_external_recount(self):
+        """宽表比窄表多出的那批列，必须在测试里用另一条路径重算一遍再对。
+
+        这一节讲的是"窄表里根本没有这些列"（R6 的成因），所以它的正确性不取决于
+        生成器自己怎么说 —— 两边一起错就等于没核。
+        """
+        text, counts = CC.report(ROOT)
+        self.assertGreaterEqual(counts["gap_schemas"], 2,
+                                "真仓里只剩一种表头：这一节的正例消失了，判据要改法而不是删掉")
+        rows = {r["name"]: r for r in CC.scan(ROOT) if r["has_algo"]}
+        pairs = re.findall(r"^- 宽：(.+?)（(\d+) 列）vs 窄：(.+?) ⇒ \*\*宽表多 (\d+) 列\*\*：(.+?)；",
+                           text, re.M)
+        self.assertTrue(pairs, "产物里没有一对宽/窄，可 gap_schemas>=2 ⇒ 渲染漏了")
+        bad = []
+        for wide_grp, wide_cols, narrow_grp, n_s, listed in pairs:
+            wide = re.findall(r"`([^`]+)`", wide_grp)[0]      # 一组里可能有好几份
+            narrow = re.findall(r"`([^`]+)`", narrow_grp)[0]
+            want = sorted(set(c.strip() for c in rows[wide]["hdr"])
+                          - set(c.strip() for c in rows[narrow]["hdr"]))
+            got = re.findall(r"`([^`]+)`", listed)
+            if want != got or len(want) != int(n_s):
+                bad.append("%s vs %s：产物=%r 独立重算=%r" % (wide, narrow, got, want))
+        self.assertEqual(bad, [], "列差集算错：\n  " + "\n  ".join(bad))
+        print("[CSV_CENSUS_GAP] schemas=%d pairs=%d 第一对差 %d 列，独立重算相符"
+              % (counts["gap_schemas"], len(pairs), int(pairs[0][3])))
+
+    def test_gap_shrinks_when_narrow_table_gains_a_column(self):
+        """窄表补上一列 ⇒ 差集必须跟着缩一格。
+
+        这条是那一节的牙：只差集"会动"，才说明它是算出来的，不是把某天的结果印成常量。
+        """
+        def gap_of(narrow_hdr):
+            d = tempfile.mkdtemp(prefix="csvcensus-gap-")
+            sub = os.path.join(d, "results", "compare")
+            os.makedirs(sub)
+            write_csv(sub, "wide.csv", [u"算法", "A", "B", "C"], [[u"ga", 1, 2, 3]])
+            write_csv(sub, "narrow.csv", narrow_hdr, [[u"greedy"] + [1] * (len(narrow_hdr) - 1)])
+            return CC.column_gap(CC.scan(Path(d)))
+        g2 = gap_of([u"算法", "A"])
+        self.assertEqual(g2["distinct_schemas"], 2)
+        self.assertEqual(g2["pairs"][0]["only_in_wide"], ["B", "C"], g2["pairs"])
+        g3 = gap_of([u"算法", "A", "B"])
+        self.assertEqual(g3["pairs"][0]["only_in_wide"], ["C"], "补了 B 却没让差集缩 —— 这节是常量")
+        self.assertEqual(g3["pairs"][0]["only_in_narrow"], [])
+        g1 = gap_of([u"算法", "A", "B", "C"])          # 两边同表头
+        self.assertEqual(g1["distinct_schemas"], 1)
+        self.assertEqual(g1["pairs"], [])
+        self.assertIn("没有差异可报", g1["empty_reason"], "空表要说出为什么空")
+
+    def test_ledger_r5_r6_point_at_their_owners(self):
+        """R5 归 manifest、R6 归普查产物：两行都不许再自己扛数。"""
+        lines = io.open(ROOT / LEDGER, encoding="utf-8").read().split("\n")
+        want = {"| R5 ": "compare_gate.py", "| R6 ": "compareCSV普查.md"}
+        for prefix, needle in want.items():
+            row = [l for l in lines if l.startswith(prefix)]
+            self.assertEqual(len(row), 1, "%s 应恰好一行，现在 %d 行" % (prefix.strip(), len(row)))
+            self.assertIn(needle, row[0], "%s 没指向它的唯一真源 %s" % (prefix.strip(), needle))
+            for pat in (r"\d+\s*列", r"\d+\s*步", r"\d+\s*次重复"):
+                self.assertIsNone(re.search(pat, row[0]),
+                                  "%s 里还有手抄数（%s）：%s" % (prefix.strip(), pat, row[0][:80]))
+
     def test_ledger_r4_row_delegates_its_numbers(self):
         """登记表 R4 那一行必须**指路**而不是**抄数**：出现列宽/份数的字面量就算回归。
 

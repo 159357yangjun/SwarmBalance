@@ -35,6 +35,14 @@
 | `hetero_vs_homo_homo.csv` | 13 | 3 | 是 | `mode` | 否 | — |
 | `one_click_latest.csv` | 25 | 4 | 是 | `算法` | 是 | — |
 
+## 宽表比窄表多出哪些列（R6 那句手抄话的现算版）
+
+含 `算法` 列的文件共 5 份，出现 2 种完整列集合。
+
+- 宽：`backend_ga_metrics.csv`, `one_click_latest.csv`（25 列）vs 窄：`backend_ortools_metrics.csv`, `backend_si_metrics.csv`, `frontend_greedy_metrics.csv` ⇒ **宽表多 5 列**：`总飞行距离`, `无人机利用率`, `禁飞区绕飞次数`, `空载率`, `顺路接入次数`；窄表多 0 列：（无）
+
+缺的那批列在窄表里是**不存在**，不是 0 —— 谁把它们 `fillna(0)` 或在前端写 `v ?? 0`，图就会把"没测"画成"零缺陷"。
+
 ## 两份清单各自声明了什么
 
 - `console/server.py:_CSV_FILES`：`frontend_greedy_metrics.csv`, `backend_si_metrics.csv`, `backend_ga_metrics.csv`, `backend_ortools_metrics.csv`, `one_click_latest.csv`
