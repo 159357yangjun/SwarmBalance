@@ -868,6 +868,57 @@ N-C 往 `_rowsets.WITHDRAWN` 里加一个不存在的算法名 ⇒ `failures=4`�
 边界照旧：`VERSION` 仍 `1.0.0`、未 push、无新依赖、未动 DDL、`paper/` 一处未碰、
 `.git` 内未动任何东西、那 5 张未入库 PNG 未删。
 
+### 同日续十九：`collect_skips` 不再重跑套件（省 ~171 s），并用同一份探针证覆盖面没缩
+
+主控令：把 `_preflight.collect_skips()` 改成读一次结构化结果，**四条硬约束**——覆盖面不得缩小、
+省下的秒数必须是 ≥3 次实测分布、不得为了快而删掉任何一次真实执行、那 14.2 s 余量与 ~58 s 台阶继续挂账。
+
+**改法**（`console/_preflight.py` + `release_check.py`）：
+
+- 子进程 `_CHILD_SKIP` 的 JSON 多带一个 `detail` 字段（`TextTestRunner` 的报告正文原本被丢进
+  devnull）。这不是装饰：红的时候只报计数就是"FAIL 但不说为什么"，而那一栏此前由父进程的
+  `unittest discover` 提供 —— 正文跟着 JSON 回来，才敢合掉那两遍。
+- 新增 `run_console_suite()`；`collect_skips()` 保留成它的别名（`console/_preflight.py --skips`
+  这条 CLI 仍走它，实测 `Ran 209 tests，failures=0 errors=0 skipped=0` + 「本次运行没有 skip」）。
+- `release_check` 里"父跑一遍 discover + 子再跑一遍拿 skip"合成**一遍**；判定改成
+  `failures==0 and errors==0 and tests>0` —— `tests=0` 算失败，什么都没收集的 OK 是最贵的假绿灯。
+  **没有任何一次真实执行被删掉**，删掉的是同一套用例的第二次执行。
+
+**覆盖面两面证据**（同一份探针：给 `console/test_compare_gate.py` 临时加一个
+`REDDEMOProbe`，一条 `@unittest.skip` + 一条 `self.fail`；跑完从 %TEMP% 快照还原，
+`restored_eq_HEAD=True`、`sha=c9ffd1419b4a1de2`、探针残留命中 0）：
+
+| 面 | 改前（`collect_skips()` + 父 discover） | 改后（`run_console_suite()`） |
+|---|---|---|
+| skip 是否抓到 | `tests=211 failures=2 errors=0 skipped_total=1`，JSON 含 `…REDDEMOProbe.test_probe_skip_marker` | 同一行 `skipped_total=1`，同一 id 仍在 |
+| 失败正文是否可见 | rc=1，`Ran 211 tests in 151.781s` / `FAILED (failures=2, skipped=1)`，`FAIL: test_probe_failure_visible` | `detail` 含 `test_probe_failure_visible` 与 `FAILED (failures=2, skipped=1)`；`release_check` rc=2 并 `[FAIL] console 单元测试 · Ran 211 tests（failures=2 errors=0 skipped=1）` |
+| skip 渲染段 | —（另调 `render_skips`） | `[INFO] 本次不可跑的用例` 印出（ASCII 标记 `_preflight.py --skips` 命中 1） |
+
+（改前那轮的第二个失败是 `test_readme_counts_match_measured` 报 `(24, 209) != (24, 211)` ——
+我注入 2 条用例被计数门正常抓到，不是无关缺陷。）
+
+**分布（同机背景：node 10–13、峰值 27；java 4；CPU 采样 1%–90%）**
+
+| | min | median | max | rc |
+|---|---|---|---|---|
+| 改前 全量（续十八，n=3） | 351.495 | 353.017 | 356.900 | 0 |
+| 改后 全量（n=3） | **169.987** | **171.772** | **186.449** | 0 |
+| 改后 `--strict`（n=3） | 183.882 | 183.931 | 185.433 | **0** |
+
+省下 **181.245 s**（中位对中位）；`Ran 209 tests` 在六轮里一条没变。
+`--strict` 本轮补上了分布（上一轮只有 1 次）：**三次全 rc=0**，但它比不带 `--strict` 的
+a1/a2 慢 ~13 s —— 而 `s3` 起始采样是 `node=27 cpu=[90,37]`，所以**这 13 s 不能算 `--strict` 的成本**，
+本轮的精度分不开它和负载。
+
+**继续挂账（不顺手归掉）**：上一轮的"分段能加到 338.8 s、余 14.2 s 未拆"这条仍未结。
+用本轮同一套分段数重算，改后的预测是 184.4 s，而实测三点是 169.987 / 171.772 / 186.449
+（极差 16.462 s）—— **要解释的余量（14.15 s）比改后自身的极差还小**，这个精度下分不开，
+所以余量与那 ~58 s 台阶都保持"未定"，不因这次改动而结清。
+
+边界：`VERSION` 仍 `1.0.0`、未 push、无新依赖、未动 DDL、`paper/` 未碰、`.git` 内未动、
+那 5 张 PNG 未删、未结束任何其他人的进程。
+
+
 
 
 

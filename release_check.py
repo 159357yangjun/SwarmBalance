@@ -92,23 +92,38 @@ def main() -> None:
         print("[FAIL] 字节码纪律没能自证：%s: %s" % (type(exc).__name__, exc))
         failures += 1
 
-    ok, out = _run([sys.executable, "-m", "unittest", "discover", "-s", "console", "-p", "test_*.py"])
-    _print_result("console 单元测试", ok, out.splitlines()[-1] if out else "")
-    failures += 0 if ok else 1
-
-    # skip 归因：`OK (skipped=12)` 会被读成"过了 12 条"，而它真正的意思是
-    # "这 12 条在这台机器上根本没跑"。答辩机上这必须是显眼的、带包名与模块的一行行清单。
+    # 一次运行同时拿：计数 / 过没过 / skip 清单 / 失败正文。
+    # 这里原先是**两遍**：`unittest discover` 跑一遍给人看正文，`collect_skips()` 又起子进程
+    # 把同一套用例跑第二遍拿结构化 skip。实测子进程那遍 170.884/171.146/172.293 s、
+    # 父那遍 152.202 s，两段 = 全时长的 91.6%。合一遍去掉的是"自己造成的重复"，
+    # **没有任何一次真实执行被删掉** —— 套件照样真跑，只是不再跑两次。
+    info = None
     try:
         sys.path.insert(0, str(ROOT / "console"))
         import _preflight
-        info = _preflight.collect_skips()
+        info = _preflight.run_console_suite()
+    except Exception as exc:  # noqa: BLE001 - 套件没能跑起来本身就是失败，不是"没跑成跳过"
+        _print_result("console 单元测试", False,
+                      "套件没能跑起来：%s: %s" % (type(exc).__name__, exc))
+        failures += 1
+    if info is not None:
+        # tests=0 必须算失败：一个什么都没收集的"套件"报 OK，就是最贵的假绿灯
+        ok = (info["failures"] == 0 and info["errors"] == 0
+              and info["tests"] > 0 and isinstance(info.get("detail"), str))
+        tail = [l for l in info["detail"].splitlines() if l.strip()]
+        _print_result("console 单元测试", ok,
+                      "Ran %d tests（failures=%d errors=%d skipped=%d）· %s"
+                      % (info["tests"], info["failures"], info["errors"],
+                         len(info["skipped"]), tail[-1] if tail else ""))
+        failures += 0 if ok else 1
+        if not ok:
+            print(info["detail"][-3000:])   # 红的时候正文必须看得见，不能只报计数
+        # skip 归因：`OK (skipped=N)` 会被读成"过了 N 条"，而它真正的意思是
+        # "这 N 条在这台机器上根本没跑"。答辩机上这必须是显眼的、带包名与模块的清单。
         if info["skipped"]:
             print("[INFO] 本次不可跑的用例（不是通过，是没跑）：")
             print(_preflight.render_skips(info["skipped"]))
             print("       要换解释器就跑：python console/_preflight.py --skips")
-    except Exception as exc:  # noqa: BLE001 - 归因失败不该让整个发布检查崩掉
-        print("[WARN] skip 归因没能生成：%s: %s" % (type(exc).__name__, exc))
-        failures += 1
 
     ok, out = _run([sys.executable, "-m", "unittest", "discover", "-s", "experiments", "-p", "test_*.py"])
     _print_result("experiments 单元测试", ok, out.splitlines()[-1] if out else "")

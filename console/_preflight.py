@@ -303,22 +303,32 @@ def load_frontend_package_module(pkg: str, basename: str):
 
 
 _CHILD_SKIP = r'''
-import json, sys, unittest
+import io, json, sys, unittest
 top = sys.argv[1]
 suite = unittest.TestLoader().discover("console", pattern="test_*.py", top_level_dir=top)
-res = unittest.TextTestRunner(stream=open(__import__("os").devnull, "w"), verbosity=0).run(suite)
+_buf = io.StringIO()
+res = unittest.TextTestRunner(stream=_buf, verbosity=0).run(suite)
 out = {
     "tests": res.testsRun,
     "failures": len(res.failures),
     "errors": len(res.errors),
+    # 失败正文必须跟着 JSON 一起回来：以前这一段是父进程用 `unittest discover` 真跑的，
+    # 红的时候能把 traceback 打给人看。若只报计数不报正文，就变成"FAIL 但不说为什么"。
+    "detail": _buf.getvalue(),
     "skipped": [[t.id(), str(rin)] for t, rin in res.skipped],
 }
 sys.stdout.write(json.dumps(out, ensure_ascii=False))
 '''
 
 
-def collect_skips(interpreter=None):
-    """跑一遍 console 发现，返回 {tests, failures, errors, skipped:[[test_id, reason], ...]}。
+def run_console_suite(interpreter=None):
+    """跑**一遍** console 发现，返回 {tests, failures, errors, skipped, detail}。
+
+    为什么要有这个函数：`release_check` 原先既跑一次 `unittest discover`（给人看正文），
+    又调 `collect_skips()`（拿结构化 skip 列表）—— 同一套用例被跑了两遍。本轮实测
+    子进程那一遍是 170.884/171.146/172.293 s，父那一遍 152.202 s，两段合起来占全时长的 91.6%。
+    现在一次运行同时产出"计数 + skip 清单 + 失败正文"，**没有删掉任何一次真实执行**，
+    删掉的是重复的那一次。
 
     为什么解析结果对象而不是 grep `-v` 文本：第一版我用正则去匹配 `skipped '...'`，
     而原因里带换行（explain() 本来就是多行），12 条只认出 1 条 —— 幸好这条探针会自报
@@ -336,7 +346,22 @@ def collect_skips(interpreter=None):
     if not line:
         raise RuntimeError("子进程没吐结果（exit=%d）：%s"
                            % (proc.returncode, (proc.stderr or "")[-600:]))
-    return json.loads(line[-1])
+    info = json.loads(line[-1])
+    if "detail" not in info:
+        raise RuntimeError("子进程回来的 JSON 缺 detail —— 覆盖面不能靠猜")
+    if proc.stderr and proc.stderr.strip():
+        info["detail"] += "\n[stderr]\n" + proc.stderr
+    return info
+
+
+def collect_skips(interpreter=None):
+    """兼容入口：现在只是 `run_console_suite()` 的别名。
+
+    为什么留着而不是删：`python console/_preflight.py --skips` 与别的会话可能按这个名字调它。
+    它的语义仍然是"跑一遍 console 发现，返回 {tests, failures, errors, skipped}"—— 一模一样，
+    只是调用方不再一边跑 discover 一边调它（那才是两遍的来源）。
+    """
+    return run_console_suite(interpreter)
 
 
 _SKIP_BUCKET_NOTE = "缺包 -> 测试模块 -> 用例数"
