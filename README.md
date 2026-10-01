@@ -382,7 +382,7 @@ swarm-balance/
 │  ├─ static/spec.html           # 「规范」页正文，由 /spec 路由渲染进 iframe
 │  ├─ static/vendor/             # 内置 vue.global.prod.js / echarts.min.js /
 │  │                             #   three.min.js + README（版本、来源、SHA-256）
-│  └─ test_*.py                  # 22 个文件 / 191 个用例（标准库 unittest）
+│  └─ test_*.py                  # 23 个文件 / 201 个用例（标准库 unittest）
 │
 ├─ frontend/                     # 仿真内核与可视化
 │  ├─ environment.py             # 世界状态、障碍判定、统计口径
@@ -639,6 +639,7 @@ Windows 也可以直接双击 `run_conclusion.bat`，或在命令行执行 `run_
 | [`结项修改说明.md`](docs/结项修改说明.md) | 结项阶段的修改清单与口径说明 |
 | [`提交改写映射表.md`](docs/提交改写映射表.md) | 两轮 message 改写（只改信息、不动树）造成的 旧 sha → 现 sha 映射、复算式，以及"旧对象只靠 reflog 活着、长期引用别用 sha" |
 | [`论文侧撤除未达清单.md`](docs/论文侧撤除未达清单.md) | 由 `console/_paperscan.py` 现算的具名清单：论文里哪几处是**待作者定夺**的结论形式、哪几处是**合法**的相关工作引用；只报不改 |
+| [`compareCSV普查.md`](docs/compareCSV普查.md) | 由 `console/_csvcensus.py` 现算的 `results/compare/*.csv` 形状（份数/列宽/BOM/seed 列 + 两份清单的三桶与恒等式）；登记表 R4 的那些数归它管，文档只指路不抄数 |
 | `frontend/README.md` · `backend_si/README.md` | 仿真环境入口 / PSO 调度器参数与双通道机制详解 |
 
 ---

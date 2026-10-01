@@ -643,6 +643,56 @@ author/committer 与时间戳原样、非目标提交 message 逐字节不变、
 边界照旧：`VERSION` 仍 `1.0.0`、未打 tag、未 push、无新依赖、未动 DDL、`paper/` 一处未碰
 （那十七处仍只报不改）。A 组的 R4 与 `total_charging_energy` 两套方案证据在下一轮。
 
+### 同日续十四：R4 的数交给扫描器（他点的是"生成化"那条）
+
+A1 两个方案里他选了 **b**：不把 R4 那几个数改对，而是把数的来源换成扫盘。
+新增 `console/_csvcensus.py` → 产物 `docs/compareCSV普查.md`，接进
+`_citations.py --csv-census [--write|--verify]`，并挂到 `--verify` 总退出码上。
+本轮现算读数：
+
+```
+[CSV_CENSUS] files=7 declared=6 both=5 disk_only=2 declared_only=1
+             widths=13,20,25 no_bom=0 seed_cols=0 cost_ms=80
+```
+
+三条口径是照着这族反复踩的坑定的：
+- **名单不抄第二份**：`_CSV_FILES` 与 `CSV_FILES` 从**源码解析**（括号配平 + 引号 + 注释分支），
+  解析不出来就是 `[FAIL][CSV_CENSUS_PARSE]` + 退出码 1，**绝不退回"空名单继续算"**
+  （空名单会把磁盘上每一份都判成"没人声明"，那是喊狼的红）。
+- **两种 0 分开**：`清单声明但磁盘没有`（今天就是 `backend_wx_metrics.csv`，
+  由 `6b8c4c8` 删的，sha 也是现算的）只进报告行、**不进退出码** —— 摘哪一行是他定。
+- **分桶印恒等式**：`两边都有 + 只在磁盘 = 磁盘份数`、`两边都有 + 只在清单 = 声明条数`；
+  外加范围下限 `FLOOR=5`，现数低于下限整轮不作数（`[CSV_CENSUS_RANGE]`，排在比产物**之前**）。
+
+四条自错，都被自己人或自己的门抓到：
+1. 第一版把"清单声明但磁盘没有"塞进 `problems` ⇒ 那条只报不改的事会变成拦路的红门。写的时候
+   跟模块头里自己写的口径对了一遍才发现，拆成 `watch` 桶，并加断言"`--verify` 必须仍是 0"。
+2. 夹具第一版把名单写在**临时文件的第 1 行**，撞出 `_parse_declared` 用 `"\nVAR = ["` 找锚点
+   会漏这种入口（真仓两份都有前导内容，所以这个洞从没暴露）。改成 MULTILINE 行首匹配。
+3. `[CSV_CENSUS_RANGE]` 写在短码表里却**从没被发出来**（下限走的是 `PROBLEM`）—— 被
+   `test_documented_codes_are_all_emitted` 点出来。拆开后顺手给 `PROBLEM` 找了个真证人
+   （0 字节那份 CSV），否则"空表头记一条问题"这条分支没人验过。
+4. `--write` 原本无条件返回 0 ⇒ 扫描瞎了也能"交付"一份没人信得过的产物。改成 RANGE 先返回 1。
+
+变异四条，各自 RED，跑完从备份还原并核 sha256（`b71956c7…`，`files_now_identical=True`）：
+摘掉 `FLOOR` ⇒ 下限用例红；把 `watch` 塞回 `problems` ⇒ "待夺不进退出码"那条红；
+去掉注释跳过分支 ⇒ 带 `don't` 的名单解析红；空表头不记问题 ⇒ `PROBLEM` 用例红。
+（`console/test_compare_csv_census.py` 共 10 条；真仓那条不比生成器，而是**用 `glob` + `csv.reader`
+另数一遍**逐字段对产物 —— 生成器错则两边一起错，自洽不等于正确。）
+
+登记表 R4 那行改成**只指路不抄数**，并加断言钉住：`| R4 ` 行里出现 `\d+\s*列`、`[四七八九十]\s*份`、
+`efbbbf|e7ae97` 任一形状就红（防"改完生成器又把数粘回文档"）。README 文档索引加一行，
+用例数由 `_readme_counts --fix` 重生（console=23 文件 / 201 用例）。
+
+**A2 只多了一条证据，没动代码**：`total_charging_energy` 的兄弟 `total_charging_sessions`
+（`frontend/environment.py:253`）**同样只有定义、无写无读** ⇒ 登记表 M10 那句"全文件检索命中 1 次"
+少报了一个键。活的换电计数是 `total_swap_sessions`（`:183` 定义、`:800` 写、`:821` 导出，
+对应 CSV 列 `换电总次数`）；`frontend/charging_station.py:11` 自己写着 `charging_power` 仅作向后兼容。
+⇒ 删这两行是对外零变化，接上真值会动口径并要重跑结项 68 次 —— 这条等他单独点头。
+
+边界照旧：`VERSION` 仍 `1.0.0`、未 push、无新依赖、未动 DDL、`paper/` 一处未碰。
+
+
 
 
 

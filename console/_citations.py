@@ -27,6 +27,10 @@
     python console/_citations.py --list-bad     # 只列失效行
     python console/_citations.py --paper-report [--write|--verify]
                                                 # 论文侧「撤除未达」具名清单，只报不改
+    python console/_citations.py --csv-census [--write|--verify]
+                                                # results/compare 形状普查（登记表 R4 的数归它管）
+                                                # 短码表在 console/_csvcensus.py 自己的 docstring 里，
+                                                # 由 console/test_compare_csv_census.py 逐条驱动证明发得出来
 
 每条失效行都以 ASCII 短码开头（`[FAIL][CODE] 文件:行 …  | fix: …`），中文解释跟在后面。
 为什么：这台机的控制台是 GBK，门报红时中文诊断会被打成 `??????` —— **一条没人读得懂的红
@@ -427,6 +431,16 @@ def rewrite_report(argv):
     return _rewrites.main(argv, ROOT)
 
 
+def csv_census_report(argv):
+    """`results/compare/*.csv` 形状普查：份数/列宽/BOM/seed 列全部现算
+    （`console/_csvcensus.py`），登记表 R4 那行从此只指路、不抄数。"""
+    try:
+        from console import _csvcensus
+    except ImportError:
+        import _csvcensus
+    return _csvcensus.main(argv, ROOT)
+
+
 def main(argv=None) -> int:
     argv = list(sys.argv[1:] if argv is None else argv)
     try:  # GBK 控制台上打中文没问题，但打不出来的字符不能把整条命令崩掉
@@ -437,6 +451,8 @@ def main(argv=None) -> int:
         return paper_report(argv)
     if "--rewrite-report" in argv:
         return rewrite_report(argv)
+    if "--csv-census" in argv:
+        return csv_census_report(argv)
     checked, anchored, bad, _rs_checked, _rs_marked = scan_docs()
     if "--list-bad" in argv:
         for b in bad:
@@ -449,7 +465,8 @@ def main(argv=None) -> int:
         # 那一份"，不核论文正文 —— 删哪几行是作者权决定，不是这道门能替做的。
         prc = paper_report(["--verify"])
         wrc = rewrite_report(["--verify"])
-        return rc or prc or wrc
+        crc = csv_census_report(["--verify"])
+        return rc or prc or wrc or crc
     return 0
 
 
