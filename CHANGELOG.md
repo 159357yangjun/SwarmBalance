@@ -2,6 +2,38 @@
 
 ## [Unreleased]
 
+### 2026-10-02：高密度场景 + n=8 —— 项目第一次拿到一个统计上可判的方向性结论（方向对我们不利）
+
+上一节的推论"缺的是场景区分度，不是重复次数"本轮被自己验证：**换成高密度后同一把尺子立刻显著**。
+
+预设 `experiments/presets/ac8_density.yaml`：四算法 × seed 15101–15108（8 个共同 seed）、
+`interval_scale: 0.7`、episode 3600。跑在 `%TEMP%`（rc=0、32/32 成功、未加 `--publish-latest`）。
+**区分度证据**：32 局里 **23 局完成率 < 1.0**（min 0.90），而常规场景是 0/32 ⇒ 天花板确实压住了差异。
+
+读数（`_paired_readout --experiment task_density`，配对贪心 vs 各候选）：
+
+| 指标 | GA−贪心 逐 seed 差 | 精确双侧 p | PSO p | OR-Tools p |
+|---|---|---|---|---|
+| 完成率 | 全为负（−0.0167 ~ −0.05） | **0.0078 显著** | **0.0078 显著** | **0.0156 显著** |
+| 超时率 | 有正有负 | 0.4453 | 0.5781 | 0.6094 |
+
+贪心完成率 8/8 全是 1.0000(sd 0)，GA 均值 0.9708、PSO 0.9604、OR-Tools 0.9688。
+⇒ **在高密度场景下，贪心基线的完成率显著高于三个元启发式/求解器基线**（α=0.05，穷举 256 置换的精确 p）。
+这是本项目第一个可判的方向性结论，**方向对我们主推的 GA 不利**，必须照实说；
+对外任何"GA 优于基线"的表述都不能引用这一批。超时率仍不显著（sd ≫ 效应）。
+它是否推广到别的压力档位仍未验证（只有一个 interval_scale、seed 只有 8 个）。
+
+途中三处自己的错都被当场抓住并修掉：① 第一版把 `values:` 写在 `algorithm_comparison` 下面 ——
+runner 根本不读那条路，dry-run 印出来仍是"场景=default"才发现；② 改完留下两行互相矛盾的
+`task_density.enabled`，`build_plan()` 返回空、抛"预设没有启用任何实验"；③ `_paired_readout`
+写死了筛 `algorithm_comparison`，对真实数据报"算法两侧不齐"却不肯说为什么 ⇒ 加 `--experiment`
+并把盘上真有的块名印进诊断。另外独立复算过一遍：用原始差值（不做方向翻转）走同一条穷举，
+GA 那一格同样 0.0078，与工具一致。
+
+复算命令：`python run_conclusion.py --preset ac8_density --output-root <临时目录>`
++ `python console/_paired_readout.py --dir <该目录> --experiment task_density --metric 完成率 --require-direction`。
+边界：`results/experiments/` 仍只有原来两批，答辩数据源与 plots 15 件未动，`VERSION` 仍 `1.0.0`。
+
 ### 2026-10-02：加重复到 n=8 跑了一次 —— 设计问题解决了，但**光加 seed 不解决问题**
 
 新增仓内预设 `experiments/presets/ac8.yaml`：与 `conclusion` 同 base（seed 起点 100、

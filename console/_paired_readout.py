@@ -77,12 +77,18 @@ def latest_experiment() -> Path | None:
     return ds[-1] if ds else None
 
 
-def per_seed(raw_path: Path):
-    """-> {算法: {seed: 行}}，只取 algorithm_comparison 且成功的行。"""
+def per_seed(raw_path: Path, experiment: str = "algorithm_comparison"):
+    """-> {算法: {seed: 行}}，只取指定实验块且成功的行。
+
+    默认是 `algorithm_comparison`（结项横向对比那一块）。但高密度那轮走的是 `task_density`
+    通路 —— 它是 runner 里唯一会真的把 `interval_scale` 打进 patch 的路径
+    （`algorithm_comparison.values` 那条**runner 根本不读**，写了会被静默忽略），
+    所以这里必须能按块筛，否则工具只会对着真实数据报"没数据"。
+    """
     out = {}
     with io.open(raw_path, encoding="utf-8-sig", newline="") as fh:
         for r in csv.DictReader(fh):
-            if r.get("实验") != "algorithm_comparison" or r.get("成功") != "True":
+            if r.get("实验") != experiment or r.get("成功") != "True":
                 continue
             out.setdefault(r["算法key"], {})[str(r["Seed"])] = r
     return out
@@ -130,14 +136,17 @@ def smallest_p(n):
     return hits / tot
 
 
-def analyse(exp_dir: Path, metric: str):
+def analyse(exp_dir: Path, metric: str, experiment: str = "algorithm_comparison"):
     raw = exp_dir / "raw_runs.csv"
     if not raw.is_file():
         print("[PAIRED_NO_DATA] 缺 %s" % raw)
         return None
-    by = per_seed(raw)
+    by = per_seed(raw, experiment)
     if BASE not in by or CAND not in by:
-        print("[PAIRED_NO_DATA] 算法两侧不齐：%s" % sorted(by))
+        # 报"为什么没有"而不是只报"没有"：把盘上真有的实验块列出来，一次就能定位
+        seen = sorted({r.get("实验") for r in csv.DictReader(io.open(raw, encoding="utf-8-sig"))})
+        print("[PAIRED_NO_DATA] 实验块 %r 里没有 %s/%s 两侧；这份 raw 里的块=%s"
+              % (experiment, BASE, CAND, seen))
         return None
     seeds = sorted(set(by[BASE]) & set(by[CAND]))
     only_b, only_c = sorted(set(by[BASE]) - set(seeds)), sorted(set(by[CAND]) - set(seeds))
@@ -197,6 +206,8 @@ def main(argv=None) -> int:
     ap.add_argument("--metric", action="append", default=[], help="可重复；默认 超时率 + 平均时延")
     ap.add_argument("--require-direction", action="store_true",
                     help="指标没在 reporting 里登记方向就退出码 1（防止 --metric 打错字后静默少测一项）")
+    ap.add_argument("--experiment", default="algorithm_comparison",
+                    help="配对哪一块的运行（如 task_density）；默认 algorithm_comparison")
     ap.add_argument("--gate", action="store_true",
                     help="把 [PAIRED_UNJUDGEABLE] 当失败（用于钉'配对表须在可判设计下生成'）")
     args = ap.parse_args(list(sys.argv[1:] if argv is None else argv))
@@ -211,7 +222,7 @@ def main(argv=None) -> int:
         src = str(d)
     print("[PAIRED_SOURCE] %s" % src)
     metrics = args.metric or ["超时率", "平均时延"]
-    res = [x for x in (analyse(d, m) for m in metrics) if x]
+    res = [x for x in (analyse(d, m, args.experiment) for m in metrics) if x]
     if not res:
         return 0 if not args.gate else 2
     unjudgeable = [r for r in res if r["code"] == "[PAIRED_UNJUDGEABLE]"]

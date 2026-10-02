@@ -1,0 +1,31 @@
+name: 高密度场景配对（n=8，为让方向可判且场景有区分度）
+description: >
+  ac8 的续：同一批 seed（101-108）、同样只跑 algorithm_comparison，但把任务生成密度
+  压到 interval_scale=0.7（结项预设里"高密度"那一档）。理由是一条盘上证人而不是猜测：
+  conclusion_20261001-234945 的 48 次敏感性运行里完成率 < 1.0 的只有 3 局，其中 2 局
+  正是 task_density=高密度 —— 常规场景下四家完成率全是 1.0，天花板把差异压住了。
+base:
+  seed: 100
+  episode_steps: 3600
+  repeats: 8
+algorithms: [greedy, ortools, ga, pso]
+experiments:
+  # 用 task_density 这一条**已实现**的通路做高密度配对：它的 patch 会把
+  # task_generation.realistic.interval_scale 打进去（runner.py:139-151），而算法集合与
+  # repeats 由本预设控制 ⇒ 四算法 × 8 个相同 seed = 可配对。
+  # 为什么不用 algorithm_comparison.values：那条路 runner 根本不读，写了会被静默忽略
+  # （我第一版就是这么写的，dry-run 印出来仍是"场景=default"才发现）。
+  algorithm_comparison:
+    enabled: false
+  task_density:
+    enabled: true
+    algorithms: [greedy, ortools, ga, pso]
+    repeats: 8
+    values:
+      - {name: 高密度, interval_scale: 0.7}
+  # 下面四行原先写的是"task_density: {enabled: false}"——与上面刚启用它的那一段直接矛盾，
+  # 于是 build_plan() 返回空、run_experiments 抛"预设没有启用任何实验"。改成只关其余三块。
+  task_scale: {enabled: false}
+  nest_berths: {enabled: false}
+  fleet_mix: {enabled: false}
+_preset_key: ac8_density
