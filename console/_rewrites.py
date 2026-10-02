@@ -121,12 +121,49 @@ def classify_dangling(subject, parents):
     把解释不了的悬空对象当"已说明"放过去，就等于给下一次改写留了个隐身位。
     各多少不抄在这里（它们随仓动）：`--rewrite-report` 把每个对象连归类印成表，
     恒等式 `pairs + dangling == unreachable` 写在同一份输出里，当场可核。
+
+    **第三种形状是 amend 自己造的，本轮真撞上过一次**：把 tip 的消息改个措辞再 amend，
+    旧 tip 变成不可达、而活对端**标题不同**（消息就是被改的东西），于是按 subject 配不上对。
+    它不是改写历史出错，但也不能被静默放行 —— 所以给它一个具名类别：**只允许 amend 在 tip 上**
+    （活分支的最后一个提交）。非 tip 位置出现同形状的悬空对象，说明被动过的不是消息而是顺序或内容，
+    那种必须继续报"未归类"并让 `--verify` 红。
     """
     if not parents:
         return "孤儿根提交（另一段历史，无父）"
     if subject.startswith("index on ") or subject.startswith("On "):
         return "git stash 留下的对象（stash ref 已清，对象未回收）"
     return ""
+
+
+def classify_amended_tip(root, unreachable, live):
+    """把"amend 掉出去的旧 tip"从'未归类'里认出来，返回 {旧 sha: 活对端 sha}。
+
+    判据三条同时成立才算：① 它与某个活提交**同 tree、同 parent、同作者时间戳**，只有 subject
+    不同（这正是"只改消息"的形状）；② 那个活对端**现在仍是分支头** —— amend 只能发生在 tip 上，
+    出现在历史中间的同形状对象说明被动过的不是消息；③ 旧 sha **在 BRANCH 的 reflog 里当过分支头**
+    （`update-ref` 本来就写 reflog，所以这条不需要额外证据）。少任何一条都不认 —— 否则"未归类"
+    这道门就有了一个能装下任意历史重写的口袋。
+    """
+    out = {}
+    if not live:
+        return out
+    tips = set(git(root, "for-each-ref", "--format=%(objectname)", "refs/heads").split())
+    if not tips:
+        return out
+    was_tip = set(git(root, "reflog", "show", "--format=%H", BRANCH).split())
+    live_by_key = {}
+    for l in sorted(live):
+        tree, parents, author, ts, subj = fields(root, l)
+        live_by_key.setdefault((tree, parents, author, ts), []).append(l)
+    for u in unreachable:
+        if u not in was_tip:
+            continue
+        tree, parents, author, ts, subj = fields(root, u)
+        cands = [p for p in live_by_key.get((tree, parents, author, ts), [])
+                 if p in tips and fields(root, p)[4] != subj]
+        if len(cands) == 1:
+            out[u] = cands[0]
+    return out
 
 
 def report(root=ROOT):
@@ -151,6 +188,9 @@ def report(root=ROOT):
         live_subjects.setdefault(fields(root, sha)[4], []).append(sha)
 
     rows, problems, pushed_dirty, dangling = [], [], [], []
+    # amend 造成的旧 tip 单独认一次（它按 subject 配不上对，但形状是"只改消息"）：
+    # 判据见 classify_amended_tip —— 三条同时成立才算，否则仍走"未归类"并红。
+    amended = classify_amended_tip(root, unreachable, live)
     for u in unreachable:
         tree, parents, author, ts, subj = fields(root, u)
         cands = [l for l in live_subjects.get(subj, []) if fields(root, l)[0] == tree
@@ -168,9 +208,16 @@ def report(root=ROOT):
                 continue
             why = classify_dangling(subj, parents)
             if not why:
-                problems.append("不可达提交 %s（%r）配不上对，也归不进任何已知的悬空类别"
-                                % (u[:7], subj[:40]))
-                why = "未归类"
+                peer = amended.get(u)
+                if peer:
+                    # amend 只改消息：旧 tip 与活 tip 同 tree、同 parent、同作者时间戳。
+                    # 具名放行，但把两端 sha 印进表里 —— 静默放行才是这道门最坏的失效方式。
+                    why = "amend 掉的旧 tip（消息改写，tree 未变；活对端 %s）" % peer[:7]
+                    rows.append(("消息改写", u, peer, subj, "在" if u in tips else "不在"))
+                else:
+                    problems.append("不可达提交 %s（%r）配不上对，也归不进任何已知的悬空类别"
+                                    % (u[:7], subj[:40]))
+                    why = "未归类"
             dangling.append((u, why, subj))
             continue
         if len(cands) > 1:

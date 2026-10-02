@@ -155,6 +155,53 @@ class RewriteMapTests(unittest.TestCase):
         rc = RW.main(["--verify"], Path(d))
         self.assertEqual(rc, 1, "有问题却退出码 0 —— 这道门不会拦")
 
+    def test_amended_tip_is_named_not_swallowed(self):
+        """amend 只改消息留下的旧 tip：必须被具名认出来，且**非 tip 位置不许被它放行**。
+
+        为什么值得一条用例：本轮我自己 amend 了一次（改提交信息里的失实措辞），
+        映射表当场把那条旧 tip 报成"未归类"、`--verify` 退出码 1。修法不能是"见到
+        tree 相同就放行" —— 那等于给任意历史重写开一个口袋；所以判据锁三条：
+        同 tree+parent+作者时间戳、subject 不同、活对端仍是分支头、且旧 sha 在 reflog 里当过头。
+        """
+        d, tip, new = make_repo("message_only")
+        text, c = RW.report(Path(d))
+        self.assertEqual(c["problems"], 0, "干净的一次改写却报了问题：%s" % text[-400:])
+        # 同 subject 的改写走的是"配对"那条路（本来就认得）；要测新加的 amend 分类，
+        # 必须造一个**标题也不同**的旧 tip —— 那才是本轮真撞到的形状。
+        f = os.path.join(d, "m2.txt")
+        _w(f, "再加一个文件（换了措辞）\n\n正文一行。\n")
+        tip2 = new
+        tree2 = _g(d, "rev-parse", "%s^{tree}" % tip2)
+        parent2 = _g(d, "rev-parse", "%s^" % tip2)
+        a_name, a_mail, a_ts = _g(d, "log", "-1", "--format=%an%x00%ae%x00%at", tip2).split("\x00")
+        # `commit-tree` 没有 --author-time/--date 之外还能塞环境变量：用 GIT_AUTHOR_* 三个量
+        # 把作者与时间戳原样带过去，只换 subject —— 这才是 amend 的形状。
+        env2 = dict(ENV)
+        env2.update({"GIT_AUTHOR_NAME": a_name, "GIT_AUTHOR_EMAIL": a_mail,
+                     "GIT_AUTHOR_DATE": "@%s +0000" % a_ts})
+        cmd = ["git", "commit-tree", tree2, "-p", parent2, "-F", f]
+        pr = subprocess.run(cmd, cwd=d, capture_output=True, env=env2)
+        if pr.returncode:
+            raise AssertionError("git commit-tree 失败：%s" % pr.stderr.decode("utf-8", "replace"))
+        new2 = pr.stdout.decode().strip()
+        _g(d, "update-ref", "refs/heads/main", new2, tip2)
+        text, c = RW.report(Path(d))
+        self.assertIn("amend 掉的旧 tip", text,
+                      "换了措辞的 amend 留下的旧 tip 没被具名归类：%s" % text[-400:])
+        self.assertEqual(c["problems"], 0, "认出来了却仍报问题：%s" % text[-400:])
+        self.assertEqual(RW.classify_amended_tip(Path(d), [tip2], {new2}), {tip2: new2},
+                         "三条判据都成立却没认出来")
+        # 反例①：活对端不再是 tip（把它挪到中间位置）⇒ 不许认
+        _g(d, "commit", "-q", "--allow-empty", "-m", "后一笔")
+        moved_head = _g(d, "rev-parse", "HEAD")
+        self.assertEqual(RW.classify_amended_tip(Path(d), [tip], {new, moved_head}), {},
+                         "活对端已不在 tip，还被当成 amend —— 这条门漏了")
+        # 反例②：旧 sha 从没当过分支头 ⇒ 不许认（拿一个从未上头的对象试）
+        other = _g(d, "commit-tree", _g(d, "rev-parse", "%s^{tree}" % new),
+                   "-p", _g(d, "rev-parse", "%s^" % new), "-m", "从未上头的同类对象")
+        self.assertNotIn(other, set(RW.classify_amended_tip(Path(d), [other], {moved_head})),
+                         "reflog 里没有它却被认成 amend 产物")
+
     def test_stale_and_missing_table_go_red(self):
         """判别式：盘上的表与现算不一致、或表不存在，都要红（否则它是手抄件）。"""
         d, tip, new = make_repo("message_only")

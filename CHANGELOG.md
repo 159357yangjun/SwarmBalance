@@ -2,6 +2,32 @@
 
 ## [Unreleased]
 
+### 2026-10-02：`detour_penalty_weight` 用受控重跑证明不承重；顺带把我自己 amend 造出的悬空对象认出来
+
+**受控重跑（单变量）**：A 面 = 仓内 `config/simulation.json` 原样，B 面 = 只往 `task_chain`
+加回一个叶子键 `"detour_penalty_weight": 1.0`。前置门先证两侧只差这一个键
+（`[AB_INPUTS] added={"task_chain.detour_penalty_weight":1.0} removed=0 changed=0 ok=True`，
+不满足就退出码 2 不比），同一棵树、同一 `greedy / seed=101 / steps=3600` 各跑 3 次，
+比的是**指标指纹**（24 个数值列取到 1e-9 后逐格相等）而不是耗时 —— 耗时被几何缓存冷热污染过
+（同树三连测 12.35/2.81/1.91 s），这里只当旁证（A 1.62–1.70、B 1.62–1.63）。
+读数：`[AB_VERDICT] 两面各自稳定=True 指标逐格相同=True` ⇒ **该键不承重**，
+上一条里"`simulation.json` 哈希差解释了新旧指标差"这句话**作废**，登记簿已改。
+仓内配置一个字节未动（跑完复核 sha 仍是 `8a2f254c5cbe`、`git status` 只剩本轮文档改动）。
+
+**顺手修掉我自己撞出来的门失效**：上一笔 amend（改提交信息里的失实措辞）把旧 tip 变成不可达对象，
+而它按 subject 配不上对 ⇒ `--rewrite-report --verify` 报 `[REWRITE_MAP_STALE]` + "未归类"问题 1 条。
+不能靠手改产物消红，所以给 `_rewrites.py` 加了第四类具名归类 `classify_amended_tip()`，判据锁三条：
+同 tree+parent+作者时间戳、subject 不同、活对端仍在分支头、且旧 sha 在 reflog 里当过头。
+夹具 `test_amended_tip_is_named_not_swallowed` 两个反例都在：**非 tip 位置**的同类对象不许放行、
+**从未上头**的对象不许放行 —— 否则这条归类就成了能装下任意历史重写的口袋。
+现在映射表印 `消息改写 | 06eb5a2 | bd704db | 在 | …`，`problems=0`。
+
+复算：`python console/_citations.py --rewrite-report --verify` rc=0
+（`objects=151 reachable=128 unreachable=23 pairs=18 pending=0 problems=0`）。
+全套 `Ran 226 tests in 96.273s OK`；`release_check.py rc=0`（117.8 s，`[FAIL]` 计数 0，
+`WARN_CENSUS warnings=ResourceWarning:0 带出处=0 全文提及=3 suite=226`）。
+VERSION 仍 1.0.0、无 remote 故未 push、paper/ 未碰、对外产物未动。
+
 ### 2026-10-02：结项 68 次重跑了一遍 —— "不可比"的证据一半是我自己的测量错误
 
 `run_conclusion.py --preset conclusion`（`.venv310` / Python 3.10.11）rc=0、68/68 成功，
@@ -16,7 +42,11 @@
 第二天复查时**第 ③ 条被我自己推翻**（下面这段就是那次更正）：
 
 ① `config/simulation.json` 哈希不同（旧 `548579a…` / 新 `8a2f254…`），差异是 `dfb3dcf` 删掉的
-   `detour_penalty_weight`；该键是否承重**未证**，要证得做一次只把它加回去的受控重跑。
+   `detour_penalty_weight`；**该键已用受控重跑证明不承重** —— A 面当前配置、B 面只往 `task_chain`
+   加回这一个键（两侧先过前置门：`added={"task_chain.detour_penalty_weight":1.0} removed=0 changed=0`），
+   同一棵树同一 `greedy/seed=101/steps=3600` 各跑 3 次，指标指纹（24 个数值列到 1e-9）逐格相同
+   ⇒ **这条哈希差不能用来解释新旧指标差**。仓内 `config/simulation.json` 一个字节未动
+   （跑完复核 sha 仍是 `8a2f254c5cbe`、`git status` 空）。
 ② 每 run 耗时从 11.77–39.28 s（合计 1672 s）变成 1.53–1.85–4.94 s（合计 139 s）。
    **我先给的"未解释"、再给的"每步快 11.9–12.1 倍"，两个版本都不成立 —— 后者已作废。**
    归一化确实排除了"终止早晚"（两批 68 个 worker 的 `episode_steps` 全部恒为 3600），
