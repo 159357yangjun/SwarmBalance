@@ -265,8 +265,8 @@ class PlotsArchiveVoidTests(unittest.TestCase):
         现在数只在运行行与生成的 `ROW_SETS.md` 上，名单只在 `console/_rowsets.py` 里。
         """
         docs = {"作废通知": NOTICE.read_text(encoding="utf-8"),
-                "登记表 R8": next(l for l in io.open(ROOT / "docs" / "数据来源与可追溯性登记表.md",
-                                                    encoding="utf-8").read().split("\n")
+                "登记表 R8": next(l for l in (ROOT / "docs" / "数据来源与可追溯性登记表.md").read_text(
+                                      encoding="utf-8").split("\n")
                                   if l.startswith("| R8 "))}
         banned = [(r"\d+\s*件", "产物件数"), (r"\d+\s*张", "图张数"),
                   (r"\d+\s*个(?:算法|已撤除)", "算法个数"), (r"0\.\d{6}", "ROW_SETS 的读数"),
@@ -280,7 +280,7 @@ class PlotsArchiveVoidTests(unittest.TestCase):
                     bad.append("%s 仍抄着%s：`%s`" % (label, what, m.group(0)))
         self.assertEqual(bad, [], "手抄数又回到纸面上了：\n  " + "\n  ".join(bad))
         # 用例自己也不许留第二份名单（本轮之前它就在文件头部抄了一份）
-        src = io.open(Path(__file__), encoding="utf-8").read()
+        src = Path(__file__).read_text(encoding="utf-8")
         body = src.split("import _rowsets as RS", 1)[-1]
         self.assertIsNone(re.search(r"[{（(]\s*[\"']iql_u[\"']", body),
                           "本用例里又出现了第二份撤除名单 —— 请用 RS.WITHDRAWN")

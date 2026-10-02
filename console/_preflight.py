@@ -340,6 +340,36 @@ _stdout0.flush()
 '''
 
 
+def split_sentinel(stdout_text):
+    """从子进程 stdout 里取**最后一条**哨兵载荷，其余行原样带回。
+
+    单独成函数是为了让 A/B 那把尺子（`_suite_ab`）复用它而不是照抄一份解析：
+    两份解析就会有一份先过期，届时比对口径已经不是产品口径了。
+    """
+    payload, rest = None, []
+    for line in (stdout_text or "").splitlines():
+        if line.startswith(_CHILD_MARK):
+            payload = line[len(_CHILD_MARK):]      # 取最后一条：哨兵是套件跑完后才写的
+        else:
+            rest.append(line)
+    return payload, rest
+
+
+def merge_detail(payload, rest, stderr_text, keep_stdout=True):
+    """三路合一：runner 正文（哨兵里的 `detail`）+ 子进程 stdout + 子进程 stderr。
+
+    `keep_stdout=False` 只给 A/B 的 M2 消融用（模拟"少接一路"那个真实发生过的回归），
+    产品路径永远走 True。
+    """
+    import json
+    detail = json.loads(payload)["detail"]
+    if keep_stdout and rest:
+        detail += "\n[stdout]\n" + "\n".join(rest)
+    if (stderr_text or "").strip():
+        detail += "\n[stderr]\n" + stderr_text
+    return detail
+
+
 def run_console_suite(interpreter=None):
     """跑**一遍** console 发现，返回 {tests, failures, errors, skipped, detail}。
 
@@ -365,12 +395,7 @@ def run_console_suite(interpreter=None):
                           capture_output=True, text=True,
                           encoding="utf-8", errors="replace",
                           env=isolated_env())
-    payload, rest = None, []
-    for line in (proc.stdout or "").splitlines():
-        if line.startswith(_CHILD_MARK):
-            payload = line[len(_CHILD_MARK):]      # 取最后一条：哨兵是套件跑完后才写的
-        else:
-            rest.append(line)
+    payload, rest = split_sentinel(proc.stdout)
     if payload is None:
         raise RuntimeError("子进程没吐结果（exit=%d）：%s"
                            % (proc.returncode, ((proc.stdout or "")[-300:] +
@@ -378,12 +403,7 @@ def run_console_suite(interpreter=None):
     info = json.loads(payload)
     if "detail" not in info:
         raise RuntimeError("子进程回来的 JSON 缺 detail —— 覆盖面不能靠猜")
-    detail = info["detail"]
-    if rest:
-        detail += "\n[stdout]\n" + "\n".join(rest)
-    if proc.stderr and proc.stderr.strip():
-        detail += "\n[stderr]\n" + proc.stderr
-    info["detail"] = detail
+    info["detail"] = merge_detail(payload, rest, proc.stderr)
     return info
 
 
@@ -428,6 +448,40 @@ def bucket_skips(skipped):
         mod = m2.group(1) if m2 else (tid.rsplit(".", 2)[0] if "." in tid else tid)
         buckets[(pkgs, mod)] = buckets.get((pkgs, mod), 0) + 1
     return buckets
+
+
+_WARN_EMIT = re.compile(r"^(?P<loc>.*?:\d+): (?P<cls>[A-Z]\w*Warning): ")
+_WARN_MENTION = re.compile(r"\b([A-Z]\w*Warning)\b")
+
+
+def warning_census(detail: str) -> str:
+    """数**带出处的 warning 发射行**（`文件:行号: XWarning: …`），供调用方印成一行**报告**（不参与退出码）。
+
+    0 也要印：`warnings=0` 与"通道被静音所以数不到"是两件事，只有把数字摆出来才分得开
+    （这轮的教训就是静音了 92 条而没人知道 —— 因为绿跑时那一路根本没人看）。
+
+    为什么不能按类名在全文里计数（上一版就是这么写的，本轮被自己的数抓了）：真套件报
+    `ResourceWarning:6`，而盘上真正漏的句柄只有 **2** 个。多出的 4 次是
+    ① 采集器自己印的 `[PF_WARN_CENSUS]` / `[PF_WARN_CHANNEL]` 两行，
+    ② Python 给每条 warning 追加的 `Enable tracemalloc …` 伴行 ——
+    **计数被量具自己占掉**就会骗人，和"0 要分『没有』与『看不见』"是同一族错。
+    所以两个数并排印：`带出处=` 是真发射次数，`全文提及=` 把自占的那部分留着看得见，不抹掉。
+    """
+    import collections
+    located = collections.Counter()
+    mentions = collections.Counter()
+    for line in (detail or "").splitlines():
+        m = _WARN_EMIT.match(line.strip())
+        if m:
+            located[m.group("cls")] += 1
+        for mm in _WARN_MENTION.finditer(line):
+            mentions[mm.group(1)] += 1
+    if not located and not mentions:
+        return "warnings=0"
+    keys = sorted(set(located) | set(mentions))
+    return ("warnings=%s 带出处=%d 全文提及=%d"
+            % (",".join("%s:%d" % (k, located[k]) for k in keys),
+               sum(located.values()), sum(mentions.values())))
 
 
 def summary_line(detail: str) -> str:

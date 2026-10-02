@@ -14,7 +14,6 @@
 """
 from __future__ import annotations
 
-import io
 import os
 import re
 import tempfile
@@ -68,9 +67,10 @@ class ProbeIO(unittest.TestCase):
 def build_probe():
     d = tempfile.mkdtemp(prefix="pf-capture-")
     os.makedirs(os.path.join(d, "console"))
-    io.open(os.path.join(d, "console", "__init__.py"), "w", encoding="utf-8").write("")
-    io.open(os.path.join(d, "console", "test_probe_io.py"), "w",
-            encoding="utf-8").write(PROBE_SRC)
+    # 用 write_text 而不是 io.open(...).write(...)：后者漏句柄，会在真套件里冒出两条
+    # `ResourceWarning` —— 那是**我自己漏的**，不是探针。探针是 PROBE_SRC 里的 test_f_leak。
+    (Path(d) / "console" / "__init__.py").write_text("", encoding="utf-8")
+    (Path(d) / "console" / "test_probe_io.py").write_text(PROBE_SRC, encoding="utf-8")
     return Path(d)
 
 
@@ -130,8 +130,38 @@ class PreflightCaptureTests(unittest.TestCase):
         self.assertIn("ResourceWarning", det,
                       "warning 通道被静音了 —— 那就是把 896 行诊断悄悄丢掉的那次改动")
         self.assertIn("[stderr]", det, "warning 走的是子进程 stderr，段标头必须具名")
+        cen = PF.warning_census(det)
+        self.assertIn("ResourceWarning", cen, cen)
+        self.assertEqual(PF.warning_census("一段没有 warning 的输出"), "warnings=0",
+                         "0 要能印出来 —— 否则分不清「没有」和「通道被静音」")
+        print("[PF_WARN_CENSUS] %s" % cen)
         print("[PF_WARN_CHANNEL] ResourceWarning 到达 detail=%s"
               % ("ResourceWarning" in det))
+
+    def test_warning_census_is_not_inflated_by_the_instrument(self):
+        """量具不能把自己印的行算成被测量的量 —— 这条就是被抓过之后的形状。
+
+        上一版按类名在全文里计数，真套件实测报 `ResourceWarning:6` 而盘上只漏 2 个句柄：
+        多出的是本用例自己那两行 `[PF_*]` 与 Python 每条 warning 的 `Enable tracemalloc` 伴行。
+        现在数的是**带出处的发射行**，同时把"全文提及"并排列出来 —— 自占的部分要看得见，
+        不是把它抹掉（抹掉之后 `warnings=0` 与"通道被静音"就又分不开了）。
+        """
+        det = "\n".join([
+            r"C:\w\console\test_x.py:11: ResourceWarning: unclosed file <_io.TextIOWrapper>",
+            "ResourceWarning: Enable tracemalloc to get the object allocation traceback",
+            r"C:\w\console\test_x.py:12: ResourceWarning: unclosed file <_io.TextIOWrapper>",
+            "ResourceWarning: Enable tracemalloc to get the object allocation traceback",
+            "[PF_WARN_CENSUS] warnings=ResourceWarning:2 带出处=2 全文提及=6",
+            "[PF_WARN_CHANNEL] ResourceWarning 到达 detail=True",
+        ])
+        cen = PF.warning_census(det)
+        self.assertEqual(cen.split()[0], "warnings=ResourceWarning:2", cen)
+        self.assertIn("带出处=2", cen, "只漏 2 个句柄却报出别的数：%s" % cen)
+        self.assertIn("全文提及=6", cen, "自占的那部分没有并列印出来：%s" % cen)
+        # 反例：只看得到字样、看不到出处 ⇒ 带出处必须是 0，不许把提及当发射
+        self.assertEqual(PF.warning_census("[SOMETHING] ResourceWarning 只是文档里提了一句").split()[0],
+                         "warnings=ResourceWarning:0")
+        print("[PF_WARN_SELFTEST] %s" % cen)
 
     def test_summary_line_is_the_verdict_not_the_last_print(self):
         """给人看的那一行必须是 `OK`/`FAILED (…)`，不能是三路合并后碰巧排最后的某条 print。

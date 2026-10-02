@@ -116,6 +116,10 @@ def main() -> None:
                       % (info["tests"], info["failures"], info["errors"],
                          len(info["skipped"]), tail))
         failures += 0 if ok else 1
+        # warning 普查每次印一行（**只进报告行，不进退出码**）：这轮实测过——
+        # 静音 92 条 ResourceWarning 的时候，绿跑里没有任何地方能看出通道被关掉了。
+        print("[WARN_CENSUS] %s suite=%d 通道=warnings=default（0 也印：0 要分「没有」与「看不见」）"
+              % (_preflight.warning_census(info["detail"]), info["tests"]))
         if not ok:
             print(info["detail"][-3000:])   # 红的时候正文必须看得见，不能只报计数
         # skip 归因：`OK (skipped=N)` 会被读成"过了 N 条"，而它真正的意思是

@@ -1039,6 +1039,76 @@ P-E 把 `summary_line` 改回全文倒找 ⇒ 红在 `test_summary_line_is_the_v
 边界：`VERSION` 仍 `1.0.0`、未 push、无新依赖、未动 DDL、`paper/` 未碰、`.git` 内未动、
 5 张 PNG 未删、未结束他人进程；取证脚本仍在 `%TEMP%`。
 
+### 同日续二十三：A/B 从"我手动量过一次"变成仓里的一把尺子，量具自己被抓出四个错
+
+上一条留的两条洞（"27 条行差没逐行证明"与"warning 种类全集未清点"）本轮关掉，方式不是再手动
+跑一次，而是把它做成常驻工具 `console/_suite_ab.py` + 用例 `console/test_suite_ab.py`（9 条）。
+判据、消融、范围下限都在仓里，下一个人能重算，不必信我这段话。
+
+**真套件那一轮（同一份工作树代码，只换采集方式；`Ran 225 tests`）**：
+
+| 数 | 值 |
+|---|---|
+| 原始行数 改前 / 改后 | 54 / 56 |
+| 可比单元 改前 / 改后 | 52 / 53 |
+| **only_before / only_after / common** | **0 / 1 / 52** |
+| 进度点总数（两侧 / testsRun） | 225 / 225 / 225，`identity=True` |
+| 改后独有那 1 条 | `<section-header>` —— 采集器自己的 `[stdout]`/`[stderr]` 标头，不是内容 |
+
+`--compare` 退出码 0。**only_before=0 就是这一轮要的三个数里的那个"零丢失"**：改前那条命令
+收到的每一行，归一化之后都能在现在的 `detail` 里点到名，不需要"补回"，也没有"不可达"。
+
+**这把尺子有牙（不是"没东西可比"的 0）**：
+- M2 丢掉 stdout 那一路（更早一轮真实发生过）⇒ B 面塌到 **3** 个可比单元，被范围下限当场拒比
+  `[AB_RANGE] A=52 B=3`，`_bite()` 把"拒比"归成咬到；
+- M1 去掉 `warnings="default"`（上一轮真实发生过）⇒ **本轮在这一份取证上比不出差别**：
+  漏句柄已被我自己修光，A 面带出处 warning=0（`[ABLATION_VACUOUS]`，`--ablate` 退出码 2 而不是 0）；
+  非空转的 M1 证据有两条 —— 本轮内**修 build_probe 之前**那一轮真套件（`Ran 224 tests`）
+  实测 `only_before=12`（4 条发射行 + 4 条 `Enable tracemalloc` 伴行 + 4 条源码回声行），
+  以及常驻夹具 `[SA_M1] only_before=3`（夹具故意漏一个句柄，随 discover 与 `release_check` 跑）。
+
+**四个自己被抓出来的错**（都是量具的错，不是被测对象的错）：
+1. **`warning_census` 把量具自己算进了被测量的量**：原先按类名在全文里计数，真套件报
+   `ResourceWarning:6` 而带出处的只有 **2** 条 —— 多出的 4 次是采集器自己印的
+   `[PF_WARN_CENSUS]` / `[PF_WARN_CHANNEL]` 两行加每条 warning 的 `Enable tracemalloc` 伴行。
+   现在数**带出处的发射行**（`文件:行号: XWarning:`），并把 `全文提及=` 并排列出：
+   自占的那部分要看得见，不是抹掉。夹具 `test_warning_census_is_not_inflated_by_the_instrument`
+   把形状写死（`warnings=ResourceWarning:2 带出处=2 全文提及=6`），另一条断言钉"只有字样、
+   没有出处 ⇒ 带出处=0"。
+2. **`build_probe()` 自己漏句柄**（两处 `io.open(...).write(...)`），而且被两个测试类各调一次
+   ⇒ 真套件里 4 条 `ResourceWarning`。改 `write_text` 后 `release_check` 印
+   `[WARN_CENSUS] warnings=ResourceWarning:0 带出处=0 全文提及=3 suite=225` —— **真套件现在零泄漏**；
+   探针那个故意漏的句柄（`PROBE_SRC` 里的 `test_f_leak`）保留，它才是钉 `warnings="default"` 的证人。
+3. **A 面把 stdout 与 stderr 直接相接**：夹具里那条不带换行的 print 与 stderr 的进度点行粘成一行
+   （实测 `{"PFMARK-GLUE-003": "no newline"}....F.`）⇒ 点串数不出来、恒等式响在量具自己身上。
+   改成 `join_streams()` 补一个换行。这就是 `[AB_ONLY_AFTER]` 那类粘连的自食版。
+4. **进度点识别从"长度 ≥10"改成"行首连续进度符且必须含 `.`"**：小套件只有 6 个点，长度阈值会把
+   它当正文（`[SA_*]` 第一轮就是这么红的）；要求含 `.` 是为了不把 `FAILED` 开头那个 `F` 数成一个点。
+   识别判歪的后果由 `[AB_DOTS_MISMATCH]` 兜住 —— 整轮作废，不是悄悄放行。
+   同时 `_preflight` 把哨兵解析与三路合一抽成 `split_sentinel()` / `merge_detail()`，
+   `_suite_ab` 复用而不是照抄，避免"尺子的口径"和"产品的口径"长成两份。
+
+**warning 种类这一族到此的清点**（能证的部分）：本轮**最早那一份四件取证**（`Ran 215 tests` 那轮，
+`a_stdout/a_stderr/b_stdout/b_stderr`）里出现的 warning 类别只有一个 ——
+`grep -oE '[A-Z][A-Za-z]*Warning' | sort | uniq -c` = `12 ResourceWarning`、其他类 **0**；
+同一次核对用 grep 独立数带出处发射行 = A 侧 2 / B 侧 2（正例对照：同一把 grep 数 `Ran 215 tests`
+得 2，所以那两个 2 不是量具瞎）。到 `Ran 225 tests` 那一轮，两侧带出处都是 **0**（泄漏修光之后
+自然没有类可点），所以"种类全集"这条只在还有发射的那一份上成立。
+**清点点不到"从未触发的类别"** —— 那不在可观测范围里，明写为未验证。
+
+**耗时**：`release_check.py rc=0` 用时 **114.608 s**（同一条命令本轮早些时候是 100.3 s 与 147 s，
+`--skip-e2e` 那一跑 100.3 s 不算同口径）。三个数摆在一起只说明"这一档几十秒的抖动还在"，
+**不能读成性能已被修好**；14.2 s 余量与 ~58 s 台阶继续挂账，本轮没动它。
+本轮为了拿这三份可比读数，额外真跑了 3 遍套件（`--capture` 两遍 + `--ablate` 里 M1 一遍），
+这笔验证成本也要记账，不算进"门变便宜了"。
+
+**仍然没验证**：见本轮末尾给的那份清单（结项 68 次/GA 3600·5·seed 未重跑、PNG 像素未核、
+A2 两字段的仓外取值未知、`--strict` 只在非完整环境跑过、论文十七处只报不改）。
+
+边界：`VERSION` 仍 `1.0.0`、未 push、无新依赖、未动 DDL、`paper/` 未碰、`.git` 内未动、
+5 张 PNG 未删、未结束他人进程；取证与比对脚本本轮**进了仓**（`console/_suite_ab.py`），
+原始四份取证仍在 `%TEMP%`（它们是一次性读数，不是产物）。
+
 
 
 

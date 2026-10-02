@@ -33,6 +33,12 @@ ENV = dict(os.environ,
            GIT_COMMITTER_DATE="2026-01-01T00:00:00 +0800")
 
 
+def _w(path, text):
+    """写文件并**确实关掉句柄**：`io.open(...).write(...)` 会漏，
+    而 `warnings="default"` 一开就会以 `ResourceWarning` 冒出来（真套件 A/B 实测 92 条）。"""
+    Path(path).write_text(text, encoding="utf-8")
+
+
 def _g(cwd, *args):
     pr = subprocess.run(["git"] + list(args), cwd=cwd, capture_output=True, env=ENV)
     if pr.returncode:
@@ -44,12 +50,12 @@ def make_repo(case):
     """造一个小仓：case=message_only_rewrite | tree_changed_rewrite | residue。"""
     d = tempfile.mkdtemp(prefix="rw-test-")
     _g(d, "init", "-q", "-b", "main")
-    io.open(os.path.join(d, "a.txt"), "w").write("1\n")
+    _w(os.path.join(d, "a.txt"), "1\n")
     _g(d, "add", "a.txt")
     _g(d, "commit", "-q", "-m", "初始")
-    io.open(os.path.join(d, "a.txt"), "w").write("2\n")
+    _w(os.path.join(d, "a.txt"), "2\n")
     _g(d, "commit", "-qam", "改一点东西")
-    io.open(os.path.join(d, "b.txt"), "w").write("x\n")
+    _w(os.path.join(d, "b.txt"), "x\n")
     _g(d, "add", "b.txt")
     _g(d, "commit", "-qm", "再加一个文件")     # tip = 要"改写"的那条
     tip = _g(d, "rev-parse", "HEAD")
@@ -59,9 +65,9 @@ def make_repo(case):
     msg = "再加一个文件\n\n正文一行。\nMSG; git status --porcelain" if case == "residue" \
         else "再加一个文件\n\n正文一行（改写后）。"
     f = os.path.join(d, "m.txt")
-    io.open(f, "w", encoding="utf-8").write(msg + "\n")
+    _w(f, msg + "\n")
     if case == "tree_changed_rewrite":
-        io.open(os.path.join(d, "b.txt"), "w").write("tampered\n")
+        _w(os.path.join(d, "b.txt"), "tampered\n")
         _g(d, "add", "b.txt")
         staged = _g(d, "write-tree")               # 故意用一棵不同的树去配同标题
         new_tree = staged
@@ -196,8 +202,8 @@ class RewriteMapTests(unittest.TestCase):
         where = []
         for rel in ["README.md", "CHANGELOG.md"] + [
                 p.relative_to(ROOT).as_posix() for p in (ROOT / "docs").glob("*.md")]:
-            for ln, line in enumerate(io.open(ROOT / rel, encoding="utf-8",
-                                              errors="replace").read().split("\n"), 1):
+            for ln, line in enumerate((ROOT / rel).read_text(
+                    encoding="utf-8", errors="replace").split("\n"), 1):
                 for tok in sha_re.findall(line):
                     # 一次批读代替 N 次 `git cat-file -t`（实测 172 次 ≈ 4.5 s，
                     # 占这条用例的九成时间）。语义不变：仍只问"这 token 是不是 commit 对象"。
@@ -264,7 +270,7 @@ class RewriteMapTests(unittest.TestCase):
         made = []
         for i, msg in enumerate(edge):
             p = os.path.join(d, "edge%d.txt" % i)
-            io.open(p, "w", encoding="utf-8").write("x\n")
+            _w(p, "x\n")
             _g(d, "add", p)
             _g(d, "commit", "-q", "-m", ("\n\n" + msg) if i == 2 else msg)
             made.append((msg, _g(d, "rev-parse", "HEAD")))

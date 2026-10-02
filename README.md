@@ -223,6 +223,9 @@ Windows 直接双击 `start_console_portable.bat`。此模式会使用项目自�
 python console/_preflight.py        # 依赖预检：缺包时直接说清缺哪些、用哪个解释器
 python console/_citations.py --verify   # 文档引用门禁：行号越界 / 锚点找不到都退出码 1
 python console/_citations.py --paper-report --write   # 论文侧「撤除未达」具名清单（只报不改）
+python console/_suite_ab.py --capture /tmp/ab && python console/_suite_ab.py --compare /tmp/ab
+#   ^ 换了"套件输出怎么采集"之后逐行对账：改前那条命令 vs 现在的采集器，
+#     两侧同尺比可比单元，only_before 必须为 0（`--ablate` 演示这把尺子会咬）
 python -m console.selfcheck
 python release_check.py             # 普通发布检查
 python release_check.py --strict    # Python 3.10 正式环境最终检查
@@ -382,7 +385,7 @@ swarm-balance/
 │  ├─ static/spec.html           # 「规范」页正文，由 /spec 路由渲染进 iframe
 │  ├─ static/vendor/             # 内置 vue.global.prod.js / echarts.min.js /
 │  │                             #   three.min.js + README（版本、来源、SHA-256）
-│  └─ test_*.py                  # 25 个文件 / 215 个用例（标准库 unittest）
+│  └─ test_*.py                  # 26 个文件 / 225 个用例（标准库 unittest）
 │
 ├─ frontend/                     # 仿真内核与可视化
 │  ├─ environment.py             # 世界状态、障碍判定、统计口径

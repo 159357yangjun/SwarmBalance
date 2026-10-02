@@ -30,6 +30,11 @@ SKIP_DIR = ("__pycache__", ".git", "node_modules", ".wt", "adhoc")
 MIN_PY = 60
 
 
+def _w(path, text):
+    """写文件并确保句柄关闭：漏了就是一条 `ResourceWarning`，而 `warnings="default"` 一开它就会冒出来。"""
+    Path(path).write_text(text, encoding="utf-8")
+
+
 def code_files(root=ROOT):
     out = []
     for dirpath, dirnames, filenames in os.walk(str(root)):
@@ -112,7 +117,7 @@ class DeadChargingFieldTests(unittest.TestCase):
         os.makedirs(d, exist_ok=True)
         p = os.path.join(d, "mini.py")
         nm = NAMES[0]          # 拼出来，别在本文件里留下那个全名的字面量（否则我就在数自己）
-        io.open(p, "w", encoding="utf-8").write(
+        _w(p,
             "class E:\n"
             "    def __init__(self):\n"
             "        self.%s = 0.0\n"
