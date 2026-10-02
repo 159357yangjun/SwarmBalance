@@ -1,0 +1,26 @@
+name: 密度梯度（贪心 vs GA，判"结论在哪个压力下成立"）
+description: >
+  ac8_density 的续。上一节的可判结论只建立在**单一压力档**（interval_scale=0.7）上，
+  所以它回答不了"这是否只是那一档的现象"。本预设沿密度轴扫四档，每档跑 greedy+ga × 6 个
+  共同 seed：常规 1.0 / 偏密 0.85 / 高密度 0.7（沿用上一节）/ 极密 0.5。
+  要的是单调性证据或反例，不是又拿一个点当结论。
+base:
+  seed: 100
+  episode_steps: 3600
+  repeats: 6
+algorithms: [greedy, ga]
+experiments:
+  algorithm_comparison: {enabled: false}
+  task_scale: {enabled: false}
+  nest_berths: {enabled: false}
+  fleet_mix: {enabled: false}
+  task_density:
+    enabled: true
+    algorithms: [greedy, ga]
+    repeats: 6
+    values:
+      - {name: 常规密度, interval_scale: 1.0}
+      - {name: 偏密, interval_scale: 0.85}
+      - {name: 高密度, interval_scale: 0.7}
+      - {name: 极密, interval_scale: 0.5}
+_preset_key: density_sweep

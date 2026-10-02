@@ -77,7 +77,7 @@ def latest_experiment() -> Path | None:
     return ds[-1] if ds else None
 
 
-def per_seed(raw_path: Path, experiment: str = "algorithm_comparison"):
+def per_seed(raw_path: Path, experiment: str = "algorithm_comparison", value=None):
     """-> {算法: {seed: 行}}，只取指定实验块且成功的行。
 
     默认是 `algorithm_comparison`（结项横向对比那一块）。但高密度那轮走的是 `task_density`
@@ -89,6 +89,8 @@ def per_seed(raw_path: Path, experiment: str = "algorithm_comparison"):
     with io.open(raw_path, encoding="utf-8-sig", newline="") as fh:
         for r in csv.DictReader(fh):
             if r.get("实验") != experiment or r.get("成功") != "True":
+                continue
+            if value is not None and r.get("取值") != value:
                 continue
             out.setdefault(r["算法key"], {})[str(r["Seed"])] = r
     return out
@@ -136,26 +138,27 @@ def smallest_p(n):
     return hits / tot
 
 
-def analyse(exp_dir: Path, metric: str, experiment: str = "algorithm_comparison"):
+def analyse(exp_dir: Path, metric: str, experiment: str = "algorithm_comparison",
+            pair=(BASE, CAND), value=None):
     raw = exp_dir / "raw_runs.csv"
     if not raw.is_file():
         print("[PAIRED_NO_DATA] 缺 %s" % raw)
         return None
-    by = per_seed(raw, experiment)
-    if BASE not in by or CAND not in by:
+    by = per_seed(raw, experiment, value)
+    if pair[0] not in by or pair[1] not in by:
         # 报"为什么没有"而不是只报"没有"：把盘上真有的实验块列出来，一次就能定位
         seen = sorted({r.get("实验") for r in csv.DictReader(io.open(raw, encoding="utf-8-sig"))})
         print("[PAIRED_NO_DATA] 实验块 %r 里没有 %s/%s 两侧；这份 raw 里的块=%s"
-              % (experiment, BASE, CAND, seen))
+              % (experiment, pair[0], pair[1], seen))
         return None
-    seeds = sorted(set(by[BASE]) & set(by[CAND]))
+    seeds = sorted(set(by[pair[0]]) & set(by[pair[1]]))
     only_b, only_c = sorted(set(by[BASE]) - set(seeds)), sorted(set(by[CAND]) - set(seeds))
     if not seeds:
         print("[PAIRED_NO_DATA] 没有共同 seed")
         return None
     sign = direction(metric)
     if sign is None:
-        vals = {k: [float(by[k][s][metric]) for s in seeds] for k in (BASE, CAND)}
+        vals = {k: [float(by[k][s][metric]) for s in seeds] for k in pair}
         sp = smallest_p(len(seeds))
         print("[PAIRED_NO_DIRECTION] %s 在 reporting 里没有登记方向 ⇒ 不产出胜负与 p 值；"
               "只印两侧均值。顺带一条与方向无关的事实：n=%d 时**任何**双侧符号检验的最小可得 p"
@@ -168,7 +171,8 @@ def analyse(exp_dir: Path, metric: str, experiment: str = "algorithm_comparison"
                 "win": 0, "loss": 0, "tie": 0,
                 "code": "[PAIRED_UNJUDGEABLE]" if sp > ALPHA else "[PAIRED_NO_DIRECTION]"}
     try:
-        pairs = [(float(by[CAND][s][metric]) - float(by[BASE][s][metric])) * sign for s in seeds]
+        pairs = [(float(by[pair[1]][s][metric]) - float(by[pair[0]][s][metric])) * sign
+                 for s in seeds]
     except KeyError as exc:
         print("[PAIRED_NO_DATA] 指标列缺失：%s" % exc)
         return None
@@ -183,10 +187,10 @@ def analyse(exp_dir: Path, metric: str, experiment: str = "algorithm_comparison"
     print("%s dir=%s n=%d seeds=%s only_base=%d only_cand=%d perms=%d"
           % (code, "+" if sign > 0 else "-", len(pairs), ",".join(seeds),
              len(only_b), len(only_c), perms))
-    print("[PAIRED_METRIC] %s base=%s cand=%s" % (metric, BASE, CAND))
+    print("[PAIRED_METRIC] %s base=%s cand=%s" % (metric, pair[0], pair[1]))
     for s, d in zip(seeds, pairs):
         print("  [SEED] %s base=%.6f cand=%.6f signed_delta=%+.6f"
-              % (s, float(by[BASE][s][metric]), float(by[CAND][s][metric]), d))
+              % (s, float(by[pair[0]][s][metric]), float(by[pair[1]][s][metric]), d))
     print("[PAIRED_COUNTS] win=%d tie=%d loss=%d" % (wins, ties, losses))
     print("[PAIRED_EFFECT] mean_signed_delta=%+.6f sd=%.6f cv=%s"
           % (ST.mean(pairs), ST.stdev(pairs) if len(pairs) > 1 else float("nan"),
@@ -208,6 +212,9 @@ def main(argv=None) -> int:
                     help="指标没在 reporting 里登记方向就退出码 1（防止 --metric 打错字后静默少测一项）")
     ap.add_argument("--experiment", default="algorithm_comparison",
                     help="配对哪一块的运行（如 task_density）；默认 algorithm_comparison")
+    ap.add_argument("--pair", nargs=2, metavar=("BASE", "CAND"), default=[BASE, CAND],
+                    help="配对的两个算法 key（默认 greedy ga）；base 侧是参照")
+    ap.add_argument("--value", default="", help="只取该取值(变量)的行，用于一次跑多档的扫描预设")
     ap.add_argument("--gate", action="store_true",
                     help="把 [PAIRED_UNJUDGEABLE] 当失败（用于钉'配对表须在可判设计下生成'）")
     args = ap.parse_args(list(sys.argv[1:] if argv is None else argv))
@@ -222,7 +229,13 @@ def main(argv=None) -> int:
         src = str(d)
     print("[PAIRED_SOURCE] %s" % src)
     metrics = args.metric or ["超时率", "平均时延"]
-    res = [x for x in (analyse(d, m, args.experiment) for m in metrics) if x]
+    pair = tuple(args.pair)
+    # 扫描型预设把多档塞在同一个块里（`取值` 列），不筛就会跨档混合配对 —— 那是假配对。
+    # 筛选做成 analyse() 的一个参数，不用"运行时替换全局函数"那种会自己咬自己的写法。
+    value = args.value or None
+    if value:
+        print("[PAIRED_FILTER] 取值=%s 只配对该档" % value)
+    res = [x for x in (analyse(d, m, args.experiment, pair, value) for m in metrics) if x]
     if not res:
         return 0 if not args.gate else 2
     unjudgeable = [r for r in res if r["code"] == "[PAIRED_UNJUDGEABLE]"]
