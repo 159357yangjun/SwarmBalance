@@ -191,14 +191,15 @@ class RewriteMapTests(unittest.TestCase):
         self.assertEqual(c["problems"], 0, "认出来了却仍报问题：%s" % text[-400:])
         self.assertEqual(RW.classify_amended_tip(Path(d), [tip2], {new2}), {tip2: new2},
                          "三条判据都成立却没认出来")
-        # 反例①：活对端不再是 tip（把它挪到中间位置）⇒ 不许认
+        # 反例①（这条同时兜住我犯过的方向错误）：判据不能写成"活对端现在仍是 tip"，
+        # 否则仓往前走几步之后，这条门会在**健康仓**上自己变红 —— 本轮真撞到过一次。
         _g(d, "commit", "-q", "--allow-empty", "-m", "后一笔")
         moved_head = _g(d, "rev-parse", "HEAD")
-        self.assertEqual(RW.classify_amended_tip(Path(d), [tip], {new, moved_head}), {},
-                         "活对端已不在 tip，还被当成 amend —— 这条门漏了")
+        self.assertEqual(RW.classify_amended_tip(Path(d), [tip2], {new2}), {tip2: new2},
+                         "被 amend 的那条已不是当前 tip 就不认了？判据写歪了")
         # 反例②：旧 sha 从没当过分支头 ⇒ 不许认（拿一个从未上头的对象试）
-        other = _g(d, "commit-tree", _g(d, "rev-parse", "%s^{tree}" % new),
-                   "-p", _g(d, "rev-parse", "%s^" % new), "-m", "从未上头的同类对象")
+        other = _g(d, "commit-tree", _g(d, "rev-parse", "%s^{tree}" % moved_head),
+                   "-p", _g(d, "rev-parse", "%s^" % moved_head), "-m", "从未上头的同类对象")
         self.assertNotIn(other, set(RW.classify_amended_tip(Path(d), [other], {moved_head})),
                          "reflog 里没有它却被认成 amend 产物")
 

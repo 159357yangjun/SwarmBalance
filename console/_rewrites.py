@@ -139,18 +139,22 @@ def classify_amended_tip(root, unreachable, live):
     """把"amend 掉出去的旧 tip"从'未归类'里认出来，返回 {旧 sha: 活对端 sha}。
 
     判据三条同时成立才算：① 它与某个活提交**同 tree、同 parent、同作者时间戳**，只有 subject
-    不同（这正是"只改消息"的形状）；② 那个活对端**现在仍是分支头** —— amend 只能发生在 tip 上，
-    出现在历史中间的同形状对象说明被动过的不是消息；③ 旧 sha **在 BRANCH 的 reflog 里当过分支头**
-    （`update-ref` 本来就写 reflog，所以这条不需要额外证据）。少任何一条都不认 —— 否则"未归类"
-    这道门就有了一个能装下任意历史重写的口袋。
+    不同（这正是"只改消息"的形状）；② 那个活对端**在 reflog 里当过分支头** —— amend 只能发生在
+    tip 上，从未上头的同形状对象不算；③ 旧 sha 同样在 reflog 里当过头。少任何一条都不认 ——
+    否则"未归类"这道门就有了一个能装下任意历史重写的口袋。
+
+    ②说的是"**曾经**是 tip"而不是"**现在**仍是 tip"：仓往前走几步之后，被 amend 的那条早就不在
+    tip 上了；用"现在是 tip"当条件，这道门会在健康仓上自己变红（本轮实测撞到过一次）。
     """
     out = {}
     if not live:
         return out
-    tips = set(git(root, "for-each-ref", "--format=%(objectname)", "refs/heads").split())
-    if not tips:
-        return out
+    # 不只读主分支的 reflog：改写历史那几轮里被动过的分支未必是当前 BRANCH。
     was_tip = set(git(root, "reflog", "show", "--format=%H", BRANCH).split())
+    for br in git(root, "for-each-ref", "--format=%(refname)", "refs/heads").split():
+        was_tip.update(git(root, "reflog", "show", "--format=%H", br).split())
+    if not was_tip:
+        return out
     live_by_key = {}
     for l in sorted(live):
         tree, parents, author, ts, subj = fields(root, l)
@@ -160,7 +164,7 @@ def classify_amended_tip(root, unreachable, live):
             continue
         tree, parents, author, ts, subj = fields(root, u)
         cands = [p for p in live_by_key.get((tree, parents, author, ts), [])
-                 if p in tips and fields(root, p)[4] != subj]
+                 if p in was_tip and fields(root, p)[4] != subj]
         if len(cands) == 1:
             out[u] = cands[0]
     return out
