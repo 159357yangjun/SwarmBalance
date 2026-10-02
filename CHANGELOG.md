@@ -2,6 +2,34 @@
 
 ## [Unreleased]
 
+### 2026-10-02：结项 68 次重跑了一遍 —— 新数字能重算，但它不是旧那批的复刻
+
+`run_conclusion.py --preset conclusion`（`.venv310` / Python 3.10.11）rc=0、68/68 成功，
+落在 `results/experiments/conclusion_20261001-234945/`（gitignored）。**没加** `--publish-latest`、
+**没加** `--record-into-evidence` ⇒ `one_click_latest.csv` 与 plots 那 15 个入库产物原样未动。
+
+核验走的是 `verify_data_provenance.check_experiments` **自己的判据**（把它的 `EXP_DIR` 临时指到
+新目录，不抄第二份实现）：新旧两目录各自 rc=0 —— raw 68 ↔ plan 68 一一对应、失败运行 0、
+四算法配对 seed 均 101–105、stats 120 格逐位可重算（最大偏差 2.2e-16）。
+
+但按 (算法,seed) 配对的 480 格里只有 **203 格相等、277 格不等**。三条盘上证据说明为什么不能叫"复刻"：
+① `config/simulation.json` 的哈希两份 manifest 不同（旧 `548579a…` / 新 `8a2f254…`，差异是 `dfb3dcf`
+删掉的 `detour_penalty_weight`），而 preset / 算法配置 / OSM 三项相同；
+② 每 run 耗时从 11.8–39.3 s（合计 1672 s）变成 1.5–4.9 s（合计 139 s），约 12 倍；
+③ 地图解析计数变了（建筑 2876→2889、可用高度 397→25、>20 m 108→18）。
+**第 ③ 条我第一版归因成「`.osm_cache` 陈旧缓存被复用」，随后自己撤回**：缓存键含源文件 `mtime_ns`
+（`frontend/tools/osm.py:_cache_path`），盘上四个 `osm-*.pkl` 没有一个是本轮算出的键，且本轮跑完
+`.osm_cache/` 未新增 `.pkl` ⇒ 走的是未命中现场解析；剩下的成因写**未解释**，不升格成结论。
+
+读数形状（GA vs Greedy，各 5 seed）：完成率都 1.0000；超时率 0.0733 vs 0.0533；
+平均时延 5.400±5.386 vs 4.302±2.573；**GA 平均时延优于 Greedy 的 seed 数 = 3/5（旧那批也是 3/5）**
+—— 标准差大于均值的五样本，撑不起"稳定更优"。全部细节与复算命令写在
+`docs/数据来源与可追溯性登记表.md` 新增的「R3 的重跑轮」一节，三件待拍事项（要不要换对外指向、
+要不要先查 ③ 的成因、`verify_data_provenance.py:38` 的 `EXP_DIR` 换不换）都在那一节里，我没替拍。
+
+边界：`VERSION` 仍 `1.0.0`、未 push（本仓无 remote）、无新依赖、未动 DDL、`paper/` 未碰、
+`.git` 内未动、那 5 张未入库 PNG 未删、未结束他人进程。
+
 ### 2026-09-30：引用门禁自己就是半盲的那一道门（承 2026-09-30 上午那条）
 
 `VERSION` 保持 `1.0.0` 未动，未打 tag、未发 release、未 push。
