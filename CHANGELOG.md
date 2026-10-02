@@ -988,6 +988,57 @@ a1/a2 慢 ~13 s —— 而 `s3` 起始采样是 `node=27 cpu=[90,37]`，所以**
 `--fix` 后 `Ran 214 tests in 152.612s OK`、`release_check.py rc=0`（184.023 s），
 摘要行回到 `… errors=0 skipped=0）· OK`。**这次没有跳过那一次红**：先让它红、再改、再复跑。
 
+### 同日续二十二：真套件 A/B —— 合批顺手静音了 896 行 `ResourceWarning`，四处补回
+
+上一条留的第 1 条洞（"A/B 只用了 5 条探针，没比过仓里 214 条"）本轮关掉，结论比探针严重。
+
+**第一面（真套件）**：改前 = `python -m unittest discover -s console` 经 `_run` 收到的
+`stdout+stderr`；改后 = `run_console_suite()["detail"]`。
+
+| 数 | 值 |
+|---|---|
+| 改前可见行数 | **939** |
+| 改后可见行数 | **43** |
+| 只在改前出现的行（数字打掩码） | **898**，几乎全是 `ResourceWarning: unclosed file …` |
+| 裁决类行是否丢 | 否（`verdict_only_before=0`） |
+
+机制**不是**"stdout 那一路没接上"（那一路接通了），而是：`unittest.main()` 会给 runner 传
+`warnings="default"`，我手写的 `TextTestRunner(stream=_buf, verbosity=1)` **没传** ⇒
+`ResourceWarning` 落回默认过滤器（对它恰好是 `ignore`）⇒ 整类诊断被**静音**。
+这是上一条 `verbosity=0` 同一个错的加重版：为了"合成一遍"顺手关掉一种输出。
+而那 898 行 warning 又指向**我自己本轮新写的用例在漏句柄**
+（`test_compare_csv_census.py`、`test_dead_charging_fields.py` 共 7 处
+`io.open(…).read()` / `open(…).read()`）。
+
+**四处处置**：① 子进程 runner 加 `warnings="default"`（stderr 仍具名并进 `detail`）；
+② 那 7 处泄漏改 `read_text()/read_bytes()`；③ 常驻用例
+`test_resource_warnings_are_not_silenced` —— 探针故意漏一个句柄再 `gc.collect()`，
+断言 `detail` 里必须有 `ResourceWarning` 且 `[stderr]` 标头在；
+④ 再补 `summary_line` 一刀：它原先在**合并后的全文**里倒着找 `OK`，而 `[stdout]/[stderr]`
+是追加在正文之后的 ⇒ 任何一条测试打印以 `OK` 开头就能顶掉真裁决；改成先截到第一个段标头再找，
+并把混合形状写死成断言（`FAILED (failures=1)` 必须赢过 `OK 这只是某条测试自己打印的一行`）。
+
+**第二面（同一把尺子复测）**：改前 **196** / 改后 **198** 行；`warning` 条数 **92 / 92**、
+`ResourceWarning` 字样 **93 / 93**、只在任一侧的 warning 类型集合**均为空**；
+`verdict_only_before` 剩 1 条，就是上一条已具名的 **id 带包名**差异
+（`(test_readme_counts…)` → `(console.test_readme_counts…)`），同一条信息不是丢失。
+行边界残差全部来自"进度点串与 warning 在改前挤同一条裸 stderr、改后分属两路"。
+
+**变异**：P-D 去掉 `warnings="default"` ⇒ 红在 `test_resource_warnings_are_not_silenced`；
+P-E 把 `summary_line` 改回全文倒找 ⇒ 红在 `test_summary_line_is_the_verdict_not_the_last_print`。
+各自 RED，还原核 sha `d80dc6f86b72395f identical=True`。
+
+**耗时不结旧账**：`Ran 215 tests in 88.368s`、`release_check.py rc=0` 用时 **131.325 s**
+（上一轮同两条是 152.6 s / 184.0 s）。降了，但**不能读成"这次把性能修好了"**：同机背景从
+`node 10–27` 掉到接近空闲，且这轮顺手去掉了 92 条 warning 的格式化开销，两个因素没拆开。
+**14.2 s 余量与 ~58 s 台阶继续挂账。**
+
+**仍然没验证**：绿跑时 warning 不进**可读输出** —— `release_check` 只在红的时候印 `detail` 尾 3000 字，
+改前后都这样；这次对齐的是"捕获得到"，不是"看得见"。
+
+边界：`VERSION` 仍 `1.0.0`、未 push、无新依赖、未动 DDL、`paper/` 未碰、`.git` 内未动、
+5 张 PNG 未删、未结束他人进程；取证脚本仍在 `%TEMP%`。
+
 
 
 

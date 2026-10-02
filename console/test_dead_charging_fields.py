@@ -46,7 +46,7 @@ def classify(name, files):
     pat = re.compile(r"\b%s\b" % re.escape(name))
     for p in files:
         try:
-            text = io.open(p, encoding="utf-8", errors="replace").read()
+            text = Path(p).read_text(encoding="utf-8", errors="replace")
         except OSError:
             continue
         for ln, line in enumerate(text.split("\n"), 1):
@@ -92,7 +92,7 @@ class DeadChargingFieldTests(unittest.TestCase):
 
     def test_ledger_still_holds_the_awaiting_user_record(self):
         """记录必须在，且带着两个可被引用门禁翻开的行号锚点。"""
-        text = io.open(LEDGER, encoding="utf-8").read()
+        text = LEDGER.read_text(encoding="utf-8")
         self.assertIn("awaiting-user", text,
                       "A2 的待批记录不见了 —— 决定做了就改写它，别直接删掉这一段")
         # 这两个断言串也用拼出来的名字：写全名的话，本文件就成了那个键的一处"读取点"
@@ -128,7 +128,7 @@ class DeadChargingFieldTests(unittest.TestCase):
 
     def test_definition_lines_match_the_cited_anchors(self):
         """记录里写的 252/253 必须真是那两行 —— 行号漂了引用门禁会红，这里再补一层内容核对。"""
-        lines = io.open(ENV, encoding="utf-8").read().split("\n")
+        lines = ENV.read_text(encoding="utf-8").split("\n")
         for name, ln in zip(NAMES, (252, 253)):
             self.assertIn(name, lines[ln - 1],
                           "%s 已不在 environment.py:%d，那一行的原文是 %r —— 记录与锚点都要改"

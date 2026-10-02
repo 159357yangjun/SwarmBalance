@@ -314,7 +314,10 @@ _buf = io.StringIO()
 # verbosity=1，不是 0：A/B 逐行比对时唯一一处实质差异就是进度点行（`..F.`）——
 # 改前那条 `python -m unittest discover` 默认 verbosity=1。用 0 就等于为了"合成一遍"
 # 顺手把一种输出关掉，那属于丢信息，不属于省时间。
-res = unittest.TextTestRunner(stream=_buf, verbosity=1).run(suite)
+# warnings='default' 同理，而且这次丢的是 896 行：`unittest.main()` 默认给 runner 传
+# warnings='default'，手写的 TextTestRunner 不传就等于让 ResourceWarning 回到默认
+# 过滤器（对它恰好是 ignore）—— 真套件 A/B 实测改前 939 行、改后 43 行，缺的全是这类诊断。
+res = unittest.TextTestRunner(stream=_buf, verbosity=1, warnings="default").run(suite)
 data = {
     "tests": res.testsRun,
     "failures": len(res.failures),
@@ -428,12 +431,22 @@ def bucket_skips(skipped):
 
 
 def summary_line(detail: str) -> str:
-    """从合并后的 detail 里挑那一行给人看的总结（`OK` / `FAILED (failures=…)`）。
+    """从 detail 里挑那一行给人看的裁决（`OK` / `FAILED (failures=…)`）。
 
-    不能取"最后一行"：detail 现在是三路合一，末行很可能是某条测试自己的 print
-    （实测就变成 `[ESCAPE_MECHANISM] import=…`），扫输出找 "OK" 的人会读不到结果。
+    两条约束都是实测撞出来的：
+    1. 不能取"最后一行"：detail 是三路合一，末行很可能是某条测试自己的 print
+       （实测就变成 `[ESCAPE_MECHANISM] import=…`），扫输出找 "OK" 的人会读不到结果。
+    2. **也不能在合并后的全文里倒着找**：`[stdout]`/`[stderr]` 两段追加在 runner 正文之后，
+       只要有一条测试打印以 `OK` / `ERROR` 开头的行，它就会盖掉真裁决。所以先截到
+       第一个段标头之前，只在 runner 自己写的那段里找。
     """
-    lines = [l.strip() for l in (detail or "").splitlines() if l.strip()]
+    text = detail or ""
+    cut = len(text)
+    for mark in ("\n[stdout]", "\n[stderr]"):
+        i = text.find(mark)
+        if 0 <= i < cut:
+            cut = i
+    lines = [l.strip() for l in text[:cut].splitlines() if l.strip()]
     for l in reversed(lines):
         if l.startswith("OK") or l.startswith("FAILED (") or l.startswith("ERROR"):
             return l

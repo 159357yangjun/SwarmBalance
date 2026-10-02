@@ -52,6 +52,14 @@ class ProbeIO(unittest.TestCase):
     def test_d_fail(self):
         self.fail("%(f)s 故意失败")
 
+    def test_f_leak(self):
+        # 故意漏一个句柄：`ResourceWarning` 默认是被忽略的，只有 runner 带
+        # warnings='default'（`unittest.main()` 的默认）才会浮出来 —— 这条就是钉那个开关的。
+        import gc
+        _fh = open(__import__("os").devnull, "w")
+        del _fh
+        gc.collect()
+
     def test_e_ok(self):
         self.assertTrue(True)
 ''' % {"s1": M_STDOUT1, "s2": M_STDOUT2, "e": M_STDERR, "g": M_GLUE, "f": M_FAIL}
@@ -101,14 +109,29 @@ class PreflightCaptureTests(unittest.TestCase):
         self.assertIn("FAIL: test_d_fail", det, "失败正文不在 detail 里")
         self.assertTrue(re.search(r"^\s*\.{1,}[FE]", det, re.M),
                         "进度点行没了 —— verbosity 被调回去就等于关了一种输出")
-        self.assertIn("Ran 5 tests", det, self.info["detail"][-400:])
+        self.assertIn("Ran 6 tests", det, self.info["detail"][-400:])
 
     def test_counts_are_not_replaced_by_the_text(self):
         """计数与正文都得在：只有正文就退化成 grep 文本，只有计数就是"FAIL 但不说为什么"。"""
         self.assertEqual(self.info["failures"], 1, self.info["detail"][-400:])
         self.assertEqual(self.info["errors"], 0, self.info["detail"][-400:])
-        self.assertEqual(self.info["tests"], 5)
+        self.assertEqual(self.info["tests"], 6)
         self.assertEqual(len(self.info["skipped"]), 0)
+
+    def test_resource_warnings_are_not_silenced(self):
+        """`ResourceWarning` 必须浮出来。
+
+        真套件 A/B 实测：合并成一遍之后改前 939 行可见、改后只剩 43 行，缺的 896 行全是
+        `ResourceWarning: unclosed file` —— 因为 `unittest.main()` 会给 runner 传
+        `warnings="default"`，而手写的 `TextTestRunner(...)` 不传就等于让这类诊断回到
+        默认过滤器（对它是 ignore）。这条钉住那个开关：漏一个句柄，detail 里必须有它。
+        """
+        det = self.info["detail"]
+        self.assertIn("ResourceWarning", det,
+                      "warning 通道被静音了 —— 那就是把 896 行诊断悄悄丢掉的那次改动")
+        self.assertIn("[stderr]", det, "warning 走的是子进程 stderr，段标头必须具名")
+        print("[PF_WARN_CHANNEL] ResourceWarning 到达 detail=%s"
+              % ("ResourceWarning" in det))
 
     def test_summary_line_is_the_verdict_not_the_last_print(self):
         """给人看的那一行必须是 `OK`/`FAILED (…)`，不能是三路合并后碰巧排最后的某条 print。
@@ -125,6 +148,15 @@ class PreflightCaptureTests(unittest.TestCase):
                 + "[stdout]\nSOME-TEST-PRINT [X] import=[1, 0]\n")
         self.assertEqual(PF.summary_line(fake), "FAILED (failures=1)")
         self.assertEqual(PF.summary_line("Ran 1 test in 0.0s\nOK\n"), "OK")
+        # 混合形状（这条才是真洞）：段标头是追加在正文之后的，某条测试只要打印一行以
+        # `OK` 开头的内容，在合并后的全文里倒着找就会把真裁决顶掉。
+        mixed = ("....\nFAIL: x\nAssertionError: boom\nRan 4 tests in 0.1s\nFAILED (failures=1)\n"
+                 "[stdout]\nOK 这只是某条测试自己打印的一行\n")
+        self.assertEqual(PF.summary_line(mixed), "FAILED (failures=1)",
+                         "裁决行被测试自己的 print 顶掉了 —— 只能在 runner 正文那段里找")
+        # 真探针套件上再验一次：它有 1 条 fail，挑出来的必须是 FAILED 而不是任何一条 print
+        self.assertTrue(PF.summary_line(det).startswith("FAILED ("),
+                        repr(PF.summary_line(det))[:120])
         self.assertEqual(PF.summary_line("only a print\n"), "only a print")
         self.assertEqual(PF.summary_line(""), "")
 

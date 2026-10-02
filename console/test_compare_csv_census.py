@@ -132,7 +132,7 @@ class CsvCensusTests(unittest.TestCase):
         mismatch = []
         for p in sorted(glob.glob(str(ROOT / "results" / "compare" / "*.csv"))):
             name = os.path.basename(p)
-            raw = open(p, "rb").read()
+            raw = Path(p).read_bytes()
             f = io.open(p, encoding="utf-8-sig", newline="")
             rd = csv.reader(f)
             try:
@@ -267,8 +267,8 @@ class CsvCensusTests(unittest.TestCase):
         四个面各自唯一对应一条码，缺一面就说明那条码是暗号。
         """
         doc = set(re.findall(r"\[(CSV_CENSUS_[A-Z_]+)\]",
-                             io.open(str(ROOT / "console" / "_csvcensus.py"),
-                                     encoding="utf-8").read().split('"""')[1]))
+                             (ROOT / "console" / "_csvcensus.py").read_text(
+                                     encoding="utf-8").split('"""')[1]))
         seen = set()
         drivers = []
         d1 = make_compare()[0]                                  # → STALE
@@ -345,7 +345,7 @@ class CsvCensusTests(unittest.TestCase):
 
     def test_ledger_r5_r6_point_at_their_owners(self):
         """R5 归 manifest、R6 归普查产物：两行都不许再自己扛数。"""
-        lines = io.open(ROOT / LEDGER, encoding="utf-8").read().split("\n")
+        lines = (ROOT / LEDGER).read_text(encoding="utf-8").split("\n")
         want = {"| R5 ": "compare_gate.py", "| R6 ": "compareCSV普查.md"}
         for prefix, needle in want.items():
             row = [l for l in lines if l.startswith(prefix)]
@@ -361,7 +361,7 @@ class CsvCensusTests(unittest.TestCase):
         这条是给"改完生成器又把手抄数粘回文档"兜底的 —— 上一轮 R4 一次漂了四条，
         而漂了的注释比空白更危险。
         """
-        lines = io.open(ROOT / LEDGER, encoding="utf-8").read().split("\n")
+        lines = (ROOT / LEDGER).read_text(encoding="utf-8").split("\n")
         r4 = [l for l in lines if l.startswith("| R4 ")]
         self.assertEqual(len(r4), 1, "登记表里 R4 行应当恰好一条，现在 %d 条" % len(r4))
         self.assertIn("compareCSV普查.md", r4[0],
