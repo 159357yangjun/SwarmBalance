@@ -1,0 +1,24 @@
+name: 结项配对加重复（n=8，为让方向可判）
+description: >
+  与 conclusion 预设同 base、同 seed 起点、同 episode 长度，只把 algorithm_comparison
+  的 repeats 从 5 提到 8。目的不是替代结项那批，而是给"greedy vs GA 谁更优"这个问题
+  一个在数学上可判的样本量：n=5 时双侧符号检验最小可得 p=0.0625 > alpha=0.05，
+  n=8 时才 <= 0.0078。敏感性四块（规模/密度/泊位/机队）保持原样不重跑。
+base:
+  seed: 100
+  episode_steps: 3600
+  repeats: 8
+algorithms: [greedy, ortools, ga, pso]
+experiments:
+  algorithm_comparison:
+    enabled: true
+    repeats: 8
+  task_scale:
+    enabled: false
+  task_density:
+    enabled: false
+  nest_berths:
+    enabled: false
+  fleet_mix:
+    enabled: false
+_preset_key: ac8

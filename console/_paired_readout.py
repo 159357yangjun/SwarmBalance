@@ -195,6 +195,8 @@ def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--dir", default="", help="实验目录；默认取最新 conclusion_*")
     ap.add_argument("--metric", action="append", default=[], help="可重复；默认 超时率 + 平均时延")
+    ap.add_argument("--require-direction", action="store_true",
+                    help="指标没在 reporting 里登记方向就退出码 1（防止 --metric 打错字后静默少测一项）")
     ap.add_argument("--gate", action="store_true",
                     help="把 [PAIRED_UNJUDGEABLE] 当失败（用于钉'配对表须在可判设计下生成'）")
     args = ap.parse_args(list(sys.argv[1:] if argv is None else argv))
@@ -203,7 +205,11 @@ def main(argv=None) -> int:
     if not d or not d.is_dir():
         print("[PAIRED_NO_DATA] 找不到实验目录（--dir 或 results/experiments/conclusion_*）")
         return 2
-    print("[PAIRED_SOURCE] %s" % d.relative_to(ROOT).as_posix())
+    try:
+        src = d.relative_to(ROOT).as_posix()
+    except ValueError:      # 目录在仓外（临时取证目录）也要能读，不许因此崩
+        src = str(d)
+    print("[PAIRED_SOURCE] %s" % src)
     metrics = args.metric or ["超时率", "平均时延"]
     res = [x for x in (analyse(d, m) for m in metrics) if x]
     if not res:
@@ -213,6 +219,10 @@ def main(argv=None) -> int:
           % (len(res), len(unjudgeable),
              sum(1 for r in res if r["code"] == "[PAIRED_SIGNIF]"), ALPHA))
     if args.gate and unjudgeable:
+        return 1
+    if args.require_direction and any(r["code"] == "[PAIRED_NO_DIRECTION]" for r in res):
+        print("[PAIRED_GATE] 有指标未登记方向就被跳过 —— 检查 --metric 是否拼对（不是拼写问题就是"
+              " reporting 缺方向，两种都不该静默放过）")
         return 1
     return 0
 
