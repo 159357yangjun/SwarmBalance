@@ -2,6 +2,32 @@
 
 ## [Unreleased]
 
+### 2026-10-02：`6b8c4c8` 行为中性升到四算法证据；给 `4d956e6` 那个载重修复补上它欠的回归门
+
+**① "行为中性"不能靠一格读数。** 上一轮我只比了 greedy 一格就说 `6b8c4c8` 两侧相同。
+本轮把父提交 `4d956e6` 与子提交各跑**四个算法**（greedy/ortools/ga/pso，同 seed=101、steps=3600），
+24 个数值列取到 1e-9 逐格比：**四组指纹全部相同**（`[VERDICT] 四算法逐格相同(行为中性)=True`）
+⇒ 这次不是单点采样，是覆盖四个算法面的读数。耗时那一列照旧只当旁证（A/B 差 ±7% 以内、无方向性）。
+
+**② 顺手发现：`4d956e6` 那个修复当时没有留任何断言。** 全仓搜 `carrying_capacity` 只有别的测试自造的
+capacity 值 —— 也就是说谁把 `frontend/drone.py:48` 的 `float(` 改回 `int(`，**没有一条用例会红**，
+而这一处一旦退回，同 seed 的结项指标会整批漂移（实测跳变：总步数 2274→2049、超时率 0.0833→0.0667、
+平均时延 4.7250→2.5833）。所以补了常驻用例 `console/test_carrying_capacity_is_float.py`（5 条）：
+配置前提（确有整数机型 + 小数机型才继续测）、运行时逐位等于配置、默认值那条路也是 float、
+源码级扫描不许残留 `int(...carrying_capacity...)`、以及判别式（扰动一个字节必须被点名）。
+
+**变异演示（真做在盘上，还原有 sha 证人）**：把 `frontend/drone.py` 那行改成 `int(` ⇒
+`FAILED (failures=3)`（三条各自红：源码扫描、判别式的"当前源码应为 0"、运行时 2.4→2）；
+还原后 `sha256[:12]` 前后同为 `6ab6ff3321b7`、`git status` 只剩新增测试文件。
+途中我自己踩了一次加载约定：先写 `from frontend.drone import Drone` 撞上平铺兄弟模块
+（`ModuleNotFoundError: charging_station`），改用本仓既有的 `_preflight.load_frontend_module`
++ `require("numpy","shapely")` 才对 —— 这条约定不该靠记忆，所以按 `test_environment_incidents.py` 的形状抄齐。
+
+复算：`python -m unittest console.test_carrying_capacity_is_float` rc=0
+（`[CAP_CONFIG] 小数载重机型={"light_express": 2.4}`、`[CAP_RUNTIME] light_express=2.4 default=10.0 hetero=True`）；
+全套 `Ran 231 tests in 89.899s OK`；README 计数由 `_readme_counts --fix` 更新为 27 文件 / 231 用例。
+VERSION 仍 1.0.0、无 remote 故未 push、paper/ 未碰、对外产物未动。
+
 ### 2026-10-02：同 seed 指标变化的来源定到 `4d956e6`（机型载重 int→float），我上一轮记在 `6b8c4c8` 名下是错的
 
 稀疏采样会骗人。上一轮那张按 ref 排的单格表里，我把"总步数 2274→2049、超时率 0.0833→0.0667"
