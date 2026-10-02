@@ -150,6 +150,13 @@ def build(experiment: Optional[Path], output: Optional[Path], allow_missing: boo
             "- `正式实验结果/` 中的数据才可用于论文/结项报告的定量结果。",
             "- `reproducibility.json`（若实验已生成）记录运行环境、输入文件哈希和包版本。",
             "- `paired_ga_vs_greedy.csv` 是相同 Seed 的描述性配对比较，不代表统计显著性。",
+            "- 上面那句现在有一条可算的理由而不是措辞：结项预设每个算法只跑 **5 个 seed**，"
+            "n=5 时双侧符号检验的**最小可得 p = 0.0625**（全部同号也只能到这个数），"
+            "但仍大于常用 α=0.05 ⇒ **这个重复次数在设计上给不出显著性**。"
+            "要判方向请加 seed，不要把胜负列当结论。"
+            "复算：`python console/_paired_readout.py --metric 超时率 --metric 无人机利用率`"
+            "（印精确置换 p、最小可得 p、逐 seed 差值；方向集合从 `experiments/reporting.py` "
+            "按 AST 解析，不抄第二份）。",
             "- 完整源代码请使用同版本项目源码包；本包用于证据归档与复现说明。",
             "",
         ]

@@ -230,6 +230,12 @@ python -m console.selfcheck
 python release_check.py             # 普通发布检查
 python release_check.py --strict    # Python 3.10 正式环境最终检查
 
+# 配对实验"能不能下结论"的判读（只进报告行，默认不影响退出码）：
+#   印逐 seed 差值、精确置换 p、以及**这组重复次数在数学上能达到的最小 p**。
+#   结项预设每算法 5 个 seed ⇒ 双侧符号检验最小可得 p = 0.0625 > α=0.05，
+#   所以 `paired_ga_vs_greedy.csv` 的胜/平/负列在任何数据下都不构成显著性结论。
+python console/_paired_readout.py --metric 超时率 --metric 无人机利用率
+
 # 配置哑键门禁（改了不起作用的键）—— 已并入 console 测试，随 discover 自动执行：
 python -m unittest discover -s console -p "test_*.py"
 python -m unittest console.test_config_keys_coverage -v   # 或单独跑这一项
@@ -385,7 +391,7 @@ swarm-balance/
 │  ├─ static/spec.html           # 「规范」页正文，由 /spec 路由渲染进 iframe
 │  ├─ static/vendor/             # 内置 vue.global.prod.js / echarts.min.js /
 │  │                             #   three.min.js + README（版本、来源、SHA-256）
-│  └─ test_*.py                  # 27 个文件 / 231 个用例（标准库 unittest）
+│  └─ test_*.py                  # 28 个文件 / 236 个用例（标准库 unittest）
 │
 ├─ frontend/                     # 仿真内核与可视化
 │  ├─ environment.py             # 世界状态、障碍判定、统计口径
