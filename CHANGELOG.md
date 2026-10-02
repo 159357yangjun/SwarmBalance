@@ -2,6 +2,22 @@
 
 ## [Unreleased]
 
+### 2026-10-02：`release_check.py --strict` 在本机跑过一次并通过（把"从未跑过"这条欠账划掉）
+
+之前几轮的"未验证清单"里一直挂着"`--strict` 只在非完整环境跑过"。本轮实测：
+`.venv310`（Python **3.10.11**，正是项目锁的版本）下先探一次 `run_checks(portable=False)` ——
+`errors=0 warnings=0`、`optional={osmnx:True, pyproj:True, ortools:True}` ⇒ 这台机器**就是**
+官方完整环境，那条欠账是记账过严而不是环境不满足。随后真跑 `python release_check.py --strict`：
+rc=0，12 行 `[OK]`、`[FAIL]` 计数 **0**，含 `[OK] 官方完整环境预检`、
+`[OK] console 单元测试 · Ran 231 tests（failures=0 errors=0 skipped=0）· OK`、
+`[WARN_CENSUS] … 带出处=0 suite=231`、`[OK] 便携 Web 端到端自检`、`[OK] 结项证据包构建`。
+
+边界与代价说清：这一步会构建证据包，但走的是 `build_conclusion_package.py --output <临时目录>`
+（`tempfile.TemporaryDirectory()`），跑完 `git status` 仍为空、`deliverables/` 里没有新 zip
+（只有 9-29 那个旧的）⇒ **没有产出任何交付包**，不构成出包。耗时约 3 分钟。
+所以"未验证清单"里这一条改为已闭合；其余各项（新旧两批的对外指向、PNG 像素、A2 仓外取值、
+论文十七处、`fcc7c5f..HEAD` 全量行为扫描）原样挂着。
+
 ### 2026-10-02：`6b8c4c8` 行为中性升到四算法证据；给 `4d956e6` 那个载重修复补上它欠的回归门
 
 **① "行为中性"不能靠一格读数。** 上一轮我只比了 greedy 一格就说 `6b8c4c8` 两侧相同。
