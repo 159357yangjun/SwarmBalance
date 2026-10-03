@@ -1,0 +1,12 @@
+档    算法           is     机数     生成 immediate  buffered     峰值 flush s/e/t optimize   infeas     speeds 完成/超时率
+C1   pso        0.70      6    147        12        89     14 1/1079/397     1477 {"(no-status-field)": 1477} [14.0, 20.0] 84/0.464
+C1   ga         0.70      6    147         6        82      6    0/0/20       20 {"(no-status-field)": 20} [14.0, 20.0] 60/0.500
+C1   ortools    0.70      6    147         6        92      5    0/0/22       22 {"OPTIMAL": 22} [14.0, 20.0] 69/0.522
+C2   pso        0.55      4    178         4        62      7  0/459/14      473 {"(no-status-field)": 473} [14.0, 20.0] 50/0.720
+C2   ga         0.55      4    178         4        70      7    0/4/15       19 {"(no-status-field)": 19} [14.0, 20.0] 47/0.638
+C2   ortools    0.55      4    178         4        55      7    0/0/13       13 {"FALLBACK(INFEASIBLE)": 2, "OPTIMAL": 11} [14.0, 20.0] 28/0.571
+S    pso        0.40      4    240         4        87     10  0/653/44      697 {"(no-status-field)": 697} [14.0, 20.0] 59/0.678
+S    ga         0.40      4    240         4        75     10    0/1/11       12 {"(no-status-field)": 12} [14.0, 20.0] 47/0.660
+S    ortools    0.40      4    240         4        80     11    0/2/13       15 {"FALLBACK(INFEASIBLE)": 2, "OPTIMAL": 13} [14.0, 20.0] 39/0.538
+
+[RAW] /tmp/flush_matrix.json

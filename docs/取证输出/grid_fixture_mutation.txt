@@ -1,0 +1,23 @@
+[变异 axes_missing] 1 处 if False / deepcopy 剩余=3
+----------------------------------------------------------------------
+Ran 7 tests in 0.002s
+
+FAILED (errors=1)
+--- 变异面 axes_missing 结果 ---
+[变异 empty_values] 1 处 if False / deepcopy 剩余=3
+----------------------------------------------------------------------
+Ran 7 tests in 0.001s
+
+FAILED (failures=1)
+--- 变异面 empty_values 结果 ---
+[变异 shared_ref] 0 处 if False / deepcopy 剩余=2
+----------------------------------------------------------------------
+Ran 7 tests in 0.001s
+
+FAILED (failures=2)
+--- 变异面 shared_ref 结果 ---
+
+[变异 patch_missing] 摘掉 `if not patch: raise [GRID_PATCH_MISSING]` → 换成 if False
+    FAILED (errors=1)   ← test_g3 红（KeyError/断言失败，见下）
+恒等式：4 个变异面（axes<2 / values 空 / patch 缺 / acc 共享引用）⇒ 4/4 变红；恢复面 sha 逐位相同 ⇒ 7/7 绿。
+每条守卫都有独立断言在拦，不是只有"全摘"才红。

@@ -1,0 +1,56 @@
+Generated 12 tasks:
+地图建筑 2889 栋：其中 25 栋有可用高度、18 栋 >20 m 进入避障碰撞集
+Generated 12 tasks:
+地图建筑 2889 栋：其中 25 栋有可用高度、18 栋 >20 m 进入避障碰撞集
+Generated 12 tasks:
+地图建筑 2889 栋：其中 25 栋有可用高度、18 栋 >20 m 进入避障碰撞集
+Generated 12 tasks:
+地图建筑 2889 栋：其中 25 栋有可用高度、18 栋 >20 m 进入避障碰撞集
+Generated 12 tasks:
+地图建筑 2889 栋：其中 25 栋有可用高度、18 栋 >20 m 进入避障碰撞集
+Generated 12 tasks:
+地图建筑 2889 栋：其中 25 栋有可用高度、18 栋 >20 m 进入避障碰撞集
+Generated 12 tasks:
+地图建筑 2889 栋：其中 25 栋有可用高度、18 栋 >20 m 进入避障碰撞集
+Generated 12 tasks:
+地图建筑 2889 栋：其中 25 栋有可用高度、18 栋 >20 m 进入避障碰撞集
+Generated 12 tasks:
+地图建筑 2889 栋：其中 25 栋有可用高度、18 栋 >20 m 进入避障碰撞集
+Generated 12 tasks:
+地图建筑 2889 栋：其中 25 栋有可用高度、18 栋 >20 m 进入避障碰撞集
+Generated 12 tasks:
+地图建筑 2889 栋：其中 25 栋有可用高度、18 栋 >20 m 进入避障碰撞集
+Generated 12 tasks:
+地图建筑 2889 栋：其中 25 栋有可用高度、18 栋 >20 m 进入避障碰撞集
+Generated 12 tasks:
+地图建筑 2889 栋：其中 25 栋有可用高度、18 栋 >20 m 进入避障碰撞集
+Generated 12 tasks:
+地图建筑 2889 栋：其中 25 栋有可用高度、18 栋 >20 m 进入避障碰撞集
+Generated 12 tasks:
+地图建筑 2889 栋：其中 25 栋有可用高度、18 栋 >20 m 进入避障碰撞集
+Generated 12 tasks:
+地图建筑 2889 栋：其中 25 栋有可用高度、18 栋 >20 m 进入避障碰撞集
+Generated 12 tasks:
+地图建筑 2889 栋：其中 25 栋有可用高度、18 栋 >20 m 进入避障碰撞集
+Generated 12 tasks:
+地图建筑 2889 栋：其中 25 栋有可用高度、18 栋 >20 m 进入避障碰撞集
+[1/18] load_grid · C1×calm · 贪心调度 · 1 (seed=40901)
+[2/18] load_grid · C1×east6 · 贪心调度 · 1 (seed=40901)
+[3/18] load_grid · C1×west6 · 贪心调度 · 1 (seed=40901)
+[4/18] load_grid · C2×calm · 贪心调度 · 1 (seed=40901)
+[5/18] load_grid · C2×east6 · 贪心调度 · 1 (seed=40901)
+[6/18] load_grid · C2×west6 · 贪心调度 · 1 (seed=40901)
+[7/18] load_grid · C1×calm · 贪心调度 · 2 (seed=40902)
+[8/18] load_grid · C1×east6 · 贪心调度 · 2 (seed=40902)
+[9/18] load_grid · C1×west6 · 贪心调度 · 2 (seed=40902)
+[10/18] load_grid · C2×calm · 贪心调度 · 2 (seed=40902)
+[11/18] load_grid · C2×east6 · 贪心调度 · 2 (seed=40902)
+[12/18] load_grid · C2×west6 · 贪心调度 · 2 (seed=40902)
+[13/18] load_grid · C1×calm · 贪心调度 · 3 (seed=40903)
+[14/18] load_grid · C1×east6 · 贪心调度 · 3 (seed=40903)
+[15/18] load_grid · C1×west6 · 贪心调度 · 3 (seed=40903)
+[16/18] load_grid · C2×calm · 贪心调度 · 3 (seed=40903)
+[17/18] load_grid · C2×east6 · 贪心调度 · 3 (seed=40903)
+[18/18] load_grid · C2×west6 · 贪心调度 · 3 (seed=40903)
+完成：C:\Users\yyyy\AppData\Roaming\TRAE SOLO CN\ModularData\ai-agent\work-mode-projects\6a91893e4cc261f69a0a52a0\drone-scheduling\results\experiments\e1_wind_clash_20261003-001730
+output_dir=C:\Users\yyyy\AppData\Roaming\TRAE SOLO CN\ModularData\ai-agent\work-mode-projects\6a91893e4cc261f69a0a52a0\drone-scheduling\results\experiments\e1_wind_clash_20261003-001730

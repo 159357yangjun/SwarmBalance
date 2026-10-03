@@ -1,0 +1,38 @@
+
+=== C1 (interval_scale=0.70, fleet=6, total_tasks=240 上限) ===
+Generated 12 tasks:
+地图建筑 2889 栋：其中 25 栋有可用高度、18 栋 >20 m 进入避障碰撞集
+  PSO      immediate_assign=12, buffered=89, flush_size=1, flush_emergency=1079, flush_timeout=397, chain_insertions=44 | buffer_peak=14 optimize_calls=1477 生成=147 完成=84
+           stats 全键 = ['buffer_drain', 'buffered', 'bundled', 'chain_detour_sum', 'chain_insertions', 'dispatches', 'flush_emergency', 'flush_size', 'flush_timeout', 'immediate_assign', 'reorders', 'urgent_dispatch']
+Generated 12 tasks:
+地图建筑 2889 栋：其中 25 栋有可用高度、18 栋 >20 m 进入避障碰撞集
+  GA       immediate_assign=6, buffered=82, flush_size=0, flush_emergency=0, flush_timeout=20, chain_insertions=30 | buffer_peak=6 optimize_calls=20 生成=147 完成=60
+Generated 12 tasks:
+地图建筑 2889 栋：其中 25 栋有可用高度、18 栋 >20 m 进入避障碰撞集
+  ORTools  immediate_assign=6, buffered=92, flush_size=0, flush_emergency=0, flush_timeout=22, chain_insertions=41 | buffer_peak=5 optimize_calls=22 生成=147 完成=69
+
+=== C2 (interval_scale=0.55, fleet=4, total_tasks=240 上限) ===
+Generated 12 tasks:
+地图建筑 2889 栋：其中 25 栋有可用高度、18 栋 >20 m 进入避障碰撞集
+  PSO      immediate_assign=4, buffered=74, flush_size=0, flush_emergency=199, flush_timeout=17, chain_insertions=27 | buffer_peak=7 optimize_calls=216 生成=147 完成=37
+           stats 全键 = ['buffer_drain', 'buffered', 'bundled', 'chain_detour_sum', 'chain_insertions', 'dispatches', 'flush_emergency', 'flush_size', 'flush_timeout', 'immediate_assign', 'reorders', 'urgent_dispatch']
+Generated 12 tasks:
+地图建筑 2889 栋：其中 25 栋有可用高度、18 栋 >20 m 进入避障碰撞集
+  GA       immediate_assign=4, buffered=92, flush_size=0, flush_emergency=0, flush_timeout=22, chain_insertions=37 | buffer_peak=7 optimize_calls=22 生成=147 完成=68
+Generated 12 tasks:
+地图建筑 2889 栋：其中 25 栋有可用高度、18 栋 >20 m 进入避障碰撞集
+[ORTools] 警告：求解器状态=INFEASIBLE，退回批量贪心。（任务数=5，机数=4）
+  ORTools  immediate_assign=4, buffered=75, flush_size=0, flush_emergency=0, flush_timeout=19, chain_insertions=24 | buffer_peak=7 optimize_calls=19 生成=147 完成=46
+
+=== S (interval_scale=0.40, fleet=4, total_tasks=240 上限) ===
+Generated 12 tasks:
+地图建筑 2889 栋：其中 25 栋有可用高度、18 栋 >20 m 进入避障碰撞集
+  PSO      immediate_assign=4, buffered=74, flush_size=0, flush_emergency=199, flush_timeout=17, chain_insertions=27 | buffer_peak=7 optimize_calls=216 生成=147 完成=37
+           stats 全键 = ['buffer_drain', 'buffered', 'bundled', 'chain_detour_sum', 'chain_insertions', 'dispatches', 'flush_emergency', 'flush_size', 'flush_timeout', 'immediate_assign', 'reorders', 'urgent_dispatch']
+Generated 12 tasks:
+地图建筑 2889 栋：其中 25 栋有可用高度、18 栋 >20 m 进入避障碰撞集
+  GA       immediate_assign=4, buffered=92, flush_size=0, flush_emergency=0, flush_timeout=22, chain_insertions=37 | buffer_peak=7 optimize_calls=22 生成=147 完成=68
+Generated 12 tasks:
+地图建筑 2889 栋：其中 25 栋有可用高度、18 栋 >20 m 进入避障碰撞集
+[ORTools] 警告：求解器状态=INFEASIBLE，退回批量贪心。（任务数=5，机数=4）
+  ORTools  immediate_assign=4, buffered=75, flush_size=0, flush_emergency=0, flush_timeout=19, chain_insertions=24 | buffer_peak=7 optimize_calls=19 生成=147 完成=46

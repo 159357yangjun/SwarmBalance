@@ -1,0 +1,32 @@
+test_g1_observed_speeds_are_finite_and_in_fleet_range (console.test_speed_fallback_gate.SpeedFallbackGateTests) ... ok
+test_g2_all_four_algorithms_get_real_fleet_speed (console.test_speed_fallback_gate.SpeedFallbackGateTests)
+G2：greedy / pso / ga / ortools 四者逐一过门（不是抽查其一）。 ... FAIL
+test_g3_shipped_config_has_no_200_speed (console.test_speed_fallback_gate.SpeedFallbackGateTests)
+兜底值本身不该出现在配置里：配置只有 14/20/20 与全局 17。 ... ok
+
+======================================================================
+FAIL: test_g2_all_four_algorithms_get_real_fleet_speed (console.test_speed_fallback_gate.SpeedFallbackGateTests)
+G2：greedy / pso / ga / ortools 四者逐一过门（不是抽查其一）。
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\Users\yyyy\AppData\Roaming\TRAE SOLO CN\ModularData\ai-agent\work-mode-projects\6a91893e4cc261f69a0a52a0\drone-scheduling\console\test_speed_fallback_gate.py", line 184, in test_g2_all_four_algorithms_get_real_fleet_speed
+    results = [self._gate_one_algorithm(a) for a in ALGORITHMS]
+  File "C:\Users\yyyy\AppData\Roaming\TRAE SOLO CN\ModularData\ai-agent\work-mode-projects\6a91893e4cc261f69a0a52a0\drone-scheduling\console\test_speed_fallback_gate.py", line 184, in <listcomp>
+    results = [self._gate_one_algorithm(a) for a in ALGORITHMS]
+  File "C:\Users\yyyy\AppData\Roaming\TRAE SOLO CN\ModularData\ai-agent\work-mode-projects\6a91893e4cc261f69a0a52a0\drone-scheduling\console\test_speed_fallback_gate.py", line 170, in _gate_one_algorithm
+    self.assertGreater(len(opt_seen), 0,
+AssertionError: 0 not greater than 0 : [pso][NO_DENOMINATOR] 一步都没进 optimize() ⇒ 该算法的门没有分母，不许算通过
+
+----------------------------------------------------------------------
+Ran 3 tests in 3.631s
+
+FAILED (failures=1)
+Generated 12 tasks:
+地图建筑 2889 栋：其中 25 栋有可用高度、18 栋 >20 m 进入避障碰撞集
+[G1] greedy 采样 43080 次 speed，取值集合=[14.0, 20.0]
+Generated 12 tasks:
+地图建筑 2889 栋：其中 25 栋有可用高度、18 栋 >20 m 进入避障碰撞集
+[G2/greedy ] observation 采样 43080 次，speed=[14.0, 20.0]；无批量优化器调用（贪心直出动作）
+Generated 12 tasks:
+地图建筑 2889 栋：其中 25 栋有可用高度、18 栋 >20 m 进入避障碰撞集
+[G3] 配置 speed 取值=[20.0, 14.0, 20.0, 17.0]（全部落在机型区间）

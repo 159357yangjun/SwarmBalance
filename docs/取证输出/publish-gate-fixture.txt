@@ -1,0 +1,18 @@
+test_aggregate_does_not_touch_repo_compare_directory (experiments.test_runner.AggregationTests) ... ok
+test_aggregate_output_is_not_all_zeros (experiments.test_runner.AggregationTests) ... ok
+test_aggregate_without_preset_is_backwards_compatible (experiments.test_runner.AggregationTests) ... ok
+test_mean_rows_averages_only_successful_runs (experiments.test_runner.AggregationTests) ... ok
+test_mean_rows_empty_input_returns_zero_template (experiments.test_runner.AggregationTests) ... ok
+test_mean_rows_rejects_silently_emptying_input (experiments.test_runner.AggregationTests) ... ok
+test_quick_preset_cannot_overwrite_shared_compare_table (experiments.test_runner.AggregationTests)
+覆盖答辩对比页数据源需要**两道**闸门：预设是 conclusion，且显式 publish_latest。 ... ok
+
+----------------------------------------------------------------------
+Ran 7 tests in 0.035s
+
+OK
+[aggregate] 预设 未知 不写入共享的 results/compare/one_click_latest.csv（仅 conclusion 正式实验可覆盖答辩对比页数据源）
+[aggregate] 预设 未知 不写入共享的 results/compare/one_click_latest.csv（仅 conclusion 正式实验可覆盖答辩对比页数据源）
+[aggregate] 预设 未知 不写入共享的 results/compare/one_click_latest.csv（仅 conclusion 正式实验可覆盖答辩对比页数据源）
+[aggregate] 预设 quick 不写入共享的 results/compare/one_click_latest.csv（仅 conclusion 正式实验可覆盖答辩对比页数据源）
+[aggregate] 已跳过写入共享的 results/compare/one_click_latest.csv（该文件已入库且是答辩「算法对比」页的数据源；确认要用本次实验覆盖它，请加 --publish-latest）

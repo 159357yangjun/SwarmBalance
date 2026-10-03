@@ -42,6 +42,20 @@ for _p in (str(ROOT), str(RESULTS_DIR)):
 import compare_gate as G  # noqa: E402
 from console import _preflight  # noqa: E402
 
+
+def _live_line(rel, token):
+    """返回 rel 文件里**第一个**含 token 的行号（1 起）。找不到即 AssertionError。
+
+    夹具用它现取行号，避免把磁盘位置硬编码进测试 —— 硬编码的"现状行号"会在任何人
+    往文件顶部加行时变成一条过期引用，把夹具自己测红，而那与夹具要测的东西无关。
+    """
+    lines = (ROOT / rel).read_text(encoding="utf-8").splitlines()
+    for i, ln in enumerate(lines, 1):
+        if token in ln:
+            return i
+    raise AssertionError("[FIXTURE_ANCHOR_NOT_FOUND] %s 里没有 %r ⇒ 该正例已失效" % (rel, token))
+
+
 MAN = G.load_manifest()
 
 MIXED = list(MAN["expected_refused_group"])          # ga(400/600) + ortools(2000)
@@ -431,7 +445,11 @@ class CitationIntegrityTests(unittest.TestCase):
         报出来的"失效"是假的，而假的报警比没报警更容易把人带偏。
         """
         hist = "`frontend/environment.py:268#具有高度信息的建筑物` 已失效@66016b7"
-        live = "`frontend/environment.py:276-277#地图建筑`"
+        # live 的行号**从磁盘现取**：原先硬编码 276-277，任何人往 environment.py 顶部加几行
+        # （本轮 E1 注入就加了 12 行）都会让这个夹具自己变成一条过期引用 ——
+        # 夹具把自己测红是好事，但它的本意是测"标注不连坐"，不是测行号是否漂移。
+        live_ln = _live_line("frontend/environment.py", "地图建筑")
+        live = "`frontend/environment.py:%d#地图建筑`" % live_ln
         both = "10. ~~%s~~ 已做：现在分三数打印 %s" % (hist, live)
         c, a, b = self._scan_lines([both], "合成")
         self.assertEqual(c, 2, "两条引用都应被扫到")

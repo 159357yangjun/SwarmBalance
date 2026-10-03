@@ -1,0 +1,8 @@
+Generated 12 tasks:
+地图建筑 2889 栋：其中 25 栋有可用高度、18 栋 >20 m 进入避障碰撞集
+[C2 is=0.55] 临时文件=probe_qe6d1e9l.json generator.interval_scale=0.55 total_tasks=240 initial=? | 前 8 个到达时刻=[30, 51, 71, 94, 124, 148, 172, 197] | 总生成=20
+Generated 12 tasks:
+地图建筑 2889 栋：其中 25 栋有可用高度、18 栋 >20 m 进入避障碰撞集
+[S  is=0.40] 临时文件=probe_qlu8d940.json generator.interval_scale=0.55 total_tasks=240 initial=? | 前 8 个到达时刻=[30, 51, 71, 94, 124, 148, 172, 197] | 总生成=20
+
+到达序列是否相同：True ⇒ patch 未生效（同一份配置被读了两次）

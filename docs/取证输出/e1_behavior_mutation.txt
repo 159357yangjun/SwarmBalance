@@ -1,0 +1,10 @@
+[MUT 去掉倍率(乘1)] Ran 10 tests in 0.001s FAILED (failures=5) 
+[MUT 逆风斜率置0] Ran 10 tests in 0.001s FAILED (failures=3) 
+[MUT 顺风斜率置0] Ran 10 tests in 0.001s FAILED (failures=3) 
+[MUT 去掉上界min] Ran 10 tests in 0.001s FAILED (failures=1) 
+[MUT 去掉下界max] Ran 10 tests in 0.001s FAILED (failures=1) 
+[MUT 去掉isfinite守卫] Ran 10 tests in 0.001s FAILED (failures=1) 
+[MUT 点积丢负号(方向反)] Ran 10 tests in 0.001s FAILED (failures=1) 
+
+[恒等式] 7 个变异面 ⇒ 7/7 变红；恢复面 sha 逐位相同 ⇒ 10/10 绿。
+每条 E1 守卫都有独立断言在拦（倍率×1 咬到 5 条、逆风斜率 3、顺风斜率 3、上界 1、下界 1、isfinite 1、方向符号 1）。

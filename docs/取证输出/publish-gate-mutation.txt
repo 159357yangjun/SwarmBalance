@@ -1,0 +1,27 @@
+双闸门夹具的"有牙"证明：逐道摘掉，看夹具是否变红。每面原始输出如下（RC 为 unittest 退码）。
+
+[基线] experiments/runner.py:289 原文
+    if alg_path and preset_key == "conclusion" and publish_latest:
+    命令: python -m unittest experiments.test_runner.AggregationTests.test_quick_preset_cannot_overwrite_shared_compare_table -v
+    RC=0 OK
+
+[变异A] 摘掉**两道**闸门 → `if alg_path:`
+    RC=1 FAILED (failures=1)
+    AssertionError: 'compare_latest' unexpectedly found in {... 'quick' ...}
+    （第一个断言就红：quick 预设带开关也写了共享对比表）
+
+[变异B] 只摘闸门②（去掉 `and publish_latest`）→ `if alg_path and preset_key == "conclusion":`
+    RC=1 FAILED (failures=1)
+    test_runner.py:164 assertNotIn('compare_latest', silent)
+    ⇒ "没带 publish_latest 就写了入库证据文件 —— 照 README 跑一遍结论预设就会截断重写已提交文件"
+
+[变异C] 只摘闸门①（去掉 `preset_key == "conclusion"`）→ `if alg_path and publish_latest:`
+    RC=1 FAILED (failures=1)
+    test_runner.py:160 assertNotIn('compare_latest', quick)
+    ⇒ quick 预设 + 开关就写答辩数据源
+
+[恢复] cp 备份回写后 sha256 前 16 位 = 2a4a4c9adf27f76b（与备份逐位相同），git diff --numstat 对该文件为空
+    全套 AggregationTests RC=0 OK（Ran 7 tests）
+
+恒等式：3 个变异面 × 各自独立摘除 ⇒ 3/3 变红；恢复面 ⇒ 7/7 绿。
+结论：闸门①与闸门②**各自都有对应断言在拦**，不是只有"两道全摘"才红。

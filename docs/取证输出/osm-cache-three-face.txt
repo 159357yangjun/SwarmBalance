@@ -1,0 +1,64 @@
+[FACE0] osmnx_available=True version=1.9.4
+[FACE0] cache_dir=C:\Users\yyyy\AppData\Roaming\TRAE SOLO CN\ModularData\ai-agent\work-mode-projects\6a91893e4cc261f69a0a52a0\drone-scheduling\frontend\data\.osm_cache
+[FACE0] entry=osm-39d48c4f2bc439f1706ff896.pkl size=708733 mtime=1790696139.542140
+[FACE0] entry=osm-f34a042ac17d395bd21af260.pkl size=675007 mtime=1790669070.443365
+[FACE0] entry=osm-f4b11fc0b553857c1be31d88.pkl size=708733 mtime=1790582339.655298
+[FACE0] entry=osm-fc130cdd45407e7bf038420d.pkl size=5332861 mtime=1790582085.527920
+[FACE0] osm_size=11098582 osm_mtime_ns=1789114793056170600
+[FACE0] expected_key=osm-fc130cdd45407e7bf038420d.pkl exists_on_disk=True
+[FACE0] live_cache_entries=4（与当前文件指纹相符的只有 expected_key 那一条，其余是旧条目）
+[FACE0] stale_or_live=osm-39d48c4f2bc439f1706ff896.pkl is_expected_key=False
+[FACE0] stale_or_live=osm-f34a042ac17d395bd21af260.pkl is_expected_key=False
+[FACE0] stale_or_live=osm-f4b11fc0b553857c1be31d88.pkl is_expected_key=False
+[FACE0] stale_or_live=osm-fc130cdd45407e7bf038420d.pkl is_expected_key=True
+[FACE1] cached_load_s=0.207 fresh_parse_s=5.026 speedup=24.3x
+[FACE1] cached : roads=1237 buildings=2889 heights=2889 first=primary:[(358833.8879085188, 3462640.893756622), (358854.5833389963, 3462584.0287830085)] blast=[(357336.9800251605, 3461826.19281226), (357423.0803182925, 3461786.618768073)]
+[FACE1] fresh  : roads=1235 buildings=2889 heights=2889 first=primary:[(358833.8879085188, 3462640.893756622), (358854.5833389963, 3462584.0287830085)] blast=[(357336.9800251605, 3461826.19281226), (357423.0803182925, 3461786.618768073)]
+[FACE1] EQUAL=False
+[FACE1] _read_cache(expected_key) is not None = True
+[FACE2] key_before=osm-fc130cdd45407e7bf038420d.pkl key_after=osm-154587641ce28a8eb3f3241c.pkl changed=True
+[FACE2] old_entry_still_on_disk=True new_entry_exists_before_parse=False
+[FACE2] load_after_touch_s=5.293 (与 FACE1 命中耗时同量级则说明仍走了缓存)
+[FACE2] geom_equal_to_fresh=True
+[FACE2] new_entry_created=True
+[FACE2] mtime_restored=True key_back_to_original=True
+[FACE3] version=9.99.99-fake key=osm-fe7346a71aabe1eef60b09a7.pkl differs_from_real=True exists=False
+Traceback (most recent call last):
+  File "C:\Users\yyyy\AppData\Roaming\TRAE SOLO CN\ModularData\ai-agent\work-mode-projects\6a91893e4cc261f69a0a52a0\drone-scheduling\_probe_osm_cache.py", line 104, in <module>
+    d = O.load_map_data(OSM)
+  File "C:\Users\yyyy\AppData\Roaming\TRAE SOLO CN\ModularData\ai-agent\work-mode-projects\6a91893e4cc261f69a0a52a0\drone-scheduling\frontend\tools\osm.py", line 200, in load_map_data
+    data = _parse_map_data_with_osmnx(osm_file_path)
+  File "C:\Users\yyyy\AppData\Roaming\TRAE SOLO CN\ModularData\ai-agent\work-mode-projects\6a91893e4cc261f69a0a52a0\drone-scheduling\frontend\tools\osm.py", line 212, in _parse_map_data_with_osmnx
+    graph = ox.project_graph(graph)
+AttributeError: 'Fake' object has no attribute 'project_graph'
+
+================= 本轮结论（写档，不口头） =================
+[FACE0] 缓存目录实测 **4** 条条目（早前口头报的"3 条"是漏数——少看了最大的那条 osm-fc130cdd…，
+        而它恰恰是当前指纹的命中项）。⇒ 教训：计数要在同一轮里印出来，别引用上一轮的数。
+[FACE0] expected_key=osm-fc130cdd45407e7bf038420d.pkl exists_on_disk=True；其余 3 条 is_expected_key=False（旧条目）
+
+[FACE1] 命中 vs 强制重解析：cached_load_s=0.207 / fresh_parse_s=5.026（×24.3）
+        cached roads=1237 buildings=2889 heights=2889
+        fresh  roads=1235 buildings=2889 heights=2889
+        EQUAL=False   ← 同一份 .osm、同一 mtime、同一 size，两条路径给出不同道路数
+[FACE2] 只改 mtime_ns(+1ms)：key_before=osm-fc130cdd… → key_after=osm-154587641ce28a8eb3f3241c… changed=True
+        new_entry_exists_before_parse=False（新键在解析前不存在 ⇒ 不可能命中）
+        load_after_touch_s=5.293（≈ 全量解析耗时，与 FACE1 命中的 0.207s 差 25 倍 ⇒ 确实重新解析了）
+        geom_equal_to_fresh=True；mtime 已还原，key_back_to_original=True
+[FACE3] 只换 osmnx.__version__（注入假版本 9.99.99-fake）：
+        key=osm-fe7346a71aabe1eef60b09a7.pkl differs_from_real=True exists=False
+        ⇒ **未命中判据成立**（键变了且盘上没有那个键的文件，旧条目无法被读成命中）。
+        该面后续崩在 Fake 缺 project_graph —— 这是**探针的量具错误**，不是被测对象的缺陷；
+        它仍然在被崩之前回答了本面的问题（键不同 + 文件不存在）。假键未落盘，无需清理。
+
+【回答主控的问题】"若存在与当前 osm 不匹配的旧条目，缓存命中判据是否仍可能吃到过期几何？"
+    ⇒ **不会。** 两面独立证明：改 mtime ⇒ 换新键并实测重新解析（5.293s）；改版本 ⇒ 换新键且该键文件不存在。
+       键 = fmt|mode|osmnx版本|绝对路径|mtime_ns|size 的 sha256 前 24 位，任一分量变化即换键，
+       旧条目留在盘上只占空间（_prune_cache 限数量），**不构成读到过期几何的通道**。
+
+【但 FACE1 暴露了一个真问题，与本问无关且更严重】
+    同一份文件、指纹完全相同的情况下，"命中缓存拿到的几何"与"现场重新解析的几何"差 2 条道路
+    （1237 vs 1235），建筑数与高度覆盖两者一致（2889/2889）。
+    ⇒ 二者必有一个不是"当前解析代码的输出"。成因未定位（可能是缓存由更早版本的解析代码或
+       另一 mode 写出，键里没有解析代码的版本）⇒ **未验，不得下结论**。
+    这条影响一切吃道路的指标（路径规划、绕飞次数、总飞行距离、能耗）。

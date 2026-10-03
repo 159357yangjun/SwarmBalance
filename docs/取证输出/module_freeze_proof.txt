@@ -1,0 +1,16 @@
+[子进程 is=0.55]
+MODULE_REALISTIC_CFG.interval_scale = 0.55
+Generated 12 tasks:
+地图建筑 2889 栋：其中 25 栋有可用高度、18 栋 >20 m 进入避障碰撞集
+generator._interval_scale = 0.55
+前 8 个到达时刻 = [30, 51, 71, 94, 124, 148, 172, 197]
+[子进程 is=0.40]
+MODULE_REALISTIC_CFG.interval_scale = 0.4
+Generated 12 tasks:
+地图建筑 2889 栋：其中 25 栋有可用高度、18 栋 >20 m 进入避障碰撞集
+generator._interval_scale = 0.4
+前 8 个到达时刻 = [20, 38, 54, 70, 86, 103, 123, 143]
+
+=== 结论 ===
+若两行 interval_scale 分别为 0.55 / 0.40 ⇒ 干净子进程里 patch 生效，
+   我上一轮探针的 S≡C2 是**同进程内重复构造 Environment 被 task.py 模块级常量冻住**造成的假象。

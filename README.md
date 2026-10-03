@@ -391,7 +391,7 @@ swarm-balance/
 │  ├─ static/spec.html           # 「规范」页正文，由 /spec 路由渲染进 iframe
 │  ├─ static/vendor/             # 内置 vue.global.prod.js / echarts.min.js /
 │  │                             #   three.min.js + README（版本、来源、SHA-256）
-│  └─ test_*.py                  # 28 个文件 / 238 个用例（标准库 unittest）
+│  └─ test_*.py                  # 29 个文件 / 241 个用例（标准库 unittest）
 │
 ├─ frontend/                     # 仿真内核与可视化
 │  ├─ environment.py             # 世界状态、障碍判定、统计口径
@@ -424,7 +424,7 @@ swarm-balance/
 │  ├─ reporting.py               # 统计与配对检验
 │  ├─ reproducibility.py         # 复现清单（schema v2：按算法登记源码哈希）
 │  ├─ presets/                   # quick.yaml / conclusion.yaml / paper.yaml
-│  └─ test_*.py                  # 2 个文件 / 24 个用例
+│  └─ test_*.py                  # 3 个文件 / 32 个用例
 │
 ├─ results/
 │  ├─ compare/                   # 对比 CSV（答辩对比页数据源；两份清单见 console/server.py

@@ -1,0 +1,19 @@
+test_g1_cartesian_product_is_exact (experiments.test_grid.GridPlanTests)
+G1：2×3 两轴 ⇒ 恰好 6 格，且逐格标签与内容都对得上。 ... ok
+test_g2_single_axis_fails_loudly (experiments.test_grid.GridPlanTests)
+G2：单轴 grid ⇒ 明确报错（不允许静默退化成"一维列表"或空计划）。 ... ok
+test_g3_missing_patch_fails_loudly (experiments.test_grid.GridPlanTests)
+G3：轴值缺 patch ⇒ 硬失败，不许静忽略那一格（否则分母会悄悄变小）。 ... ok
+test_g4_empty_values_fails_loudly (experiments.test_grid.GridPlanTests)
+G4：某轴 values 为空 ⇒ 硬失败。 ... ok
+test_g5_every_cell_carries_both_knobs (experiments.test_grid.GridPlanTests)
+G5（最重要）：每格的 patch 必须**同时**含两轴的键。 ... ok
+test_g6_base_config_not_mutated_across_cells (experiments.test_grid.GridPlanTests)
+G6：deep-merge 不得污染后续格（dict 引用共享是这里的典型隐蔽错）。 ... ok
+test_repeats_pair_same_seed_across_cells (experiments.test_grid.GridPlanTests)
+同一 repeat 的所有格共用 seed ⇒ 跨格比较是配对的（沿用既有约定）。 ... ok
+
+----------------------------------------------------------------------
+Ran 7 tests in 0.001s
+
+OK

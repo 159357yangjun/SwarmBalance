@@ -1,0 +1,68 @@
+Generated 12 tasks:
+地图建筑 2889 栋：其中 25 栋有可用高度、18 栋 >20 m 进入避障碰撞集
+Generated 12 tasks:
+地图建筑 2889 栋：其中 25 栋有可用高度、18 栋 >20 m 进入避障碰撞集
+Generated 12 tasks:
+地图建筑 2889 栋：其中 25 栋有可用高度、18 栋 >20 m 进入避障碰撞集
+Generated 12 tasks:
+地图建筑 2889 栋：其中 25 栋有可用高度、18 栋 >20 m 进入避障碰撞集
+Generated 12 tasks:
+地图建筑 2889 栋：其中 25 栋有可用高度、18 栋 >20 m 进入避障碰撞集
+Generated 12 tasks:
+地图建筑 2889 栋：其中 25 栋有可用高度、18 栋 >20 m 进入避障碰撞集
+Generated 12 tasks:
+地图建筑 2889 栋：其中 25 栋有可用高度、18 栋 >20 m 进入避障碰撞集
+Generated 12 tasks:
+地图建筑 2889 栋：其中 25 栋有可用高度、18 栋 >20 m 进入避障碰撞集
+Generated 12 tasks:
+地图建筑 2889 栋：其中 25 栋有可用高度、18 栋 >20 m 进入避障碰撞集
+Generated 12 tasks:
+地图建筑 2889 栋：其中 25 栋有可用高度、18 栋 >20 m 进入避障碰撞集
+Generated 12 tasks:
+地图建筑 2889 栋：其中 25 栋有可用高度、18 栋 >20 m 进入避障碰撞集
+Generated 12 tasks:
+地图建筑 2889 栋：其中 25 栋有可用高度、18 栋 >20 m 进入避障碰撞集
+Generated 12 tasks:
+地图建筑 2889 栋：其中 25 栋有可用高度、18 栋 >20 m 进入避障碰撞集
+Generated 12 tasks:
+地图建筑 2889 栋：其中 25 栋有可用高度、18 栋 >20 m 进入避障碰撞集
+Generated 12 tasks:
+地图建筑 2889 栋：其中 25 栋有可用高度、18 栋 >20 m 进入避障碰撞集
+Generated 12 tasks:
+地图建筑 2889 栋：其中 25 栋有可用高度、18 栋 >20 m 进入避障碰撞集
+Generated 12 tasks:
+地图建筑 2889 栋：其中 25 栋有可用高度、18 栋 >20 m 进入避障碰撞集
+Generated 12 tasks:
+地图建筑 2889 栋：其中 25 栋有可用高度、18 栋 >20 m 进入避障碰撞集
+Generated 12 tasks:
+地图建筑 2889 栋：其中 25 栋有可用高度、18 栋 >20 m 进入避障碰撞集
+Generated 12 tasks:
+地图建筑 2889 栋：其中 25 栋有可用高度、18 栋 >20 m 进入避障碰撞集
+Generated 12 tasks:
+地图建筑 2889 栋：其中 25 栋有可用高度、18 栋 >20 m 进入避障碰撞集
+Generated 12 tasks:
+地图建筑 2889 栋：其中 25 栋有可用高度、18 栋 >20 m 进入避障碰撞集
+[1/22] task_scale · 60 · 贪心调度 · 1 (seed=10701)
+[2/22] task_scale · 60 · 贪心调度 · 2 (seed=10702)
+[3/22] task_scale · 90 · 贪心调度 · 1 (seed=10701)
+[4/22] task_scale · 90 · 贪心调度 · 2 (seed=10702)
+[5/22] task_scale · 120 · 贪心调度 · 1 (seed=10701)
+[6/22] task_scale · 120 · 贪心调度 · 2 (seed=10702)
+[7/22] task_scale · 150 · 贪心调度 · 1 (seed=10701)
+[8/22] task_scale · 150 · 贪心调度 · 2 (seed=10702)
+[9/22] task_scale · 180 · 贪心调度 · 1 (seed=10701)
+[10/22] task_scale · 180 · 贪心调度 · 2 (seed=10702)
+[11/22] task_scale · 240 · 贪心调度 · 1 (seed=10701)
+[12/22] task_scale · 240 · 贪心调度 · 2 (seed=10702)
+[13/22] fleet_mix · 机队4 · 贪心调度 · 1 (seed=30701)
+[14/22] fleet_mix · 机队4 · 贪心调度 · 2 (seed=30702)
+[15/22] fleet_mix · 机队6 · 贪心调度 · 1 (seed=30701)
+[16/22] fleet_mix · 机队6 · 贪心调度 · 2 (seed=30702)
+[17/22] fleet_mix · 机队10 · 贪心调度 · 1 (seed=30701)
+[18/22] fleet_mix · 机队10 · 贪心调度 · 2 (seed=30702)
+[19/22] fleet_mix · 机队15 · 贪心调度 · 1 (seed=30701)
+[20/22] fleet_mix · 机队15 · 贪心调度 · 2 (seed=30702)
+[21/22] fleet_mix · 机队20 · 贪心调度 · 1 (seed=30701)
+[22/22] fleet_mix · 机队20 · 贪心调度 · 2 (seed=30702)
+完成：C:\Users\yyyy\AppData\Roaming\TRAE SOLO CN\ModularData\ai-agent\work-mode-projects\6a91893e4cc261f69a0a52a0\drone-scheduling\results\experiments\stress_probe_20261002-225243
+output_dir=C:\Users\yyyy\AppData\Roaming\TRAE SOLO CN\ModularData\ai-agent\work-mode-projects\6a91893e4cc261f69a0a52a0\drone-scheduling\results\experiments\stress_probe_20261002-225243

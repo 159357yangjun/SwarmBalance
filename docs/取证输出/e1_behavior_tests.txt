@@ -1,0 +1,25 @@
+test_b10_with_shipped_defaults_any_wind_is_a_no_op (frontend.test_wind_energy.ShippedDefaultsTests)
+B10 阴性对照：默认配置下 ±6 m/s 与 0 给出同一个数 ⇒ 钉死"结构存在但未启用"。 ... ok
+test_b9_shipped_config_keeps_wind_off (frontend.test_wind_energy.ShippedDefaultsTests)
+B9 正式默认关风：config 里没有 wind_energy.enabled ⇒ 全链路退回 E0。 ... ok
+test_b1_wind_zero_and_none_reproduce_e0_bit_for_bit (frontend.test_wind_energy.WindBehaviorTests)
+B1 wind=0 / None ⇒ 与 E0 公式逐位相同（即使 K 已开，零风也必须无副作用）。 ... ok
+test_b2_headwind_strictly_increases_energy (frontend.test_wind_energy.WindBehaviorTests)
+B2 逆风增大 ⇒ 耗能严格上升（不是 >=；>= 在 K=0 时会假绿）。 ... ok
+test_b3_tailwind_strictly_decreases_but_stays_positive (frontend.test_wind_energy.WindBehaviorTests)
+B3 顺风增强 ⇒ 严格下降但恒 >0（绝不允许负耗能或给电池充电）。 ... ok
+test_b4_headwind_gt_calm_gt_tailwind_at_same_distance_and_load (frontend.test_wind_energy.WindBehaviorTests)
+B4 三点式判别式：同距离同载荷下 逆风 > 无风 > 顺风。 ... ok
+test_b5_golden_case_wh_and_coefficient_by_hand (frontend.test_wind_energy.WindBehaviorTests)
+B5 golden case：手算得出来的 Wh，程序必须落在上面。 ... ok
+test_b6_extreme_inputs_bounded_or_rejected (frontend.test_wind_energy.WindBehaviorTests)
+B6 极端输入：有限大风被上界夹住，非有限风报错而不是静默。 ... ok
+test_b7_battery_ledger_is_the_single_source (frontend.test_wind_energy.WindBehaviorTests)
+B7 返回值 == 实际扣减 ⇒ environment 的 prev−now 统计自动吃到风耗，无需第二套账。 ... ok
+test_b8_direction_sign_convention (frontend.test_wind_energy.WindBehaviorTests)
+B8 符号约定：东风(u>0)下，向东飞=顺风(负)、向西飞=逆风(正)、向北=横风(0)。 ... ok
+
+----------------------------------------------------------------------
+Ran 10 tests in 0.001s
+
+OK
