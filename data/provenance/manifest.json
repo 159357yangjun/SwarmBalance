@@ -76,9 +76,9 @@
       "sha256": "6506ecaa258efd74f468902a35cc1f6faec7e5d5982388c79fe7a46842614fdb"
     }
   },
-  "generated_at": "2026-10-03T08:17:58",
+  "generated_at": "2026-10-03T08:58:54",
   "generator": "docs/build_truth_dataset.py",
-  "git_commit": "02a7665bb9e73c6430830a9c6d3e7065fcb5d9c2",
+  "git_commit": "32c7180ca9d8c433e3f992c9d57cdfbd65abf114",
   "license": "内部项目数据；OSM 部分继承 ODbL，Open-Meteo 部分受其服务条款约束",
   "parameter_counts": 24,
   "row_counts": {

@@ -65,9 +65,9 @@
     "deadline_offset_max": 3600,
     "warehouse_pos": [357600.574872369, 3462308.772003661],
     "weight_brackets": [
-      { "min": 1, "max": 2, "probability": 0.55, "note": "外卖/小件包裹（美团轻载）" },
-      { "min": 3, "max": 10, "probability": 0.35, "note": "标准快递包裹（顺丰ARK40）" },
-      { "min": 11, "max": 25, "probability": 0.10, "note": "重货/应急物资（大疆FlyCart30）" }
+      { "min": 1, "max": 2, "probability": 0.55, "note": "外卖/小件包裹（轻载通用配置档）" },
+      { "min": 3, "max": 10, "probability": 0.35, "note": "标准快递包裹（中载通用配置档）" },
+      { "min": 11, "max": 25, "probability": 0.10, "note": "重货/应急物资（DJI FlyCart 30 重载档）" }
     ],
     "sla_reference_speed": 14.0,
     "sla_base_seconds": 420,
@@ -83,7 +83,7 @@
     "drone_types": {
       "light_express": {
         "name": "轻载快递型",
-        "model": "美团第四代配送无人机(参考)",
+        "model": "轻载通用配置档｜电池与能耗为情景参数，无厂商机型对应",
         "speed": 20.0,
         "carrying_capacity": 2.4,
         "battery_capacity": 380.0,
@@ -93,7 +93,7 @@
       },
       "standard_cargo": {
         "name": "标准货运型",
-        "model": "顺丰丰翼方舟ARK40(参考)",
+        "model": "中载通用配置档｜电池与能耗为情景参数，无厂商机型对应",
         "speed": 14.0,
         "carrying_capacity": 10.0,
         "battery_capacity": 1600.0,
@@ -103,7 +103,7 @@
       },
       "heavy_cargo": {
         "name": "重载运输型",
-        "model": "大疆 FlyCart 30 双电(参考)",
+        "model": "DJI FlyCart 30｜官方规格锚点；能耗参数由官方电池与航程派生",
         "speed": 20.0,
         "carrying_capacity": 30.0,
         "battery_capacity": 3968.8,

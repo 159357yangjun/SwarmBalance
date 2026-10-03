@@ -145,23 +145,33 @@ def build():
     A("| A2 | `heavy_cargo` 电池容量 %s Wh | `config/simulation.json` → `heterogeneous.drone_types.heavy_cargo.battery_capacity` | — | — | DJI FlyCart 30 官方规格页（双电 2×1984.4 Wh） | 2×1984.4=%.1f，与盘上值**逐位吻合**" % (
         f(fc["battery_capacity"], 1), 2 * 1984.4))
     A("")
-    A("### 1.2 B 级（对标公开铭牌，含自行改动）")
+    A("### 1.2 机队配置档参数（按证据性质分列，不合并成一张\"真实机型表\"）")
     A("")
-    A("| 机型 | 型号标注 | 速度 m/s | 载重 kg | 电池 Wh | 能耗基线 | 满载航程 km | 备注 |")
-    A("|---|---|---|---|---|---|---|---|")
+    A("`light_express` / `standard_cargo` 是**通用载重档位**，不对应任何厂商机型；"
+      "`heavy_cargo` 有官方规格锚点。三档同表展示会让读者把档位名读成机型身份，故拆列。")
+    A("")
+    A("| 配置档 | 型号标注 | 速度 m/s | 载重 kg | 电池 Wh | 能耗基线 | 满载航程 km | real_vehicle_mapping | parameter_nature |")
+    A("|---|---|---|---|---|---|---|---|---|")
+    TIER_META = {
+        "light_express": dict(mapping="none", nature="scenario"),
+        "standard_cargo": dict(mapping="none", nature="scenario"),
+        "heavy_cargo": dict(mapping="DJI FlyCart 30", nature="vendor_anchored"),
+    }
     for key in ("light_express", "standard_cargo", "heavy_cargo"):
         d = sim["heterogeneous"]["drone_types"][key]
-        note = ""
-        if key == "light_express":
-            note = "官方口径 2.5 kg，**项目取 2.4**（登记表 P1）"
-        elif key == "standard_cargo":
-            note = "`speed` 与 `sla_reference_speed` **均无来源标注**（登记表 P3）"
-        else:
-            note = "电池为 A 级，其余为铭牌对标"
-        A("| `%s` | %s | %s | %s | %s | %s | %s | %s |" % (
+        meta = TIER_META[key]
+        A("| `%s` | %s | %s | %s | %s | %s | %s | %s | %s |" % (
             key, d["model"], f(d["speed"], 1), f(d["carrying_capacity"], 1),
             f(d["battery_capacity"], 1), f(d["battery_consumption_base"], 3),
-            f(d.get("full_load_range_km"), 1), note))
+            f(d.get("full_load_range_km"), 1), meta["mapping"], meta["nature"]))
+    A("")
+    A("证据等级（审计术语放这里，不放 UI 的 `model` 字段）：")
+    A("")
+    A("| 配置档 | evidence_level_direct | evidence_level_energy | 说明 |")
+    A("|---|---|---|---|")
+    A("| `heavy_cargo` | A（官方规格页直接值：速度、满载/空载航程、单块电池 Wh） | C（由官方 3968.8÷28 km 与 28÷16 派生） | 见 §1.1 A2 与 `data/provenance/parameters.csv` |")
+    A("| `standard_cargo` | A（载重 10 kg、航程 20 km、巡航 14 m/s 为厂商页直接值） | D（电池容量与能耗系数厂商未公布，无外部依据） | **不得称\"对标 ARK40 官方电池\"** |")
+    A("| `light_express` | E（仅媒体口径，无厂商规格页） | D | 载重 2.4 kg 系项目自定，媒体口径为 2.5 kg |")
     A("")
     A("### 1.3 C 级（无来源设定值 —— 这一节决定结论能不能外推）")
     A("")

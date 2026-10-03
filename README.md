@@ -453,13 +453,15 @@ swarm-balance/
 - 任务按高峰期 / 非高峰期 / 热点区域动态生成；
 - 默认单回合 3600 步（1 小时）。
 
-### 异构机型（对标公开产品规格）
+### 异构机队配置档（三档载重档位，仅一档有厂商机型锚点）
 
-| 机型 key | 参考产品 | 航速 (m/s) ¹ | 载重 (kg) ¹ | 电池 (Wh) ¹ | 满载续航 (km) ² |
+| 配置档 key | 型号来源 | 航速 (m/s) ¹ | 载重 (kg) ¹ | 电池 (Wh) ¹ | 满载续航 (km) ² |
 |---|---|---|---|---|---|
-| `light_express` | 美团第四代配送无人机 | 20 | 2.4 | 380 | 10 |
-| `standard_cargo` | 顺丰丰翼方舟 ARK40 | 14 | 10 | 1600 | 20 |
-| `heavy_cargo` | 大疆 FlyCart 30 双电 | 20 | 30 | 3968.8 | 16 |
+| `light_express` | 轻载通用配置档｜无厂商机型对应，电池与能耗为情景参数 | 20 | 2.4 | 380 | 10 |
+| `standard_cargo` | 中载通用配置档｜无厂商机型对应，电池与能耗为情景参数 | 14 | 10 | 1600 | 20 |
+| `heavy_cargo` | DJI FlyCart 30｜官方规格锚点，能耗参数由官方电池与航程派生 | 20 | 30 | 3968.8 | 16 |
+
+> ⚠️ **不要把前两档读成真实机型。** 它们的载重/速度量级参考了公开报道，但电池容量与能耗系数**没有任何厂商依据**（相关厂商均未公布），属于我方设定的情景参数；证据等级、原始出处与禁用表述见 `data/provenance/parameters.csv` 与 `docs/真实性审计表.md`。只有 `heavy_cargo` 可溯源到大疆官方规格页。
 
 > ¹ **仿真输入**：对应 `heterogeneous.drone_types.<key>` 的 `speed` / `carrying_capacity` / `battery_capacity`，由 `frontend/drone.py` 读取并参与计算。
 > ² **仅展示，不参与仿真计算**：`full_load_range_km` 写在配置里但代码从不读取；实际续航由 `battery_capacity` 与放电模型（`battery_consumption_base` × `battery_load_penalty_factor`）推导，改这一列不改变任何仿真结果。该结论由 `console/test_config_keys_coverage.py` 守住。
