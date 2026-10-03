@@ -185,8 +185,13 @@ def report(root=ROOT):
     tips = set(git(root, "reflog", "show", "--format=%H", BRANCH).split())
     # 活集合：优先用"未推的那一段"；`origin/master` 这个 ref 不在（换机器/新克隆）就退回
     # 整个 HEAD 可达集，并在表里说明 —— 这道门不许因为别人仓的状态而误红。
+    # 第三种形状同样必须退回：**全部已推送**时 `origin/master..HEAD` 是空集，于是 amend 的
+    # 活对端一个都不在候选里，整批旧对象一起掉进"配不上对"（实测 17 条误红）。判据要看
+    # 解析出来的条数而不是 ref 是否存在 —— 只看 ref 会漏掉这一路。
     pushed_ok = git(root, "rev-parse", "--verify", "--quiet", PUSHED) != ""
     range_spec = ("%s..HEAD" % PUSHED) if pushed_ok else "HEAD"
+    if pushed_ok and not git(root, "rev-list", range_spec).split():
+        range_spec = "HEAD"
     live_subjects = {}
     for sha in git(root, "rev-list", range_spec).split():
         live_subjects.setdefault(fields(root, sha)[4], []).append(sha)
@@ -200,6 +205,14 @@ def report(root=ROOT):
         cands = [l for l in live_subjects.get(subj, []) if fields(root, l)[0] == tree
                  and fields(root, l)[2] == author and fields(root, l)[3] == ts]
         if not cands:
+            # 根提交不参与"树不等"判定：它没有 parent，"改写前的同一位置"这个前提不存在。
+            # 同一初始内容被反复重造会产生多个无 parent、同标题同作者同时刻而 tree 不同的根
+            # （实测 0682ae0/77b4594 与活在 main+dev+master 上的 4d8ac93 就是这样撞在一起的），
+            # 把它们叫"改写动了内容"是误红 —— 它们从来不是同一次改写的两端。归入悬空并说明。
+            if not parents:
+                dangling.append((u, "root-with-same-stamp（无 parent 的根提交，与活根同标题同时刻"
+                                    "但树不同；不构成改写两端）", subj))
+                continue
             # 放宽 tree 再找一次：找到就说明"标题/作者/时间都对，只有树不同" ——
             # 那正是"改写时顺手改了内容"的形状，必须点名为树不等，不能含糊成"配不上对"。
             loose = [l for l in live_subjects.get(subj, [])
