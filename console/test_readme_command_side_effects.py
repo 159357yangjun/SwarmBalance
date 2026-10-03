@@ -186,6 +186,56 @@ class ReadmeCommandSideEffectTests(unittest.TestCase):
                           "README 不再说明 %s，评审无法知道自己那条命令会不会写盘" % token)
 
 
+class PairedClaimConsistencyTests(unittest.TestCase):
+    """文档里凡引用配对表，就必须带上"它不构成显著性"的限定 —— 双向指纹。
+
+    为什么值得钉：`paired_ga_vs_greedy.csv` 印着胜/平/负三列，读起来就像结论；而密度扫描
+    实测（四档 × 6 seed）显示**没有任何一档 GA 显著优于贪心**，反而在高压力两档贪心显著更好
+    （精确双侧 p=0.0312）。所以"免责声明"不能只是一句措辞，要让它与引用点互相同步：
+    ① 引用者必须带限定语（否则红）；② 若有人把所有限定语都删了，那条声明本身也不能悄悄消失
+    （否则红）。两个方向都要能响，单向断言只会过期。
+    """
+
+    # 提到配对表 / 胜负计数的位置（README 与两份结项文档）
+    SOURCES = ("README.md", "docs/结项修改说明.md", "docs/产品化收口与结项口径审计.md")
+    QUALIFIERS = ("不代表统计显著性", "不构成显著性结论", "不判优", "不可判", "最小可得 p")
+    TOKEN = "paired_ga_vs_greedy"
+
+    def _lines(self, rel):
+        p = ROOT / rel
+        if not p.is_file():
+            return []
+        return [(i + 1, l) for i, l in enumerate(p.read_text(encoding="utf-8").splitlines())]
+
+    def test_every_reference_to_the_paired_table_is_qualified(self):
+        refs, bad = 0, []
+        for rel in self.SOURCES:
+            lines = self._lines(rel)
+            for idx, line in lines:
+                if self.TOKEN not in line:
+                    continue
+                refs += 1
+                # 限定语允许出现在同一行或其后 6 行内（表格与注常分行写）
+                window = "".join(l for _i, l in lines[idx - 1:idx + 6])
+                if not any(q in window for q in self.QUALIFIERS):
+                    bad.append("%s:%d %s" % (rel, idx, line.strip()[:70]))
+        self.assertGreaterEqual(refs, 1,
+                                "%s 这个标记在文档里一次都没出现 —— 本用例已空转，"
+                                "要么改引用点要么删这条门" % self.TOKEN)
+        self.assertEqual(bad, [], "这些引用没带显著性限定语：%s" % bad)
+        print("[CLAIM_GATE] 引用配对表 %d 处，全部带限定语" % refs)
+
+    def test_qualifier_survives_even_if_references_are_cleaned(self):
+        """反方向：不许靠"删掉引用"来让上一条变绿而不留任何免责说明。"""
+        found = []
+        for rel in self.SOURCES:
+            txt = (ROOT / rel).read_text(encoding="utf-8") if (ROOT / rel).is_file() else ""
+            found.append((rel, any(q in txt for q in self.QUALIFIERS)))
+        self.assertTrue(any(ok for _r, ok in found),
+                        "三份文档都不再声明显著性限定（%s）—— 那要么是结论真的变了，"
+                        "要么是删声明绕过门，两种都必须人来拍" % found)
+
+
 class ReadmeCommandCleanTreeRunTests(unittest.TestCase):
     """真跑一条文档命令，跑完工作区必须为空。"""
 

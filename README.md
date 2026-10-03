@@ -266,7 +266,7 @@ finalize_project.bat
 标准实验除了原有 `algorithm_comparison.csv` 和敏感性分析 CSV，还会生成：
 
 - `algorithm_comparison_stats.csv`：关键指标的均值、样本标准差和中位数；
-- `paired_ga_vs_greedy.csv`：同一 Seed 下 GA 与 Greedy 的描述性配对比较；
+- `paired_ga_vs_greedy.csv`：同一 Seed 下 GA 与 Greedy 的描述性配对比较，**不代表统计显著性**（n=5 时双侧符号检验最小可得 p=0.0625 > α=0.05，设计上就给不出显著性；复算见 `console/_paired_readout.py`）；
 - `reproducibility.json`：Python/平台/关键包版本、输入配置/OSM 哈希、算法列表等复现信息；
 - `summary.md`：明确写出结果解释边界，不把描述性差异表述成统计显著性。
 
@@ -391,7 +391,7 @@ swarm-balance/
 │  ├─ static/spec.html           # 「规范」页正文，由 /spec 路由渲染进 iframe
 │  ├─ static/vendor/             # 内置 vue.global.prod.js / echarts.min.js /
 │  │                             #   three.min.js + README（版本、来源、SHA-256）
-│  └─ test_*.py                  # 28 个文件 / 236 个用例（标准库 unittest）
+│  └─ test_*.py                  # 28 个文件 / 238 个用例（标准库 unittest）
 │
 ├─ frontend/                     # 仿真内核与可视化
 │  ├─ environment.py             # 世界状态、障碍判定、统计口径
