@@ -1,0 +1,16 @@
+Curation notes for this ASI dataset package
+
+Includes:
+- conference-paper raw PX4 ULog files
+- processed ASI tables
+- feature tables
+- experiment manifests
+- controller parameter files
+- main paper figures
+- selected reproducibility scripts
+
+Excluded:
+- virtual environments
+- system junk
+- duplicate temporary files
+- obsolete/testing-only clutter

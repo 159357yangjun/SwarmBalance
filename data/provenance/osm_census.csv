@@ -1,0 +1,9 @@
+entity,count,total,share,method,computed_from_file,evidence_grade,notes
+node,40128,46917,0.855298,本轮 ElementTree 事件级计数：在 <tag> 的 end 事件按所属 way 归组去重,frontend/data/map/part_of_yangpu.osm,A,
+way,6201,46917,0.13217,本轮 ElementTree 事件级计数：在 <tag> 的 end 事件按所属 way 归组去重,frontend/data/map/part_of_yangpu.osm,A,
+relation,588,46917,0.0125328,本轮 ElementTree 事件级计数：在 <tag> 的 end 事件按所属 way 归组去重,frontend/data/map/part_of_yangpu.osm,A,
+elements_total,46917,,,node+way+relation,frontend/data/map/part_of_yangpu.osm,A,恒等式：node+way+relation=total
+ways_with_building_tag,2876,6201,0.463796,按 way 归组后判 'building' ∈ keys（每 way 最多计一次）,frontend/data/map/part_of_yangpu.osm,A,行扫描会得到虚高值；本行的口径是【带该 tag 的 way 数】
+ways_with_highway_tag,2154,6201,0.347363,按 way 归组后判 'highway' ∈ keys（每 way 最多计一次）,frontend/data/map/part_of_yangpu.osm,A,
+file_bytes,11098582,,,os.stat().st_size,frontend/data/map/part_of_yangpu.osm,A,
+file_sha256,72c3ef9ca19c804387bc2985d3a2dd76a772fc28fc9add8872b003419e78a65b,,,hashlib.sha256(全文件).hexdigest(),frontend/data/map/part_of_yangpu.osm,A,只锁『现在的它』，不锁『当初的它』⇒ 溯源维持 E 级

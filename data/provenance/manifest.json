@@ -1,0 +1,94 @@
+{
+  "boundary": "本数据集只登记『数字→来源→条件→算式→复算命令』的证据关系。A=官方直接值 B=原始公开实测 C=可由 A/B 复算的派生值 D=假设值 E=未验证或冲突。D/E 级字段不得对外称为厂商参数。",
+  "column_counts": {
+    "formal_baseline_run.csv": 12,
+    "osm_census.csv": 8,
+    "parameters.csv": 15,
+    "sources.csv": 12,
+    "statistics.csv": 11,
+    "truth.jsonl": "-",
+    "wind_hourly.csv": 4
+  },
+  "dataset": "drone-scheduling truth/provenance dataset",
+  "dataset_version": "1.0.0",
+  "dependencies": "Python 3.10 标准库（无第三方依赖）",
+  "disabled_claims": 8,
+  "evidence_date": "2026-10-03",
+  "evidence_grades": {
+    "A": 8,
+    "C": 3,
+    "D": 8,
+    "D+E": 1,
+    "E": 3,
+    "E->已定": 1
+  },
+  "external_files": {
+    "baseline_raw_runs": {
+      "bytes": 11571,
+      "path": "results/experiments/formal_baseline_n10_20261003-010435/raw_runs.csv",
+      "sha256": "c61e32f7c978b0a62a648f3fc5fff58f37baf518b270cd99ed356aa655c0f9a0"
+    },
+    "osm_basemap": {
+      "bytes": 11098582,
+      "path": "frontend/data/map/part_of_yangpu.osm",
+      "sha256": "72c3ef9ca19c804387bc2985d3a2dd76a772fc28fc9add8872b003419e78a65b"
+    },
+    "wind_csv": {
+      "bytes": 32623,
+      "path": "data/raw/openmeto_yangpu_wind_20260801_0911.csv",
+      "sha256": "3f087378b050884f516c143e887bebc298b4f144ed0505167abce9b1b03038bd"
+    }
+  },
+  "files": {
+    "formal_baseline_run.csv": {
+      "bytes": 2341,
+      "lines": 31,
+      "sha256": "055ea0e62bc7fdc14a5e6668174449da89b6cfb5673391328ae203778a6c0af8"
+    },
+    "osm_census.csv": {
+      "bytes": 1338,
+      "lines": 9,
+      "sha256": "26fcdcdd2191fc26e0b337c083e597de681473116a9956535e2edf582201eb93"
+    },
+    "parameters.csv": {
+      "bytes": 6272,
+      "lines": 25,
+      "sha256": "632e2768da79d547bb286616e069ba6734ca01d19312237bd2f410f5ed3937ac"
+    },
+    "sources.csv": {
+      "bytes": 3635,
+      "lines": 11,
+      "sha256": "754ba230da0b50b84100bbed97d9fde7de4fc41425dc52af26e6ecd41db1758b"
+    },
+    "statistics.csv": {
+      "bytes": 6617,
+      "lines": 40,
+      "sha256": "b5ce011026609cbeeaa0984226a076ef8a5b8d0625af469bee00c9acae7138aa"
+    },
+    "truth.jsonl": {
+      "bytes": 23217,
+      "lines": 47,
+      "sha256": "7a36da885832d1bab46c54730d41959791186a70451d22e9dbb5557c9a1ef81b"
+    },
+    "wind_hourly.csv": {
+      "bytes": 31336,
+      "lines": 1009,
+      "sha256": "6506ecaa258efd74f468902a35cc1f6faec7e5d5982388c79fe7a46842614fdb"
+    }
+  },
+  "generated_at": "2026-10-03T08:17:58",
+  "generator": "docs/build_truth_dataset.py",
+  "git_commit": "02a7665bb9e73c6430830a9c6d3e7065fcb5d9c2",
+  "license": "内部项目数据；OSM 部分继承 ODbL，Open-Meteo 部分受其服务条款约束",
+  "parameter_counts": 24,
+  "row_counts": {
+    "formal_baseline_run.csv": 30,
+    "osm_census.csv": 8,
+    "parameters.csv": 24,
+    "sources.csv": 10,
+    "statistics.csv": 39,
+    "truth.jsonl": 47,
+    "wind_hourly.csv": 1008
+  },
+  "schema_version": "1.0.0"
+}

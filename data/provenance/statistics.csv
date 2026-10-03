@@ -1,0 +1,40 @@
+stat_id,dataset,metric,value,unit,n,method,computed_from_file,row_count_seen,evidence_grade,notes
+stat_wind_rows,openmeteo_yangpu_hourly,row_count,1008,rows,1008,本轮逐行解析计数,data/raw/openmeto_yangpu_wind_20260801_0911.csv,1008,A,2026-08-01T00:00 起逐小时连续
+stat_wind_mean,openmeteo_yangpu_hourly,wind_speed_mean,4.00875,m/s,1008,算术均值,data/raw/openmeto_yangpu_wind_20260801_0911.csv,1008,A,接口原值 km/h，÷3.6 换算为 m/s
+stat_wind_sd,openmeteo_yangpu_hourly,wind_speed_std,1.92612,m/s,1008,总体标准差 ddof=0,data/raw/openmeto_yangpu_wind_20260801_0911.csv,1008,A,
+stat_wind_min,openmeteo_yangpu_hourly,wind_speed_min,0.278,m/s,1008,min,data/raw/openmeto_yangpu_wind_20260801_0911.csv,1008,A,
+stat_wind_p25,openmeteo_yangpu_hourly,wind_speed_p25,2.861,m/s,1008,线性插值分位,data/raw/openmeto_yangpu_wind_20260801_0911.csv,1008,A,
+stat_wind_median,openmeteo_yangpu_hourly,wind_speed_median,3.75,m/s,1008,线性插值分位,data/raw/openmeto_yangpu_wind_20260801_0911.csv,1008,A,
+stat_wind_p75,openmeteo_yangpu_hourly,wind_speed_p75,4.889,m/s,1008,线性插值分位,data/raw/openmeto_yangpu_wind_20260801_0911.csv,1008,A,
+stat_wind_p90,openmeteo_yangpu_hourly,wind_speed_p90,6.2472,m/s,1008,线性插值分位,data/raw/openmeto_yangpu_wind_20260801_0911.csv,1008,A,
+stat_wind_max,openmeteo_yangpu_hourly,wind_speed_max,12.639,m/s,1008,max,data/raw/openmeto_yangpu_wind_20260801_0911.csv,1008,A,
+stat_wind_ge12_cnt,openmeteo_yangpu_hourly,hours_wind_ge_12ms,1,hours,1008,计数,data/raw/openmeto_yangpu_wind_20260801_0911.csv,1008,A,与机型抗风等级 12 m/s 同阈值
+stat_wind_ge12_share,openmeteo_yangpu_hourly,share_hours_wind_ge_12ms,0.000992063,-,1008,ge12/n,data/raw/openmeto_yangpu_wind_20260801_0911.csv,1008,A,
+stat_dir_mean,openmeteo_yangpu_hourly,wind_direction_mean,113.867,deg,1008,算术均值（角度不做环形均值）,data/raw/openmeto_yangpu_wind_20260801_0911.csv,1008,A,环形均值另有口径，此处按原值算术均值登记
+stat_dir_median,openmeteo_yangpu_hourly,wind_direction_median,101,deg,1008,线性插值分位,data/raw/openmeto_yangpu_wind_20260801_0911.csv,1008,A,
+stat_dir_min,openmeteo_yangpu_hourly,wind_direction_min,1,deg,1008,min,data/raw/openmeto_yangpu_wind_20260801_0911.csv,1008,A,
+stat_dir_max,openmeteo_yangpu_hourly,wind_direction_max,360,deg,1008,max,data/raw/openmeto_yangpu_wind_20260801_0911.csv,1008,A,
+stat_temp_mean,openmeteo_yangpu_hourly,temperature_mean,28.1346,degC,1008,算术均值,data/raw/openmeto_yangpu_wind_20260801_0911.csv,1008,A,
+stat_temp_median,openmeteo_yangpu_hourly,temperature_median,27.7,degC,1008,线性插值分位,data/raw/openmeto_yangpu_wind_20260801_0911.csv,1008,A,
+stat_temp_min,openmeteo_yangpu_hourly,temperature_min,21.2,degC,1008,min,data/raw/openmeto_yangpu_wind_20260801_0911.csv,1008,A,
+stat_temp_max,openmeteo_yangpu_hourly,temperature_max,37,degC,1008,max,data/raw/openmeto_yangpu_wind_20260801_0911.csv,1008,A,
+stat_api_replay_mean,openmeteo_api_replay_20261003,wind_speed_mean,4.009,m/s,1008,本轮重放请求：mean(km/h)=14.431 ÷ 3.6,,-1,A,与本地 CSV 均值差 <1e-3 ⇒ 证明本地文件确实来自该接口调用
+stat_api_generation_ms,openmeteo_api_replay_20261003,generationtime_ms,1.091,ms,1,响应自带字段,,-1,A,
+stat_api_response_bytes,openmeteo_api_replay_20261003,response_body_size,32885,bytes,1,本轮 curl 实测,,-1,A,
+stat_api_grid_lat,openmeteo_api_replay_20261003,returned_grid_latitude,31.3181,deg,1,响应自带字段,,-1,A,≠ 请求点 31.29 ⇒ 服务端吸附到最近格点
+stat_api_grid_lon,openmeteo_api_replay_20261003,returned_grid_longitude,121.538,deg,1,响应自带字段,,-1,A,≠ 请求点 121.51
+stat_api_grid_elev,openmeteo_api_replay_20261003,returned_grid_elevation,3,m,1,响应自带字段,,-1,A,
+stat_derive_noenergy,flycart30_derived,empty_load_energy_intensity,141.743,Wh/km,1,3968.8 ÷ 28（官方双块能量 ÷ 空载航程）,,-1,C,项目 consumption_base=0.142 Wh/m 与之差 0.18%
+stat_derive_ratio,flycart30_derived,full_over_empty_energy_ratio,1.75,-,1,28 ÷ 16（空载航程 ÷ 满载航程）,,-1,C,= 1 + load_penalty_factor(0.75)，逐位吻合
+stat_derive_full,flycart30_derived,full_load_energy_intensity,248.05,Wh/km,1,3968.8 ÷ 16,,-1,C,0.142×1.75=0.2485 Wh/m 自洽
+stat_derive_hover,flycart30_derived,hover_power_ratio_proxy,1.61111,-,1,空载悬停 29 min ÷ 满载悬停 18 min,,-1,C,只能当旁证：悬停≠巡航
+stat_osm_height_missing,osm_yangpu_buildings,height_tag_missing_share,0.8574,-,2876,缺 tag 数 ÷ building 总数（历史普查口径）,,-1,E,本轮未重做 height-tag 普查，故不从文件复算；引用值
+stat_baseline_n_C1,formal_baseline_n10,sample_size[C1],10,runs,10,本轮逐行计数,results/experiments/formal_baseline_n10_20261003-010435/raw_runs.csv,10,B,配对种子 40901–40910
+stat_baseline_cr_C1,formal_baseline_n10,completion_rate_mean[C1],0.737479,-,10,"均值；CI95=±t(2.228,n=10)*sd/sqrt(n)，总体标准差 ddof=0",results/experiments/formal_baseline_n10_20261003-010435/raw_runs.csv,10,B,"min=0.70068 median=0.735613 max=0.77027 CI95=[0.721243,0.753715]"
+stat_baseline_to_C1,formal_baseline_n10,timeout_rate_mean[C1],0.228902,-,10,均值,results/experiments/formal_baseline_n10_20261003-010435/raw_runs.csv,10,B,min=0.192661 max=0.273585
+stat_baseline_n_C2,formal_baseline_n10,sample_size[C2],10,runs,10,本轮逐行计数,results/experiments/formal_baseline_n10_20261003-010435/raw_runs.csv,10,B,配对种子 40901–40910
+stat_baseline_cr_C2,formal_baseline_n10,completion_rate_mean[C2],0.427596,-,10,"均值；CI95=±t(2.228,n=10)*sd/sqrt(n)，总体标准差 ddof=0",results/experiments/formal_baseline_n10_20261003-010435/raw_runs.csv,10,B,"min=0.380435 median=0.418539 max=0.466292 CI95=[0.407995,0.447198]"
+stat_baseline_to_C2,formal_baseline_n10,timeout_rate_mean[C2],0.463763,-,10,均值,results/experiments/formal_baseline_n10_20261003-010435/raw_runs.csv,10,B,min=0.383562 max=0.527027
+stat_baseline_n_S,formal_baseline_n10,sample_size[S],10,runs,10,本轮逐行计数,results/experiments/formal_baseline_n10_20261003-010435/raw_runs.csv,10,B,配对种子 40901–40910
+stat_baseline_cr_S,formal_baseline_n10,completion_rate_mean[S],0.337917,-,10,"均值；CI95=±t(2.228,n=10)*sd/sqrt(n)，总体标准差 ddof=0",results/experiments/formal_baseline_n10_20261003-010435/raw_runs.csv,10,B,"min=0.3125 median=0.3375 max=0.375 CI95=[0.326363,0.349471]"
+stat_baseline_to_S,formal_baseline_n10,timeout_rate_mean[S],0.583834,-,10,均值,results/experiments/formal_baseline_n10_20261003-010435/raw_runs.csv,10,B,min=0.506667 max=0.623377

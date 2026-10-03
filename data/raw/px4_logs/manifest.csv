@@ -1,0 +1,129 @@
+path,source_zip,original_path,category,description,size_bytes,md5
+code/analysis/asi_compute.py,ASI-paper-1.zip,ASI-paper-1/ASI-paper-1/Testing/ASI_PAPER_READY/Scripts/asi_compute.py,code,ASI computation script,2807,88d6794796215dfc9174172033d77460
+code/analysis/asi_statistics.py,ASI-paper-1.zip,ASI-paper-1/ASI-paper-1/Testing/ASI_PAPER_READY/Scripts/asi_statistics.py,code,Statistics script,7891,76eff45d692bbccc11ff1b997ea4ad77
+code/plotting/E1_generate_1.py,asi_runs.zip,asi_runs/asi_runs/paper_bundle/E1_Genarate-1.py,code,Legacy E1 plotting script,1856,d0de022dd170ea53f8b6a09668f15b8e
+code/plotting/make_e1_ieee_heatmap.py,ASI-paper-1.zip,ASI-paper-1/ASI-paper-1/make_e1_ieee_heatmap.py,code,E1 IEEE heatmap plotting script,5247,013650bb1a06bd2e4851ff8b1afb3d0d
+code/plotting/make_ieee_asi_plots.py,ASI-Paper.zip,ASI-Paper/ASI-Paper/make_ieee_asi_plots.py,code,IEEE plot generation script,13429,98945cff625537db5d5a825760f1580a
+code/plotting/make_smooth_ieee_heatmap.py,ASI-Paper.zip,ASI-Paper/ASI-Paper/make_smooth_ieee_heatmap.py,code,Smooth heatmap plotting script,4866,ed1c8ec9ac560d0c92365d04843cb053
+code/preprocessing/asi_extract.py,ASI-paper-1.zip,ASI-paper-1/ASI-paper-1/Testing/ASI_PAPER_READY/Scripts/asi_extract.py,code,Feature extraction / preprocessing script,5481,369c9033c0e94d14053271bc5717a005
+code/preprocessing/grid_mission.py,ASI-Paper.zip,ASI-Paper/ASI-Paper/grid_mission.py,code,Grid mission helper script,2847,43596851b9ffb1ae9a77203f9c20ebb5
+code/preprocessing/make_asi_dataset.py,asi-runs-2.zip,asi-runs-2/asi-runs-2/make_asi_dataset.py,code,Dataset assembly script,14962,765e54a28cefd738e1ebc3f892b275c0
+data/feature_tables/E1_openfield_ASIstar_points_used.csv,ASI-Paper.zip,ASI-Paper/ASI-Paper/E1_openfield_ASIstar_points_used.csv,processed_or_feature,E1 open field points used for ASI* map,344,628d4280e316333d040561d0402a792a
+data/feature_tables/E3_corridor_ASIstar_points_used.csv,ASI-paper-1.zip,ASI-paper-1/ASI-paper-1/E3_corridor_ASIstar_points_used.csv,processed_or_feature,E3 corridor points used for ASI* map,298,c1e4f6df19b429702c371a358e5cb4c5
+data/feature_tables/asi_features_GRIDONLY_with_ASIstar.csv,asi_runs.zip,asi_runs/asi_runs/outputs/asi_features_GRIDONLY_with_ASIstar.csv,processed_or_feature,Grid-only feature table with ASI*,34903,558a02393d5d21324b547b09e847d960
+data/feature_tables/asi_features_GRIDONLY_with_ASIstar_xy.csv,ASI-paper-1.zip,ASI-paper-1/ASI-paper-1/asi_features_GRIDONLY_with_ASIstar_xy.csv,processed_or_feature,Grid-only feature table with ASI* and XY coordinates,35394,db13a8be09aa88a9893503a8560b7855
+data/feature_tables/asi_features_raw_small.csv,ASI-paper-1.zip,ASI-paper-1/ASI-paper-1/Testing/ASI_PAPER_READY/Tables/asi_features_raw.csv,processed_or_feature,Compact raw feature table,5280,452f2e9ad33cf3467186f2c1500376a8
+data/feature_tables/asi_features_with_asi.csv,ASI-paper-1.zip,ASI-paper-1/ASI-paper-1/asi_features_with_asi.csv,processed_or_feature,Full feature table with ASI,124056,b42064656ef0af7720be71692e2b8173
+data/feature_tables/asi_features_with_asi_GRIDONLY.csv,asi_runs.zip,asi_runs/asi_runs/outputs/asi_features_with_asi_GRIDONLY.csv,processed_or_feature,Grid-only feature table with ASI,29553,c7ac0f836ac060452ad6db6fe319fbd6
+data/feature_tables/asi_features_with_asi_small.csv,ASI-paper-1.zip,ASI-paper-1/ASI-paper-1/Testing/ASI_PAPER_READY/Tables/asi_features_with_asi.csv,processed_or_feature,Compact feature table with ASI,7705,edd5b54144186149246bc5618f800504
+data/manifests/_one.csv,ASI-paper-1.zip,ASI-paper-1/ASI-paper-1/ASI_IEEE_READY/Manifests/_one.csv,manifest,Experiment manifest,132,6e4a5f511c2d4bccc238761a36798a16
+data/manifests/manifest_controller_swap.csv,ASI-paper-1.zip,ASI-paper-1/ASI-paper-1/ASI_IEEE_READY/Manifests/manifest_controller_swap.csv,manifest,Experiment manifest,442,072db984ae0dc42e8f06eb18287a337e
+data/manifests/manifest_controller_swap_E1_E3_sig2.csv,ASI-paper-1.zip,ASI-paper-1/ASI-paper-1/ASI_IEEE_READY/Manifests/manifest_controller_swap_E1_E3_sig2.csv,manifest,Experiment manifest,1576,4999965e465d93c5cda54c47866502d2
+data/manifests/manifest_dose_response_E1_E3.csv,ASI-paper-1.zip,ASI-paper-1/ASI-paper-1/ASI_IEEE_READY/Manifests/manifest_dose_response_E1_E3.csv,manifest,Experiment manifest,1322,cdac4fd9faf2923a29e196a4c4dedf7a
+data/manifests/manifest_dose_response_E1_E3_FRESH.csv,ASI-paper-1.zip,ASI-paper-1/ASI-paper-1/ASI_IEEE_READY/Manifests/manifest_dose_response_E1_E3_FRESH.csv,manifest,Experiment manifest,1422,dbbfab629dd4683f6405090c4048a941
+data/manifests/manifest_dose_response_MISSING.csv,ASI-paper-1.zip,ASI-paper-1/ASI-paper-1/ASI_IEEE_READY/Manifests/manifest_dose_response_MISSING.csv,manifest,Experiment manifest,690,b69e65ab294506542d0094d98248ef3b
+data/manifests/manifest_repeatability_E3.csv,ASI-paper-1.zip,ASI-paper-1/ASI-paper-1/ASI_IEEE_READY/Manifests/manifest_repeatability_E3.csv,manifest,Experiment manifest,420,5b34fdbc1a103297ecab48635ef20ce5
+data/manifests/manifest_repeatability_E3_long.csv,ASI-paper-1.zip,ASI-paper-1/ASI-paper-1/ASI_IEEE_READY/Manifests/manifest_repeatability_E3_long.csv,manifest,Experiment manifest,480,95a80a526a49a54c3488100ce4feab29
+data/manifests/manifest_wind_sigma_sweep.csv,ASI-paper-1.zip,ASI-paper-1/ASI-paper-1/ASI_IEEE_READY/Manifests/manifest_wind_sigma_sweep.csv,manifest,Experiment manifest,62316,5e4c1ca82afe01691fabf8280fcc8cd8
+data/manifests/ulog_manifest.txt,ASI-paper-1.zip,ASI-paper-1/ASI-paper-1/Testing/ASI_PAPER_READY/DatasetContract/ulog_manifest.txt,manifest,ULog dataset contract manifest,585,78916e3746d4c657a1cd37c2013f1a23
+data/normalization/asi_normalization_constants.txt,asi_runs.zip,asi_runs/asi_runs/outputs/asi_normalization_constants.txt,processed_or_feature,ASI normalization constants,257,97c9d1d5a0df806b6467f6a36f5563d5
+data/normalization/asi_normalization_constants_testing.txt,ASI-paper-1.zip,ASI-paper-1/ASI-paper-1/Testing/ASI_PAPER_READY/Stats/asi_normalization_constants.txt,processed_or_feature,Normalization constants from testing bundle,173,50caf8fee36a8ff08255ba31da756f88
+data/params/controller_A.params,ASI-paper-1.zip,ASI-paper-1/ASI-paper-1/ASI_IEEE_READY/params/controller_A.params,params,Controller parameter file,56,fcbe8aed8fa2b6e9dc19c7e96794a2a7
+data/params/controller_B.params,ASI-paper-1.zip,ASI-paper-1/ASI-paper-1/ASI_IEEE_READY/params/controller_B.params,params,Controller parameter file,61,583bd036641ee4ce0ab8092471a59fb4
+data/processed_tables/final_env_summary_ASIstar.csv,asi_runs.zip,asi_runs/asi_runs/outputs/final_env_summary_ASIstar.csv,processed_or_feature,Environment summary used in paper,529,1bf38671cc34ebe432875a533e3d6f03
+data/processed_tables/table_env_stats.csv,ASI-paper-1.zip,ASI-paper-1/ASI-paper-1/Testing/ASI_PAPER_READY/Tables/table_env_stats.csv,processed_or_feature,Environment statistics table,748,c93527337d848a6f8cf50bc5d8baca22
+data/processed_tables/table_env_summary.csv,asi_runs.zip,asi_runs/asi_runs/outputs/table_env_summary.csv,processed_or_feature,Environment summary table,534,8d3c48f1aff71e62ce2769e6f973ce09
+data/processed_tables/table_env_summary_GRIDONLY.csv,asi_runs.zip,asi_runs/asi_runs/outputs/table_env_summary_GRIDONLY.csv,processed_or_feature,Grid-only environment summary table,532,4af34bc74c200e146b7e524fb3979b92
+data/processed_tables/table_env_summary_GRIDONLY_ASIstar.csv,asi_runs.zip,asi_runs/asi_runs/outputs/table_env_summary_GRIDONLY_ASIstar.csv,processed_or_feature,Grid-only ASI* environment summary table,530,388f91d3c085d6da628e3596ce088a3e
+data/processed_tables/table_env_summary_small.csv,ASI-paper-1.zip,ASI-paper-1/ASI-paper-1/Testing/ASI_PAPER_READY/Tables/table_env_summary.csv,processed_or_feature,Compact environment summary table,527,20ea7219cd0bad97c26ea7b85fe0a570
+data/raw_logs/E1_openfield/E1_openfield_sig0.5_seed001.ulg,asi_runs.zip,asi_runs/asi_runs/E1_openfield/E1_openfield_sig0.5_seed001.ulg,raw_log,PX4 ULog for E1_openfield,6553100,85509b219f365c36471f0344a97430e7
+data/raw_logs/E1_openfield/E1_openfield_sig0.5_seed002.ulg,asi_runs.zip,asi_runs/asi_runs/E1_openfield/E1_openfield_sig0.5_seed002.ulg,raw_log,PX4 ULog for E1_openfield,6539216,591aa325c8b1bca7191431e2727a405e
+data/raw_logs/E1_openfield/E1_openfield_sig0_seed001.ulg,asi_runs.zip,asi_runs/asi_runs/E1_openfield/E1_openfield_sig0_seed001.ulg,raw_log,PX4 ULog for E1_openfield,6649177,fc9709878389d08e44596804c796f6b9
+data/raw_logs/E1_openfield/E1_openfield_sig0_seed002.ulg,asi_runs.zip,asi_runs/asi_runs/E1_openfield/E1_openfield_sig0_seed002.ulg,raw_log,PX4 ULog for E1_openfield,6558290,24c86e59593686c7cc99bc836e2ae618
+data/raw_logs/E1_openfield/E1_openfield_sig1_seed001.ulg,asi_runs.zip,asi_runs/asi_runs/E1_openfield/E1_openfield_sig1_seed001.ulg,raw_log,PX4 ULog for E1_openfield,6604634,d66c5a1b6e567b3473dd3e433e765769
+data/raw_logs/E1_openfield/E1_openfield_sig1_seed002.ulg,asi_runs.zip,asi_runs/asi_runs/E1_openfield/E1_openfield_sig1_seed002.ulg,raw_log,PX4 ULog for E1_openfield,6594346,4462ef005060f9b70857e60645465667
+data/raw_logs/E1_openfield/E1_openfield_sig2_seed001.ulg,asi_runs.zip,asi_runs/asi_runs/E1_openfield/E1_openfield_sig2_seed001.ulg,raw_log,PX4 ULog for E1_openfield,6527990,6bda559498bf4fbe6aeb9c1875b3c72b
+data/raw_logs/E1_openfield/E1_openfield_sig2_seed002.ulg,asi_runs.zip,asi_runs/asi_runs/E1_openfield/E1_openfield_sig2_seed002.ulg,raw_log,PX4 ULog for E1_openfield,6620030,c61c01e9018ab3f00776baadc9885747
+data/raw_logs/E1_openfield/E1_openfield_sig4_seed001.ulg,asi_runs.zip,asi_runs/asi_runs/E1_openfield/E1_openfield_sig4_seed001.ulg,raw_log,PX4 ULog for E1_openfield,6495707,497294f15e25ca786af6fa1ed3888193
+data/raw_logs/E1_openfield/E1_openfield_sig4_seed002.ulg,asi_runs.zip,asi_runs/asi_runs/E1_openfield/E1_openfield_sig4_seed002.ulg,raw_log,PX4 ULog for E1_openfield,108901,024118e0e30dfc42f2867eea27a960ee
+data/raw_logs/E1_openfield/run01.ulg,asi_runs.zip,asi_runs/asi_runs/E1_openfield/run01.ulg,raw_log,PX4 ULog for E1_openfield,24373365,51b0eb90c5660c139dae073c402f3a36
+data/raw_logs/E1_openfield/run02.ulg,asi_runs.zip,asi_runs/asi_runs/E1_openfield/run02.ulg,raw_log,PX4 ULog for E1_openfield,12833335,823095036ce23d7e425afd4380e9587a
+data/raw_logs/E1_openfield/run03.ulg,asi_runs.zip,asi_runs/asi_runs/E1_openfield/run03.ulg,raw_log,PX4 ULog for E1_openfield,12610596,cded012ab63586b59061f9c2ec0c8f67
+data/raw_logs/E1_openfield/run04.ulg,asi_runs.zip,asi_runs/asi_runs/E1_openfield/run04.ulg,raw_log,PX4 ULog for E1_openfield,10041004,74d0c3d6c8e103d234d89344c3e55162
+data/raw_logs/E1_openfield/run05.ulg,asi_runs.zip,asi_runs/asi_runs/E1_openfield/run05.ulg,raw_log,PX4 ULog for E1_openfield,12660583,cd29492117b18269658f50e653295af4
+data/raw_logs/E1_openfield/run06_grid.ulg,asi_runs.zip,asi_runs/asi_runs/E1_openfield/run06_grid.ulg,raw_log,PX4 ULog for E1_openfield,96113566,1228d2e41f58b4352169a296ec273598
+data/raw_logs/E1_openfield/run07_grid.ulg,asi_runs.zip,asi_runs/asi_runs/E1_openfield/run07_grid.ulg,raw_log,PX4 ULog for E1_openfield,78208613,4fdc3d1931a33c853fe956eb34e42f2d
+data/raw_logs/E1_openfield/run08_grid.ulg,asi_runs.zip,asi_runs/asi_runs/E1_openfield/run08_grid.ulg,raw_log,PX4 ULog for E1_openfield,88568719,e9d3e63aa845c20e7b833301e32e5ada
+data/raw_logs/E2_nearwall/run01.ulg,asi_runs.zip,asi_runs/asi_runs/E2_nearwall/run01.ulg,raw_log,PX4 ULog for E2_nearwall,32385576,1f8292be0aaed27b0f42acff1a532272
+data/raw_logs/E2_nearwall/run02.ulg,asi_runs.zip,asi_runs/asi_runs/E2_nearwall/run02.ulg,raw_log,PX4 ULog for E2_nearwall,9739232,f7a238242ec67a37b86e7e99bf62b08d
+data/raw_logs/E2_nearwall/run03.ulg,asi_runs.zip,asi_runs/asi_runs/E2_nearwall/run03.ulg,raw_log,PX4 ULog for E2_nearwall,9282528,38b15a9adb8075de07d3682c7a1b7ff5
+data/raw_logs/E2_nearwall/run04.ulg,asi_runs.zip,asi_runs/asi_runs/E2_nearwall/run04.ulg,raw_log,PX4 ULog for E2_nearwall,10811267,bbbee492d26cb1e74161cc19c75bef61
+data/raw_logs/E2_nearwall/run05.ulg,asi_runs.zip,asi_runs/asi_runs/E2_nearwall/run05.ulg,raw_log,PX4 ULog for E2_nearwall,9850290,777af88498aa218318b3852d5208ed7f
+data/raw_logs/E2_nearwall/run06_grid.ulg,asi_runs.zip,asi_runs/asi_runs/E2_nearwall/run06_grid.ulg,raw_log,PX4 ULog for E2_nearwall,76574911,a56d5e4e5d8610ba1863d8efaa2e0e84
+data/raw_logs/E2_nearwall/run07_grid.ulg,asi_runs.zip,asi_runs/asi_runs/E2_nearwall/run07_grid.ulg,raw_log,PX4 ULog for E2_nearwall,80496038,f8312540ee8a322bd89b5267d3a9dd15
+data/raw_logs/E2_nearwall/run08_grid.ulg,asi_runs.zip,asi_runs/asi_runs/E2_nearwall/run08_grid.ulg,raw_log,PX4 ULog for E2_nearwall,84260251,951fad86fd5f2e7f638d8ffdf41414fe
+data/raw_logs/E3_corridor/E3_corridor_rep01_long.ulg,asi_runs.zip,asi_runs/asi_runs/E3_corridor/E3_corridor_rep01_long.ulg,raw_log,PX4 ULog for E3_corridor,7958140,011d1eedd0bc1f55507eec41902661df
+data/raw_logs/E3_corridor/E3_corridor_rep02_long.ulg,asi_runs.zip,asi_runs/asi_runs/E3_corridor/E3_corridor_rep02_long.ulg,raw_log,PX4 ULog for E3_corridor,8006098,a828553eb830dab5d95b3f9d111a9387
+data/raw_logs/E3_corridor/E3_corridor_rep03_long.ulg,asi_runs.zip,asi_runs/asi_runs/E3_corridor/E3_corridor_rep03_long.ulg,raw_log,PX4 ULog for E3_corridor,8019617,117d818ad3b59f0c29c6c5328cd711a9
+data/raw_logs/E3_corridor/E3_corridor_rep04_long.ulg,asi_runs.zip,asi_runs/asi_runs/E3_corridor/E3_corridor_rep04_long.ulg,raw_log,PX4 ULog for E3_corridor,8024628,d5512084ec01a7c9ab33f7dc9d936066
+data/raw_logs/E3_corridor/E3_corridor_rep05_long.ulg,asi_runs.zip,asi_runs/asi_runs/E3_corridor/E3_corridor_rep05_long.ulg,raw_log,PX4 ULog for E3_corridor,7989296,be9b24bab0a03392af06b521405d630d
+data/raw_logs/E3_corridor/E3_corridor_sig0.5_seed001.ulg,asi_runs.zip,asi_runs/asi_runs/E3_corridor/E3_corridor_sig0.5_seed001.ulg,raw_log,PX4 ULog for E3_corridor,6597230,b90488cefa9b4c843c22507a6e39def4
+data/raw_logs/E3_corridor/E3_corridor_sig0_seed001.ulg,asi_runs.zip,asi_runs/asi_runs/E3_corridor/E3_corridor_sig0_seed001.ulg,raw_log,PX4 ULog for E3_corridor,6602196,ac9b1e7515bcc8141b0aae0aec102536
+data/raw_logs/E3_corridor/E3_corridor_sig0_seed002.ulg,asi_runs.zip,asi_runs/asi_runs/E3_corridor/E3_corridor_sig0_seed002.ulg,raw_log,PX4 ULog for E3_corridor,6546768,cab576191e05741f1ff9eb55640f3704
+data/raw_logs/E3_corridor/E3_corridor_sig1_seed001.ulg,asi_runs.zip,asi_runs/asi_runs/E3_corridor/E3_corridor_sig1_seed001.ulg,raw_log,PX4 ULog for E3_corridor,6575132,12732e8f2cb1d980f10830d31436a99b
+data/raw_logs/E3_corridor/E3_corridor_sig1_seed002.ulg,asi_runs.zip,asi_runs/asi_runs/E3_corridor/E3_corridor_sig1_seed002.ulg,raw_log,PX4 ULog for E3_corridor,6545214,7ca97556e1c55a61830c8c9738b2ea4a
+data/raw_logs/E3_corridor/E3_corridor_sig2_seed001.ulg,asi_runs.zip,asi_runs/asi_runs/E3_corridor/E3_corridor_sig2_seed001.ulg,raw_log,PX4 ULog for E3_corridor,6644203,a56f31ed20f7d19abfabe83aa958d3c9
+data/raw_logs/E3_corridor/E3_corridor_sig2_seed002.ulg,asi_runs.zip,asi_runs/asi_runs/E3_corridor/E3_corridor_sig2_seed002.ulg,raw_log,PX4 ULog for E3_corridor,6532502,5d28f1250e5305807e0896ed06cfd1ac
+data/raw_logs/E3_corridor/E3_corridor_sig4_seed001.ulg,asi_runs.zip,asi_runs/asi_runs/E3_corridor/E3_corridor_sig4_seed001.ulg,raw_log,PX4 ULog for E3_corridor,108875,3cb97c66d398e4bb5a6eb9a8d971c601
+data/raw_logs/E3_corridor/E3_corridor_sig4_seed002.ulg,asi_runs.zip,asi_runs/asi_runs/E3_corridor/E3_corridor_sig4_seed002.ulg,raw_log,PX4 ULog for E3_corridor,6716852,e175c1feec0707048d3fbfa24eb8f97a
+data/raw_logs/E3_corridor/run02.ulg,asi_runs.zip,asi_runs/asi_runs/E3_corridor/run02.ulg,raw_log,PX4 ULog for E3_corridor,10125184,ba42630702f5c9767f3ca383fa9266f5
+data/raw_logs/E3_corridor/run03.ulg,asi_runs.zip,asi_runs/asi_runs/E3_corridor/run03.ulg,raw_log,PX4 ULog for E3_corridor,9663893,d345ea74a3c0d622bee7a5638893ba63
+data/raw_logs/E3_corridor/run04.ulg,asi_runs.zip,asi_runs/asi_runs/E3_corridor/run04.ulg,raw_log,PX4 ULog for E3_corridor,9795494,6dc6eef03fb96b7639762bc71f531574
+data/raw_logs/E3_corridor/run05.ulg,asi_runs.zip,asi_runs/asi_runs/E3_corridor/run05.ulg,raw_log,PX4 ULog for E3_corridor,9325750,7fbd1d240e1e5ac35ad946e226065e5a
+data/raw_logs/E3_corridor/run06_grid.ulg,asi_runs.zip,asi_runs/asi_runs/E3_corridor/run06_grid.ulg,raw_log,PX4 ULog for E3_corridor,58982400,0c25c65bcd4d360e1c874163cdb18c00
+data/raw_logs/E3_corridor/run07_grid.ulg,asi_runs.zip,asi_runs/asi_runs/E3_corridor/run07_grid.ulg,raw_log,PX4 ULog for E3_corridor,82702126,1486367129043a38be43029b6261704e
+data/raw_logs/E3_corridor/run08_grid.ulg,asi_runs.zip,asi_runs/asi_runs/E3_corridor/run08_grid.ulg,raw_log,PX4 ULog for E3_corridor,83215320,72dee0401c7bc43efba79bf751bed5b0
+data/raw_logs/E3_corridor/run09_grid.ulg,asi_runs.zip,asi_runs/asi_runs/E3_corridor/run09_grid.ulg,raw_log,PX4 ULog for E3_corridor,6512358,2561fc83adc67df5f720ab1be1579383
+data/raw_logs/E3_corridor/run10_grid.ulg,asi_runs.zip,asi_runs/asi_runs/E3_corridor/run10_grid.ulg,raw_log,PX4 ULog for E3_corridor,6591889,3fd43b394ee961bbdcbd08d078199011
+data/raw_logs/E3_corridor/run11_grid.ulg,asi_runs.zip,asi_runs/asi_runs/E3_corridor/run11_grid.ulg,raw_log,PX4 ULog for E3_corridor,6590141,15118b1691be9ae9efc969389128d298
+data/raw_logs/E3_corridor/run12_grid.ulg,asi_runs.zip,asi_runs/asi_runs/E3_corridor/run12_grid.ulg,raw_log,PX4 ULog for E3_corridor,6594795,0b93ff885b3527bf1a9ae234799d56a4
+data/raw_logs/E3_corridor/run13_grid.ulg,asi_runs.zip,asi_runs/asi_runs/E3_corridor/run13_grid.ulg,raw_log,PX4 ULog for E3_corridor,6586090,b4a705bc5b7bb3dd108bd6c38349575c
+data/raw_logs/E4_nearground/run01.ulg,asi-runs-2.zip,asi-runs-2/asi-runs-2/E4_nearground/run01.ulg,raw_log,PX4 ULog for E4_nearground,9061585,4c91509584f2fdeda61193a8bc76bead
+data/raw_logs/E4_nearground/run02.ulg,asi-runs-2.zip,asi-runs-2/asi-runs-2/E4_nearground/run02.ulg,raw_log,PX4 ULog for E4_nearground,10351897,873fe7fbe26e830bddc2a1c0946c5660
+data/raw_logs/E4_nearground/run03.ulg,asi-runs-2.zip,asi-runs-2/asi-runs-2/E4_nearground/run03.ulg,raw_log,PX4 ULog for E4_nearground,10434337,53a888b1b44523357eb0c16d394eb727
+data/raw_logs/E4_nearground/run04.ulg,asi-runs-2.zip,asi-runs-2/asi-runs-2/E4_nearground/run04.ulg,raw_log,PX4 ULog for E4_nearground,10522055,dba4fd9e4f629f550111b6d33cfc72de
+data/raw_logs/E4_nearground/run05.ulg,asi-runs-2.zip,asi-runs-2/asi-runs-2/E4_nearground/run05.ulg,raw_log,PX4 ULog for E4_nearground,11968659,cb761e06fc493f07f4f5b82a74592866
+data/raw_logs/E4_nearground/run06_grid.ulg,asi-runs-2.zip,asi-runs-2/asi-runs-2/E4_nearground/run06_grid.ulg,raw_log,PX4 ULog for E4_nearground,81247684,d37c860a7b1782b15649a77799470ca3
+data/raw_logs/E4_nearground/run07_grid.ulg,asi-runs-2.zip,asi-runs-2/asi-runs-2/E4_nearground/run07_grid.ulg,raw_log,PX4 ULog for E4_nearground,79852579,704d8f51bb16c42defaaa3cafa754096
+data/raw_logs/E4_nearground/run08_grid.ulg,asi-runs-2.zip,asi-runs-2/asi-runs-2/E4_nearground/run08_grid.ulg,raw_log,PX4 ULog for E4_nearground,82768075,ee82ef02da5a2771f078807f3029dbcc
+data/raw_logs/E5_rooftop_edge/run01.ulg,asi-runs-2.zip,asi-runs-2/asi-runs-2/E5_rooftop_edge/run01.ulg,raw_log,PX4 ULog for E5_rooftop_edge,8373584,9bbe53919ba4061b8630ce0033e47fa2
+data/raw_logs/E5_rooftop_edge/run02.ulg,asi-runs-2.zip,asi-runs-2/asi-runs-2/E5_rooftop_edge/run02.ulg,raw_log,PX4 ULog for E5_rooftop_edge,8430206,b3c18b6e08522c9e4b69e723bfffe1af
+data/raw_logs/E5_rooftop_edge/run03.ulg,asi-runs-2.zip,asi-runs-2/asi-runs-2/E5_rooftop_edge/run03.ulg,raw_log,PX4 ULog for E5_rooftop_edge,9434288,0898c4655d27db82f26600cfccf2aefa
+data/raw_logs/E5_rooftop_edge/run04.ulg,asi-runs-2.zip,asi-runs-2/asi-runs-2/E5_rooftop_edge/run04.ulg,raw_log,PX4 ULog for E5_rooftop_edge,10237230,8799efb883315785327387b77bacc4e7
+data/raw_logs/E5_rooftop_edge/run05.ulg,asi-runs-2.zip,asi-runs-2/asi-runs-2/E5_rooftop_edge/run05.ulg,raw_log,PX4 ULog for E5_rooftop_edge,13178333,d928cd180d72bd0889028e7515bba8bb
+data/raw_logs/E5_rooftop_edge/run06_grid.ulg,asi-runs-2.zip,asi-runs-2/asi-runs-2/E5_rooftop_edge/run06_grid.ulg,raw_log,PX4 ULog for E5_rooftop_edge,77052746,15ad7f1b7615f6ad7a0495c9981cd5e8
+data/raw_logs/E5_rooftop_edge/run07_grid.ulg,asi-runs-2.zip,asi-runs-2/asi-runs-2/E5_rooftop_edge/run07_grid.ulg,raw_log,PX4 ULog for E5_rooftop_edge,79773235,171d1d2891002e0252f3278f4367fff7
+data/stats/E3_repeatability_per_cell.csv,ASI-Paper.zip,ASI-Paper/ASI-Paper/E3_repeatability_per_cell.csv,processed_or_feature,E3 repeatability per-cell statistics,1997,e6d95a4e39bdca1575a3255355a935b2
+data/stats/asi_bootstrap_ci.txt,ASI-paper-1.zip,ASI-paper-1/ASI-paper-1/Testing/ASI_PAPER_READY/Stats/asi_bootstrap_ci.txt,processed_or_feature,Bootstrap confidence intervals,296,0f150fcf31bc8978eae2fc8063f5ed02
+data/stats/dose_response_sigma_summary.csv,ASI-paper-1.zip,ASI-paper-1/ASI-paper-1/E3-FIG-NOT-USEFULL/tables/dose_response_sigma_summary.csv,processed_or_feature,Dose-response sigma summary table,1208,4840b8d7813b5601fa9eb39f0d51480f
+data/stats/dose_response_trend_stats.csv,asi-runs-2.zip,asi-runs-2/asi-runs-2/dose_response_trend_stats.csv,processed_or_feature,Dose-response trend statistics,410,4d826f145c5e96846af59078dcd7a62f
+data/stats/kw_results.txt,ASI-paper-1.zip,ASI-paper-1/ASI-paper-1/Testing/ASI_PAPER_READY/Stats/kw_results.txt,processed_or_feature,Kruskal-Wallis test results,180,5cb577bc135ec866037d0a7d29afe231
+data/stats/pairwise_mwu_holm.csv,ASI-paper-1.zip,ASI-paper-1/ASI-paper-1/Testing/ASI_PAPER_READY/Stats/pairwise_mwu_holm.csv,processed_or_feature,Pairwise MWU Holm-corrected statistics,614,5e466ca2ffa02eb4bedb9297e8a54c60
+data/stats/weights_groupkfold.csv,ASI-paper-1.zip,ASI-paper-1/ASI-paper-1/E3-FIG-NOT-USEFULL/tables/weights_groupkfold.csv,processed_or_feature,GroupKFold weight-selection results,610,1cb1306e7c411bae5fc6588fa18fecb3
+data/stats/weights_permutation_test.csv,ASI-paper-1.zip,ASI-paper-1/ASI-paper-1/E3-FIG-NOT-USEFULL/tables/weights_permutation_test.csv,processed_or_feature,Weight-selection permutation test results,10454,6bd491347f55b06c2c80ceeab8647d7b
+figures/paper_main/Fig1a_ASIstar_vs_rate_rms.png,ASI-paper-1.zip,ASI-paper-1/ASI-paper-1/Adv-FIGS/ASIstar_vs_rate_rms_IEEE_BIG.png,figure_main,Main paper Figure 1a,371264,b6c8620d9956ed373bb86fe5d2798430
+figures/paper_main/Fig1b_ASIstar_vs_accel_rms.png,ASI-paper-1.zip,ASI-paper-1/ASI-paper-1/Adv-FIGS/ASIstar_vs_accel_rms_IEEE_BIG.png,figure_main,Main paper Figure 1b,396894,0065e1f3ff1a261b04bc88ce40301d4d
+figures/paper_main/Fig2_dose_response_sigma.png,ASI-paper-1.zip,ASI-paper-1/ASI-paper-1/E3-FIG-NOT-USEFULL/figs/dose_response_sigma.png,figure_main,Main paper Figure 2,122152,000d4c332ea4e5d280acc76196a2279b
+figures/paper_main/Fig3a_E1_openfield_ASIstar_map.png,ASI-paper-1.zip,ASI-paper-1/ASI-paper-1/E1_openfield_ASIstar_heatmap_IEEE_smooth-1.png,figure_main,Main paper Figure 3a,861040,680ab213597ef93984e0d8825d64c46b
+figures/paper_main/Fig3b_E3_corridor_ASIstar_map.png,ASI-paper-1.zip,ASI-paper-1/ASI-paper-1/Adv-FIGS/SPATIAL_SEPARATE/E3_corridor_ASIstar_map_IEEE.png,figure_main,Main paper Figure 3b,120972,21a5d375583b7e2af8cbd5c48ca26c82
+figures/paper_main/Fig3c_E5_rooftop_edge_ASIstar_map.png,ASI-paper-1.zip,ASI-paper-1/ASI-paper-1/Adv-FIGS/SPATIAL_SEPARATE/E5_rooftop_edge_ASIstar_map_IEEE.png,figure_main,Main paper Figure 3c,135233,358185f30153b35c549d5dac849d43b1
+figures/paper_main/Fig4_E3_ASIstar_mean_spatial.png,ASI-paper-1.zip,ASI-paper-1/ASI-paper-1/Adv-FIGS/E3-Graphs/E3_ASIstar_mean_spatial_IEEE.png,figure_main,Main paper Figure 4,413750,7f66270e9efe2324ef659b08b79ac49c
+figures/paper_main/Fig5_E3_ASIstar_CIwidth_spatial.png,ASI-paper-1.zip,ASI-paper-1/ASI-paper-1/Adv-FIGS/E3-Graphs/E3_ASIstar_CIwidth_spatial_IEEE.png,figure_main,Main paper Figure 5,467478,09bf3888c4998758d35a2abbc46895c7
+figures/supplementary/ASIstar_vs_accel_rms_IEEE_BIG.pdf,ASI-paper-1.zip,ASI-paper-1/ASI-paper-1/Adv-FIGS/E3-Graphs/ASIstar_vs_accel_rms_IEEE_BIG.pdf,figure_supplementary,Supplementary PDF version of Fig 1b,34708,666694343beac12f6e63728fcf5f0c63
+figures/supplementary/ASIstar_vs_rate_rms_IEEE_BIG.pdf,ASI-paper-1.zip,ASI-paper-1/ASI-paper-1/Adv-FIGS/E3-Graphs/ASIstar_vs_rate_rms_IEEE_BIG.pdf,figure_supplementary,Supplementary PDF version of Fig 1a,33523,6df89aa90721c1c02b7422431c7de867
+figures/supplementary/E1_openfield_ASIstar_map_IEEE.pdf,ASI-paper-1.zip,ASI-paper-1/ASI-paper-1/Adv-FIGS/SPATIAL_SEPARATE/E1_openfield_ASIstar_map_IEEE.pdf,figure_supplementary,Supplementary spatial map PDF,55894,0307c054274881987c944420e7f89bb6
+figures/supplementary/E2_nearwall_ASIstar_map_IEEE.pdf,ASI-paper-1.zip,ASI-paper-1/ASI-paper-1/Adv-FIGS/SPATIAL_SEPARATE/E2_nearwall_ASIstar_map_IEEE.pdf,figure_supplementary,Supplementary spatial map PDF,96106,84ebbad7fbaaf36f76640a46718341f2
+figures/supplementary/E2_nearwall_ASIstar_map_IEEE.png,ASI-paper-1.zip,ASI-paper-1/ASI-paper-1/Adv-FIGS/SPATIAL_SEPARATE/E2_nearwall_ASIstar_map_IEEE.png,figure_supplementary,Supplementary spatial map,138150,510dfb22de69c87fe30f4ea62330dd0b
+figures/supplementary/E4_nearground_ASIstar_map_IEEE.pdf,ASI-paper-1.zip,ASI-paper-1/ASI-paper-1/Adv-FIGS/SPATIAL_SEPARATE/E4_nearground_ASIstar_map_IEEE.pdf,figure_supplementary,Supplementary spatial map PDF,73653,edddf4cb8a93df16f61c4a2ac0f3ead4
+figures/supplementary/E4_nearground_ASIstar_map_IEEE.png,ASI-paper-1.zip,ASI-paper-1/ASI-paper-1/Adv-FIGS/SPATIAL_SEPARATE/E4_nearground_ASIstar_map_IEEE.png,figure_supplementary,Supplementary spatial map,143879,678e8a0b2b0edf255f647b12e13f8857
+figures/supplementary/E5_rooftop_edge_ASIstar_map_IEEE.pdf,ASI-paper-1.zip,ASI-paper-1/ASI-paper-1/Adv-FIGS/SPATIAL_SEPARATE/E5_rooftop_edge_ASIstar_map_IEEE.pdf,figure_supplementary,Supplementary spatial map PDF,87295,d986574d923436b2d4ee5e05eb77c912
