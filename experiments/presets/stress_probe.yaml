@@ -1,0 +1,38 @@
+name: 压力场景搜索（Critical benchmark 定位）
+description: >
+  目的不是比算法优劣，而是回答"系统什么时候从轻载进入临界状态"。因此只固定一个算法
+  （greedy），只动两个输入：任务规模（task_scale）与机队规模（fleet_mix 的配比之和）。
+  **不改** consumption_base / load_penalty_factor / 电池容量 / 机型参数 / episode 长度 /
+  时间窗 / 正式算法逻辑 —— 这些留给后续在同一 fixture 上做的模型结构对比。
+  repeats=2 是刻意的最小值：这一步只要区间边界，不要显著性；n 的选取留到最终实验。
+  预设 key 不是 conclusion ⇒ 双闸门会拒绝写 results/compare/one_click_latest.csv（答辩数据源不受影响）。
+base:
+  seed: 700
+  episode_steps: 3600
+  repeats: 2
+algorithms: [greedy]
+experiments:
+  algorithm_comparison:
+    enabled: false
+  task_scale:
+    # 沿"任务数"单轴加压：其余条件全部保持结项口径（10 机、5 站、泊位 2、seeds 起点 701+）
+    enabled: true
+    algorithms: [greedy]
+    values: [60, 90, 120, 150, 180, 240]
+    repeats: 2
+  task_density:
+    enabled: false
+  nest_berths:
+    enabled: false
+  fleet_mix:
+    # 沿"机队规模"单轴减压/加压，配比沿用结项的均衡机队形状（L:S:H = 5:3:2 比例外推）
+    enabled: true
+    algorithms: [greedy]
+    repeats: 2
+    values:
+      - {name: "机队4", light_express: 2, standard_cargo: 1, heavy_cargo: 1}
+      - {name: "机队6", light_express: 3, standard_cargo: 2, heavy_cargo: 1}
+      - {name: "机队10", light_express: 5, standard_cargo: 3, heavy_cargo: 2}
+      - {name: "机队15", light_express: 8, standard_cargo: 4, heavy_cargo: 3}
+      - {name: "机队20", light_express: 10, standard_cargo: 6, heavy_cargo: 4}
+_preset_key: stress_probe

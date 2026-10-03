@@ -1,0 +1,34 @@
+name: 正式基线 n=10（C-1/C-2/S · paired seeds · zero-wind）
+description: >
+  模型结构冻结后的第一批正式读数。口径依据 docs/模型真实结构修订.md §三：
+  ① 主基线用默认 calm / zero-wind —— K_HEAD/K_TAIL 仍是 assumption、恒定 ±6 m/s 只是敏感性情景，
+     写进主基线会降低可解释性；风留给鲁棒性实验层。
+  ② n=10 是**稳定性检查的起点，不是统计充分性的证明**；若均值/区间仍明显摆动则扩到 20。
+     已知波动：n=2/3 时单格 timeout 可差 0.05–0.12。
+  ③ paired seeds：grid 块同一 repeat 的所有档共用一个 seed ⇒ C-1/C-2/S 与后续四算法比较
+     跑在同一组随机任务流上，而不是各比各的世界。
+  只动实验输入（interval_scale × num_drones），产品模型参数一律不改。
+  preset_key != conclusion ⇒ 双闸门拒写 results/compare/one_click_latest.csv。
+base:
+  seed: 900
+  episode_steps: 3600
+  repeats: 10
+algorithms: [greedy]
+experiments:
+  algorithm_comparison: {enabled: false}
+  task_scale: {enabled: false}
+  task_density: {enabled: false}
+  nest_berths: {enabled: false}
+  fleet_mix: {enabled: false}
+  fleet_size: {enabled: false}
+  grid:
+    enabled: true
+    algorithms: [greedy]
+    repeats: 10
+    axes:
+      - name: fixture
+        values:
+          - {label: "C1", patch: {task_generation: {realistic: {interval_scale: 0.70, total_tasks: 240}}, environment: {num_drones: 6}, heterogeneous: {fleet_mix: {light_express: 3, standard_cargo: 2, heavy_cargo: 1}}}}
+          - {label: "C2", patch: {task_generation: {realistic: {interval_scale: 0.55, total_tasks: 240}}, environment: {num_drones: 4}, heterogeneous: {fleet_mix: {light_express: 2, standard_cargo: 1, heavy_cargo: 1}}}}
+          - {label: "S",  patch: {task_generation: {realistic: {interval_scale: 0.40, total_tasks: 240}}, environment: {num_drones: 4}, heterogeneous: {fleet_mix: {light_express: 2, standard_cargo: 1, heavy_cargo: 1}}}}
+_preset_key: formal_baseline_n10

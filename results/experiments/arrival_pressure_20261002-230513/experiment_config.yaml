@@ -1,0 +1,89 @@
+name: 到达强度 × 机队规模 压力网格（Critical benchmark）
+description: '两轮纠错的产物。第一轮：total_tasks 不能当压力旋钮 —— realistic 模式每次只生成 1 个任务、 平均间隔 40.625
+  步，episode 固定 3600 s ⇒ 实际生成量被到达过程钉在 ~103（理论 100.6 + variance）， 所以 120/150/180/240
+  四档跑的是同一个实验。第二轮：把 task_density 与 fleet_size 写成两个独立块 也得不到网格 —— build_plan 是逐块展开，每格只带一个
+  patch，交叉负载一次都没施加过。 因此本轮走 grid 块：每个 RunSpec 同时带 interval_scale 与 num_drones/fleet_mix
+  两个旋钮。 episode_max_steps 保持 3600；产品模型参数（能耗/载荷惩罚/电池/机型/SLA）一律不动。 横轴记为"到达强度 interval_scale"，不是"任务规模"。
+  KPI 重点：actual_generated / unfinished_at_end / on_time_rate / timeout_rate / mean_delay
+  / battery_swaps / arrival_rate(tasks/min) / 是否撞 horizon。completion_rate 已知不适合当压力判据
+  （分母是已生成数，见 environment.py:840-842）。 preset_key != conclusion ⇒ 双闸门拒绝写 results/compare/one_click_latest.csv。
+
+  '
+base:
+  seed: 900
+  episode_steps: 3600
+  repeats: 2
+algorithms:
+- greedy
+experiments:
+  algorithm_comparison:
+    enabled: false
+  task_scale:
+    enabled: false
+  task_density:
+    enabled: false
+  nest_berths:
+    enabled: false
+  fleet_mix:
+    enabled: false
+  fleet_size:
+    enabled: false
+  grid:
+    enabled: true
+    algorithms:
+    - greedy
+    repeats: 2
+    axes:
+    - name: is
+      values:
+      - label: is1.00
+        patch:
+          task_generation:
+            realistic:
+              interval_scale: 1.0
+              total_tasks: 240
+      - label: is0.85
+        patch:
+          task_generation:
+            realistic:
+              interval_scale: 0.85
+              total_tasks: 240
+      - label: is0.70
+        patch:
+          task_generation:
+            realistic:
+              interval_scale: 0.7
+              total_tasks: 240
+      - label: is0.55
+        patch:
+          task_generation:
+            realistic:
+              interval_scale: 0.55
+              total_tasks: 240
+      - label: is0.40
+        patch:
+          task_generation:
+            realistic:
+              interval_scale: 0.4
+              total_tasks: 240
+    - name: fleet
+      values:
+      - label: f6
+        patch:
+          environment:
+            num_drones: 6
+          heterogeneous:
+            fleet_mix:
+              light_express: 3
+              standard_cargo: 2
+              heavy_cargo: 1
+      - label: f4
+        patch:
+          environment:
+            num_drones: 4
+          heterogeneous:
+            fleet_mix:
+              light_express: 2
+              standard_cargo: 1
+              heavy_cargo: 1
+_preset_key: arrival_pressure

@@ -24,7 +24,7 @@ import time
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Optional
+from typing import Any, Dict, Iterable, List, Optional, Tuple
 
 import yaml
 
@@ -123,6 +123,56 @@ def build_plan(preset: Dict[str, Any]) -> List[RunSpec]:
                     patch=copy.deepcopy(patch),
                 ))
 
+    # 通用网格块：把若干旋钮做笛卡尔积，一次生成"同一 episode 内同时施加多个负载参数"的运行。
+    # 为什么需要它：上面五个块是**逐块独立展开**的，task_density 与 fleet_size 各扫各的，
+    # 交叉出来的 2×5 网格其实一个都没有（每格只带一个 patch）——那正是上一轮 total_tasks
+    # 假标签的同族错误：跑成功了，但量具施加的不是表上写的负载。
+    # axes 每项形如 {name: str, patch: {...}}；标签用 "A×B" 拼接，便于事后按标签复核 patch。
+    sec = experiments.get("grid", {}) or {}
+    if sec.get("enabled", False):
+        axes = sec.get("axes") or []
+        if not axes:
+            raise ValueError("[GRID_AXES_EMPTY] grid.axes 一个都没有 ⇒ 整张网格会消失")
+        # 允许 1 轴：一维情景列表（如 E1 的 wind_along_ms = 0/+3/+6/-3）就是单轴 grid，
+        # 它的价值在于"每格都带完整 patch、标签与 patch 由同一段代码核对"，
+        # 而不是必须凑够两个旋钮。禁止 0 轴即可。
+        for ax in axes:
+            if not (ax.get("values") or []):
+                # 不静默跳过：那会让整张网格凭空消失而计划仍返回成功，
+                # 与本轮已知的"跑成功了但没施加表上负载"同族。
+                raise ValueError("[GRID_AXIS_EMPTY] 轴 %s 的 values 为空 ⇒ 整张网格会消失" % ax.get("name"))
+        combos: List[Tuple[List[str], Dict[str, Any]]] = [([], {})]
+        for ax in axes:
+            label_key = "label"
+            nxt: List[Tuple[List[str], Dict[str, Any]]] = []
+            for labels, acc in combos:
+                for item in ax.get("values", []):
+                    lbl = str(item.get(label_key) if isinstance(item, dict) else item)
+                    patch = item.get("patch") if isinstance(item, dict) else None
+                    if not patch:
+                        raise ValueError("[GRID_PATCH_MISSING] 轴 %s 的值 %s 没带 patch" % (ax.get("name"), lbl))
+                    merged = _deep_merge(copy.deepcopy(acc), copy.deepcopy(patch))
+                    nxt.append((labels + [lbl], merged))
+            combos = nxt
+        repeats = max(1, int(sec.get("repeats", base_repeats)))
+        algs = _as_algorithms(sec, preset)
+        exp_offset = {"algorithm_comparison": 0, "task_scale": 10000, "task_density": 15000,
+                      "nest_berths": 20000, "fleet_mix": 30000}.get("grid", 40000)
+        for rep in range(repeats):
+            seed = base_seed + exp_offset + rep + 1
+            for labels, patch in combos:
+                for alg in algs:
+                    plan.append(RunSpec(
+                        index=len(plan) + 1,
+                        experiment="load_grid",
+                        variable="×".join(str(ax.get("name")) for ax in axes),
+                        value="×".join(labels),
+                        algorithm=alg,
+                        repeat=rep + 1,
+                        seed=seed,
+                        patch=copy.deepcopy(patch),
+                    ))
+
     sec = experiments.get("algorithm_comparison", {}) or {}
     if sec.get("enabled", True):
         add_block("algorithm_comparison", "场景", sec.get("label", "default"), {}, sec)
@@ -168,6 +218,31 @@ def build_plan(preset: Dict[str, Any]) -> List[RunSpec]:
             num = sum(mix.values())
             add_block(
                 "fleet_mix", "异构机队配比", name,
+                {"environment": {"num_drones": num}, "heterogeneous": {"fleet_mix": mix}}, sec,
+            )
+
+    # 机队规模单轴：只按 L:S:H 比例外推到目标总数，不引入新的配比形状。
+    # 与 fleet_mix 的区别是这里横轴是"几架机"，配比只是同一形状的缩放；
+    # 目的是让 interval_scale × fleet_size 能交叉成网格，而不是只能各扫一条轴。
+    sec = experiments.get("fleet_size", {}) or {}
+    if sec.get("enabled", False):
+        ratio = sec.get("ratio") or {"light_express": 5, "standard_cargo": 3, "heavy_cargo": 2}
+        rl, rs, rh = (float(ratio.get("light_express", 5)),
+                      float(ratio.get("standard_cargo", 3)),
+                      float(ratio.get("heavy_cargo", 2)))
+        unit = rl + rs + rh
+        for num in sec.get("values", []):
+            num = int(num)
+            if unit <= 0:
+                raise ValueError(f"[FLEET_RATIO_INVALID] ratio={ratio} 之和为 0，无法缩放到 {num} 架")
+            ml = max(1, round(num * rl / unit))
+            ms = max(0, round(num * rs / unit))
+            mh = max(0, num - ml - ms)          # 余数给重载，保证 sum 恰为 num
+            if mh < 0:
+                ml, mh = ml + mh, 0
+            mix = {"light_express": ml, "standard_cargo": ms, "heavy_cargo": mh}
+            add_block(
+                "fleet_size", "机队规模", num,
                 {"environment": {"num_drones": num}, "heterogeneous": {"fleet_mix": mix}}, sec,
             )
     return plan

@@ -1,0 +1,41 @@
+name: E0 baseline（结构修改前基线 · C-1/C-2 配对 seed）
+description: >
+  E1（风能耗修正）实现**之前**的基线。用途只有一个：以后与 E1 在同一格、同一 seed、同一机队、
+  同一任务流上对撞，使"结果变化"只能归因于 wind-energy 这一条路径。
+  因此这里刻意只跑两个 fixture 档（C-1 primary critical、C-2 high stress），
+  不跑 S（severe 只用于边界检查，不适合精细差分），也不做四算法比较。
+  grid 块保证每格同时带 interval_scale 与 num_drones/fleet_mix —— 上一轮把两轴写成两个独立块时
+  交叉负载一次都没施加过，这是它存在的理由（夹具见 experiments/test_grid.py G5）。
+  repeats=3 而非探索阶段的 2：同格两重复曾差到 0.12（is0.40×f6 超时率 0.398 vs 0.518），
+  3 个 seed 才能给 E0-vs-E1 差分一个可看的波动范围。**注意这仍不是正式基准值**，只是配对基线。
+  preset_key != conclusion ⇒ 双闸门拒写 results/compare/one_click_latest.csv，答辩数据源不动。
+base:
+  seed: 900
+  episode_steps: 3600
+  repeats: 3
+algorithms: [greedy]
+experiments:
+  algorithm_comparison:
+    enabled: false
+  task_scale:
+    enabled: false
+  task_density:
+    enabled: false
+  nest_berths:
+    enabled: false
+  fleet_mix:
+    enabled: false
+  fleet_size:
+    enabled: false
+  grid:
+    enabled: true
+    algorithms: [greedy]
+    repeats: 3
+    axes:
+      - name: fixture
+        values:
+          # C-1 Primary Critical：interval_scale=0.70 × fleet 6（L:S:H = 3:2:1）
+          - {label: "C1", patch: {task_generation: {realistic: {interval_scale: 0.70, total_tasks: 240}}, environment: {num_drones: 6}, heterogeneous: {fleet_mix: {light_express: 3, standard_cargo: 2, heavy_cargo: 1}}}}
+          # C-2 High Stress：interval_scale=0.55 × fleet 4（L:S:H = 2:1:1）
+          - {label: "C2", patch: {task_generation: {realistic: {interval_scale: 0.55, total_tasks: 240}}, environment: {num_drones: 4}, heterogeneous: {fleet_mix: {light_express: 2, standard_cargo: 1, heavy_cargo: 1}}}}
+_preset_key: e0_baseline

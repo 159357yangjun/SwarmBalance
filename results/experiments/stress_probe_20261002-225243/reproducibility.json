@@ -1,0 +1,83 @@
+{
+  "schema_version": 2,
+  "project": "SwarmBalance",
+  "project_version": "1.0.0",
+  "generated_at_utc": "2026-10-03T02:52:43+00:00",
+  "preset": "stress_probe",
+  "plan_count": 22,
+  "algorithms": [
+    "greedy"
+  ],
+  "runtime": {
+    "python": "3.10.11 (tags/v3.10.11:7d4cc5a, Apr  5 2023, 00:38:17) [MSC v.1929 64 bit (AMD64)]",
+    "python_executable": ".venv310/Scripts/python.exe",
+    "platform": "Windows-10-10.0.26200-SP0",
+    "machine": "AMD64",
+    "processor": "AMD64 Family 25 Model 117 Stepping 2, AuthenticAMD"
+  },
+  "packages": {
+    "numpy": "1.26.4",
+    "pandas": "2.2.3",
+    "matplotlib": "3.10.9",
+    "PyYAML": "6.0.3",
+    "networkx": "3.3",
+    "shapely": "2.0.7",
+    "osmnx": "1.9.4",
+    "ortools": "9.14.6206",
+    "fastapi": "0.141.1",
+    "uvicorn": "0.52.4",
+    "pygame": "2.6.1"
+  },
+  "git_commit": "1c790a0dbf9f997fd9ad89218a1c1837f00eed29",
+  "core_source_sha256": {
+    "config/config_loder.py": "f884c247ba97a5df785b540422d996244f27f4e40878b19eef9d0454519b41f1",
+    "frontend/environment.py": "ba1109906f47f3d40c1d2dc8e114e403ba7f6e4e93d15524e04b7993bdf64c2c",
+    "frontend/drone.py": "6ab6ff3321b7921f61cb5b66c733e8a4d7bea2c9b809badc0629543d23cc0d53",
+    "frontend/charging_station.py": "f69c9f0882107dc1d459164d4f8dc7a6d0288b482d98afb980a93c4df435095a",
+    "frontend/task.py": "ca588e4a0958e3d8eb54e799a997f50fbf7cec7f1bdd10f0dc4074233a056c10",
+    "frontend/no_fly_zone.py": "23aaafb12d0915ff6fdfa487697eae7eba6aefbee63cf2d5d1b76011101919d7",
+    "frontend/data_source.py": "e7fd3a461f5bc25f819303258dae9670fc5392afd8a59971f0802cfd43b1cb09",
+    "frontend/seed_interface.py": "1510e25ab4456a0578f5c76f82f87cea821ebbc7688cbce90334d29733150ea4",
+    "frontend/metrics_schema.py": "d039ae2c31091f43391ce8a72fc54e59519783cabb7d648088d33bd65b0c943f",
+    "frontend/scheduling_interface.py": "cb19c1a1917826f0924e710439d4fdf1ea7c927de45d265fb8b9d25032a0ca26",
+    "frontend/matching.py": "0a57823e43efebc9cf4e8842a955af6f54ce62eb3f4f1fdb3f88264c29965108",
+    "frontend/tools/osm.py": "1615128339dc40e44600c664b2af55c70424a7cc774b929356c09c29dfbd8715",
+    "experiments/runner.py": "2a4a4c9adf27f76b120958c341689aabed006a4b747640986bb4b6fbd9b2d391",
+    "experiments/worker.py": "115953a7cbe1fff2ce2b8a643683e3d3eb845cd8164da851fe0e8a565383c576",
+    "frontend/greedy/__init__.py": "079e031154d4c4af3bf0267bc858b61a9c40602219c573a39b0d47886b36cea1",
+    "frontend/greedy/scheduler.py": "71a7d4a7e58ad46fad3d84cffea14025b108a105d74a1a21a24f146e819fa596"
+  },
+  "algorithm_source_files": {
+    "greedy": [
+      "frontend/greedy/__init__.py",
+      "frontend/greedy/scheduler.py"
+    ]
+  },
+  "inputs": {
+    "preset": {
+      "path": "experiments/presets/stress_probe.yaml",
+      "sha256": "7dd413a562d8c4ff23b96d1cd626f5db694089d2f71c1a37da690fe25bdeaddd"
+    },
+    "simulation_config": {
+      "path": "config/simulation.json",
+      "sha256": "8a2f254c5cbe4c57b4cca2a857c0755f41b62fce71114b3ad64aa40fc7b465cb"
+    },
+    "algorithm_config": {
+      "path": "backend_si/config.yaml",
+      "sha256": "14cec500ec4060148cef9a653ee34b3ab2cd445a05093799b00ebcefe8f9caa1"
+    },
+    "osm": {
+      "path": "frontend/data/map/part_of_yangpu.osm",
+      "sha256": "72c3ef9ca19c804387bc2985d3a2dd76a772fc28fc9add8872b003419e78a65b"
+    }
+  },
+  "environment_flags": {
+    "SWARM_BALANCE_SIM_CONFIG": null
+  },
+  "notes": [
+    "同一实验条件下不同算法使用相同 Seed。",
+    "每个 episode 使用独立 simulation.json 副本并在独立子进程执行。",
+    "该清单用于复现实验环境，不代表结果具有统计显著性。",
+    "schema v2 起按算法登记实现源码哈希（见 algorithm_source_files）；v1 清单只覆盖 GA 相关源码，PSO/OR-Tools/greedy 三行没有源码证据。"
+  ]
+}
