@@ -82,6 +82,15 @@ def _path_clear_prune(keep: str) -> None:
 
 CFG = get_shared_config()
 ENV_CFG = CFG.get("environment", {})
+
+# ==================== E1：实验风场（情景输入，非真实逐小时风）====================
+# 语义：`wind_u / wind_v` 是**空气实际吹向的方向**（气象惯例，m/s），与航向单位向量点积为正
+#       ⇒ 顺风；drone._wind_along_for 显式取负号，使内部约定 `wind_along>0 = 逆风`。
+# 默认 (0.0, 0.0) ⇒ 静风 ⇒ 整条风能耗路径乘 1.0 ⇒ **必须与 E0 逐 run 相同**（等价门）。
+# 只从配置读取、不写回：正式结项参数不受影响，风是每格 patch 的实验输入。
+_WIND_CFG = CFG.get("wind", {}) or {}
+WIND_U_DEFAULT = float(_WIND_CFG.get("u_ms", 0.0))
+WIND_V_DEFAULT = float(_WIND_CFG.get("v_ms", 0.0))
 DRONE_CFG = CFG.get("drone", {})
 HETERO_CFG = CFG.get("heterogeneous", {})
 FLEET_MIX = HETERO_CFG.get("fleet_mix", {})
@@ -151,6 +160,10 @@ class Environment:
     _PATH_CLEAR_CACHE_MAX = 400000
 
     def __init__(self, osm_file_path, episode_max_steps=DEFAULT_EPISODE_MAX_STEPS, data_source=None):
+        # E1 风场实例级：默认取配置（缺省即静风），可在 reset 前逐实验覆盖 self.wind_u/self.wind_v。
+        # 必须早于 _build_charging_stations/_build_drones —— 后者会把风注入每架机。
+        self.wind_u = WIND_U_DEFAULT
+        self.wind_v = WIND_V_DEFAULT
         roads_by_type, buildings_with_height = load_map_data(osm_file_path)
         # 全量建筑与道路：供控制台渲染"真实城市"肌理（此前只暴露高度>20 的高楼）
         self.roads_by_type = roads_by_type
@@ -318,6 +331,10 @@ class Environment:
             ]
         for d in drones:
             d.known_stations = self.charging_stations
+            # E1：Environment 只**注入**风场，不计算任何能耗 —— 账本真源仍是 drone.consume_battery，
+            # 航向投影仍由 drone.update() 现算（所以同一架机向东/向西飞会自动得到反号分量）。
+            # 未配置 wind ⇒ (0,0) ⇒ _wind_along_for 返回 None ⇒ 倍率 1.0 ⇒ 与 E0 逐字一致。
+            d.set_wind(wind_u=self.wind_u, wind_v=self.wind_v)
         return drones
 
     def get_global_bounds(self):

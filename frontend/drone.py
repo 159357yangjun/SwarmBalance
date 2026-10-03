@@ -25,6 +25,19 @@ DRONE_TIME_STEP = STEP_SECONDS
 DRONE_SWAP_TIME = float(_DRONE_CFG.get("swap_time_seconds", 180))
 DEFAULT_CARRYING_CAPACITY = float(_DRONE_CFG.get("carrying_capacity", 5))
 
+# ==================== E1：风能耗修正（情景系数，非实测）====================
+# 三个 K 与上下界**默认全为中性值** ⇒ 未显式开风时，E1 的 consume_battery 逐字等于 E0。
+# 这是刻意的：正式默认参数不许被这轮结构扩展改动（用户约束）。风只作为实验情景输入存在。
+# 依据缺口：K_HEAD / K_TAIL 无厂商公布、无实机日志可拟合 ⇒ 登记为 assumption（见 docs/数据统计总表.md §E）。
+_WIND_CFG = _DRONE_CFG.get("wind_energy", {}) or {}
+WIND_ENABLED = bool(_WIND_CFG.get("enabled", False))
+WIND_ENERGY_HEADWIND_PER_MS = float(_WIND_CFG.get("headwind_per_ms", 0.0))
+WIND_ENERGY_TAILWIND_PER_MS = float(_WIND_CFG.get("tailwind_per_ms", 0.0))
+WIND_FACTOR_FLOOR = float(_WIND_CFG.get("factor_floor", 0.5))
+WIND_FACTOR_CEIL = float(_WIND_CFG.get("factor_ceil", 3.0))
+# 沿航线分量的求法：本步位移方向与风向单位向量的点积 ⇒ 逆风为正。
+# 风场是"每步查询一次"的环境量，由 Environment 通过 set_wind() 注入；未注入即静风。
+
 
 def resolve_drone_type(drone_type):
     """从配置读取机型参数，未知或禁用异构时返回 None（走默认参数）。"""
@@ -59,6 +72,9 @@ class Drone:
         self.x = x
         self.y = y
         self.drone_id = drone_id
+        # E1 风能耗：风场由 Environment 注入（set_wind），本步沿航线分量在 update() 里现算。
+        # 未注入 ⇒ _wind_uv 为 None ⇒ _wind_factor 返回 1.0 ⇒ 与 E0 逐字一致。
+        self._wind_uv = None
         self.home_position = (x, y)  # 记录出发点位置（用于返回装货）
         
         # 载重信息
@@ -105,25 +121,78 @@ class Drone:
         """检查是否低电量"""
         return self.get_battery_level() < threshold
     
-    def consume_battery(self, distance):
+    def set_wind(self, wind_u=None, wind_v=None):
+        """注入风场（世界坐标下的两个分量，m/s）。None ⇒ 静风 ⇒ E1 退回 E0。
+
+        约定：风向量是"风吹往的方向"（气象惯例），因此向东吹的风 wind_u>0；
+        无人机向东飞时与该向量同向 ⇒ 顺风 ⇒ `wind_along` 取负。
+        """
+        self._wind_uv = (None if wind_u is None or wind_v is None
+                         else (float(wind_u), float(wind_v)))
+
+    def _wind_along_for(self, dx, dy, distance):
+        """本步位移方向上的风分量，**正=逆风、负=顺风**。未设风场或零位移 ⇒ None（倍率 1.0）。
+
+        注意这里**不看 WIND_ENABLED**：分量是几何量，只要注入了风就该算得出来，
+        否则"开关关着"会让符号约定无法被单测验证（第一版就因此报了三条 TypeError ——
+        那是量具错，不是被测对象错）。开关只在 `_wind_factor` 里生效。
+        """
+        uv = getattr(self, "_wind_uv", None)
+        if uv is None:
+            return None
+        if distance <= 0:
+            return None
+        # 单位位移向量 · 风速向量的相反数 = 逆风为正的分量
+        return -(uv[0] * (dx / distance) + uv[1] * (dy / distance))
+
+    def consume_battery(self, distance, wind_along=None):
         """
         消耗电量
         
         消耗公式：
-            总消耗 = 基础消耗 × (1 + 载重惩罚)
+            总消耗 = 基础消耗 × (1 + 载重惩罚) × 风能耗倍率
             其中 载重惩罚 = (current_load / carrying_capacity) × LOAD_PENALTY_FACTOR
+                 风能耗倍率 = _wind_factor(wind_along)
+
+        `wind_along` 是**沿航线方向的风分量（m/s）**，符号约定：**正=逆风、负=顺风**。
+        它是 E1（能耗结构扩展）新增的唯一自由度：不改位移、不改速度、不改任务生成，
+        因此 E0→E1 的结果差异只能归因于"同一段路更费电"这一条路径。
+        默认 None ⇒ 逐字退回 E0 行为（倍率恒 1.0），这是 wind=0 必须与 E0 数值一致的前提。
         """
         # 基础飞行消耗
         base_consumption = distance * self.battery_consumption_base
         
         # 载重影响
         load_factor = (self.current_load / self.carrying_capacity) * self.battery_load_penalty_factor
-        total_consumption = base_consumption * (1 + load_factor)
+        total_consumption = base_consumption * (1 + load_factor) * self._wind_factor(wind_along)
         
         # 更新电量（不能低于0）
         self.current_battery = max(0, self.current_battery - total_consumption)
         
         return total_consumption
+
+    def _wind_factor(self, wind_along):
+        """沿航线风分量（m/s，**正=逆风、负=顺风**）→ 能耗倍率。
+
+        形状：`factor = 1 + K_HEAD·w`（w>0 逆风 ⇒ 更费电）；`factor = 1 − K_TAIL·|w|`（顺风 ⇒ 省电），
+        再夹在 `[WIND_FACTOR_FLOOR, WIND_FACTOR_CEIL]` 内。三条纪律：
+          · 下界 > 0 ⇒ 顺风不可能出现负能耗或"给电池充电"；
+          · 上界有限 ⇒ 极端风输入被截断，而不是把电量一次掏空；
+          · K_TAIL < K_HEAD ⇒ 顺风省的少于逆风亏的，不给调度器留"永远等顺风"的作弊面。
+        不做 v_air² 二次律：那需要空速/地速分离，属 E2（运动学层），本轮禁止混入。
+        K 与上下界都是**情景系数，无实测来源（assumption）**；K 取 0 ⇒ 完全退回 E0。
+        """
+        if wind_along is None:
+            return 1.0
+        if not WIND_ENABLED:
+            # 开关只作用在倍率层：风场可以照常注入与计算，但不产生任何能耗影响 ⇒ 退回 E0。
+            return 1.0
+        w = float(wind_along)
+        if not math.isfinite(w):
+            raise ValueError("[WIND_INPUT_NOT_FINITE] wind_along=%r" % (wind_along,))
+        if w >= 0.0:
+            return min(WIND_FACTOR_CEIL, 1.0 + WIND_ENERGY_HEADWIND_PER_MS * w)
+        return max(WIND_FACTOR_FLOOR, 1.0 - WIND_ENERGY_TAILWIND_PER_MS * (-w))
     
     def start_charging(self, station_id, charging_power=None, swap_time_seconds=None):
         """在机巢开始换电（降落整组更换电池，非慢充）。
@@ -241,12 +310,16 @@ class Drone:
             # Calculate distance to target
             distance = (dx**2 + dy**2)**0.5
 
+            # E1：本步的沿航线风分量（正=逆风）。方向用"本步实际位移方向"，
+            # 顺风/逆风因此随航段自动变号 —— 这是 wind_along 必须是分量而非幅值的原因。
+            wind_along = self._wind_along_for(dx, dy, distance)
+
             if distance <= max_distance:
                 # If we're close enough to target, move directly to it
                 self.x = target_x
                 self.y = target_y
                 # 到达目标，消耗电量
-                self.consume_battery(distance)
+                self.consume_battery(distance, wind_along)
                 # Remove this target from schedule as we've reached it
                 self.scheduled_position.pop(0)
                 if not self.scheduled_position:
@@ -286,7 +359,7 @@ class Drone:
                 self.x += (dx / distance) * actual_distance
                 self.y += (dy / distance) * actual_distance
                 # 飞行消耗电量
-                self.consume_battery(actual_distance)
+                self.consume_battery(actual_distance, wind_along)
 
     def get_position(self):
         return (self.x, self.y)

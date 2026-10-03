@@ -1,0 +1,35 @@
+name: E1 风能耗对撞（C-1/C-2 × 静风/逆风/顺风）
+description: >
+  与 e0_baseline **完全相同的 fixture、相同的 seed**，唯一差别是每格多带一个 wind 情景。
+  三档：calm(u=v=0)、head(+6,0)、tail(-6,0) —— 注意 wind_u 是"空气吹向的方向"，
+  所以向东飞的航线遇到 u=+6 是顺风；这里用同一支东风让不同航段自然出现顺/逆混合，
+  因此读数解释要说清"整条航线上的净效应"，不是单段逆风。
+  K_HEAD/K_TAIL 由 config 的 wind_energy 提供 ⇒ 但正式 config 不许有它，
+  所以本预设把系数也放进 patch（每格自带），保持"实验输入"而非"产品参数"。
+base:
+  seed: 900
+  episode_steps: 3600
+  repeats: 3
+algorithms: [greedy]
+experiments:
+  algorithm_comparison: {enabled: false}
+  task_scale: {enabled: false}
+  task_density: {enabled: false}
+  nest_berths: {enabled: false}
+  fleet_mix: {enabled: false}
+  fleet_size: {enabled: false}
+  grid:
+    enabled: true
+    algorithms: [greedy]
+    repeats: 3
+    axes:
+      - name: fixture
+        values:
+          - {label: "C1", patch: {task_generation: {realistic: {interval_scale: 0.70, total_tasks: 240}}, environment: {num_drones: 6}, heterogeneous: {fleet_mix: {light_express: 3, standard_cargo: 2, heavy_cargo: 1}}}}
+          - {label: "C2", patch: {task_generation: {realistic: {interval_scale: 0.55, total_tasks: 240}}, environment: {num_drones: 4}, heterogeneous: {fleet_mix: {light_express: 2, standard_cargo: 1, heavy_cargo: 1}}}}
+      - name: wind
+        values:
+          - {label: "calm", patch: {drone: {wind_energy: {enabled: true, headwind_per_ms: 0.05, tailwind_per_ms: 0.03}}, wind: {u_ms: 0.0, v_ms: 0.0}}}
+          - {label: "east6", patch: {drone: {wind_energy: {enabled: true, headwind_per_ms: 0.05, tailwind_per_ms: 0.03}}, wind: {u_ms: 6.0, v_ms: 0.0}}}
+          - {label: "west6", patch: {drone: {wind_energy: {enabled: true, headwind_per_ms: 0.05, tailwind_per_ms: 0.03}}, wind: {u_ms: -6.0, v_ms: 0.0}}}
+_preset_key: e1_wind_clash
