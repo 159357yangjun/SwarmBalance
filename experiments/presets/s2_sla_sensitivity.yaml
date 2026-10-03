@@ -1,0 +1,62 @@
+name: S2 SLA 敏感性（Loose/Current/Strict × C-1/C-2 · greedy · paired seeds）
+description: >
+  本轮最关键的判别**不是**"超时率会不会变"（几乎必然变），而是：
+  SLA 改变的是评价口径，还是连实际调度行为也改变了。
+
+  消费链（由 console/test_sla_consumption_gate.py 钉成可红断言，行号为实测）：
+    生成  frontend/task.py:369-370 读两系数；:520-527 deadline = distance/ref_speed + base + kg*per_kg
+          frontend/environment.py:1297、frontend/task.py:549 两处写入 task.deadline
+    统计  frontend/environment.py:391-393 delay = max(0, completion - deadline) → on_time/超时率
+    决策  frontend/environment.py:1503-1512 _obs() 暴露 ttlj → frontend/greedy/scheduler.py:174 读出
+          → :180-186 传 compute_match → frontend/matching.py:34-46 urgency = 1 - remaining_time/300
+    不进决策  run_ga/run_pso/run_ortools/scheduling_interface 的 deadline 引用数 = 0；
+          overdue_penalty 只在 _reward() 内（MARL 已撤除）；matching 无 SLA 系数引用。
+  ⇒ 先验结论：SLA 同时是【评价口径】和【贪心的软偏好】，不是纯及格线。本预设用来量化后者有多强。
+
+  三档成套等比缩放（0.9×、1.0×、0.7× 的 base 与 per_kg 同向），不自由组合大网格：
+  base 与 per_kg 各自独立变化会让"哪个系数起作用"无法归因。
+  这三档是**情景档位**，不是行业真实值——没有任何外部依据支持 420/24 或它的邻域。
+
+  预期（预先写下，避免事后按读数编解释）：
+    - timeout_rate / on_time：必然大幅变化（定义里就含 deadline）；
+    - completion_rate / unfinished / total_distance / total_energy：若基本不动 ⇒ SLA 主要是评价参数；
+      若明显动 ⇒ 经 speed_match 的 urgency 通道确实在改派单，SLA 是行为参数。
+  注意本模型没有"按时限拒单"的硬约束（贪心的 -inf 只来自容量），所以行为影响只能来自打分排序。
+base:
+  seed: 900
+  episode_steps: 3600
+  repeats: 5
+algorithms: [greedy]
+experiments:
+  algorithm_comparison:
+    enabled: false
+  task_scale:
+    enabled: false
+  task_density:
+    enabled: false
+  nest_berths:
+    enabled: false
+  fleet_mix:
+    enabled: false
+  fleet_size:
+    enabled: false
+  grid:
+    enabled: true
+    algorithms: [greedy]
+    repeats: 5
+    axes:
+      - name: sla_scenario
+        values:
+          - label: "Loose"
+            patch: {task: {sla_base_seconds: 540, sla_per_kg_seconds: 30}}
+          - label: "Current"
+            patch: {task: {sla_base_seconds: 420, sla_per_kg_seconds: 24}}
+          - label: "Strict"
+            patch: {task: {sla_base_seconds: 300, sla_per_kg_seconds: 18}}
+      - name: fixture
+        values:
+          # C-1 Primary Critical（与 e0_baseline / formal_baseline_n10 / S1 同定义）
+          - {label: "C1", patch: {task_generation: {realistic: {interval_scale: 0.70, total_tasks: 240}}, environment: {num_drones: 6}, heterogeneous: {fleet_mix: {light_express: 3, standard_cargo: 2, heavy_cargo: 1}}}}
+          # C-2 High Stress
+          - {label: "C2", patch: {task_generation: {realistic: {interval_scale: 0.55, total_tasks: 240}}, environment: {num_drones: 4}, heterogeneous: {fleet_mix: {light_express: 2, standard_cargo: 1, heavy_cargo: 1}}}}
+_preset_key: s2_sla_sensitivity
