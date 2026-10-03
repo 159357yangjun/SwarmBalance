@@ -1,0 +1,250 @@
+{
+  "environment": {
+    "episode_max_steps": 3600,
+    "num_drones": 4,
+    "print_route_debug": false,
+    "allow_multi_task": true,
+    "max_obs_tasks": 60,
+    "multi_task_max_total_weight": 30.0,
+    "greedy": {
+      "max_assignments_per_step": 12,
+      "candidate_limit": 60,
+      "accept_probability": 1.0,
+      "min_battery_ratio": 0.0,
+      "max_active_drones_ratio": 1.0,
+      "match_weight": 0.6,
+      "distance_weight": 0.4
+    },
+    "reward_step": -0.01,
+    "reward_priority_1": 100.0,
+    "reward_priority_2": 150.0,
+    "reward_priority_3": 200.0,
+    "penalty_late_rate": -0.01,
+    "overdue_initial_penalty": -30.0,
+    "overdue_step_penalty": -0.1,
+    "priority_delay_penalty_weight_1": 1.0,
+    "priority_delay_penalty_weight_2": 1.5,
+    "priority_delay_penalty_weight_3": 2.2
+  },
+  "task_generation": {
+    "mode": "realistic",
+    "same_source_prob": 0.3,
+    "constant": {
+      "max_unassigned_tasks": 5,
+      "initial_task_count": 5
+    },
+    "realistic": {
+      "total_tasks": 240,
+      "initial_task_count": 12,
+      "peak_steps_per_task": 20,
+      "off_peak_steps_per_task": 45,
+      "peak_probability": 0.7,
+      "cycle_length": 1200,
+      "interval_scale": 0.55,
+      "interval_variance_ratio": 0.2,
+      "hotspot": {
+        "enabled": true,
+        "probability": 0.6,
+        "radius": 80,
+        "centers": [
+          [
+            359190.428233,
+            3462301.042575
+          ],
+          [
+            358744.300499,
+            3462283.547369
+          ]
+        ]
+      }
+    }
+  },
+  "task": {
+    "positions_file": "../config/positions.json",
+    "weight_min": 1,
+    "weight_max": 25,
+    "volume_min": 0,
+    "volume_max": 3,
+    "priority_min": 1,
+    "priority_max": 3,
+    "deadline_offset_min": 900,
+    "deadline_offset_max": 3600,
+    "warehouse_pos": [
+      357600.574872369,
+      3462308.772003661
+    ],
+    "weight_brackets": [
+      {
+        "min": 1,
+        "max": 2,
+        "probability": 0.55,
+        "note": "外卖/小件包裹（轻载通用配置档）"
+      },
+      {
+        "min": 3,
+        "max": 10,
+        "probability": 0.35,
+        "note": "标准快递包裹（中载通用配置档）"
+      },
+      {
+        "min": 11,
+        "max": 25,
+        "probability": 0.1,
+        "note": "重货/应急物资（DJI FlyCart 30 重载档）"
+      }
+    ],
+    "sla_reference_speed": 14.0,
+    "sla_base_seconds": 420,
+    "sla_per_kg_seconds": 24
+  },
+  "heterogeneous": {
+    "enabled": true,
+    "fleet_mix": {
+      "light_express": 2,
+      "standard_cargo": 1,
+      "heavy_cargo": 1
+    },
+    "drone_types": {
+      "light_express": {
+        "name": "轻载快递型",
+        "model": "轻载通用配置档｜电池与能耗为情景参数，无厂商机型对应",
+        "speed": 20.0,
+        "carrying_capacity": 2.4,
+        "battery_capacity": 380.0,
+        "battery_consumption_base": 0.032,
+        "battery_load_penalty_factor": 0.19,
+        "full_load_range_km": 10.0
+      },
+      "standard_cargo": {
+        "name": "标准货运型",
+        "model": "中载通用配置档｜电池与能耗为情景参数，无厂商机型对应",
+        "speed": 14.0,
+        "carrying_capacity": 10.0,
+        "battery_capacity": 1600.0,
+        "battery_consumption_base": 0.06,
+        "battery_load_penalty_factor": 0.33,
+        "full_load_range_km": 20.0
+      },
+      "heavy_cargo": {
+        "name": "重载运输型",
+        "model": "DJI FlyCart 30｜官方规格锚点；能耗参数由官方电池与航程派生",
+        "speed": 20.0,
+        "carrying_capacity": 30.0,
+        "battery_capacity": 3968.8,
+        "battery_consumption_base": 0.142,
+        "battery_load_penalty_factor": 0.75,
+        "full_load_range_km": 16.0
+      }
+    }
+  },
+  "charging_stations": [
+    {
+      "station_id": 0,
+      "x": 357600.0,
+      "y": 3462308.0,
+      "swap_time_seconds": 300
+    },
+    {
+      "station_id": 1,
+      "x": 358744.0,
+      "y": 3462283.0,
+      "swap_time_seconds": 300
+    },
+    {
+      "station_id": 2,
+      "x": 359190.0,
+      "y": 3462301.0,
+      "swap_time_seconds": 300
+    },
+    {
+      "station_id": 3,
+      "x": 359365.0,
+      "y": 3463070.0,
+      "swap_time_seconds": 300
+    },
+    {
+      "station_id": 4,
+      "x": 358639.0,
+      "y": 3462878.0,
+      "swap_time_seconds": 300
+    }
+  ],
+  "nest": {
+    "berths": 2,
+    "arbitration_policy": "priority",
+    "arbitration_weight_battery": 1.0,
+    "arbitration_weight_wait": 0.1,
+    "arbitration_weight_urgency": 1.0,
+    "swap_time_seconds": 300
+  },
+  "no_fly_zones": {
+    "enabled": true,
+    "reserve_margin_m": 15.0,
+    "zones": [
+      {
+        "name": "医院应急通道",
+        "type": "circle",
+        "center": [
+          358300.0,
+          3462500.0
+        ],
+        "radius": 150.0,
+        "enabled": true
+      },
+      {
+        "name": "管制空域A",
+        "type": "polygon",
+        "points": [
+          [
+            358950.0,
+            3462750.0
+          ],
+          [
+            359150.0,
+            3462750.0
+          ],
+          [
+            359150.0,
+            3462950.0
+          ],
+          [
+            358950.0,
+            3462950.0
+          ]
+        ],
+        "enabled": true
+      }
+    ]
+  },
+  "task_chain": {
+    "enabled": true,
+    "max_chain_tasks": 3,
+    "max_detour_m": 1500.0,
+    "battery_reserve_ratio": 0.15,
+    "require_same_source": false
+  },
+  "drone": {
+    "battery_capacity": 1600.0,
+    "battery_consumption_base": 0.06,
+    "battery_load_penalty_factor": 0.33,
+    "battery_low_threshold": 0.2,
+    "speed": 17.0,
+    "time_step": 1.0,
+    "carrying_capacity": 10.0,
+    "swap_time_seconds": 300
+  },
+  "data_source": {
+    "type": "random",
+    "csv": {
+      "drones_file": "../config/import/drones.csv",
+      "nests_file": "../config/import/nests.csv",
+      "tasks_file": "../config/import/tasks.csv"
+    },
+    "geojson": {
+      "file": "../config/import/scene.geojson"
+    }
+  },
+  "metrics": {
+    "compare_dir": "results/compare"
+  }
+}

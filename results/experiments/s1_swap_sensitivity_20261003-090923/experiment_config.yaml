@@ -1,0 +1,149 @@
+name: S1 换电时间敏感性（swap_time 60/180/300 × C-1/C-2 · greedy · paired seeds）
+description: "本轮目标**不是**\"找一个更真实的 180 秒\"，而是回答：换电时长在合理区间内变化时， 核心结论会不会翻转。因此这里固定 SLA、模型、算法与\
+  \ paired seeds，只扫一个轴。\n为什么每档要把 5 个 station 全写出来：`config/simulation.json` 的 swap_time_seconds\
+  \ 出现在 5 个 charging_stations + nest + drone 共 7 处；运行时真正生效的是 station 值 （frontend/environment.py:816\
+  \ 把 st.swap_time_seconds 传给 start_charging， frontend/drone.py:206-208 用它覆盖 swap_remaining_steps）。而\
+  \ experiments/runner.py:58 的 _deep_merge 只对 dict 递归、对 list 是**整体替换** ⇒ 想改 station\
+  \ 数组就必须整份重写， 不能只写一个元素（那样会静默丢掉其余 4 站）。坐标沿用主配置原值，只有 swap 变。 半生效 patch 由 console/test_swap_time_gate.py\
+  \ 拦（含\"只改 station\"变异面，实测会红）。\n为什么每格必须独立子进程：frontend/drone.py:25 的 DRONE_SWAP_TIME\
+  \ 是模块级常量， import 时求值 ⇒ 同进程重导入也吃不到新值（该冻结由 test_swap_time_gate 的子进程探针钉住）。\n刻意不扫 SLA：两个假设参数一起动，KPI\
+  \ 变了无法归因。S2 单独扫 SLA。 算法固定 greedy：第一轮判\"假设参数是否影响系统\"，不做算法比较。 fixture 用 C-1/C-2，不用\
+  \ S（severe 只用于边界检查，不适合精细差分）。\n行为合理性预期（先写下，避免事后按读数编解释）：\n  - total_energy 不应随换电变慢而大幅上升——换电动作本身不吃能量；若明显变化，\n\
+  \    只能经由\"等待→任务重分配→实际飞行量变化\"这条间接路径；\n  - 平均时延 / 超时率 / 未完成任务 应对 swap_time 明显敏感（机巢占用更久→可用运力下降）。\n"
+base:
+  seed: 900
+  episode_steps: 3600
+  repeats: 5
+algorithms:
+- greedy
+experiments:
+  algorithm_comparison:
+    enabled: false
+  task_scale:
+    enabled: false
+  task_density:
+    enabled: false
+  nest_berths:
+    enabled: false
+  fleet_mix:
+    enabled: false
+  fleet_size:
+    enabled: false
+  grid:
+    enabled: true
+    algorithms:
+    - greedy
+    repeats: 5
+    axes:
+    - name: swap_scenario
+      values:
+      - label: swap60
+        patch:
+          charging_stations:
+          - station_id: 0
+            x: 357600.0
+            y: 3462308.0
+            swap_time_seconds: 60
+          - station_id: 1
+            x: 358744.0
+            y: 3462283.0
+            swap_time_seconds: 60
+          - station_id: 2
+            x: 359190.0
+            y: 3462301.0
+            swap_time_seconds: 60
+          - station_id: 3
+            x: 359365.0
+            y: 3463070.0
+            swap_time_seconds: 60
+          - station_id: 4
+            x: 358639.0
+            y: 3462878.0
+            swap_time_seconds: 60
+          nest:
+            swap_time_seconds: 60
+          drone:
+            swap_time_seconds: 60
+      - label: swap180
+        patch:
+          charging_stations:
+          - station_id: 0
+            x: 357600.0
+            y: 3462308.0
+            swap_time_seconds: 180
+          - station_id: 1
+            x: 358744.0
+            y: 3462283.0
+            swap_time_seconds: 180
+          - station_id: 2
+            x: 359190.0
+            y: 3462301.0
+            swap_time_seconds: 180
+          - station_id: 3
+            x: 359365.0
+            y: 3463070.0
+            swap_time_seconds: 180
+          - station_id: 4
+            x: 358639.0
+            y: 3462878.0
+            swap_time_seconds: 180
+          nest:
+            swap_time_seconds: 180
+          drone:
+            swap_time_seconds: 180
+      - label: swap300
+        patch:
+          charging_stations:
+          - station_id: 0
+            x: 357600.0
+            y: 3462308.0
+            swap_time_seconds: 300
+          - station_id: 1
+            x: 358744.0
+            y: 3462283.0
+            swap_time_seconds: 300
+          - station_id: 2
+            x: 359190.0
+            y: 3462301.0
+            swap_time_seconds: 300
+          - station_id: 3
+            x: 359365.0
+            y: 3463070.0
+            swap_time_seconds: 300
+          - station_id: 4
+            x: 358639.0
+            y: 3462878.0
+            swap_time_seconds: 300
+          nest:
+            swap_time_seconds: 300
+          drone:
+            swap_time_seconds: 300
+    - name: fixture
+      values:
+      - label: C1
+        patch:
+          task_generation:
+            realistic:
+              interval_scale: 0.7
+              total_tasks: 240
+          environment:
+            num_drones: 6
+          heterogeneous:
+            fleet_mix:
+              light_express: 3
+              standard_cargo: 2
+              heavy_cargo: 1
+      - label: C2
+        patch:
+          task_generation:
+            realistic:
+              interval_scale: 0.55
+              total_tasks: 240
+          environment:
+            num_drones: 4
+          heterogeneous:
+            fleet_mix:
+              light_express: 2
+              standard_cargo: 1
+              heavy_cargo: 1
+_preset_key: s1_swap_sensitivity
