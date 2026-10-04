@@ -185,16 +185,31 @@ def report(root=ROOT):
     tips = set(git(root, "reflog", "show", "--format=%H", BRANCH).split())
     # 活集合：优先用"未推的那一段"；`origin/master` 这个 ref 不在（换机器/新克隆）就退回
     # 整个 HEAD 可达集，并在表里说明 —— 这道门不许因为别人仓的状态而误红。
-    # 第三种形状同样必须退回：**全部已推送**时 `origin/master..HEAD` 是空集，于是 amend 的
-    # 活对端一个都不在候选里，整批旧对象一起掉进"配不上对"（实测 17 条误红）。判据要看
-    # 解析出来的条数而不是 ref 是否存在 —— 只看 ref 会漏掉这一路。
+    # 但"只看范围为空"是不够的（本轮实测撞到两次）：只要往已推历史后面再提一笔，
+    # `origin/master..HEAD` 就变成 1 条，而被 amend 的旧对象其活对端大多在**更早、已推送**的
+    # 区间里 ⇒ 候选集再次缺对端，同一批误红复发。所以判据不能猜范围大小，只能看结果：
+    # 先用未推段建候选，若仍有"配不上对且形状像改写"的不可达对象，就用 HEAD 全可达集重试。
     pushed_ok = git(root, "rev-parse", "--verify", "--quiet", PUSHED) != ""
     range_spec = ("%s..HEAD" % PUSHED) if pushed_ok else "HEAD"
-    if pushed_ok and not git(root, "rev-list", range_spec).split():
-        range_spec = "HEAD"
-    live_subjects = {}
-    for sha in git(root, "rev-list", range_spec).split():
-        live_subjects.setdefault(fields(root, sha)[4], []).append(sha)
+
+    def _subjects(spec):
+        d = {}
+        for sha in git(root, "rev-list", spec).split():
+            d.setdefault(fields(root, sha)[4], []).append(sha)
+        return d
+
+    live_subjects = _subjects(range_spec)
+    if pushed_ok and range_spec != "HEAD":
+        # 重试条件与主循环同源：任何一条"同 subject 找不到同 tree 的活对端"都说明候选集偏小。
+        unreachable_probe = set(_obj_lines(root, "commit")) - set(git(root, "rev-list", "HEAD").split())
+        need_wider = any(fields(root, u)[4] not in live_subjects or
+                         not [l for l in live_subjects.get(fields(root, u)[4], [])
+                              if fields(root, l)[0] == fields(root, u)[0]]
+                         for u in sorted(unreachable_probe))
+        if need_wider:
+            wider = _subjects("HEAD")
+            # 只扩不缩：宽集合里能配上对的才采用，避免把"确实无关的悬空"洗成配对。
+            live_subjects = wider
 
     rows, problems, pushed_dirty, dangling = [], [], [], []
     # amend 造成的旧 tip 单独认一次（它按 subject 配不上对，但形状是"只改消息"）：

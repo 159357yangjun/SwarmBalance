@@ -83,7 +83,12 @@ REMOVED = re.compile(r"已移除@([0-9a-f]{7,40})")
 # 它在任何修订里都不是那行（真正那行在 66016b7^ 的 :268）。
 OBSOLETE = re.compile(r"已失效@([0-9a-f]{7,40})")
 
-DEFAULT_DOCS = ("docs/数据来源与可追溯性登记表.md", "README.md")
+# 扫描范围必须显式声明并随文档增长而扩：总纲是本项目 path:line 引用最密集的一份
+# （39 条），此前不在清单内 ⇒ 它一直"没被扫"而不是"扫过且通过"。本轮把它纳入时，
+# 门当场抓到 4 条 `greedy/scheduler.py` 缺 `frontend/` 前缀的错引用 —— 也就是说
+# 不纳入就是让最容易腐烂的那份文档享受零检查。
+DEFAULT_DOCS = ("docs/数据来源与可追溯性登记表.md", "README.md",
+                "docs/SwarmBalance总体架构与真实性演进总纲.md")
 
 
 def ranges(spec: str):

@@ -31,12 +31,12 @@
 | 动态任务到达 | **已实现** | `frontend/environment.py:293-301` |
 | OSM 建筑与路网 | **已实现（内容 A / 溯源 E）** | `frontend/data/map/part_of_yangpu.osm`，SHA-256 见 `data/provenance/osm_census.csv` |
 | 风场输入 | **已实现（接口 A / 换算 C）** | Open-Meteo 1008 小时逐时，请求 URL 可重放 |
-| 能耗模型 | **部分实现** | `drone.py:148-172` 距离×基础率×(1+载重惩罚)×风倍率；系数分级见 `data/provenance/parameters.csv`（heavy=A/C，light/standard=D） |
-| 绕障路径规划（A* + 可见图） | **已实现** | `environment.py:1842-1945`，生产派单经 `:1072` 调用 |
+| 能耗模型 | **部分实现** | `frontend/drone.py:148-172` 距离×基础率×(1+载重惩罚)×风倍率；系数分级见 `data/provenance/parameters.csv`（heavy=A/C，light/standard=D） |
+| 绕障路径规划（A* + 可见图） | **已实现** | `frontend/environment.py:1842-1945`，生产派单经 `:1072` 调用 |
 | 实验系统（preset/grid/paired seeds/sensitivity/provenance） | **已实现** | `experiments/runner.py`、`console/test_*.py`、`data/provenance/` |
 | FastAPI + Vue + Three.js 控制台 | **已实现** | `console/server.py:264-269`、`console/static/index.html` |
 | 第三维 z / altitude 状态量 | **尚未实现** | 全仓 Python 内 `self.z`/`altitude` 零命中（子代理审计 + 我复验一致） |
-| velocity 矢量 / acceleration / jerk / turn_radius | **尚未实现** | `Drone` 只有标量 `speed`（`drone.py:57,67`）；二阶动力学零命中 |
+| velocity 矢量 / acceleration / jerk / turn_radius | **尚未实现** | `Drone` 只有标量 `speed`（`frontend/drone.py:57,67`）；二阶动力学零命中 |
 | yaw / heading / attitude | **尚未实现** | 零命中；图标朝向不来自状态量 |
 | Trajectory（x(t),v(t),a(t)） | **概念存在但未进入模型** | `console/sim_session.py:126,189` 的 `trajectories` 是 UI 描点历史，不参与决策或物理 |
 | 飞控闭环 / 传感器 / 定位误差 | **尚未实现** | 无 estimator 层；调度器看到的是上帝视角真值 |
@@ -47,16 +47,16 @@
 
 ## 3. 当前模型真实性边界（诚实条款，对外表述受此约束）
 
-1. **运动学是二维一阶积分**：`max_distance = v * time_step`（`drone.py:258-259`），
-   位移沿 `scheduled_position` 逐点直线推进（`drone.py:358-360`）。无加速度、无转弯半径、无朝向。
-   一步之内若剩余距离 ≤ `max_distance` 则直接吸附到目标点（`drone.py:317-320`）。
-2. **建筑高度不进航迹**：A* 的启发式是纯二维欧氏距离（`environment.py:1947-1951`）；
+1. **运动学是二维一阶积分**：`max_distance = v * time_step`（`frontend/drone.py:258-259`），
+   位移沿 `scheduled_position` 逐点直线推进（`frontend/drone.py:358-360`）。无加速度、无转弯半径、无朝向。
+   一步之内若剩余距离 ≤ `max_distance` 则直接吸附到目标点（`frontend/drone.py:317-320`）。
+2. **建筑高度不进航迹**：A* 的启发式是纯二维欧氏距离（`frontend/environment.py:1947-1951`）；
    `high_buildings` 用 `height > 20` 过滤后**即丢弃高度值**（`:174`），碰撞判定退化为
-   2D `LineString.intersects(Polygon)`（`:2015`）。楼高只用于渲染（`index.html:2300`）。
+   2D `LineString.intersects(Polygon)`（`:2015`）。楼高只用于渲染（`console/static/index.html:2300`）。
    ⇒ 禁止表述为"已实现三维避障"。
 3. **速度只影响运动学时间，不影响单位距离能耗**：`consumption_base` 与 speed 无关。
    这是模型的显式局限，不是缺陷——但它使"高速更费电"这类结论无法在本系统中得出。
-4. **风只进能耗**（E1）：`wind_along` 参与 `_wind_factor`（`drone.py:174-195`），
+4. **风只进能耗**（E1）：`wind_along` 参与 `_wind_factor`（`frontend/drone.py:174-195`），
    不改位移、不改速度。E2/E3（风对运动学的影响）未实现。
 5. **不存在六自由度动力学、飞控闭环、传感器闭环**。本系统适用于**调度策略比较**，
    不适用于真实飞行性能预测。
@@ -69,8 +69,8 @@
 
 | # | 发现 | 证据 | 影响 |
 |---|---|---|---|
-| F1 | **死代码冒充主路径**：`GreedyScheduler.schedule_all_drones` 无任何调用者，其内 `route = [当前位置] + [各目的地]`（两点折线、绕过 A*）永不可达 | 严格 grep `schedule_all_drones` 仅命中定义行 `scheduler.py:191`；`schedule_route` 的生产调用者是 `environment.py:1072` | 读代码者会误判"贪心不走 A*"。Phase 1 应删除或明确隔离，不得留在主路径旁 |
-| F2 | **任务状态机语义缺口**：枚举白名单是 `pending/in_progress/completed/failed`（`task.py:118-123`），**没有 created/loaded/delivered**；且送达完成时不调 `update_status("completed")`，"已完成"靠统计推断 | `environment.py:374-443` 的 `_record_task_completion` 内无状态改写；UI 侧 `in_progress/loaded` 由 `sim_session.py:917-921` 现算、不回写 Task | "任务生命周期"这一核心研究对象在模型里没有单一真源。Phase 1 必须先补 MissionManager 的状态机，否则后续事件总线的语义无处安放 |
+| F1 | **死代码冒充主路径**：`GreedyScheduler.schedule_all_drones` 无任何调用者，其内 `route = [当前位置] + [各目的地]`（两点折线、绕过 A*）永不可达 | 严格 grep `schedule_all_drones` 仅命中定义行 `frontend/greedy/scheduler.py:191`；`schedule_route` 的生产调用者是 `frontend/environment.py:1072` | 读代码者会误判"贪心不走 A*"。Phase 1 应删除或明确隔离，不得留在主路径旁 |
+| F2 | **任务状态机语义缺口**：枚举白名单是 `pending/in_progress/completed/failed`（`frontend/task.py:118-123`），**没有 created/loaded/delivered**；且送达完成时不调 `update_status("completed")`，"已完成"靠统计推断 | `frontend/environment.py:374-443` 的 `_record_task_completion` 内无状态改写；UI 侧 `in_progress/loaded` 由 `console/sim_session.py:917-921` 现算、不回写 Task | "任务生命周期"这一核心研究对象在模型里没有单一真源。Phase 1 必须先补 MissionManager 的状态机，否则后续事件总线的语义无处安放 |
 
 > 我对本节的一条自我纠正：审计过程中我曾断言"实验与网页控制台跑的是直线口径航程"。
 > 复验后**撤回**——`greedy_action_from_observation` 只返回 `{drone_idx: [task_id]}` 的**决策**
@@ -98,12 +98,12 @@ WorldModel ─ MissionManager ─ FleetScheduler ─ RoutePlanner ─ Trajectory
 
 | 层 | 只回答 | 现在在哪 |
 |---|---|---|
-| FleetScheduler | **谁**执行哪个任务 | `greedy/scheduler.py`、`matching.py`、GA/PSO/OR-Tools |
-| RoutePlanner | 从**哪里**走 | `environment.py:1842-1945`（A*，内联在 God Object 里） |
+| FleetScheduler | **谁**执行哪个任务 | `greedy/scheduler.py`、`frontend/matching.py`、GA/PSO/OR-Tools |
+| RoutePlanner | 从**哪里**走 | `frontend/environment.py:1842-1945`（A*，内联在 God Object 里） |
 | TrajectoryPlanner | **何时何地**、多大速度/加速度、什么高度与航向 | **不存在** |
-| Executor | 真的执行 | `drone.py:update()`（与调度、统计、资源仲裁耦合在同一对象） |
+| Executor | 真的执行 | `frontend/drone.py:update()`（与调度、统计、资源仲裁耦合在同一对象） |
 
-现状根因：`Environment` 是 **2024 行 / 43 方法**的上帝对象（`environment.py:157-2024`），
+现状根因：`Environment` 是 **2024 行 / 43 方法**的上帝对象（`frontend/environment.py:157-2024`），
 同时承担世界数据、时间推进、资源仲裁、任务生命周期、指标计算、观察构造、路径规划七类职责。
 A* 作为它的方法存在 ⇒ **路径规划能力无法脱离该对象被复用、替换或单独测试**。
 
@@ -120,7 +120,7 @@ A* 作为它的方法存在 ⇒ **路径规划能力无法脱离该对象被复�
 - **TrajectoryPlanner**：Route ≠ Trajectory。逐步支持 x(t)/y(t)/z(t)/velocity/acceleration/yaw/turn constraints。
   候选 Bézier / B-Spline / cubic spline / polynomial / minimum-snap。目标是消灭瞬时 90° 转弯与恒速折线。
 - **DroneState**：position/velocity/acceleration/heading-yaw/attitude/battery/payload/mission/health/communication/localization_quality。
-  现为 34 个 `self.*` 字段但运动学只有 4 个（`drone.py:72,73,78,86`）。
+  现为 34 个 `self.*` 字段但运动学只有 4 个（`frontend/drone.py:72,73,78,86`）。
 - **Executor**：统一接口 + 两个实现。
   - `FastExecutor`：20~100 架、数百任务、大量 seed 的算法比较；逐步支持 trajectory follow/accel/turn/altitude/wind/energy。
   - `HighFidelityExecutor`：ROS2 → PX4 SITL → Gazebo，**先 1 架**，以后 2~5 架。禁止一开始把几十架塞进 Gazebo。
@@ -134,8 +134,8 @@ A* 作为它的方法存在 ⇒ **路径规划能力无法脱离该对象被复�
 ## 5. 调度—航路耦合（未来核心研究方向之一）
 
 当前调度打分用的是 `route_distance = math.dist(source, destination)`
-（`environment.py:1507` → 喂给 `greedy/scheduler.py:172`）——**几何直线**。
-而执行阶段走的是 A* 绕障路线（`environment.py:1072`）。
+（`frontend/environment.py:1507` → 喂给 `frontend/greedy/scheduler.py:172`）——**几何直线**。
+而执行阶段走的是 A* 绕障路线（`frontend/environment.py:1072`）。
 
 ⇒ 已经存在一个真实的**预测/执行口径分裂**：调度器以为的距离 ≠ 实际要飞的距离。
 这不是 UI 问题，是算法模型问题，必须单独研究：
@@ -149,6 +149,100 @@ Scheduler → 问 RoutePlanner："D3 到任务 A 实际可飞多远？" → rout
 现有的 n=5 配对符号检验在这种维度下给不出方向一致。因此接入时必须：
 (a) 保留"关闭耦合"的对照面（同一份代码，只切一个开关）；
 (b) 重新做一轮 S1/S2 式敏感性，而不是沿用今天的定级结论。
+
+### 5.1 已证实事实（本轮审计，禁止再写"当前没有 Route Planner"）
+
+| # | 事实 | 证据 |
+|---|---|---|
+| E1 | 生产路径中 **A\* 是活的**：路线由 `env.step()` 生成 | `frontend/environment.py:1045, 1071, 1761` → `plan_route_around_buildings:1842` → `a_star_pathfinding:1865` |
+| E2 | Greedy action **只产生任务分配，不产生飞行路线** | `frontend/greedy/scheduler.py:235-237` 返回 `{drone_idx: [task_id]}` |
+| E3 | `schedule_all_drones` 是死代码（其两点折线分支不可达） | `grep schedule_all_drones` 仅命中定义行 `:191` |
+| E4 | 调度**预测**仍走欧氏直线 | `frontend/environment.py:1507 route_distance = math.dist(source, destination)` → `frontend/greedy/scheduler.py:172` |
+| E5 | A\* 启发式是纯二维欧氏距离；高度值在过滤后即被丢弃 | `frontend/environment.py:1947-1951`；`:174` |
+
+⇒ **真正的缺陷不是缺能力，而是口径分裂**：调度阶段以为的距离 ≠ 执行阶段真要飞的距离。
+
+```
+调度阶段：math.dist(start, target) → 认为 Drone A 更近
+执行阶段：A* 绕建筑            → Drone A 实际要绕很远
+例：A 直线 1.8 km / 实飞 3.7 km；B 直线 2.2 km / 实飞 2.5 km ⇒ 现系统选 A，应选 B
+```
+
+这个缺口比"再加一个算法"更有研究价值：它给出一个可证伪命题 ——
+**几何距离假设会导致错误的机队分配**。
+
+### 5.2 Phase 1/2 接口设计（本轮只设计，不实装）
+
+抽离的硬约束来自实测：`is_path_clear` 在 2000 步里被调 **18 万次**而真正的 A* 只有 **34 次**
+（`frontend/environment.py:1983-1984` 原注释）。所以接口必须自带世界版本标识，否则抽出去就把性能炸掉。
+世界指纹已有现成实现，直接复用不另造：高楼多边形 WKT + 禁飞区启用/数量/名称/margin/几何
+→ md5 前 16 位（`frontend/environment.py:1961-1967`）。
+
+```python
+@dataclass(frozen=True)
+class RouteRequest:
+    start: tuple            # (x, y)，Phase 4 前保持二维
+    goal: tuple
+    world_version: str      # 复用 _path_clear_bucket() 的几何指纹，禁止新造第二套口径
+    vehicle_profile: VehicleProfile   # speed / carrying_capacity / battery_capacity
+                                     # / consumption_base / load_penalty_factor
+    constraints: RouteConstraints     # 载重、续航可行性、margin；不含时间（ETA 是输出）
+
+@dataclass(frozen=True)
+class RouteResult:
+    feasible: bool
+    waypoints: tuple        # ((x, y, tag), ...)，tag ∈ {source, dest, waypoint}，与现有格式一致
+    distance: float         # 折线累加长度，非欧氏
+    estimated_time: float   # distance / profile.speed
+    energy_estimate: float  # distance × base × (1 + load_penalty) —— 与 drone.py:163-167 同式
+    metadata: dict          # {expanded_nodes, cache_hit, fallback: bool}
+```
+
+`waypoints` 的三元组格式必须与现状逐字一致（`frontend/environment.py:1805-1818`），
+否则 Gate A 无法用"输出相同"来证明只是搬家。
+
+```python
+class RouteCostProvider(Protocol):
+    def cost(self, req: RouteRequest) -> RouteCost: ...   # distance / eta / energy / feasible
+
+EuclideanRouteCostProvider   # 包装现状（math.dist），默认启用 ⇒ 保证零漂移
+AStarRouteCostProvider       # 委托 RoutePlanner；只在 Gate C 实验里开启
+```
+
+两面共存是关键设计：**默认仍是直线 ⇒ 架构重构可以声称没改模型；
+切成 A* 才是实验变量**，二者不混在同一笔提交里。缓存键 `(start_cell, end_cell, vehicle_type, world_version)`，
+仅在禁飞区/障碍/天气约束变化时失效。
+
+### 5.3 Mission / Task 状态机（修 F2）
+
+现状三处不一致（字段级证据待 Q2 审计补全）：枚举白名单 `pending/in_progress/completed/failed`
+（`frontend/task.py:118-123`）缺 created/loaded/delivered；送达完成不回写状态（`frontend/environment.py:374-443`）；
+UI 侧 `in_progress/loaded` 由会话层现算（`console/sim_session.py:917-921`）。
+
+设计目标态（命名以能覆盖现有语义为准，不追求好看）：
+
+```
+CREATED → QUEUED → ASSIGNED → PICKUP_ENROUTE → LOADED → DELIVERY_ENROUTE → DELIVERED
+                                              ↘ FAILED / CANCELLED / REASSIGNED（异常支路）
+```
+
+规则：① 状态只能由单一所有者（MissionManager）改写，其余组件只读；
+② 每次转移发事件并进日志，带 `(task_id, from, to, sim_time, reason)`；
+③ 会话层与 UI **不得再自行推断**状态 —— 这是 F2 的收口点；
+④ 合法转移表显式声明，非法转移抛错而非静默。
+本轮只定义状态与转移表，不重写调用点。
+
+### 5.4 Phase 1 验证门（三条，缺一不可）
+
+| 门 | 判据 | 为什么要它 |
+|---|---|---|
+| **Gate A** Route 抽取等价 | 同地图同起终点：旧 `Environment` A* vs 新 `RoutePlanner`，逐项比 `feasible` / `waypoint 序列` / `distance`，要求逐位一致或在写明容差内一致 | 证明"只是拆架构，没偷偷改实验模型" |
+| **Gate B** 默认零漂移 | `RouteCostProvider` 仍为 Euclidean 时，正式 fixture（C-1/C-2 × paired seeds）全部核心 KPI 差异指标数 = 0 | 沿用本轮改名提交已验证过的 Δ=0 判据；防止抽离顺手改变行为 |
+| **Gate C** A*-aware 调度实验 | 只有切到 `AStarRouteCostProvider` 才允许调度行为变化，且该变化必须作为**独立实验**分析（completed/timeout/mean_delay/总里程/energy/reassignment/runtime） | 架构重构与模型变更分离；否则结论归因不清 |
+
+Gate A/B 必须在同一笔"搬家"提交里同时绿；Gate C 属于另一笔实验提交。
+
+
 
 ---
 
@@ -198,7 +292,7 @@ LIO-SAM 属于感知定位层，**不是核心调度算法**，禁止为技术�
 支持 battery anomaly / drone fault / station failure / station congestion / GPS degradation /
 communication loss / sudden wind / task surge / route blocked，并要求系统自动
 state update → reassignment → route replan → ETA recalculation。
-注：当前已有 `out_of_service` 冻结与故障回收重排队（`drone.py:252-254`、`environment.py:525`），
+注：当前已有 `out_of_service` 冻结与故障回收重排队（`frontend/drone.py:252-254`、`frontend/environment.py:525`），
 可作为该模块的起点而非从零开始。
 
 ---
@@ -262,9 +356,9 @@ SLAM/LIO-SAM（仅在定位问题成立时）、WFC（仅合成城市）、Photo
 |---|---|---|---|---|---|---|
 | **0** | 真实性审计与算法有效性收尾 | 现有门与读数 | 四算法介入率/flush/fallback 画像定稿 | `console/test_speed_fallback_gate.py`、新增介入率门 | 每算法 `optimize_calls` 有非零正例或明写为零；禁用清单同步 | 未完成就进 Phase 1 会让后续结论继承旧缺陷 |
 | **1** | 核心接口设计（不改变行为） | §4 分层 | Mission/Route/Trajectory/Executor/Telemetry/WorldModel 接口与类型 | 新增 `frontend/core/*`（接口+空实现）；删 F1 死代码 | **行为等价门 Δ=0**；F2 状态机单一真源并有夹具；不碰数值 | 接口设计过早固化会绑死后续选择；故只做接口不做迁移 |
-| **2** | 真正的 RoutePlanner | WorldModel 几何 | 独立可测 planner；调度器可查询 route distance/ETA/能耗 | `environment.py:1842-1945` 迁出 | planner 单测覆盖直连/A\*成功/A\*失败兜底三面；耦合开关可关 | 距离变决策变量 ⇒ 与 swap/SLA 耦合，须重做敏感性 |
-| **3** | TrajectoryPlanner | route + 动力学约束 | x(t),y(t),v(t),a(t),yaw(t) | 新增 trajectory 模块；`drone.py:update()` 改为跟随轨迹 | 消灭瞬时 90° 与恒速折线（曲率/加速度有界断言）；行为等价门需**分面**：关轨迹面 Δ=0 | 移动链改动会影响全部既有 KPI 基线 |
-| **4** | 2.5D | building height | z/climb/descent 进入状态与避障 | `drone.py`、`environment.py:174,1947-2015` | 高度真正参与碰撞判定（用高楼夹具证明摘掉高度会变红）；解除 §3.2 | 与"三维"申报口径相关，须同步论文表述 |
+| **2** | 抽离现有 A* + 统一预测/执行成本口径（**不是新增 RoutePlanner**，见 §5.1） | WorldModel 几何 + 现成世界指纹 | `RoutePlanner`（A* 迁入）+ `RouteCostProvider` 两面实现 | `frontend/environment.py:1842-1945,1978-2010` 迁出；`frontend/greedy/scheduler.py:172`、`frontend/matching.py` 改查询 | Gate A 等价（feasible/waypoints/distance 逐位或容差内一致）；Gate B 默认零漂移；A* 感知调度必须作为 Gate C 独立实验 | 距离成为决策变量 ⇒ 与 swap/SLA 耦合，须重做敏感性；且 `is_path_clear` 调用量是 A* 的 5000 倍，缓存键设计不当会把性能炸掉 |
+| **3** | TrajectoryPlanner | route + 动力学约束 | x(t),y(t),v(t),a(t),yaw(t) | 新增 trajectory 模块；`frontend/drone.py:update()` 改为跟随轨迹 | 消灭瞬时 90° 与恒速折线（曲率/加速度有界断言）；行为等价门需**分面**：关轨迹面 Δ=0 | 移动链改动会影响全部既有 KPI 基线 |
+| **4** | 2.5D | building height | z/climb/descent 进入状态与避障 | `drone.py`、`frontend/environment.py:174,1947-2015` | 高度真正参与碰撞判定（用高楼夹具证明摘掉高度会变红）；解除 §3.2 | 与"三维"申报口径相关，须同步论文表述 |
 | **5** | 重构 FastExecutor | 上述接口 | 大规模实验继续成立 | `experiments/worker.py`、`drone.py` | 100 架规模回归；性能不退化（计时面） | 计时证据易被同机其他进程污染 |
 | **6** | ROS2 + PX4 SITL + Gazebo（**1 架**） | Executor 接口 | HighFidelityExecutor | 新增 executor 实现 | 单架可跑通 takeoff→cruise→land；**先证真机/仿真之别** | 引入黑箱气动模型可能侵蚀现有可复算优势 ⇒ 只能作为 L3，不得反灌绝对能耗 |
 | **7** | FastSim vs PX4/Gazebo，Plan vs Actual | 两套执行结果 | ETA/energy/route deviation 误差 | 新增 validation 层 | 误差有区间且可由第三方重算 | 样本量小易过度外推 |
@@ -295,7 +389,7 @@ SLAM/LIO-SAM（仅在定位问题成立时）、WFC（仅合成城市）、Photo
 5. 把 SLAM 等高级名词强塞进系统。
 6. 把建筑高度写成"当前已影响航迹"（§3.2 明写未影响）。
 7. 把场景假设参数冒充现实测量（`data/provenance/truth.jsonl` 的 8 条 disabled_claim 为准）。
-8. 因 UI 显示 3D 就声称模型是完整 3D 物理仿真（`index.html:2472-2473` 的 z 是按 state 硬编码的装饰值）。
+8. 因 UI 显示 3D 就声称模型是完整 3D 物理仿真（`console/static/index.html:2472-2473` 的 z 是按 state 硬编码的装饰值）。
 
 ---
 
