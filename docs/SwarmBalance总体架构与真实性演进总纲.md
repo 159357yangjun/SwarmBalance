@@ -354,6 +354,38 @@ SLAM/LIO-SAM（仅在定位问题成立时）、WFC（仅合成城市）、Photo
 
 ## 17. 阶段路线（含验收条件与风险）
 
+### 17.0 Phase 1B 细分（2026-10-04 冻结，取代此前"一步统一成本"的写法）
+
+原 §17 的 Phase 2 已拆成可单独归因的小步。**每步只换一种现实信息**，否则结果变化无法归因：
+
+| 步 | 主题 | 替换内容 | 前置 | 状态 |
+|---|---|---|---|---|
+| **1A** | RoutePlanner 抽离 | A* 从 `Environment` 迁出，行为零漂移 | — | ✅ `c0af7c7`（Gate A 35 例等价 / Gate B 25 指标 Δ=0） |
+| **1B-0** | Route discrepancy profiling | 量 Euclidean vs A*：detour 分布 + **ranking inversion** | 1A | ✅ `42e5838`（inversion = 7/10676 = **0.07%**） |
+| **1B-1** | distance-aware 调度 | 仅把距离口径换成实际航路距离；ETA/energy/range 保持原逻辑 | 1B-0 | 待做 |
+| **1B-2** | ETA-aware 调度 | `ETA = planned_route_distance / speed` 替 `euclid/speed` | 1B-1 结论 | 待做 |
+| **1B-3** | energy / range feasibility | 续航可行性按实际航路判定；不可行须被检测而非静默失败 | 1B-2 | 待做 |
+| **1C** | Task State / Telemetry 单一真源 | 修 F2：显式状态机 + 派生量收口 | 1B-* | 待做 |
+| **2** | TrajectoryPlanner | Route → x(t),v(t),a(t),yaw；消灭瞬时转向与恒速折线 | 1C | 待做 |
+
+**1B-1 预注册假设（先写下再看数，禁止事后编解释）**
+- `H0`：distance-only 切换后 C-1/C-2 全部核心 KPI 逐值不变，或差异 < 1 单任务。
+  （依据 1B-0：inversion 仅 0.07%，且最大 detour ratio ≤ 1.0833。）
+- `H1`：若完成率/超时率变化 ≥ 2 单，则必须能追溯到 1B-0 记录的那 7 组翻转中的具体一次分配；
+  追不到即说明存在我尚未识别的第三条路径，须先查机制再谈结论。
+- 算法范围：**只用 Greedy + GA**。PSO 在 C-1/C-2 实测 `optimize_calls=0`（两次独立复现），
+  不具备对照价值；OR-Tools 介入/回退率未闭合。不为凑"四算法"把未真正介入优化的结果混进来。
+
+**反玩具感四条纪律（每个 Phase 都适用，本轮起为硬要求）**
+1. 每个数字都要有可复现的测量命令（写进产物或 provenance，不接受口头"跑过了"）。
+2. **先画像再优化**：不得跳过 1B-0 这类诊断直接改调度器。
+3. 护栏必须有牙：变异测试证明它会红；同时区分"无效变异未被抓"与"门失灵"。
+4. **贡献比例必须实测，不得从系数比推断**（本轮已因此撤回过一次："w_dist 0.01 ⇒ 只占 1/200"）。
+
+另加一条同族教训：判据要看**运行时生效值**而非源码默认 —— 我曾据 `scheduler.py:12` 的
+`candidate_limit=1` 断言"inversion 结构上不可能"，实际 `config/simulation.json:11` 覆盖为 60。
+
+
 > 顺序冻结。每阶段的"行为等价门"指：同 seed 逐 run 逐指标比对，差异指标数必须为 0
 > （已由 E1 的 `test_wind_injection.py` 与本轮改名提交实践验证过这套判据可用）。
 
