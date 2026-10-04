@@ -50,10 +50,15 @@
 1. **运动学是二维一阶积分**：`max_distance = v * time_step`（`frontend/drone.py:258-259`），
    位移沿 `scheduled_position` 逐点直线推进（`frontend/drone.py:358-360`）。无加速度、无转弯半径、无朝向。
    一步之内若剩余距离 ≤ `max_distance` 则直接吸附到目标点（`frontend/drone.py:317-320`）。
-2. **建筑高度不进航迹**：A* 的启发式是纯二维欧氏距离（`frontend/environment.py:1947-1951`）；
-   `high_buildings` 用 `height > 20` 过滤后**即丢弃高度值**（`:174`），碰撞判定退化为
-   2D `LineString.intersects(Polygon)`（`:2015`）。楼高只用于渲染（`console/static/index.html:2300`）。
-   ⇒ 禁止表述为"已实现三维避障"。
+2. **障碍是"二维 + 无限高棱柱"，不是"高度没参与"**：`frontend/environment.py:174` 用 `height > 20`
+   筛出高楼，紧接着 `:178` 就把元素重塑成 `(geometry.bounds, geometry)` —— **height 值在此被丢弃**。
+   此后相交判定只用 bbox 四轴 + `LineString × Polygon.intersects`（`:2008/2013/2015`），
+   A* 启发式还同时充当 h、边权 g 增量与终止判据三职（`:1910/1918/1933/1938`，全是纯二维欧氏距离）。
+   ⇒ 真实语义：**>20 m 的建筑整条垂直射线不可穿；≤20 m 无论 19 m 还是 3 m 完全透明。**
+   这三处本轮已独立复验；另注意 `:176-177` 自称 bbox 剔除是"等价优化"——该论证只在二维成立，加 z 后失效。
+   禁止表述为"已实现三维避障"，也禁止轻描成"只是高度没接进来"。
+   运行时唯一读 height 的消费者是渲染：`console/static/index.html:2300` extrude depth、`:2301` 配色。
+   完整爆炸半径（≈158 条、7 类硬阻塞、会被改红的测试名单）见 `docs/二维假设清单.md`。
 3. **速度只影响运动学时间，不影响单位距离能耗**：`consumption_base` 与 speed 无关。
    这是模型的显式局限，不是缺陷——但它使"高速更费电"这类结论无法在本系统中得出。
 4. **风只进能耗**（E1）：`wind_along` 参与 `_wind_factor`（`frontend/drone.py:174-195`），
