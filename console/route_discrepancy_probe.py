@@ -120,7 +120,13 @@ def collect(fixture: str, seed: int):
             # 不能用它当候选集（第一版就是这么错的，结果 groups=0）。
             from greedy import scheduler as gsched
             limit = max(1, gsched.CANDIDATE_LIMIT)
-            un = obs["unassigned_tasks"]
+            # 必须先剔 __pad_ 再截断，顺序与 Greedy 一致（scheduler.py:45-48 先过滤 padding、
+            # :98 才 [:candidate_limit]）。environment.py:1591-1614 是【截断之后】才补 padding，
+            # 所以 obs[:60] 的尾部恒为占位任务；直接对 un[:limit] 取候选会让探针看到的集合
+            # 比真实参与排序的多出占位、又少掉真任务 —— 实测本探针因此把候选集截到约 42 个
+            # 真任务之外还数进了 (0,0) 坐标的假腿，翻转率被系统性低估。
+            un = [t for t in obs["unassigned_tasks"]
+                  if not str(t.get("task_id", "")).startswith("__pad_")]
             caps = obs["drone_capabilities"]
             for d_idx, drone_pos in enumerate(obs["drone_positions"]):
                 if not obs["drone_is_free"][d_idx]:
@@ -253,7 +259,12 @@ def report(seeds=(40901, 40902, 40903)):
     降到 180 条唯一 OD；否则各类占比全被重复计数稀释。
  c) 百分比分母误用全体 legs ⇒ 曾输出"直达=71128%"。现分母 = 本 (fixture, leg) 子集。
  d) 退化对（机位恰在取货点 / source==destination）ratio 无定义：曾以 NaN 混入列表并显示成
-    "48.8 万条非有限值"，看着像量具崩了；现单独计数且不进分位统计（C1=7、C2=10 条）。
+    "48.8 万条非有限值"，看着像量具崩了；现单独计数且不进分位统计。
+ e) 【本轮新发现】候选集截断与 padding 的先后顺序：Greedy 是"先剔 __pad_、再 [:candidate_limit]"
+    （scheduler.py:45-48 → :98），而 environment.py:1591-1614 是【截断之后】才补 padding ⇒
+    obs[:60] 尾部恒为占位任务。旧版直接对 un[:limit] 取候选，于是探针的候选集合既混进了
+    (0,0) 坐标的假腿、又少掉了真任务 ⇒ 参与排序的组被系统性改变。修复后必须重跑本探针，
+    旧的 ranking inversion 数字不得继续引用（Phase 1B-1 的 H0 依据因此作废，见下）。
 
 仍存在的边界（引用本数据须知）：
  · drone->pickup 的 n 是"派单机会数"量级（数十万），同一 (drone, task) 对在多个 step 上被
@@ -261,10 +272,16 @@ def report(seeds=(40901, 40902, 40903)):
    直达机会贡献，只能读作"该世界几何下多数派单机会无需绕障"，不能读作"绕障不重要"。
  · ranking inversion 只量"换冠军"这一种翻转（组内 e_pickup 最小者 vs r_pickup 最小者），
    未量整条排序的 Kendall tau 或 top-k 变化。
- · 仅覆盖 greedy 一条链；GA/PSO/OR-Tools 的距离口径分裂不在本探针范围内。
+ · 【判据强度】上面那条"只看 pickup 最短"只是 Greedy 决策的**近似代理**。真实 argmax 是
+   MATCH_WEIGHT*match + DISTANCE_WEIGHT*proximity，其中 proximity 在候选集内归一化 ⇒ 依赖
+   整组距离，且 match 还吃 total_distance = source_dist + route_dist。因此本探针的翻转率是
+   对真实翻转率的**下界估计**；精确证人见 console/phase1b1_flip_witness.py（重放真评分函数）。
+ · 仅覆盖 greedy 一条链；GA/PSO/OR-Tools 的距离口径不在本探针范围内（后端零引用 provider，
+   已在 console/test_phase1b1_distance_experiment.py::G5 钉成断言）。
 
-结论可引用性：★ Ranking inversion = 7/10676 = 0.07% 在上述 a/b/c/d 修复前后均稳定复现
-（它只依赖组内相对排序，不依赖分腿占比与分位数）⇒ 可作为 Phase 1B-1 的判据输入。""")
+结论适用性：本产物此前公布的 "★ Ranking inversion = 7/10676 = 0.07%" 是在缺陷 e 之下测得，
+修复后数字会变 ⇒ 该值**不再作为 Phase 1B-1 H0 的依据**，须以本轮重跑值与 flip_witness
+同时为准。""")
     return 0
 
 

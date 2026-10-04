@@ -111,10 +111,15 @@ class GreedyScheduler(Scheduler):
 
             # 候选集内部对到取货点距离做归一化，使距离邻近分落在 0~1，
             # 与匹配分量纲一致（最近为 1，最远为 0）。
-            dists = [
-                GreedyScheduler.euclidean_distance(current_pos, tuple(t['source']))
-                for t in feasible_tasks
-            ]
+            provider = observation.get("route_cost_provider")
+            if provider is not None:
+                dists = provider.batch(current_pos, [tuple(t['source']) for t in feasible_tasks])
+            else:
+                dists = [
+                    GreedyScheduler.euclidean_distance(current_pos, tuple(t['source']))
+                    for t in feasible_tasks
+                ]
+            _d = {t["task_id"]: d for t, d in zip(feasible_tasks, dists)}
             min_d, max_d = min(dists), max(dists)
 
             def _proximity(d):
@@ -125,9 +130,7 @@ class GreedyScheduler(Scheduler):
             best_task = max(
                 feasible_tasks,
                 key=lambda t: GreedyScheduler._score_task(
-                    cap, current_pos, t, _proximity(
-                        GreedyScheduler.euclidean_distance(current_pos, tuple(t['source']))
-                    )
+                    cap, current_pos, t, _proximity(_d[t["task_id"]]), provider=provider
                 )
             )
 
@@ -152,7 +155,7 @@ class GreedyScheduler(Scheduler):
         return float(task.get('weight', 0.0)) <= remaining_capacity
 
     @staticmethod
-    def _score_task(cap, drone_pos, task, proximity=0.0):
+    def _score_task(cap, drone_pos, task, proximity=0.0, provider=None):
         """综合评分 = 匹配度权重 * 能力匹配分 + 距离权重 * 距离邻近分。
 
         匹配分由 matching.compute_match 给出（考虑载重/速度/续航与任务
@@ -168,8 +171,14 @@ class GreedyScheduler(Scheduler):
         if float(task.get('weight', 0.0)) > remaining_capacity:
             return float('-inf')
 
-        source_dist = GreedyScheduler.euclidean_distance(drone_pos, tuple(task['source']))
-        route_dist = float(task.get('route_distance', 0.0))
+        # Phase 1B-1：provider 存在时【只】替换这两段距离的口径；ETA(remaining_time)、
+        # 电池/range 参数一律原样传下去 —— 那是 1B-2/1B-3 的范围。
+        if provider is not None:
+            source_dist = provider.distance(drone_pos, tuple(task['source']))
+            route_dist = provider.distance(tuple(task['source']), tuple(task['destination']))
+        else:
+            source_dist = GreedyScheduler.euclidean_distance(drone_pos, tuple(task['source']))
+            route_dist = float(task.get('route_distance', 0.0))
         total_distance = source_dist + route_dist
         remaining_time = task.get('remaining_time', float('inf'))
 

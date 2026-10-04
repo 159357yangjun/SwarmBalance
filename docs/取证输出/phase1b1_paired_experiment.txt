@@ -1,0 +1,211 @@
+Phase 1B-1  Euclidean vs PlannedDistance  配对实验
+seeds=[40901, 40902, 40903] algorithms=['greedy', 'ga'] episode_steps=3600
+
+== 逐 seed 配对差分（planned - euclid）==
+C1 ga     seed=40901 完成任务数             60.000000 ->      60.000000 Δ=           0
+C1 ga     seed=40901 完成率                0.408163 ->       0.408163 Δ=           0
+C1 ga     seed=40901 平均时延             326.458333 ->     326.458333 Δ=           0
+C1 ga     seed=40901 总能量消耗          13690.787002 ->   13690.787002 Δ=           0
+C1 ga     seed=40901 总飞行距离         195224.898405 ->  195224.898405 Δ=           0
+C1 ga     seed=40901 换电总次数             10.000000 ->      10.000000 Δ=           0
+C1 ga     seed=40901 机巢周转率              1.000000 ->       1.000000 Δ=           0
+C1 ga     seed=40901 泊位利用率              0.050000 ->       0.050000 Δ=           0
+C1 ga     seed=40901 生成任务数            147.000000 ->     147.000000 Δ=           0
+C1 ga     seed=40901 超时率                0.500000 ->       0.500000 Δ=           0
+C1 ga     seed=40902 完成任务数             73.000000 ->      73.000000 Δ=           0
+C1 ga     seed=40902 完成率                0.489933 ->       0.489933 Δ=           0
+C1 ga     seed=40902 平均时延             171.061644 ->     171.061644 Δ=           0
+C1 ga     seed=40902 总能量消耗          15937.221141 ->   15937.221141 Δ=           0
+C1 ga     seed=40902 总飞行距离         254827.564019 ->  254827.564019 Δ=           0
+C1 ga     seed=40902 换电总次数             18.000000 ->      18.000000 Δ=           0
+C1 ga     seed=40902 机巢周转率              1.800000 ->       1.800000 Δ=           0
+C1 ga     seed=40902 泊位利用率              0.090000 ->       0.090000 Δ=           0
+C1 ga     seed=40902 生成任务数            149.000000 ->     149.000000 Δ=           0
+C1 ga     seed=40902 超时率                0.397260 ->       0.397260 Δ=           0
+C1 ga     seed=40903 完成任务数             85.000000 ->      85.000000 Δ=           0
+C1 ga     seed=40903 完成率                0.570470 ->       0.570470 Δ=           0
+C1 ga     seed=40903 平均时延             260.694118 ->     260.694118 Δ=           0
+C1 ga     seed=40903 总能量消耗          23111.517354 ->   23111.517354 Δ=           0
+C1 ga     seed=40903 总飞行距离         275596.479890 ->  275596.479890 Δ=           0
+C1 ga     seed=40903 换电总次数             19.000000 ->      19.000000 Δ=           0
+C1 ga     seed=40903 机巢周转率              1.900000 ->       1.900000 Δ=           0
+C1 ga     seed=40903 泊位利用率              0.090278 ->       0.090278 Δ=           0
+C1 ga     seed=40903 生成任务数            149.000000 ->     149.000000 Δ=           0
+C1 ga     seed=40903 超时率                0.623529 ->       0.623529 Δ=           0
+C1 greedy seed=40901 完成任务数            106.000000 ->     105.000000 Δ=          -1  <== Δ
+C1 greedy seed=40901 完成率                0.721088 ->       0.714286 Δ= -0.00680272  <== Δ
+C1 greedy seed=40901 平均时延             121.160377 ->     118.180952 Δ=    -2.97942  <== Δ
+C1 greedy seed=40901 总能量消耗          23410.145309 ->   23403.159102 Δ=    -6.98621  <== Δ
+C1 greedy seed=40901 总飞行距离         305079.945918 ->  305124.455766 Δ=     44.5098  <== Δ
+C1 greedy seed=40901 换电总次数             23.000000 ->      23.000000 Δ=           0
+C1 greedy seed=40901 机巢周转率              2.300000 ->       2.300000 Δ=           0
+C1 greedy seed=40901 泊位利用率              0.111167 ->       0.111167 Δ=           0
+C1 greedy seed=40901 生成任务数            147.000000 ->     147.000000 Δ=           0
+C1 greedy seed=40901 超时率                0.273585 ->       0.266667 Δ= -0.00691824  <== Δ
+C1 greedy seed=40902 完成任务数            107.000000 ->     111.000000 Δ=           4  <== Δ
+C1 greedy seed=40902 完成率                0.718121 ->       0.744966 Δ=   0.0268456  <== Δ
+C1 greedy seed=40902 平均时延              71.163551 ->     105.806306 Δ=     34.6428  <== Δ
+C1 greedy seed=40902 总能量消耗          23772.561262 ->   23940.472992 Δ=     167.912  <== Δ
+C1 greedy seed=40902 总飞行距离         308071.329663 ->  303976.772729 Δ=    -4094.56  <== Δ
+C1 greedy seed=40902 换电总次数             22.000000 ->      22.000000 Δ=           0
+C1 greedy seed=40902 机巢周转率              2.200000 ->       2.200000 Δ=           0
+C1 greedy seed=40902 泊位利用率              0.110000 ->       0.110000 Δ=           0
+C1 greedy seed=40902 生成任务数            149.000000 ->     149.000000 Δ=           0
+C1 greedy seed=40902 超时率                0.196262 ->       0.180180 Δ=  -0.0160815  <== Δ
+C1 greedy seed=40903 完成任务数            111.000000 ->     115.000000 Δ=           4  <== Δ
+C1 greedy seed=40903 完成率                0.744966 ->       0.771812 Δ=   0.0268456  <== Δ
+C1 greedy seed=40903 平均时延             110.833333 ->     173.360870 Δ=     62.5275  <== Δ
+C1 greedy seed=40903 总能量消耗          22992.392885 ->   22778.102970 Δ=     -214.29  <== Δ
+C1 greedy seed=40903 总飞行距离         308112.279500 ->  308246.415039 Δ=     134.136  <== Δ
+C1 greedy seed=40903 换电总次数             23.000000 ->      23.000000 Δ=           0
+C1 greedy seed=40903 机巢周转率              2.300000 ->       2.300000 Δ=           0
+C1 greedy seed=40903 泊位利用率              0.110944 ->       0.111861 Δ= 0.000916667  <== Δ
+C1 greedy seed=40903 生成任务数            149.000000 ->     149.000000 Δ=           0
+C1 greedy seed=40903 超时率                0.261261 ->       0.313043 Δ=   0.0517822  <== Δ
+C2 ga     seed=40901 完成任务数             47.000000 ->      47.000000 Δ=           0
+C2 ga     seed=40901 完成率                0.264045 ->       0.264045 Δ=           0
+C2 ga     seed=40901 平均时延             546.882979 ->     546.882979 Δ=           0
+C2 ga     seed=40901 总能量消耗          12555.627019 ->   12555.627019 Δ=           0
+C2 ga     seed=40901 总飞行距离         162760.793367 ->  162760.793367 Δ=           0
+C2 ga     seed=40901 换电总次数             13.000000 ->      13.000000 Δ=           0
+C2 ga     seed=40901 机巢周转率              1.300000 ->       1.300000 Δ=           0
+C2 ga     seed=40901 泊位利用率              0.056361 ->       0.056361 Δ=           0
+C2 ga     seed=40901 生成任务数            178.000000 ->     178.000000 Δ=           0
+C2 ga     seed=40901 超时率                0.638298 ->       0.638298 Δ=           0
+C2 ga     seed=40902 完成任务数             37.000000 ->      37.000000 Δ=           0
+C2 ga     seed=40902 完成率                0.207865 ->       0.207865 Δ=           0
+C2 ga     seed=40902 平均时延             595.567568 ->     595.567568 Δ=           0
+C2 ga     seed=40902 总能量消耗           9928.606533 ->    9928.606533 Δ=           0
+C2 ga     seed=40902 总飞行距离         146789.474496 ->  146789.474496 Δ=           0
+C2 ga     seed=40902 换电总次数              8.000000 ->       8.000000 Δ=           0
+C2 ga     seed=40902 机巢周转率              0.800000 ->       0.800000 Δ=           0
+C2 ga     seed=40902 泊位利用率              0.040000 ->       0.040000 Δ=           0
+C2 ga     seed=40902 生成任务数            178.000000 ->     178.000000 Δ=           0
+C2 ga     seed=40902 超时率                0.648649 ->       0.648649 Δ=           0
+C2 ga     seed=40903 完成任务数             34.000000 ->      34.000000 Δ=           0
+C2 ga     seed=40903 完成率                0.191011 ->       0.191011 Δ=           0
+C2 ga     seed=40903 平均时延             279.132353 ->     279.132353 Δ=           0
+C2 ga     seed=40903 总能量消耗          10962.213771 ->   10962.213771 Δ=           0
+C2 ga     seed=40903 总飞行距离         122831.027855 ->  122831.027855 Δ=           0
+C2 ga     seed=40903 换电总次数              6.000000 ->       6.000000 Δ=           0
+C2 ga     seed=40903 机巢周转率              0.600000 ->       0.600000 Δ=           0
+C2 ga     seed=40903 泊位利用率              0.030000 ->       0.030000 Δ=           0
+C2 ga     seed=40903 生成任务数            178.000000 ->     178.000000 Δ=           0
+C2 ga     seed=40903 超时率                0.617647 ->       0.617647 Δ=           0
+C2 greedy seed=40901 完成任务数             74.000000 ->      75.000000 Δ=           1  <== Δ
+C2 greedy seed=40901 完成率                0.415730 ->       0.421348 Δ=  0.00561798  <== Δ
+C2 greedy seed=40901 平均时延             403.047297 ->     365.713333 Δ=     -37.334  <== Δ
+C2 greedy seed=40901 总能量消耗          18428.072628 ->   18446.836826 Δ=     18.7642  <== Δ
+C2 greedy seed=40901 总飞行距离         210414.883003 ->  212119.765349 Δ=     1704.88  <== Δ
+C2 greedy seed=40901 换电总次数             16.000000 ->      15.000000 Δ=          -1  <== Δ
+C2 greedy seed=40901 机巢周转率              1.600000 ->       1.500000 Δ=        -0.1  <== Δ
+C2 greedy seed=40901 泊位利用率              0.076194 ->       0.075000 Δ= -0.00119444  <== Δ
+C2 greedy seed=40901 生成任务数            178.000000 ->     178.000000 Δ=           0
+C2 greedy seed=40901 超时率                0.527027 ->       0.453333 Δ=  -0.0736937  <== Δ
+C2 greedy seed=40902 完成任务数             75.000000 ->      77.000000 Δ=           2  <== Δ
+C2 greedy seed=40902 完成率                0.421348 ->       0.432584 Δ=    0.011236  <== Δ
+C2 greedy seed=40902 平均时延             343.446667 ->     346.766234 Δ=     3.31957  <== Δ
+C2 greedy seed=40902 总能量消耗          18552.783398 ->   18650.653551 Δ=     97.8702  <== Δ
+C2 greedy seed=40902 总飞行距离         211787.059018 ->  211965.241061 Δ=     178.182  <== Δ
+C2 greedy seed=40902 换电总次数             16.000000 ->      15.000000 Δ=          -1  <== Δ
+C2 greedy seed=40902 机巢周转率              1.600000 ->       1.500000 Δ=        -0.1  <== Δ
+C2 greedy seed=40902 泊位利用率              0.075139 ->       0.075000 Δ=-0.000138889  <== Δ
+C2 greedy seed=40902 生成任务数            178.000000 ->     178.000000 Δ=           0
+C2 greedy seed=40902 超时率                0.466667 ->       0.506494 Δ=   0.0398268  <== Δ
+C2 greedy seed=40903 完成任务数             73.000000 ->      70.000000 Δ=          -3  <== Δ
+C2 greedy seed=40903 完成率                0.410112 ->       0.393258 Δ=  -0.0168539  <== Δ
+C2 greedy seed=40903 平均时延             308.910959 ->     335.242857 Δ=     26.3319  <== Δ
+C2 greedy seed=40903 总能量消耗          18011.209316 ->   18014.141804 Δ=     2.93249  <== Δ
+C2 greedy seed=40903 总飞行距离         210885.582819 ->  211443.925316 Δ=     558.342  <== Δ
+C2 greedy seed=40903 换电总次数             16.000000 ->      16.000000 Δ=           0
+C2 greedy seed=40903 机巢周转率              1.600000 ->       1.600000 Δ=           0
+C2 greedy seed=40903 泊位利用率              0.076583 ->       0.076000 Δ=-0.000583333  <== Δ
+C2 greedy seed=40903 生成任务数            178.000000 ->     178.000000 Δ=           0
+C2 greedy seed=40903 超时率                0.520548 ->       0.500000 Δ=  -0.0205479  <== Δ
+
+== 符号汇总（每格 n=3，样本太小不做显著性宣称）==
+C1 ga     完成任务数        pos=0 neg=0 zero=3 absmax=0
+C1 ga     完成率          pos=0 neg=0 zero=3 absmax=0
+C1 ga     平均时延         pos=0 neg=0 zero=3 absmax=0
+C1 ga     总能量消耗        pos=0 neg=0 zero=3 absmax=0
+C1 ga     总飞行距离        pos=0 neg=0 zero=3 absmax=0
+C1 ga     换电总次数        pos=0 neg=0 zero=3 absmax=0
+C1 ga     机巢周转率        pos=0 neg=0 zero=3 absmax=0
+C1 ga     泊位利用率        pos=0 neg=0 zero=3 absmax=0
+C1 ga     生成任务数        pos=0 neg=0 zero=3 absmax=0
+C1 ga     超时率          pos=0 neg=0 zero=3 absmax=0
+C1 greedy 完成任务数        pos=2 neg=1 zero=0 absmax=4
+C1 greedy 完成率          pos=2 neg=1 zero=0 absmax=0.0268456
+C1 greedy 平均时延         pos=2 neg=1 zero=0 absmax=62.5275
+C1 greedy 总能量消耗        pos=1 neg=2 zero=0 absmax=214.29
+C1 greedy 总飞行距离        pos=2 neg=1 zero=0 absmax=4094.56
+C1 greedy 换电总次数        pos=0 neg=0 zero=3 absmax=0
+C1 greedy 机巢周转率        pos=0 neg=0 zero=3 absmax=0
+C1 greedy 泊位利用率        pos=1 neg=0 zero=2 absmax=0.000916667
+C1 greedy 生成任务数        pos=0 neg=0 zero=3 absmax=0
+C1 greedy 超时率          pos=1 neg=2 zero=0 absmax=0.0517822
+C2 ga     完成任务数        pos=0 neg=0 zero=3 absmax=0
+C2 ga     完成率          pos=0 neg=0 zero=3 absmax=0
+C2 ga     平均时延         pos=0 neg=0 zero=3 absmax=0
+C2 ga     总能量消耗        pos=0 neg=0 zero=3 absmax=0
+C2 ga     总飞行距离        pos=0 neg=0 zero=3 absmax=0
+C2 ga     换电总次数        pos=0 neg=0 zero=3 absmax=0
+C2 ga     机巢周转率        pos=0 neg=0 zero=3 absmax=0
+C2 ga     泊位利用率        pos=0 neg=0 zero=3 absmax=0
+C2 ga     生成任务数        pos=0 neg=0 zero=3 absmax=0
+C2 ga     超时率          pos=0 neg=0 zero=3 absmax=0
+C2 greedy 完成任务数        pos=2 neg=1 zero=0 absmax=3
+C2 greedy 完成率          pos=2 neg=1 zero=0 absmax=0.0168539
+C2 greedy 平均时延         pos=2 neg=1 zero=0 absmax=37.334
+C2 greedy 总能量消耗        pos=3 neg=0 zero=0 absmax=97.8702
+C2 greedy 总飞行距离        pos=3 neg=0 zero=0 absmax=1704.88
+C2 greedy 换电总次数        pos=0 neg=2 zero=1 absmax=1
+C2 greedy 机巢周转率        pos=0 neg=2 zero=1 absmax=0.1
+C2 greedy 泊位利用率        pos=0 neg=3 zero=0 absmax=0.00119444
+C2 greedy 生成任务数        pos=0 neg=0 zero=3 absmax=0
+C2 greedy 超时率          pos=1 neg=2 zero=0 absmax=0.0736937
+
+== 实验面 provider 证人 ==
+C1 ga seed=40901 -> {'calls': 0, 'cache_hits': 0, 'unique_od': 0, 'degenerate': 0, 'deltas': 0, 'no_fly_detours': 33, 'max_ratio': None}
+C1 ga seed=40902 -> {'calls': 0, 'cache_hits': 0, 'unique_od': 0, 'degenerate': 0, 'deltas': 0, 'no_fly_detours': 30, 'max_ratio': None}
+C1 ga seed=40903 -> {'calls': 0, 'cache_hits': 0, 'unique_od': 0, 'degenerate': 0, 'deltas': 0, 'no_fly_detours': 32, 'max_ratio': None}
+C1 greedy seed=40901 -> {'calls': 4773, 'cache_hits': 4006, 'unique_od': 767, 'degenerate': 6, 'deltas': 254, 'no_fly_detours': 49, 'max_ratio': 1.0645}
+C1 greedy seed=40902 -> {'calls': 4377, 'cache_hits': 3735, 'unique_od': 642, 'degenerate': 9, 'deltas': 181, 'no_fly_detours': 44, 'max_ratio': 1.0617}
+C1 greedy seed=40903 -> {'calls': 5115, 'cache_hits': 4415, 'unique_od': 700, 'degenerate': 7, 'deltas': 207, 'no_fly_detours': 38, 'max_ratio': 1.0833}
+C2 ga seed=40901 -> {'calls': 0, 'cache_hits': 0, 'unique_od': 0, 'degenerate': 0, 'deltas': 0, 'no_fly_detours': 21, 'max_ratio': None}
+C2 ga seed=40902 -> {'calls': 0, 'cache_hits': 0, 'unique_od': 0, 'degenerate': 0, 'deltas': 0, 'no_fly_detours': 12, 'max_ratio': None}
+C2 ga seed=40903 -> {'calls': 0, 'cache_hits': 0, 'unique_od': 0, 'degenerate': 0, 'deltas': 0, 'no_fly_detours': 9, 'max_ratio': None}
+C2 greedy seed=40901 -> {'calls': 8094, 'cache_hits': 7066, 'unique_od': 1028, 'degenerate': 1, 'deltas': 326, 'no_fly_detours': 37, 'max_ratio': 1.0833}
+C2 greedy seed=40902 -> {'calls': 8430, 'cache_hits': 7296, 'unique_od': 1134, 'degenerate': 4, 'deltas': 332, 'no_fly_detours': 25, 'max_ratio': 1.0833}
+C2 greedy seed=40903 -> {'calls': 7764, 'cache_hits': 6647, 'unique_od': 1117, 'degenerate': 3, 'deltas': 310, 'no_fly_detours': 27, 'max_ratio': 1.0833}
+
+== 追溯门（|Δ任务数| >= 2 且该 seed 无绕障候选腿 ⇒ 归因断链）==
+无：所有需追溯的格子都有该 seed 的绕障候选腿证人
+
+================================================================================
+控制面与归因（本轮实测；缺了它们上面的 Δ 只是数字）
+================================================================================
+[C1] 噪声底：同 provider、同 seed、同配置连跑两次 worker（console/phase1b1_attribution_trace.py::noise_floor）
+     C1 seed=40901 完成 106/106   C1 seed=40902 完成 107/107
+     C2 seed=40901 完成  74/74    C2 seed=40902 完成  75/75
+     超时率/总飞行距离/总能量消耗 drift 全部 = 0.0 ⇒ 运行间噪声为 0。
+     含义：上面任何非零 Δ 都只能由 provider 切换造成，不存在"这本来就是噪声"的退路。
+
+[C2] GA 阴性对照为什么成立（不是"GA 没跑优化"）：C1 seed=40901、provider=planned_distance 下
+     GAScheduler.get_stats() = flush_timeout=20, flush_size=0, flush_emergency=0,
+                              dispatches=44, immediate_assign=6, urgent_dispatch=46, buffered=82
+     同时 route_cost_provider.stats() calls=0 ⇒ 批量优化器【确实介入了 20 次】，
+     但它一行都不读 provider（backend_si/pso_scheduler.py 全文零引用，门 G5 已钉成断言）。
+     ⇒ GA 两面逐位相同是"距离口径不进 GA 决策"的证据，而不是"两边都没优化"的空转。
+
+[C3] 追溯层次（务必分清两层，别把第一层当第二层）：
+     L1 机制通道存在性 = phase1b1_experiment.untraceable() ⇒ 本轮"无断链"。
+        它只排除"planner 一次都没参与却变了 KPI"；deltas 非空是恒真前提，解释不了具体哪一步。
+     L2 逐事件归因 = console/phase1b1_attribution_trace.py（同一初始状态 deepcopy 后分叉，
+        各自 step 到回合结束）⇒ 每个 seed 都给出了【首分歧步 + 换掉的任务对】，见
+        docs/取证输出/phase1b1_attribution_trace.txt。Δ 的方向与大小在 L2 有具名步骤可指。
+
+[C4] 量具偏差声明：L2 探针的重放 argmax 与生产 Greedy 的 max() 平手打破规则不同
+     （生产按候选列表顺序取先出现者，探针按 (score, task_id) 元组比较 ⇒ tie-break 可能相反），
+     因此其"分歧步数"上界（60，受 events 记录上限截断）与完成数差值不得当作精确复算值引用；
+     只有"首分歧发生在第几步、换了哪个任务"这类定性结论可用。正式实验的两面仍走生产代码路径。

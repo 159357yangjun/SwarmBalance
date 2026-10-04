@@ -11,8 +11,8 @@
         frontend/environment.py:437 expected_time 仅在 PRINT_ROUTE_DEBUG 分支里，纯打印
 
   决策   frontend/environment.py:1503-1512 _obs() 把 ttlj = deadline - now 放进观察空间
-        frontend/greedy/scheduler.py:174 读出 remaining_time
-        frontend/greedy/scheduler.py:180-186 喂给 compute_match(...)
+        frontend/greedy/scheduler.py:183 读出 remaining_time
+        frontend/greedy/scheduler.py:187-195 喂给 compute_match(...)
         frontend/matching.py:34-46 speed_match(): urgency = 1 - remaining_time/300 ⇒ 进打分
 
   不进决策的路径（同样要断言，否则"没有"无法被证明）

@@ -1,0 +1,25 @@
+Generated 12 tasks:
+地图建筑 2889 栋：其中 25 栋有可用高度、18 栋 >20 m 进入避障碰撞集
+[flip] C1 seed=40901 候选组=45 翻转=2 planner调用=663 唯一OD=176 绕障腿=58 最大ratio=1.0493
+Generated 12 tasks:
+地图建筑 2889 栋：其中 25 栋有可用高度、18 栋 >20 m 进入避障碰撞集
+[flip] C1 seed=40902 候选组=44 翻转=0 planner调用=621 唯一OD=154 绕障腿=53 最大ratio=1.0833
+Generated 12 tasks:
+地图建筑 2889 栋：其中 25 栋有可用高度、18 栋 >20 m 进入避障碰撞集
+[flip] C1 seed=40903 候选组=41 翻转=1 planner调用=567 唯一OD=162 绕障腿=49 最大ratio=1.0639
+Generated 12 tasks:
+地图建筑 2889 栋：其中 25 栋有可用高度、18 栋 >20 m 进入避障碰撞集
+[flip] C2 seed=40901 候选组=59 翻转=2 planner调用=1791 唯一OD=338 绕障腿=99 最大ratio=1.0754
+Generated 12 tasks:
+地图建筑 2889 栋：其中 25 栋有可用高度、18 栋 >20 m 进入避障碰撞集
+[flip] C2 seed=40902 候选组=55 翻转=0 planner调用=1278 唯一OD=307 绕障腿=72 最大ratio=1.0607
+Generated 12 tasks:
+地图建筑 2889 栋：其中 25 栋有可用高度、18 栋 >20 m 进入避障碰撞集
+[flip] C2 seed=40903 候选组=58 翻转=0 planner调用=1593 唯一OD=358 绕障腿=103 最大ratio=1.0690
+
+合计：候选组=302 翻转=5 翻转率=1.6556%
+  C1 seed=40901 step=1739 drone=4 n=6 euclid选=task_56 planned选=task_57 分差(e)=0.017300 分差(p)=0.003374
+  C1 seed=40901 step=1809 drone=1 n=4 euclid选=task_54 planned选=task_49 分差(e)=0.000115 分差(p)=0.004379
+  C1 seed=40903 step=1694 drone=1 n=2 euclid选=task_51 planned选=task_48 分差(e)=0.441935 分差(p)=0.358028
+  C2 seed=40901 step=844 drone=2 n=11 euclid选=task_19 planned选=task_31 分差(e)=0.006762 分差(p)=0.009999
+  C2 seed=40901 step=2825 drone=0 n=3 euclid选=task_34 planned选=task_10 分差(e)=0.425494 分差(p)=0.115550

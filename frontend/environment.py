@@ -2,6 +2,7 @@ import numpy as np
 import heapq
 import hashlib
 import atexit
+import json
 import os
 import pickle
 import tempfile
@@ -13,6 +14,8 @@ import math
 from drone import Drone, BATTERY_CONSUMPTION_BASE, BATTERY_LOAD_PENALTY_FACTOR, HETERO_ENABLED, BATTERY_LOW_THRESHOLD, STEP_SECONDS
 from charging_station import ChargingStation, DEFAULT_CHARGING_STATIONS, find_nearest_station
 from route_planner import RoutePlanner, RouteRequest
+from route_cost import (EuclideanRouteCostProvider, PlannedDistanceRouteCostProvider,
+                          make_provider)
 from config.config_loder import get_shared_config
 # from test import OptimizedMapViewer
 from tools.osm import load_map_data, get_building_location_by_name, get_global_bounds
@@ -200,6 +203,23 @@ class Environment:
             no_fly=self.no_fly,
             path_clear=self.is_path_clear,
         )
+        # Phase 1B-1：调度器的距离口径。默认 euclidean（对照组）⇒ 本行不改变任何行为；
+        # 实验面由 set_route_cost_provider("planned_distance") 显式开启。
+        # 环境变量通道是给**独立进程 worker** 用的唯一开关方式：worker.run_one 内部
+        # `from environment import Environment`，在父进程 monkeypatch 模块属性对它无效，
+        # 而 worker 已经在用 SWARM_BALANCE_SIM_CONFIG 这类环境变量注入配置，同一套路数。
+        self.route_cost_kind = "euclidean"
+        self.route_cost_provider = EuclideanRouteCostProvider()
+        _rc = (os.environ.get("SWARM_BALANCE_ROUTE_COST") or "").strip().lower()
+        if _rc:
+            self.set_route_cost_provider(_rc)
+        # 实验证人落盘（Phase 1B-1）：provider 的调用统计与"planned != euclid 的候选腿"清单。
+        # 只在显式开启时写，默认路径零副作用；worker 子进程各写各的文件，不互相覆盖。
+        self._route_cost_dump_path = None
+        _dump = (os.environ.get("SWARM_BALANCE_ROUTE_COST_DUMP") or "").strip()
+        if _dump:
+            self._route_cost_dump_path = _dump
+            atexit.register(self._dump_route_cost_evidence)
 
         # 机巢泊位竞争状态（创新点2）：有限泊位 + 动态优先级仲裁排队
         self._nest_waiting = {s.station_id: [] for s in self.charging_stations}
@@ -1692,6 +1712,10 @@ class Environment:
             'drone_capabilities': drone_capabilities,
             'charging_station': charging_station_info,   # 向后兼容
             'charging_stations': charging_stations_info,  # 新：多站列表
+            # Phase 1B-1：距离口径由 provider 决定，默认 Euclidean ⇒ 不开实验时逐字不变。
+            # 经 observation 传而不是改 schedule_for_drone 签名：后者被 worker/sim_session/
+            # evaluate_metrics/ab_chain_test 四处按位置参数调用，改签名会波及全部。
+            'route_cost_provider': self.route_cost_provider,
         }
     
     # ----------- 任务链 / 顺路接入 -----------
@@ -1848,6 +1872,41 @@ class Environment:
                 print(f"WARNING: Route segment {route[i][:2]} -> {route[i+1][:2]} intersects with building!")
                 return False
         return True
+
+    def set_route_cost_provider(self, kind: str) -> str:
+        """切换调度器距离口径：euclidean（对照）| planned_distance（实验）。
+
+        只影响【距离】这一项。ETA / energy / range feasibility 的算法一字未动 ——
+        这是 Phase 1B-1 与 1B-2/1B-3 的分界，写在方法文档里防止以后顺手扩。
+        """
+        self.route_cost_kind = (kind or "euclidean").strip().lower()
+        self.route_cost_provider = make_provider(self.route_cost_kind, planner=self.route_planner)
+        return self.route_cost_kind
+
+    def _dump_route_cost_evidence(self) -> None:
+        """把 provider 的调用统计 + 绕障候选腿清单落盘（Phase 1B-1 的追溯证人）。
+
+        H1 要求"KPI 变化必须追溯到具体一次翻转"，而 provider 活在 worker 子进程里、
+        进程结束即消失 ⇒ 必须在退出前把它见过的东西写出来。只在显式设了
+        SWARM_BALANCE_ROUTE_COST_DUMP 时写；失败只告警，绝不影响仿真结论。
+        """
+        path = getattr(self, "_route_cost_dump_path", None)
+        if not path:
+            return
+        prov = self.route_cost_provider
+        try:
+            payload = {
+                "provider": prov.name,
+                "seed": getattr(self, "_episode_seed", None),
+                "current_time": int(getattr(self, "current_time", 0)),
+                "total_no_fly_detours": int(getattr(self, "total_no_fly_detours", 0)),
+                "stats": dict(prov.stats()),
+                "deltas": list(getattr(prov, "deltas", [])),
+            }
+            Path(path).write_text(
+                json.dumps(payload, ensure_ascii=False), encoding="utf-8")
+        except Exception as exc:
+            print("[ROUTE_COST_DUMP_FAILED] %s: %s" % (path, exc))
 
     def plan_route_around_buildings(self, start_pos, end_pos):
         """Plans a route from start_pos to end_pos avoiding buildings using A* algorithm.

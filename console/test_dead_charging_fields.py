@@ -101,7 +101,7 @@ class DeadChargingFieldTests(unittest.TestCase):
         self.assertIn("awaiting-user", text,
                       "A2 的待批记录不见了 —— 决定做了就改写它，别直接删掉这一段")
         # 这两个断言串也用拼出来的名字：写全名的话，本文件就成了那个键的一处"读取点"
-        for ln, name in zip((252, 253), NAMES):
+        for ln, name in zip((295, 296), NAMES):
             anchor = "frontend/environment.py:%d#%s" % (ln, name)
             self.assertIn(anchor, text,
                           "M10 缺了引用 %s —— 引用门禁扫不到它，行号漂也没人报警" % anchor)
@@ -132,9 +132,9 @@ class DeadChargingFieldTests(unittest.TestCase):
         os.remove(p)
 
     def test_definition_lines_match_the_cited_anchors(self):
-        """记录里写的 252/253 必须真是那两行 —— 行号漂了引用门禁会红，这里再补一层内容核对。"""
+        """记录里写的 295/296 必须真是那两行 —— 行号漂了引用门禁会红，这里再补一层内容核对。"""
         lines = ENV.read_text(encoding="utf-8").split("\n")
-        for name, ln in zip(NAMES, (252, 253)):
+        for name, ln in zip(NAMES, (295, 296)):
             self.assertIn(name, lines[ln - 1],
                           "%s 已不在 environment.py:%d，那一行的原文是 %r —— 记录与锚点都要改"
                           % (name, ln, lines[ln - 1][:60]))
