@@ -12,6 +12,7 @@ from shapely.geometry import Point, LineString
 import math
 from drone import Drone, BATTERY_CONSUMPTION_BASE, BATTERY_LOAD_PENALTY_FACTOR, HETERO_ENABLED, BATTERY_LOW_THRESHOLD, STEP_SECONDS
 from charging_station import ChargingStation, DEFAULT_CHARGING_STATIONS, find_nearest_station
+from route_planner import RoutePlanner, RouteRequest
 from config.config_loder import get_shared_config
 # from test import OptimizedMapViewer
 from tools.osm import load_map_data, get_building_location_by_name, get_global_bounds
@@ -190,6 +191,15 @@ class Environment:
         self.charging_stations = self._build_charging_stations()
         self.drones = self._build_drones()
         self.task_generator = self.data_source.build_task_source()
+
+        # Phase 1A：绕障路径规划抽离为独立模块。此处传的是**绑定方法** self.is_path_clear，
+        # 因此结果缓存与障碍几何指纹桶仍与原实现同源（reset 不重建 no_fly/high_buildings，
+        # 实测 :1332-1400 只清 total_no_fly_detours ⇒ 引用长期有效）。
+        self.route_planner = RoutePlanner(
+            high_buildings=self.high_buildings,
+            no_fly=self.no_fly,
+            path_clear=self.is_path_clear,
+        )
 
         # 机巢泊位竞争状态（创新点2）：有限泊位 + 动态优先级仲裁排队
         self._nest_waiting = {s.station_id: [] for s in self.charging_stations}
@@ -1840,27 +1850,29 @@ class Environment:
         return True
 
     def plan_route_around_buildings(self, start_pos, end_pos):
-        """
-        Plans a route from start_pos to end_pos avoiding buildings using A* algorithm.
-        """
-        # Check if direct path is possible (stricter check)
-        if self.is_path_clear(start_pos, end_pos):
-            return [end_pos]
+        """Plans a route from start_pos to end_pos avoiding buildings using A* algorithm.
 
-        # 直线被禁飞区拦截：记一次绕飞（用于观测禁飞区对航线的影响强度）
-        if self.no_fly.path_blocked(start_pos, end_pos):
+        Phase 1A：实现已抽到 `frontend/route_planner.py`，本方法退化为委托 + 记账。
+        保留方法名与返回形状（[(x, y), ...]）是因为三个调用点都按它打 tag
+        （:1047-1051、:1763-1766）；Gate A 通过前不删旧签名，避免架构变化叠行为变化。
+
+        `total_no_fly_detours` 仍在此处 +1：planner 只返回 detour 事实，
+        指标归属留在环境层 ⇒ 计数时机与原 :1851-1852 完全一致。
+        """
+        res = self.route_planner.plan(RouteRequest(start=tuple(start_pos[:2]),
+                                                   goal=tuple(end_pos[:2])))
+        if res.detour:
             self.total_no_fly_detours += 1
+        return [tuple(p) for p in res.waypoints]
 
-        # Try A* pathfinding
-        path = self.a_star_pathfinding(start_pos, end_pos)
-        
-        if path and len(path) > 1:
-            # Return path excluding starting position
-            return path[1:]
-        
-        # Last resort: return direct destination with warning
-        print(f"Warning: Could not find obstacle-free path from {start_pos} to {end_pos}")
-        return [end_pos]
+    def route_plan_detailed(self, start_pos, end_pos):
+        """新增只读入口：返回 RouteResult（含 feasible/direct/detour/fallback/distance）。
+
+        仅供诊断与未来 RouteCostProvider 使用；**生产路径不经过它**，
+        因此本轮不影响任何仿真结果。
+        """
+        return self.route_planner.plan(RouteRequest(start=tuple(start_pos[:2]),
+                                                    goal=tuple(end_pos[:2])))
 
     def a_star_pathfinding(self, start, goal):
         """

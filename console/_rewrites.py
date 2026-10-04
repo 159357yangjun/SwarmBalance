@@ -130,7 +130,11 @@ def classify_dangling(subject, parents):
     """
     if not parents:
         return "孤儿根提交（另一段历史，无父）"
-    if subject.startswith("index on ") or subject.startswith("On "):
+    if subject.startswith("index on ") or subject.startswith("On ") \
+            or subject.startswith("WIP on "):
+        # WIP on <branch>: 是 stash 为"已跟踪改动"造的那个提交的固定标题（本轮我自己
+        # `git stash push -u` 之后 pop 完，stash ref 已空但这个对象仍活在对象库里）。
+        # 它是三 parent 的机械产物，与"改写历史"无关；此前只认 On/index on ⇒ 漏认。
         return "git stash 留下的对象（stash ref 已清，对象未回收）"
     return ""
 

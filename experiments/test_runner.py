@@ -228,9 +228,20 @@ class ReproducibilityManifestTests(unittest.TestCase):
                 self._manifest(Path(root), ["pso"], tmp)
 
     def test_manifest_carries_no_absolute_path(self):
-        """归档清单曾把 C:\\Users\\<user>\\... 整条写进去，等于把开发机目录结构发给评委。"""
-        with tempfile.TemporaryDirectory() as tmp:
-            text = self._manifest(runner.PROJECT_ROOT, CONCLUSION_ALGOS, tmp).read_text(encoding="utf-8")
+        """归档清单曾把 C:\\Users\\<user>\\... 整条写进去，等于把开发机目录结构发给评委。
+
+        必须显式钉住 SWARM_BALANCE_SIM_CONFIG：write_manifest 会把当时进程环境里的这个值
+        原样抄进 environment_flags（experiments/reproducibility.py:170）。批量实验/探针在
+        同一进程内留下过该变量时，本条会因为它而红 —— 而那既不是清单缺陷也不是修复对象，
+        只是判据的输入没被固定。所以这里隔离它，让"无绝对路径"这件事只取决于代码本身。
+        """
+        saved = os.environ.pop("SWARM_BALANCE_SIM_CONFIG", None)
+        try:
+            with tempfile.TemporaryDirectory() as tmp:
+                text = self._manifest(runner.PROJECT_ROOT, CONCLUSION_ALGOS, tmp).read_text(encoding="utf-8")
+        finally:
+            if saved is not None:
+                os.environ["SWARM_BALANCE_SIM_CONFIG"] = saved
         self.assertNotIn("\\\\", text, "清单里仍有 Windows 绝对路径")
         self.assertIsNone(re.search(r"[A-Za-z]:[\\/]", text), "清单里仍有盘符路径")
         self.assertNotIn(str(Path.home()), text)
