@@ -88,7 +88,9 @@ OBSOLETE = re.compile(r"已失效@([0-9a-f]{7,40})")
 # 门当场抓到 4 条 `greedy/scheduler.py` 缺 `frontend/` 前缀的错引用 —— 也就是说
 # 不纳入就是让最容易腐烂的那份文档享受零检查。
 DEFAULT_DOCS = ("docs/数据来源与可追溯性登记表.md", "README.md",
-                "docs/SwarmBalance总体架构与真实性演进总纲.md")
+                "docs/SwarmBalance总体架构与真实性演进总纲.md",
+                "docs/调度预测口径与执行口径.md", "docs/二维假设清单.md",
+                "docs/UI-API状态来源链.md")
 
 
 def ranges(spec: str):
@@ -348,6 +350,13 @@ ROWSET_MARK = re.compile(r"行集=(core4|all10)")
 
 
 def scan_docs(doc_names=DEFAULT_DOCS):
+    # 清单承重：此前不存在的文件名会被静默跳过 ⇒ "我把文档名写错了"与
+    # "这份文档不需要检查"在输出上完全同形（本轮实测撞到：改名后清单未同步，
+    # 那份文档其实没被扫，而 checked 数字看起来一切正常）。所以先断言清单可读。
+    missing = [d for d in doc_names if not (ROOT / d).is_file()]
+    if missing:
+        raise SystemExit("[CITE_SCOPE_NOT_READABLE] DEFAULT_DOCS 里有读不到的文件：" +
+                         ", ".join(missing) + " —— 门会静默跳过它们，等于没检查")
     checked = anchored = rs_checked = rs_marked = 0
     bad = []
     vdirs = void_dirs()                      # 只发现一次，别每行都遍历仓库
