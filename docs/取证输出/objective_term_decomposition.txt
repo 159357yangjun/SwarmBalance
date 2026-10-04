@@ -1,0 +1,39 @@
+==============================================================================
+Objective term decomposition（加权后实际贡献）— 只读诊断，不改行为
+真源 backend_si/chain_codec.py:477-490；权重 config.yaml:124-126
+==============================================================================
+Generated 12 tasks:
+地图建筑 2889 栋：其中 25 栋有可用高度、18 栋 >20 m 进入避障碰撞集
+
+[ga × C1] chain_cost 调用次数 n=200000 worker_ok=True optimize_calls=None  ⚠ 采样已达上限被截断
+     w_makespan × makespan          mean=     955.048 max=    1799.036 占比= 54.0%
+        w_tardy × total_tardiness   mean=     303.649 max=    2234.727 占比= 17.2%
+         w_dist × total_distance    mean=     147.956 max=     235.589 占比=  8.4%
+   w_unassigned × unassigned        mean=     208.500 max=   10000.000 占比= 11.8%
+        w_match × total_match_score mean=     154.103 max=     260.194 占比=  8.7%
+  cost mean=1461.050
+Generated 12 tasks:
+地图建筑 2889 栋：其中 25 栋有可用高度、18 栋 >20 m 进入避障碰撞集
+
+[ga × C2] chain_cost 调用次数 n=166918 worker_ok=True optimize_calls=None
+     w_makespan × makespan          mean=    1190.835 max=    3639.741 占比=  8.6%
+        w_tardy × total_tardiness   mean=    1228.875 max=    5447.334 占比=  8.9%
+         w_dist × total_distance    mean=     140.137 max=     265.492 占比=  1.0%
+   w_unassigned × unassigned        mean=   11084.245 max=   50000.000 占比= 80.5%
+        w_match × total_match_score mean=     127.900 max=     307.122 占比=  0.9%
+  cost mean=13516.192
+Generated 12 tasks:
+地图建筑 2889 栋：其中 25 栋有可用高度、18 栋 >20 m 进入避障碰撞集
+
+[pso × C1] chain_cost 调用次数 n=0 worker_ok=True optimize_calls=None
+  [NO_CALLS] 优化器一次都没被调用 ⇒ 无法归因，本格作废
+Generated 12 tasks:
+地图建筑 2889 栋：其中 25 栋有可用高度、18 栋 >20 m 进入避障碰撞集
+
+[pso × C2] chain_cost 调用次数 n=0 worker_ok=True optimize_calls=None
+  [NO_CALLS] 优化器一次都没被调用 ⇒ 无法归因，本格作废
+
+==============================================================================
+判读（阈值来自本文档头，先写下再看数）
+  ga × C1: w_dist*total_distance 占总绝对贡献 8.4% ⇒ 中等(5~20%)
+  ga × C2: w_dist*total_distance 占总绝对贡献 1.0% ⇒ 次要(<5%)
