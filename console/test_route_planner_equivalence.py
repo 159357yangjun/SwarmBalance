@@ -169,5 +169,65 @@ class RoutePlannerEquivalence(unittest.TestCase):
         self.assertIs(env.route_planner.no_fly, env.no_fly)
 
 
+    # 允许出现 a_star_pathfinding 这个名字的文件：
+    #   frontend/route_planner.py      —— 新实现自己的同名方法（内部自调，不是 legacy）
+    #   frontend/environment.py        —— legacy 定义所在文件（含其内部 heuristic 自调）
+    #   console/test_route_planner_equivalence.py —— Gate A 的对照调用，正是它的用途
+    # 判据必须按"归属哪个类"而不是"源码里有没有这个字符串"：第一版我把 route_planner.py
+    # 自己的内部调用误报成违规 ⇒ 一道会喊狼的门比漏检更贵，因为它教人忽略它的红。
+    LEGACY_ALLOW = ("frontend/environment.py", "frontend/route_planner.py",
+                    "console/test_route_planner_equivalence.py")
+
+    def test_legacy_oracle_has_no_new_callers(self):
+        """LEGACY_REFERENCE_ONLY 的强制含义：不许新生产代码依赖旧 A*。
+
+        为什么必须有这条：Gate A 需要旧实现当对照物 ⇒ 它不能被删；但一个"不能删的旧副本"
+        如果同时可以被随意调用，就会长成两套正式 RoutePlanner —— 那时等价门绿着，
+        生产却走的是另一套。所以把"只准当 oracle"变成会红的断言，而不是注释里的愿望。
+        """
+        hits = []
+        for py in REPO.rglob("*.py"):
+            if ".git" in py.parts or "__pycache__" in py.parts or ".venv310" in py.parts:
+                continue
+            rel = str(py.relative_to(REPO)).replace("\\", "/")
+            try:
+                text = py.read_text(encoding="utf-8")
+            except Exception:
+                continue
+            for i, line in enumerate(text.splitlines(), 1):
+                stripped = line.strip()
+                if stripped.startswith("#"):
+                    continue
+                if "a_star_pathfinding(" in stripped and "def a_star_pathfinding" not in stripped:
+                    if rel not in self.LEGACY_ALLOW:
+                        hits.append("%s:%d %s" % (rel, i, stripped[:70]))
+        self.assertEqual(hits, [],
+                         "有生产代码新增了对 legacy A* 的调用（应改用 route_planner）：\\n  " + "\\n  ".join(hits))
+        # 上面的文件级白名单会放过 route_planner.py 内部同名调用 ⇒ 再用一条**归属级**判据兜住
+        # 真正的风险：任何地方调到 **Environment 那份** legacy 实现（三种写法都要认）：
+        #   env.x(...) / self.env.x(...) / Environment.x(self, ...)（未绑定调用，本轮变异撞出来的漏项）
+        # 第一版只认前两种，我用第三种写法做变异时门照样绿 ⇒ 那是判据覆盖不全，已补齐。
+        via_env = []
+        needles = (".a_star_pathfinding(",)
+        owners = ("env", "self.env", "environment", "Environment", "cls.env")
+        for py in REPO.rglob("*.py"):
+            if ".git" in py.parts or "__pycache__" in py.parts or ".venv310" in py.parts:
+                continue
+            rel = str(py.relative_to(REPO)).replace("\\", "/")
+            if rel == "console/test_route_planner_equivalence.py":
+                continue          # Gate A 的对照调用是它存在的理由
+            for i, line in enumerate(py.read_text(encoding="utf-8").splitlines(), 1):
+                s = line.strip()
+                if s.startswith("#") or "def a_star_pathfinding" in s:
+                    continue
+                if not any(n in s for n in needles):
+                    continue
+                # 归属判定：出现任一 owner 前缀即视为走 legacy 句柄；裸 self. 在 environment.py 内合法
+                if any(("%s%s" % (o, n)) in s.replace(" ", "") for o in owners for n in needles):
+                    via_env.append("%s:%d %s" % (rel, i, s[:70]))
+        self.assertEqual(via_env, [],
+                         "有代码通过 Environment 句柄调用 legacy A*（应直接用 RoutePlanner）："
+                         "\\n  " + "\\n  ".join(via_env))
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

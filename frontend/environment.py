@@ -1875,9 +1875,14 @@ class Environment:
                                                     goal=tuple(end_pos[:2])))
 
     def a_star_pathfinding(self, start, goal):
-        """
-        Implements A* pathfinding algorithm considering building obstacles.
-        Uses visibility graph approach.
+        """LEGACY_REFERENCE_ONLY —— 仅供 Gate A 当对照物，禁止新增生产调用。
+
+        生产路径已迁到 `frontend/route_planner.py::RoutePlanner`（Phase 1A，基线 c0af7c7）。
+        本方法保留的唯一理由是：等价门必须有独立于新实现的旧实现可比；删掉它，门会退化成
+        "新实现和自己比"，那是假绿灯。
+        计划移除：Phase 1B 稳定后把 Gate A 固化成 golden fixtures / reference snapshots，
+        然后删除本方法与 `heuristic`。在那之前不得有第三处调用者 —— 由
+        `console/test_route_planner_equivalence.py::test_legacy_oracle_has_no_new_callers` 拦住。
         """
         # Round positions to avoid floating point precision issues
         def round_pos(pos, decimals=2):
@@ -1957,9 +1962,7 @@ class Environment:
         return None
 
     def heuristic(self, pos1, pos2):
-        """
-        Calculates Euclidean distance between two points.
-        """
+        """LEGACY_REFERENCE_ONLY —— 同 a_star_pathfinding，只为 Gate A 保留。"""
         return math.sqrt((pos1[0] - pos2[0])**2 + (pos1[1] - pos2[1])**2)
 
     def _path_clear_bucket(self):
