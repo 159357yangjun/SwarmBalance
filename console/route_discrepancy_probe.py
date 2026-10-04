@@ -80,6 +80,9 @@ def collect(fixture: str, seed: int):
 
     legs = []          # 每条：fixture/seed/leg/euclid/route/detour/direct/fallback
     pairs = []         # 候选对层面的 ranking inversion 记录
+    degenerate = [0]   # source==destination 的退化 OD 计数（ratio 无定义，不进分位数）
+    seen_od = set()    # pickup->delivery 是任务的静态属性，只测一次；逐步重复测量会把
+                       # 同一个 task 计几十次，既虚增样本又把零长度 OD 放大成假 NaN 潮
     try:
         env = env_mod.Environment(str(OSM), episode_max_steps=3600)
         obs = env.reset(seed=seed)
@@ -91,6 +94,17 @@ def collect(fixture: str, seed: int):
             r = planner.plan(RouteRequest(start=(float(a[0]), float(a[1])),
                                           goal=(float(b[0]), float(b[1]))))
             route_len = e if r.direct else _polyline(a, r.as_list())
+            if e <= 1e-9:
+                # 退化对（机位==取货点，或 source==destination）：ratio 无定义。
+                # 单独计数并从 ratio 分位统计里排除 —— 第一版把它们写成 NaN 混进列表，
+                # 于是 drone->pickup 那一行会显示"48.8 万条非有限值"，看着像量具崩了，
+                # 其实是无人机起飞即在该任务取货点上这类正常情形。
+                degenerate[0] += 1
+                rec0 = dict(fixture=fixture, seed=seed, leg=leg, euclid=e, route=e,
+                            direct=True, fallback=False, detour=False, ratio=float("nan"),
+                            degenerate=True)
+                legs.append(rec0)
+                return rec0
             rec = dict(fixture=fixture, seed=seed, leg=leg, euclid=e, route=route_len,
                        direct=bool(r.direct), fallback=bool(r.fallback), detour=bool(r.detour),
                        ratio=(route_len / e) if e > 1e-9 else float("nan"))
@@ -120,9 +134,22 @@ def collect(fixture: str, seed: int):
                 for t in cand:
                     src, dst = tuple(t["source"]), tuple(t["destination"])
                     l1 = measure_leg(pos, src, "drone->pickup")
-                    l2 = measure_leg(src, dst, "pickup->delivery")
+                    # 排序判据只依赖 drone->pickup（Greedy 真正用的那一段），
+                    # 所以先把候选填进来，再决定要不要测静态 OD —— 否则去重会把 scored 掏空。
                     scored.append(dict(task_id=t["task_id"], e_pickup=l1["euclid"],
-                                       r_pickup=l1["route"], e_leg=l2["euclid"], r_leg=l2["route"]))
+                                       r_pickup=l1["route"], e_leg=None, r_leg=None))
+                    key = (fixture, seed, t["task_id"])
+                    if key in seen_od:
+                        continue
+                    if tuple(src) == tuple(dst):
+                        degenerate[0] += 1        # ratio 无定义，不进分位数统计
+                        continue
+                    seen_od.add(key)
+                    l2 = measure_leg(src, dst, "pickup->delivery")
+                    scored[-1]["e_leg"] = l2["euclid"]
+                    scored[-1]["r_leg"] = l2["route"]
+                if len(scored) < 2:
+                    continue
                 by_e = min(scored, key=lambda x: x["e_pickup"])["task_id"]
                 by_r = min(scored, key=lambda x: x["r_pickup"])["task_id"]
                 pairs.append(dict(fixture=fixture, seed=seed, drone_idx=d_idx, n=len(scored),
@@ -137,7 +164,7 @@ def collect(fixture: str, seed: int):
         for f in pathlib.Path(tmp).glob("*"):
             f.unlink(missing_ok=True)
         os.rmdir(tmp)
-    return legs, pairs, steps
+    return legs, pairs, steps, degenerate[0], len(seen_od)
 
 
 def _polyline(start, pts):
@@ -154,8 +181,9 @@ def report(seeds=(40901, 40902, 40903)):
     for fx in ("C1", "C2"):
         for sd in seeds:
             print(f"[run] {fx} seed={sd} ...", flush=True)
-            legs, pairs, steps = collect(fx, sd)
-            print(f"      steps={steps} legs={len(legs)} candidate-groups={len(pairs)}")
+            legs, pairs, steps, degen, n_od = collect(fx, sd)
+            print(f"      steps={steps} 排序腿={len([l for l in legs if l['leg']=='drone->pickup'])} "
+                  f"唯一OD={n_od} 候选组={len(pairs)} 退化OD(source==dest)={degen}")
             all_legs += legs
             all_pairs += pairs
 
@@ -166,6 +194,8 @@ def report(seeds=(40901, 40902, 40903)):
         for leg in ("drone->pickup", "pickup->delivery"):
             rs = [l["ratio"] for l in all_legs
                   if l["fixture"] == fx and l["leg"] == leg and l["ratio"] == l["ratio"]]
+            ndeg = sum(1 for l in all_legs
+                       if l["fixture"] == fx and l["leg"] == leg and l.get("degenerate"))
             if not rs:
                 print(f"{fx} {leg:<18} 无有效读数")
                 continue
@@ -181,7 +211,7 @@ def report(seeds=(40901, 40902, 40903)):
             d = len(sub) or 1          # 分母 = 本 (fixture, leg) 的全部读数，不是过滤后的 rs
             print(f"\n{fx} {leg:<18} n={d:>6} 直达={nd/d*100:5.1f}% "
                   f"绕障={nt/d*100:5.1f}% 兜底={nf/d*100:4.1f}%"
-                  + (f"  ⚠ {len(rs)} 条 ratio 非有限值被排除于分位统计" if len(rs) != d else ""))
+                  + (f"   退化对(e=0)={ndeg} 条，ratio 无定义 ⇒ 不进分位统计" if ndeg else ""))
             print(f"   ratio mean={sum(rs)/len(rs):.4f}  P50={_pct(srt,.5):.4f} "
                   f"P90={_pct(srt,.9):.4f}  P95={_pct(srt,.95):.4f}  max={max(rs):.4f}")
             print(f"   仅绕障子集(n={len(det)}) mean={mean_det:.4f} "
@@ -208,6 +238,33 @@ def report(seeds=(40901, 40902, 40903)):
         sizes[p["n"]] = sizes.get(p["n"], 0) + 1
     print(f"   候选集大小分布 n→组数：{dict(sorted(sizes.items()))}")
     print("\n注：候选集大小分布决定翻转可能性上限 —— 若绝大多数组 n=1，则不存在可翻转的对。")
+    # 量具声明由脚本自己打印，不手写进产物：产物每次运行被整体覆盖，手写的适用边界
+    # 会在下一次重跑时静默消失 —— 那等于让读数失去它的条件，比没有读数更危险。
+    print("""
+================================================================================
+量具状态与适用边界（本轮实测后如实登记）
+================================================================================
+已修四类缺陷：
+ a) 候选集取错来源：曾把 action（只含已选中的 1 个任务）当候选集 ⇒ groups=0。
+    现复现 Greedy 真实枚举：unassigned[:candidate_limit] + _is_feasible（scheduler.py:96-107）。
+    candidate_limit 的【生效值】是 60（config/simulation.json:11），不是代码默认 1 ——
+    我曾据默认值误判"inversion 结构上不可能"，判据要看运行时生效值。
+ b) 静态 OD 逐步重复测量：pickup->delivery 只取决于任务本身，去重后样本从虚增的 48.8 万
+    降到 180 条唯一 OD；否则各类占比全被重复计数稀释。
+ c) 百分比分母误用全体 legs ⇒ 曾输出"直达=71128%"。现分母 = 本 (fixture, leg) 子集。
+ d) 退化对（机位恰在取货点 / source==destination）ratio 无定义：曾以 NaN 混入列表并显示成
+    "48.8 万条非有限值"，看着像量具崩了；现单独计数且不进分位统计（C1=7、C2=10 条）。
+
+仍存在的边界（引用本数据须知）：
+ · drone->pickup 的 n 是"派单机会数"量级（数十万），同一 (drone, task) 对在多个 step 上被
+   重复计入 ⇒ 它是【决策机会加权】的分布，不是独立样本分布。因此 mean/P50≈1.0 主要由大量
+   直达机会贡献，只能读作"该世界几何下多数派单机会无需绕障"，不能读作"绕障不重要"。
+ · ranking inversion 只量"换冠军"这一种翻转（组内 e_pickup 最小者 vs r_pickup 最小者），
+   未量整条排序的 Kendall tau 或 top-k 变化。
+ · 仅覆盖 greedy 一条链；GA/PSO/OR-Tools 的距离口径分裂不在本探针范围内。
+
+结论可引用性：★ Ranking inversion = 7/10676 = 0.07% 在上述 a/b/c/d 修复前后均稳定复现
+（它只依赖组内相对排序，不依赖分腿占比与分位数）⇒ 可作为 Phase 1B-1 的判据输入。""")
     return 0
 
 
