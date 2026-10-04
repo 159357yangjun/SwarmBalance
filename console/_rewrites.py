@@ -112,6 +112,32 @@ def fields(root, sha):
     return list(got)
 
 
+NOTES_REL = "docs/不可达对象溯源注.md"
+
+
+def _load_dangling_notes(root):
+    """读 `docs/不可达对象溯源注.md`，返回 {短 sha: 说明}。
+
+    为什么单独一个文件：映射表本体是 git 现算、且被逐字节比对 ⇒ 任何手改都会在下次
+    `--write` 时消失（本轮就真撞上过一次：给 stash 对象补的说明被重生覆盖）。
+    格式：每行 `- `<sha>`｜<说明>`；sha 取前 7~40 位均可，按前缀匹配。
+    """
+    p = Path(root) / NOTES_REL
+    if not p.is_file():
+        return {}
+    out = {}
+    for line in p.read_text(encoding="utf-8").splitlines():
+        s = line.strip().lstrip("-").strip()
+        if "`" not in s or "｜" not in s and "|" not in s:
+            continue
+        sha = s.split("`")[1].strip()
+        rest = s.split("｜", 1)[-1] if "｜" in s else s.split("|", 1)[-1]
+        note = rest.strip()
+        if sha and note and not note.startswith("说明"):
+            out[sha[:7]] = note.replace("\n", " ")
+    return out
+
+
 def classify_dangling(subject, parents):
     """给"配不上对的不可达提交"一个名字，而不是把它当失败。
 
@@ -359,6 +385,13 @@ def report(root=ROOT):
         lines += ["", "### 与改写无关的不可达对象（点名；不当失败，也不当「没这东西」）", "",
                   "| 旧 sha | 归进哪一类 | 标题 |", "|---|---|---|"]
         lines += ["| `%s` | %s | %s |" % (u[:7], why, subj[:46]) for u, why, subj in dangling]
+        # 溯源注：表体是 git 现算的，逐字节比对 ⇒ 任何手改都会让它下次重生时消失。
+        # 所以"这个对象是谁造的"只能写在这里 —— 由本文件读回、按 sha 挂到表尾，
+        # 于是它既是 git 事实的一部分，又不会在下一次 --write 时被抹掉。
+        notes = _load_dangling_notes(root)
+        named = {u[:7] for u, _w, _s in dangling}
+        for sha in sorted(named & set(notes)):
+            lines += ["", "> 溯源注 `%s`：%s" % (sha, notes[sha])]
     lines += ["", "## 还欠的残文（扫出来的，不是我承认的）", ""]
     if pending:
         lines += ["| 坏 sha | 改它要重落几个指针（含它自己） | 残文首行（原样，截 72 字） | 标题 |",
