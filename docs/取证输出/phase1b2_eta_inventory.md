@@ -70,7 +70,10 @@ urgency 阈值写死 `/300.0`、PSO 的 `_meters_per_step` 又独立算一遍 �
 | 调度侧用法 A | **门槛**：`current/capacity < min_battery_ratio(0.6)` ⇒ 该机本轮不接单 | `greedy/scheduler.py:81-86` |
 | 调度侧用法 B | **打分**：`range_match(capacity, base, total_distance)`，其中 `est_range=capacity/base` | `matching.py:49-60`，由 `scheduler.py:192-193` 喂参数 |
 | 缺口 | `est_range` 不含载重惩罚、不含风、**也不含"当前剩余电量"**（用的是满容量）⇒ 它答的是"这机型装得下这段路吗"，不是"这架机现在还剩多少电够飞" | `matching.py:52` 用 `battery_capacity` 而非 `current_battery` |
-| 硬可行性 | `_is_feasible` 只按**重量**过滤，超载才拒；电量不参与拒绝 | `scheduler.py:144-155` |
+| 硬可行性 | `_is_feasible` 只按**重量**过滤，超载才拒；电量不参与拒绝（该函数体内 `battery` 引用数 = 0） | `scheduler.py:144-155` |
+
+⇒ 补一行区分两件常被混为一谈的事：**阈值闸门**（`scheduler.py:81-86`，够不着 60% 就不接单，
+与航程无关）≠ **续航核算**（"这趟来回飞得完吗"）。后者在当前 Greedy 里不存在。
 
 ⇒ 对 1B-2 的直接含义：**ETA 与续航是同一笔账的两面**（时间=距离÷速度，耗电=距离×系数）。
 如果 1B-2 只改 ETA 不动 range，则会出现"按绕障 ETA 排了序、但续航仍按直线满容量估"的新裂缝；
