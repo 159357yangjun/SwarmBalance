@@ -79,16 +79,21 @@ def cell_cfg(fixture: str) -> bytes:
 
 
 def run_cell(fixture: str, seed: int, provider: str, algorithm: str,
-             workdir: pathlib.Path, steps: int = EPISODE_STEPS) -> dict:
+             workdir: pathlib.Path, steps: int = EPISODE_STEPS,
+             reach_weight: float = 0.0) -> dict:
     """起一个 worker 进程跑一格，返回 metrics + provider 证人。"""
-    tag = "%s_%s_%d_%s" % (fixture, algorithm, seed, provider)
+    tag = "%s_%s_%d_%s_w%s" % (fixture, algorithm, seed, provider,
+                                str(reach_weight).replace(".", "p"))
     cfg_path = workdir / ("cfg_%s.json" % tag)
     out_path = workdir / ("out_%s.json" % tag)
     dump_path = workdir / ("evidence_%s.json" % tag)
     cfg_path.write_bytes(cell_cfg(fixture))
 
     env = dict(os.environ)
-    env["SWARM_BALANCE_ROUTE_COST"] = provider          # 唯一的被切变量
+    env["SWARM_BALANCE_ROUTE_COST"] = provider          # 被切变量 1：距离口径
+    # 被切变量 2（Phase 1B-2）：ETA 权重。REACH_WEIGHT 在 greedy/scheduler.py import 期冻结
+    # ⇒ 必须经子进程环境注入，与 provider 同一套路数。
+    env["SWARM_BALANCE_REACH_WEIGHT"] = str(reach_weight)
     env["SWARM_BALANCE_ROUTE_COST_DUMP"] = str(dump_path)
     env.pop("SWARM_BALANCE_SIM_CONFIG", None)           # worker 自己设，避免继承脏值
     env["PYTHONIOENCODING"] = "utf-8"
@@ -118,8 +123,12 @@ def run_cell(fixture: str, seed: int, provider: str, algorithm: str,
     return res
 
 
-def collect(seeds=SEEDS, algorithms=ALGOS, steps=EPISODE_STEPS, workdir=None):
-    """跑满 fixture × algorithm × seed × provider，返回 (rows, cells, workdir)。"""
+def collect(seeds=SEEDS, algorithms=ALGOS, steps=EPISODE_STEPS, workdir=None,
+            weights=(0.0,)):
+    """跑满 fixture × algorithm × seed × weight × provider，返回 (rows, cells, workdir)。
+
+    `weights` 只有一档（默认 0.0）时就是 Phase 1B-1 的 24 格；两档即 Phase 1B-2 的 48 格。
+    """
     created = workdir is None
     wd = pathlib.Path(workdir) if workdir else pathlib.Path(tempfile.mkdtemp(prefix="p1b1_"))
     wd.mkdir(parents=True, exist_ok=True)
@@ -127,18 +136,21 @@ def collect(seeds=SEEDS, algorithms=ALGOS, steps=EPISODE_STEPS, workdir=None):
     for fx in FIXTURES:
         for alg in algorithms:
             for sd in seeds:
-                for pv in PROVIDERS:
-                    print(f"[run] {fx} {alg} seed={sd} provider={pv}", flush=True)
-                    res = run_cell(fx, sd, pv, alg, wd, steps=steps)
-                    m = res["metrics"]
-                    ev = res["_evidence"] or {}
-                    cells[(fx, alg, sd, pv)] = res
-                    print(f"      完成={m['完成任务数']:.0f} 生成={m['生成任务数']:.0f} "
-                          f"超时率={m['超时率']:.4f} deltas={ev.get('stats', {}).get('deltas', 'n/a')} "
-                          f"耗时={res.get('duration_seconds')}s", flush=True)
-                    for k in CORE_KPI:
-                        rows.append(dict(fixture=fx, algorithm=alg, seed=sd,
-                                         provider=pv, kpi=k, value=float(m[k])))
+                for w in weights:
+                    for pv in PROVIDERS:
+                        print(f"[run] {fx} {alg} seed={sd} weight={w} provider={pv}", flush=True)
+                        res = run_cell(fx, sd, pv, alg, wd, steps=steps, reach_weight=w)
+                        m = res["metrics"]
+                        ev = res["_evidence"] or {}
+                        cells[(fx, alg, sd, pv, w)] = res
+                        st = ev.get("stats", {})
+                        print(f"      完成={m['完成任务数']:.0f} 生成={m['生成任务数']:.0f} "
+                              f"超时率={m['超时率']:.4f} deltas={st.get('deltas', 'n/a')} "
+                              f"eta_calls={st.get('eta_calls', 'n/a')} "
+                              f"耗时={res.get('duration_seconds')}s", flush=True)
+                        for k in CORE_KPI:
+                            rows.append(dict(fixture=fx, algorithm=alg, seed=sd, weight=w,
+                                             provider=pv, kpi=k, value=float(m[k])))
     if created:
         shutil.rmtree(wd, ignore_errors=True)
     return rows, cells, wd
@@ -146,13 +158,13 @@ def collect(seeds=SEEDS, algorithms=ALGOS, steps=EPISODE_STEPS, workdir=None):
 
 def paired_diffs(rows):
     """按 (fixture, algorithm, seed, kpi) 求 planned - euclid 的逐 seed 差分。"""
-    idx = {(r["fixture"], r["algorithm"], r["seed"], r["kpi"], r["provider"]): r["value"]
-           for r in rows}
+    idx = {(r["fixture"], r["algorithm"], r["seed"], r.get("weight", 0.0), r["kpi"],
+            r["provider"]): r["value"] for r in rows}
     out = []
-    for f, a, s, k in sorted({(f, a, s, k) for (f, a, s, k, _p) in idx}):
-        e = idx[(f, a, s, k, "euclidean")]
-        p = idx[(f, a, s, k, "planned_distance")]
-        out.append(dict(fixture=f, algorithm=a, seed=s, kpi=k,
+    for f, a, s, w, k in sorted({(f, a, s, wt, k) for (f, a, s, wt, k, _p) in idx}):
+        e = idx[(f, a, s, w, k, "euclidean")]
+        p = idx[(f, a, s, w, k, "planned_distance")]
+        out.append(dict(fixture=f, algorithm=a, seed=s, weight=w, kpi=k,
                         euclid=e, planned=p, diff=p - e))
     return out
 
@@ -161,7 +173,7 @@ def sign_summary(diffs):
     """每个 (fixture, algorithm, kpi) 汇总逐 seed 差分的符号（n=3 不做显著性宣称）。"""
     agg = {}
     for d in diffs:
-        key = (d["fixture"], d["algorithm"], d["kpi"])
+        key = (d["fixture"], d["algorithm"], d["kpi"], d.get("weight", 0.0))
         b = agg.setdefault(key, {"pos": 0, "neg": 0, "zero": 0, "absmax": 0.0, "vals": []})
         b["vals"].append(d["diff"])
         b["absmax"] = max(b["absmax"], abs(d["diff"]))
@@ -187,47 +199,54 @@ def untraceable(diffs, cells):
     for d in diffs:
         if d["kpi"] not in COUNT_KPI or abs(d["diff"]) < UNTRACEABLE_TASK_THRESHOLD:
             continue
-        ev = (cells[(d["fixture"], d["algorithm"], d["seed"], "planned_distance")]
-              .get("_evidence") or {})
+        key = (d["fixture"], d["algorithm"], d["seed"], "planned_distance",
+               d.get("weight", 0.0))
+        if key not in cells:      # 旧格式（无 weight 维）兼容
+            key = (d["fixture"], d["algorithm"], d["seed"], "planned_distance")
+        ev = (cells[key].get("_evidence") or {})
         if not ev.get("deltas"):
             bad.append("%s/%s seed=%d %s Δ=%.1f 但该 seed planner 未给出任何绕障候选腿"
                        % (d["fixture"], d["algorithm"], d["seed"], d["kpi"], d["diff"]))
     return bad
 
 
-def write_report(out_path, seeds=SEEDS, algorithms=ALGOS, steps=EPISODE_STEPS):
+def write_report(out_path, seeds=SEEDS, algorithms=ALGOS, steps=EPISODE_STEPS,
+                 weights=(0.0,), title="Phase 1B-1  Euclidean vs PlannedDistance  配对实验"):
     """跑满配对实验并把逐 seed 差分、符号汇总、追溯门写成文本报告。"""
     wd = pathlib.Path(tempfile.mkdtemp(prefix="p1b1_"))
     lines = []
     try:
-        rows, cells, _ = collect(seeds=seeds, algorithms=algorithms, steps=steps, workdir=str(wd))
+        rows, cells, _ = collect(seeds=seeds, algorithms=algorithms, steps=steps,
+                                 workdir=str(wd), weights=weights)
         diffs = paired_diffs(rows)
         bad = untraceable(diffs, cells)
-        lines.append("Phase 1B-1  Euclidean vs PlannedDistance  配对实验")
-        lines.append("seeds=%s algorithms=%s episode_steps=%d" % (list(seeds), list(algorithms), steps))
+        lines.append(title)
+        lines.append("seeds=%s algorithms=%s episode_steps=%d reach_weights=%s"
+                     % (list(seeds), list(algorithms), steps, list(weights)))
         lines.append("")
         lines.append("== 逐 seed 配对差分（planned - euclid）==")
         for d in sorted(diffs, key=lambda x: (x["fixture"], x["algorithm"], x["seed"], x["kpi"])):
             mark = "  <== Δ" if abs(d["diff"]) > 1e-12 else ""
-            lines.append("%s %-6s seed=%d %-12s %14.6f -> %14.6f Δ=%12.6g%s"
-                         % (d["fixture"], d["algorithm"], d["seed"], d["kpi"],
-                            d["euclid"], d["planned"], d["diff"], mark))
+            lines.append("%s %-6s seed=%d w=%-4s %-12s %14.6f -> %14.6f Δ=%12.6g%s"
+                         % (d["fixture"], d["algorithm"], d["seed"], d.get("weight", 0.0),
+                            d["kpi"], d["euclid"], d["planned"], d["diff"], mark))
         lines.append("")
         lines.append("== 符号汇总（每格 n=%d，样本太小不做显著性宣称）==" % len(seeds))
-        for (fx, alg, kpi), b in sorted(sign_summary(diffs).items()):
-            lines.append("%s %-6s %-12s pos=%d neg=%d zero=%d absmax=%.6g"
-                         % (fx, alg, kpi, b["pos"], b["neg"], b["zero"], b["absmax"]))
+        for (fx, alg, kpi, w), b in sorted(sign_summary(diffs).items()):
+            lines.append("%s %-6s w=%-4s %-12s pos=%d neg=%d zero=%d absmax=%.6g"
+                         % (fx, alg, w, kpi, b["pos"], b["neg"], b["zero"], b["absmax"]))
         lines.append("")
         lines.append("== 实验面 provider 证人 ==")
         for key, res in sorted(cells.items(), key=lambda kv: str(kv[0])):
             if res["_provider_requested"] != "planned_distance":
                 continue
+            key = list(key)
             ev = res["_evidence"] or {}
             st = dict(ev.get("stats", {}))
             st["no_fly_detours"] = ev.get("total_no_fly_detours")
             ratios = [d["ratio"] for d in ev.get("deltas", [])]
             st["max_ratio"] = round(max(ratios), 4) if ratios else None
-            lines.append("%s %s seed=%s -> %s" % (key[0], key[1], key[2], st))
+            lines.append("%s %s seed=%s w=%s -> %s" % (key[0], key[1], key[2], key[4], st))
         lines.append("")
         lines.append("== 追溯门（|Δ任务数| >= %g 且该 seed 无绕障候选腿 ⇒ 归因断链）=="
                      % UNTRACEABLE_TASK_THRESHOLD)
@@ -275,5 +294,7 @@ if __name__ == "__main__":
                          "门与断言见 console/test_phase1b1_distance_experiment.py")
     seeds = tuple(int(x) for x in sys.argv[2].split(",")) if len(sys.argv) > 2 else SEEDS
     algs = tuple(sys.argv[3].split(",")) if len(sys.argv) > 3 else ALGOS
-    raise SystemExit(1 if write_report(pathlib.Path(out), seeds=seeds, algorithms=algs) else 0)
+    wts = tuple(float(x) for x in sys.argv[4].split(",")) if len(sys.argv) > 4 else (0.0,)
+    raise SystemExit(1 if write_report(pathlib.Path(out), seeds=seeds, algorithms=algs,
+                                       weights=wts) else 0)
 

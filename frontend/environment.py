@@ -1876,8 +1876,10 @@ class Environment:
     def set_route_cost_provider(self, kind: str) -> str:
         """切换调度器距离口径：euclidean（对照）| planned_distance（实验）。
 
-        只影响【距离】这一项。ETA / energy / range feasibility 的算法一字未动 ——
-        这是 Phase 1B-1 与 1B-2/1B-3 的分界，写在方法文档里防止以后顺手扩。
+        本方法本身只切【距离】口径（Phase 1B-1）。energy / range feasibility 不在这里取数 ——
+        那是 1B-3 的分界。ETA 自 Phase 1B-2 起经 `provider.eta()` 走同一个 provider，
+        目的是让时效与排序同源（否则会出现"排序用绕障、时效按直线"）；它由 Greedy 侧的
+        SWARM_BALANCE_REACH_WEIGHT 控制，默认 0 ⇒ 不调它时行为与 1B-1 逐字一致。
         """
         self.route_cost_kind = (kind or "euclidean").strip().lower()
         self.route_cost_provider = make_provider(self.route_cost_kind, planner=self.route_planner)

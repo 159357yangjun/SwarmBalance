@@ -1,4 +1,5 @@
 import math
+import os
 import random
 
 from config.config_loder import get_shared_config
@@ -16,8 +17,16 @@ MAX_ACTIVE_DRONES_RATIO = float(_GREEDY_CFG.get("max_active_drones_ratio", 0.5))
 # 匹配度权重：0 表示纯就近（同质基线行为），1 表示纯匹配度
 MATCH_WEIGHT = float(_GREEDY_CFG.get("match_weight", 0.6))
 DISTANCE_WEIGHT = float(_GREEDY_CFG.get("distance_weight", 0.4))
+# Phase 1B-2：ETA 维度（reachability）的权重。
+# **默认 0.0** ⇒ 不进 config、不改生产行为；非 0 只由实验经环境变量注入。
+# 理由：默认非 0 会让"本次实现"本身改掉基线，Gate B（同 seed 零漂移）当场失效。
+REACH_WEIGHT = float(os.environ.get("SWARM_BALANCE_REACH_WEIGHT", "0"))
+# reachability 的归一分母：复用 matching.speed_match 里 urgency 的同一个 300（matching.py:44），
+# 不另起一个数 —— 两个时效量必须同尺度，否则新分量会劫持既有平衡。
+REF_SLACK_SECONDS = 300.0
 # 体积折算为等效重量的系数（体积不能与重量 1:1 相加，否则轻载机型几乎无法接单）
 VOLUME_TO_LOAD_FACTOR = 0.3
+
 
 
 class GreedyScheduler(Scheduler):
@@ -155,11 +164,43 @@ class GreedyScheduler(Scheduler):
         return float(task.get('weight', 0.0)) <= remaining_capacity
 
     @staticmethod
-    def _score_task(cap, drone_pos, task, proximity=0.0, provider=None):
-        """综合评分 = 匹配度权重 * 能力匹配分 + 距离权重 * 距离邻近分。
+    def _reachability(provider, drone_pos, task, speed_m_per_s):
+        """ETA 维度：这架机多久能赶到取货点，相对任务剩余时限有多从容。
+
+            slack = remaining_time − ETA          （还能等多久 vs 我要飞多久）
+            reach = clamp(slack / REF_SLACK_SECONDS, 0, 1)   ∈[0,1]，越大越从容
+
+        调用方按 `score += REACH_WEIGHT * (1 - reach)` 使用 ⇒ 越紧张的任务越该被抢走。
+
+        为什么不是字面的 `ETA/remaining_time`（设计文档 §B.1 实测否掉了它）：deadline 生成式是
+        `distance/14 + 420 + weight×24`（task.py:520-527），那个 420 s 常数比航段项大一到两个
+        数量级 ⇒ 裸比值在真世界上中位数只有 0.107、>1 的比例 0%，测的是"SLA 常数有多宽松"，
+        不是"赶不赶得上"。slack 形式减掉那个常数，组内才有信息。
+
+        三种边界（都必须显式处理，否则分量会悄悄失效）：
+          · remaining_time 为 inf（无截止时间的真实任务）⇒ 取中性 0.5，不奖不罚；
+          · slack < 0（注定赶不上）⇒ clamp 到 0 = 奖惩最强，但由调用处单独计数，
+            否则"已经有多少单注定超时"看不见；
+          · provider 为 None（同质机型走纯就近分支）⇒ 返回 None，让调用处保持原行为。
+        """
+        if provider is None:
+            return None
+        remaining_time = task.get('remaining_time', float('inf'))
+        if remaining_time == float('inf'):
+            return 0.5
+        eta = provider.eta(drone_pos, tuple(task['source']), speed_m_per_s)
+        slack = float(remaining_time) - eta
+        return max(0.0, min(1.0, slack / REF_SLACK_SECONDS))
+
+    @staticmethod
+    def _score_task(cap, drone_pos, task, proximity=0.0, provider=None, reach_weight=None):
+        """综合评分 = 匹配度权重 * 能力匹配分 + 距离权重 * 距离邻近分 [+ ETA 权重 * 紧迫分]。
 
         匹配分由 matching.compute_match 给出（考虑载重/速度/续航与任务
         重量/体积/时效/距离的匹配）；邻近分为候选集内归一化后的距离分。
+
+        Phase 1B-2：`reach_weight` 默认取模块常量（=环境变量注入值，缺省 0）。
+        **既有两项一字未动** —— 新分量是纯加法，权重为 0 时表达式与改前代数等价（门 G11）。
         """
         if not cap or cap.get('drone_type') is None:
             # 无能力信息或同质机型时退化为就近（保持原基线行为，便于公平对比）
@@ -171,8 +212,8 @@ class GreedyScheduler(Scheduler):
         if float(task.get('weight', 0.0)) > remaining_capacity:
             return float('-inf')
 
-        # Phase 1B-1：provider 存在时【只】替换这两段距离的口径；ETA(remaining_time)、
-        # 电池/range 参数一律原样传下去 —— 那是 1B-2/1B-3 的范围。
+        # Phase 1B-1：provider 存在时【只】替换这两段距离的口径；energy/range 参数一律原样
+        # 传下去 —— 那是 1B-3 的范围。ETA 从 1B-2 起经 provider.eta() 取数（同源，见下）。
         if provider is not None:
             source_dist = provider.distance(drone_pos, tuple(task['source']))
             route_dist = provider.distance(tuple(task['source']), tuple(task['destination']))
@@ -194,7 +235,18 @@ class GreedyScheduler(Scheduler):
             total_distance,
         )
 
+        w_reach = REACH_WEIGHT if reach_weight is None else float(reach_weight)
+        if w_reach:
+            # speed 用该机自己的巡航速度（cap['speed']），不是全局常量：ETA 的意义就是
+            # "这架机赶不赶得上"，用别人的速度算就等于没算。
+            reach = GreedyScheduler._reachability(provider, drone_pos, task,
+                                                  float(cap.get('speed', 200.0)))
+            if reach is None:
+                return MATCH_WEIGHT * match_score + DISTANCE_WEIGHT * proximity
+            return (MATCH_WEIGHT * match_score + DISTANCE_WEIGHT * proximity
+                    + w_reach * (1.0 - reach))
         return MATCH_WEIGHT * match_score + DISTANCE_WEIGHT * proximity
+
 
     @staticmethod
     def schedule_all_drones(drones, tasks):
