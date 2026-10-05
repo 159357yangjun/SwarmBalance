@@ -23,3 +23,33 @@ Generated 12 tasks:
   C1 seed=40903 step=1694 drone=1 n=2 euclid选=task_51 planned选=task_48 分差(e)=0.441935 分差(p)=0.358028
   C2 seed=40901 step=844 drone=2 n=11 euclid选=task_19 planned选=task_31 分差(e)=0.006762 分差(p)=0.009999
   C2 seed=40901 step=2825 drone=0 n=3 euclid选=task_34 planned选=task_10 分差(e)=0.425494 分差(p)=0.115550
+
+================================================================================
+量具状态（本轮实测后如实登记；引用上面数字前必读）
+================================================================================
+缺陷 f【已修】两面共享同一个 PlannedDistanceRouteCostProvider 实例。该 provider 自带
+  _cache ⇒ 第二面全量命中第一面的缓存 ⇒ 两"面"实际是同一组数 ⇒ flips=0 是构造出来的 0。
+  修法：对照面走 GS.euclidean_distance（不经过任何带缓存的实例），实验面用独立实例。
+  修后本产物的数字与修前相同（5/302）——因为 witness 的两面本来就各自 new 过 plan，
+  真正受影响的是 attribution_trace（见下）。⇒ 本产物数字可用，但只到"候选集层面"。
+
+设计边界（不是 bug，但决定它能证什么、不能证什么）：
+ · witness 只抓【rank inversion】：组内 argmax 换冠军。它【不抓】
+   (1) score 幅度变化（同一冠军、分数变了 → 影响后续 accept_probability 之后的接单时机）
+   (2) tie-breaking 差异（生产 max() 按列表顺序取先出现者）
+   (3) 距离口径经 total_distance 进入 compute_match 的续航匹配分量（那是连续量，不改冠军也能改分）
+ ⇒ 因此"某格 KPI 变了而本表该格翻转=0"不构成矛盾。G9 交叉对账门就是专门把这种
+   "证人看不见"和"证人失灵"分开用的：现在已知答案是前者 + trace 探针的缺陷 g。
+
+缺陷 g【未修，故 attribution_trace 的追溯链不可引用】Greedy 每次调用消耗一个全局
+  random.random()（scheduler.py:89 接单概率）。trace 探针让两面共享进程级 RNG ⇒
+  第二面拿到被第一面推进过的随机流。实测：C1 seed=40902 两面逐 drone 打分 top3 完全一致
+  （task_4 0.643934 / task_11 0.492975 / task_6 0.473961），但生产 action 在 step=0 就报
+  drone4 分歧（对照 task_6 / 实验 task_11）—— 那是随机流错位，与距离口径无关。
+  曾试"每步 apply_seed(seed)"对齐 ⇒ 连带重置任务生成器，对照面退回初始机位并重发同批任务
+  （完成数从 105 掉到 73），更错，已撤回。
+  正解：给每面注入独立 Random 实例 —— 属生产 Greedy 行为改动，不在本轮范围。
+
+消融证据（provider 是唯一变量源）：把 scheduler.py:114 的 provider 强制置 None 后重跑
+  C-1 greedy 三 seed × 两面 ⇒ 完成数 106/106、107/107、111/111，deltas=0；GA 面同样逐位相同。
+  ⇒ planned_distance 面的 KPI 变化确实由距离口径造成，不是运行噪声（噪声底此前已实测为 0）。

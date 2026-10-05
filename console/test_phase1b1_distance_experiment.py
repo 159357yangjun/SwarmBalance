@@ -221,5 +221,94 @@ class FullPairedExperiment(unittest.TestCase):
         print("[符号汇总] %d 组" % len(agg))
 
 
+class WitnessMustNotBeVacuous(unittest.TestCase):
+    """G8：追溯证人必须【非平凡】—— 两面同输入时必须真的给出不同的数。
+
+    为什么这道门是本轮最贵的一条：上一版的 flip_witness / attribution_trace 把同一个
+    PlannedDistanceRouteCostProvider 实例先后喂给两面（它自带 _cache）⇒ 第二面全量命中
+    第一面的缓存 ⇒ 两"面"其实是同一组数 ⇒ flips=0 是【构造出来的 0】。
+    后果不是少一个证据，而是多一个假证据：C1 seed=40902 正式实验 Δ完成任务数=+4，
+    旧 witness 在同一格数到 0 翻转 —— "追不到"会被读成"变化不存在"。
+    恒真的证人比没有证人更坏，因为它让归因看起来已经完成。
+    """
+
+    def test_g8_planned_provider_has_real_freedom_vs_euclidean(self):
+        from route_cost import EuclideanRouteCostProvider, PlannedDistanceRouteCostProvider
+        env = _fresh_env("planned_distance")
+        euc = EuclideanRouteCostProvider()
+        plan = PlannedDistanceRouteCostProvider(env.route_planner)   # 独立实例，绝不与 euc 共享
+        pairs = []
+        for b in env.high_buildings[:20]:
+            (x0, y0, x1, y1) = b["geometry"].bounds
+            cx, cy = (x0 + x1) / 2.0, (y0 + y1) / 2.0
+            span = max(x1 - x0, y1 - y0, 1.0)
+            pairs.append(((cx - span * 3, cy), (cx + span * 3, cy)))
+            pairs.append(((cx, cy - span * 3), (cx, cy + span * 3)))
+        self.assertTrue(pairs, "造不出任何 OD ⇒ 本门没有分母，属未执行")
+        same = diff = 0
+        for a, c in pairs:
+            de, dp = euc.distance(a, c), plan.distance(a, c)
+            if abs(de - dp) <= 1e-9:
+                same += 1
+            else:
+                diff += 1
+        print("[G8] 判别式 OD=%d 两面相同=%d 两面不同=%d" % (len(pairs), same, diff))
+        self.assertGreater(diff, 0,
+                           "planned 面对所有样本都给出与欧氏相同的距离 ⇒ 它没有自由度，"
+                           "任何用它测出的『翻转数=0』都是构造出来的，不得作为归因证据")
+        self.assertGreater(same, 0,
+                           "反过来：若没有任何一条两面相同，说明世界全是障碍，"
+                           "对照面就不再是『直线口径』的基线，同样不可解释")
+
+
+class CrossInstrumentConsistency(unittest.TestCase):
+    """G9：三把尺子（正式实验 / witness / trace）必须能对上，对不上就点名。
+
+    这一条是我自己撞出来的：正式实验 C1 seed=40902 Δ=+4，而 witness 说 0 翻转。
+    如果只跑各自的门、不做交叉对账，两个数字会同时"通过"并各自被引用。
+
+    ⚠ 判据必须是【本轮现算的 witness】，不能拿归档产物比 —— 归档那批是在缺陷 f/g 之下测的，
+    用它当基准等于把一个已知失明的量具钉成标准答案（永红夹具）。所以这里现跑 scan()，
+    并把"有绕障腿但没换冠军"单列为【合法盲点】：witness 只抓 rank inversion，
+    不抓 score 幅度变化、tie-breaking、以及距离经 total_distance 进 compute_match 续航分量
+    这条连续通路。⇒ 该格允许为 0，但必须印出它为什么是 0，而不是让它拦退码。
+    """
+
+    def test_g9_flip_census_agrees_with_paired_experiment(self):
+        import re
+        from console import phase1b1_flip_witness as FW
+        paired = (REPO / "docs" / "取证输出" / "phase1b1_paired_experiment.txt")
+        if not paired.exists():
+            self.skipTest("缺正式实验产物 ⇒ 无法交叉对账（这是未验证，不是通过）")
+        pat = re.compile(r"^(C\d) greedy seed=(\d+) 完成任务数\s+([\d.]+)\s+->\s+([\d.]+)\s+Δ=\s*(\S+)")
+        changed = {}
+        for line in paired.read_text(encoding="utf-8").splitlines():
+            m = pat.match(line.strip())
+            if m and abs(float(m.group(5))) >= 1:
+                changed[(m.group(1), int(m.group(2)))] = float(m.group(5))
+        self.assertTrue(changed, "正式实验里没有任何一格完成任务数变化 ⇒ G9 没有分母，属未执行")
+
+        blind, hard_fail, seen = [], [], []
+        for fx, sd in sorted(changed):
+            st, _ev = FW.scan(fx, sd)          # 本轮现算，不吃归档产物
+            seen.append((fx, sd, st["groups"], st["flips"], st["planned_deltas"]))
+            if st["flips"] > 0:
+                continue
+            if st["planned_deltas"] > 0:
+                blind.append("%s/%d Δ=%+.0f：witness 0 翻转，但该格有 %d 条绕障候选腿 ⇒ "
+                             "走的是连续通路（score 幅度/tie-break/续航分量），属已知盲点"
+                             % (fx, sd, changed[(fx, sd)], st["planned_deltas"]))
+            else:
+                hard_fail.append("%s/%d Δ=%+.0f：witness 0 翻转【且一条绕障腿都没有】⇒ "
+                                 "要么 provider 失灵，要么存在第二条机制，必须先查"
+                                 % (fx, sd, changed[(fx, sd)]))
+        print("[G9] 本轮现算 witness：%s" % seen)
+        for b in blind:
+            print("     [BLIND] %s" % b)
+        self.assertEqual(hard_fail, [], "\n".join(hard_fail))
+
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
+

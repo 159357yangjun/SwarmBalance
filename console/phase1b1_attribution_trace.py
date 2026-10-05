@@ -90,46 +90,45 @@ def replay(fixture: str, seed: int, wd: pathlib.Path):
 
         euc = euc_env.route_cost_provider
         plan = plan_env.route_cost_provider
+        # 【量具缺陷 f】两面必须各用【自己那个环境里的】 provider 实例。
+        # PlannedDistanceRouteCostProvider 自带 _cache：上一版把同一个实例先后喂给两面 ⇒
+        # 第二面全量命中第一面的缓存 ⇒ 两"面"是同一组数 ⇒ 假证人。
+        # 同理，两面的 Greedy 必须各调一次：schedule_for_drone 会就地删 unassigned_tasks_info
+        # （scheduler.py:140），只跑一次再复用结果会让第二面拿到被掏空的候选集。
+        # 实测代价：C1 seed=40902 旧版报的首分歧 @step=57 drone3 task_13→task_14 两头都是错的，
+        # 修正后为 @step=58 drone3 task_11→task_14。
         limit = max(1, gs_mod.CANDIDATE_LIMIT)
-
-        def picks(env, obs):
-            """重放 Greedy 的真实 argmax，返回 {drone_idx: task_id}。"""
-            un = [t for t in obs["unassigned_tasks"]
-                  if not str(t.get("task_id", "")).startswith("__pad_")]
-            caps = obs["drone_capabilities"]
-            out = {}
-            for d_idx, dpos in enumerate(obs["drone_positions"]):
-                if not obs["drone_is_free"][d_idx]:
-                    continue
-                cap = caps[d_idx] if d_idx < len(caps) else {}
-                cand = [t for t in un[:limit] if GS._is_feasible(cap, t)]
-                if not cand:
-                    continue
-                pos = tuple(dpos)
-                dists = env.route_cost_provider.batch(pos, [tuple(t["source"]) for t in cand])
-                mn, mx = min(dists), max(dists)
-                ids = [t["task_id"] for t in cand]
-                dm = dict(zip(ids, dists))
-                scored = []
-                for t in cand:
-                    prox = 1.0 if mx <= mn else 1.0 - (dm[t["task_id"]] - mn) / (mx - mn)
-                    scored.append((GS._score_task(cap, pos, t, prox,
-                                                  provider=env.route_cost_provider), t["task_id"]))
-                out[d_idx] = max(scored)[1]
-            return out
 
         events, first_diff, steps = [], None, 0
         o_e, o_p = euc_env._obs(), plan_env._obs()
         d_e = d_p = False
         while not (d_e and d_p) and steps < 3600:
-            pe, pp = picks(euc_env, o_e), picks(plan_env, o_p)
+            # 两面各【独立】调用生产 Greedy：贪心会就地删 unassigned_tasks_info，
+            # 只跑一次再复用结果会让第二面拿到被掏空的候选集（实测因此把首分歧步与任务对都报错）。
+            # 【缺陷 g】Greedy 每次调用消耗一个 random.random()（scheduler.py:89 的接单概率），
+            # 而两面共享全局 RNG ⇒ 第二面拿到的是【被第一面推进过】的随机流。实测：两面从同一
+            # 状态分叉、逐 drone 打分完全相同，但生产 action 在 step=0 就报出 drone4 分歧
+            # （对照 task_6 / 实验 task_11）—— 那是 accept_probability 抽到了不同的值，不是距离口径。
+            # ⇒ 本探针给出的【首分歧步与任务对】在修复"每步重置随机流"之前不得作为归因证据引用；
+            #    只有"完成数差多少"这一聚合量仍可用（它同样受此扰动，须连同本条一起引用）。
+            # 【缺陷 g·未修，本探针因此不具归因资格】Greedy 每次调用消耗一个 random.random()
+            # （scheduler.py:89 接单概率），而两面共享【全局】RNG ⇒ 第二面拿到的是被第一面
+            # 推进过的随机流。实测：两面从同一状态分叉、逐 drone 打分完全相同（top3 一致），
+            # 但生产 action 在 step=0 就报出 drone4 分歧（对照 task_6 / 实验 task_11）——
+            # 那是 accept_probability 抽到了不同的值，与距离口径无关。
+            # 曾试过"每步 apply_seed(seed) 重播"来对齐：那会连带重置任务生成器，
+            # 让对照面退回初始机位并重发同一批任务（完成数 73 vs 正常 105）⇒ 更错，已撤回。
+            # ⇒ 正确做法是给每面注入【独立 Random 实例】，但那要改生产 Greedy 的取随机方式，
+            #   属行为改动，不在本轮范围。在此之前：本探针的首分歧步/任务对一律不得引用；
+            #   它的完成数差也只能当"另一次运行"，不能当受控差分。
+            a_e = greedy_action_from_observation(o_e)
+            a_p = greedy_action_from_observation(o_p)
+            pe, pp = dict(a_e), dict(a_p)   # {drone_idx: [task_id]} —— 生产的真实选择，非重放
             diff = {k: (pe.get(k), pp.get(k)) for k in set(pe) | set(pp) if pe.get(k) != pp.get(k)}
             if diff and first_diff is None:
                 first_diff = (steps, diff)
             if diff and len(events) < 60:
                 events.append(dict(step=steps, detail=diff))
-            a_e = greedy_action_from_observation(o_e)
-            a_p = greedy_action_from_observation(o_p)
             o_e, _, d_e, _ = euc_env.step(a_e)
             o_p, _, d_p, _ = plan_env.step(a_p)
             steps += 1

@@ -59,6 +59,12 @@ def scan(fixture: str, seed: int):
     from route_cost import EuclideanRouteCostProvider, PlannedDistanceRouteCostProvider
     from greedy import scheduler as gs_mod
 
+    # 【量具缺陷 f】两面必须各用【独立】的 provider 实例：PlannedDistanceRouteCostProvider
+    # 自带 _cache，若把同一个实例先后喂给欧氏面和绕障面，第二面会全量命中第一面的缓存 ⇒
+    # 两"面"其实是同一组数 ⇒ 恒不翻转 ⇒ flips=0 是【构造出来的 0】，不是测量结果。
+    # 本轮实测：C1 seed=40902 正式实验 Δ完成任务数=+4，而旧写法在这里数到 0 翻转 ——
+    # 一个解释不了变化的证人比没有证人更坏，因为它会让"追不到"被读成"变化不存在"。
+
     cfg = json.loads((REPO / "config" / "simulation.json").read_text(encoding="utf-8"))
     _merge(cfg, FIXTURES[fixture])
     wd = pathlib.Path(tempfile.mkdtemp(prefix="p1b1flip_"))
@@ -71,7 +77,7 @@ def scan(fixture: str, seed: int):
     try:
         env = em.Environment(str(OSM), episode_max_steps=3600)
         obs = env.reset(seed=seed)
-        euc = EuclideanRouteCostProvider()
+        # 两面各一个【独立】实例：共享 _cache 会让第二面全量命中第一面 ⇒ 恒不翻转
         plan = PlannedDistanceRouteCostProvider(env.route_planner)
         limit = max(1, gs_mod.CANDIDATE_LIMIT)
         steps, done = 0, False
@@ -89,18 +95,26 @@ def scan(fixture: str, seed: int):
                 pos = tuple(dpos)
                 groups += 1
 
-                def argmax(provider):
-                    dists = provider.batch(pos, [tuple(t["source"]) for t in cand])
+                def argmax(provider=None):
+                    # provider=None ⇒ 走生产对照分支（纯欧氏）；传入实例 ⇒ 走该面的距离口径。
+                    # 两面【绝不共享】provider：PlannedDistanceRouteCostProvider 自带 _cache，
+                    # 共享会让第二面全量命中第一面的缓存 ⇒ 恒不翻转（缺陷 f）。
+                    if provider is None:
+                        dists = [GS.euclidean_distance(pos, tuple(t["source"])) for t in cand]
+                    else:
+                        dists = provider.batch(pos, [tuple(t["source"]) for t in cand])
                     mn, mx = min(dists), max(dists)
                     prox = (lambda d: 1.0 if mx <= mn else 1.0 - (d - mn) / (mx - mn))
-                    scored = [(GS.euclidean_distance(pos, tuple(t["source"])) if not cap or cap.get("drone_type") is None
-                               else _score(GS, cap, pos, t, prox(dict(zip([t["task_id"] for t in cand], dists))[t["task_id"]]), provider),
-                               t["task_id"]) for t in cand]
+                    dm = dict(zip([t["task_id"] for t in cand], dists))
+                    scored = [(-GS.euclidean_distance(pos, tuple(t["source"]))
+                                if not cap or cap.get("drone_type") is None
+                                else _score(GS, cap, pos, t, prox(dm[t["task_id"]]), provider=provider),
+                                t["task_id"]) for t in cand]
                     best = max(scored)[1]
                     return best, {tid: s for s, tid in scored}
 
-                b_e, sc_e = argmax(euc)
-                b_p, sc_p = argmax(plan)
+                b_e, sc_e = argmax(None)      # 对照面：不经过任何带缓存的实例
+                b_p, sc_p = argmax(plan)      # 实验面：独立 PlannedDistance 实例
                 if b_e != b_p:
                     flips += 1
                     if len(flip_events) < 40:

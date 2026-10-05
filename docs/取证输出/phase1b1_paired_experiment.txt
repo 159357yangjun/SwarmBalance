@@ -198,12 +198,28 @@ C2 greedy seed=40903 -> {'calls': 7764, 'cache_hits': 6647, 'unique_od': 1117, '
      但它一行都不读 provider（backend_si/pso_scheduler.py 全文零引用，门 G5 已钉成断言）。
      ⇒ GA 两面逐位相同是"距离口径不进 GA 决策"的证据，而不是"两边都没优化"的空转。
 
-[C3] 追溯层次（务必分清两层，别把第一层当第二层）：
-     L1 机制通道存在性 = phase1b1_experiment.untraceable() ⇒ 本轮"无断链"。
-        它只排除"planner 一次都没参与却变了 KPI"；deltas 非空是恒真前提，解释不了具体哪一步。
-     L2 逐事件归因 = console/phase1b1_attribution_trace.py（同一初始状态 deepcopy 后分叉，
-        各自 step 到回合结束）⇒ 每个 seed 都给出了【首分歧步 + 换掉的任务对】，见
-        docs/取证输出/phase1b1_attribution_trace.txt。Δ 的方向与大小在 L2 有具名步骤可指。
+[C3] 追溯层次（本轮复核后为三层，其中 L3 已撤回）：
+     L1 机制通道存在性 = phase1b1_experiment.untraceable() ⇒ "无断链"。
+        它只排除"planner 一次都没参与却变了 KPI"；deltas 非空是恒真前提，不构成"已追溯"。
+     L2 消融 = 把 scheduler.py:114 的 provider 强制置 None 后重跑两面 ⇒ 完成数
+        C1 greedy 三 seed 106/106、107/107、111/111，GA 面逐位相同 ⇒ Δ 的唯一变量源是距离口径。
+        【这一层成立，是本实验归因的地基。】
+     L3 逐事件归因 = console/phase1b1_attribution_trace.py 的首分歧步与任务对 ⇒
+        【撤回，不可引用】。缺陷 g：Greedy 每次调用消耗一个全局 random.random()
+        （scheduler.py:89），探针让两面共享进程级 RNG ⇒ 第二面拿到被第一面推进过的随机流。
+        一手证据：C1 seed=40902 两面逐 drone 打分 top3 完全一致，但生产 action 在 step=0
+        就报出 drone4 分歧 ⇒ 假分歧。修它需给每面独立 Random 实例（生产行为改动，未做）。
+
+[C5] 三把尺子交叉对账（门 G9）：正式实验 Δ≠0 的 6 个 greedy 格子里，flip_witness 有 3 格数到
+     0 翻转 —— C1/40902(Δ+4)、C2/40902(Δ+2)、C2/40903(Δ-3)。判定：这不是矛盾，而是 witness 的
+     设计边界。witness 只抓 rank inversion（组内换冠军），不抓：
+       (1) score 幅度变化（冠军不变、分数变 → 改的是后续 accept_probability 之后的接单时机）
+       (2) max() 的 tie-breaking（生产按候选列表顺序取先出现者）
+       (3) 距离经 total_distance 进入 compute_match 的续航匹配分量 —— 连续通路
+     ⇒ 结论：**KPI 可以不经"换冠军"就被距离口径改变**。这条比"翻转率低所以影响小"更值得写进总纲，
+        它否掉的正是我上一轮用来支撑 H0 的那个推理形状。
+     配套门 G8：planned 面对同批 OD 必须给出与欧氏不同的数（实测 36 条中 35 条不同），
+        否则它的"0 翻转"属于构造出来的假证人。
 
 [C4] 量具偏差声明：L2 探针的重放 argmax 与生产 Greedy 的 max() 平手打破规则不同
      （生产按候选列表顺序取先出现者，探针按 (score, task_id) 元组比较 ⇒ tie-break 可能相反），
