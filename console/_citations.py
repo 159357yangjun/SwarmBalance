@@ -90,7 +90,7 @@ OBSOLETE = re.compile(r"已失效@([0-9a-f]{7,40})")
 DEFAULT_DOCS = ("docs/数据来源与可追溯性登记表.md", "README.md",
                 "docs/SwarmBalance总体架构与真实性演进总纲.md",
                 "docs/调度预测口径与执行口径.md", "docs/二维假设清单.md",
-                "docs/UI-API状态来源链.md")
+                "docs/UI-API状态来源链.md", "docs/Phase1B2-ETA设计.md")
 
 
 def ranges(spec: str):
