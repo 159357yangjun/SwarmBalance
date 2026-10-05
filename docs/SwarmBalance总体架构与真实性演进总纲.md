@@ -481,13 +481,47 @@ G14 三态钉住这条：出厂值必须为 0、config 键必须被消费、env 
 另加一条同族教训：判据要看**运行时生效值**而非源码默认 —— 我曾据 `scheduler.py:12` 的
 `candidate_limit=1` 断言"inversion 结构上不可能"，实际 `config/simulation.json:11` 覆盖为 60。
 
+### 17.3 Phase 0 收尾（2026-10-05）：PSO/GA/OR-Tools 的 speed 门「无分母」已闭合
+
+§17 路线表里 Phase 0 的验收条件是"每算法 `optimize_calls` 有非零正例或明写为零"。
+本轮闭合的是那条红门 `console/test_speed_fallback_gate.py`：**只修 fixture，判据三条与
+触发阈值 15（`backend_si/config.yaml:16`）一字未动**。
+
+诊断：承重变量是**机队规模**（`heterogeneous.fleet_mix`），不是任务量。三面对照实测
+（seed=40901、episode=3600 步、阈值 15 不变；复算 `python console/phase0_speed_gate_teeth_probe.py <face>`）：
+
+| 工况 | tasks | fleet_mix 合计 | `optimize()` | `flush_size` | buffer 峰值 | 含义 |
+|---|---|---|---|---|---|---|
+| gate | 240 | 6 (3,2,1) | 1477 | 1 | 15 | 门的真实工况 ⇒ 有分母 |
+| noDenom | 60 | 10 (5,3,2) | **0** | 0 | 2 | 原红门所在格（出厂轻载） |
+| mutate | 240 | 10 (5,3,2) | 3 | **0** | 3 | 只切机队 ⇒ 牙线生效 |
+
+**登记一条对后续所有对比实验都成立的口径限制**：轻载（机多单少）下批量优化器不介入，
+PSO / GA 与 Greedy 行为等价 ⇒ 任何"四算法性能对比"必须在重载场景做，否则比的是同一个算法。
+Phase 1B-1/1B-2 的 C-1/C-2 工况本就是重载，故其结论不受影响。
+
+**本轮我自己犯的两次新错误（与前两次不同族，单独记）**：
+1. 把变异打在 `num_drones` 上当单变量。`environment.py:144 build_fleet_drone_types()` 先按
+   `fleet_mix` 展开机型再截断/补齐到 `num_drones` ⇒ `num_drones=10` + mix 合计 6 仍是那 6 架机。
+   门照样绿，我差点据此判"门无牙"。**一个量有两个写法时，变异必须打在真正生效的那份上**；
+   现在 fixture 里有恒等式（mix 合计 == num_drones，不等则 `[GATE_FIXTURE]` 直接抛）钉住两者。
+2. 想拿 `optimize_calls > 0` 当牙。变异后仍有 3 次 timeout 兜底触发，足以糊过这条线。
+   会归零的只有 `flush_size` ⇒ 门的"有分母线"与"牙线"必须是两个不同的谓词。
+   负面对照已实测：阈值 15→2 时 gate 面 buffer 峰值降为 5，门当场红、退码非 0（之后已还原，
+   `git status` 对 `backend_si/config.yaml` 为空）。
+
+顺带抓出一个真实的跨模块缺陷：本门在 import 期装临时配置，`tearDownClass` 原先删掉该目录并
+pop 环境变量，而 `config/config_loder.py:108` 每次调用都重开文件、`frontend/charging_station.py:99`
+在 import 期就调它 ⇒ 字母序靠后的 `test_swap_time_gate` 吃到悬空路径 FileNotFoundError。
+现改为还原指针但保留目录（泄漏仅 %TEMP% 下一个 mkdtemp）。
+
 
 > 顺序冻结。每阶段的"行为等价门"指：同 seed 逐 run 逐指标比对，差异指标数必须为 0
 > （已由 E1 的 `test_wind_injection.py` 与本轮改名提交实践验证过这套判据可用）。
 
 | Phase | 目标 | 输入 | 输出 | 受影响文件 | 验收条件 | 风险 |
 |---|---|---|---|---|---|---|
-| **0** | 真实性审计与算法有效性收尾 | 现有门与读数 | 四算法介入率/flush/fallback 画像定稿 | `console/test_speed_fallback_gate.py`、新增介入率门 | 每算法 `optimize_calls` 有非零正例或明写为零；禁用清单同步 | 未完成就进 Phase 1 会让后续结论继承旧缺陷 |
+| **0** | 真实性审计与算法有效性收尾 | 现有门与读数 | 四算法介入率/flush/fallback 画像定稿 | `console/test_speed_fallback_gate.py`、新增介入率门 | 每算法 `optimize_calls` 有非零正例或明写为零；禁用清单同步 | 未完成就进 Phase 1 会让后续结论继承旧缺陷。**✅ 2026-10-05 闭合（见 §17.3）：重载工况下 greedy/pso/ga/ortools 四者 optimize 入口均有非零正例，牙由 mutate 面 `flush_size=0` 证明** |
 | **1** | 核心接口设计（不改变行为） | §4 分层 | Mission/Route/Trajectory/Executor/Telemetry/WorldModel 接口与类型 | 新增 `frontend/core/*`（接口+空实现）；删 F1 死代码 | **行为等价门 Δ=0**；F2 状态机单一真源并有夹具；不碰数值 | 接口设计过早固化会绑死后续选择；故只做接口不做迁移 |
 | **2** | 抽离现有 A* + 统一预测/执行成本口径（**不是新增 RoutePlanner**，见 §5.1） | WorldModel 几何 + 现成世界指纹 | `RoutePlanner`（A* 迁入）+ `RouteCostProvider` 两面实现 | `frontend/environment.py:1842-1945,1978-2010` 迁出；`frontend/greedy/scheduler.py:172`、`frontend/matching.py` 改查询 | Gate A 等价（feasible/waypoints/distance 逐位或容差内一致）；Gate B 默认零漂移；A* 感知调度必须作为 Gate C 独立实验 | 距离成为决策变量 ⇒ 与 swap/SLA 耦合，须重做敏感性；且 `is_path_clear` 调用量是 A* 的 5000 倍，缓存键设计不当会把性能炸掉 |
 | **3** | TrajectoryPlanner | route + 动力学约束 | x(t),y(t),v(t),a(t),yaw(t) | 新增 trajectory 模块；`frontend/drone.py:update()` 改为跟随轨迹 | 消灭瞬时 90° 与恒速折线（曲率/加速度有界断言）；行为等价门需**分面**：关轨迹面 Δ=0 | 移动链改动会影响全部既有 KPI 基线 |

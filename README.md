@@ -417,7 +417,7 @@ swarm-balance/
 │  ├─ static/spec.html           # 「规范」页正文，由 /spec 路由渲染进 iframe
 │  ├─ static/vendor/             # 内置 vue.global.prod.js / echarts.min.js /
 │  │                             #   three.min.js + README（版本、来源、SHA-256）
-│  └─ test_*.py                  # 34 个文件 / 285 个用例（标准库 unittest）
+│  └─ test_*.py                  # 34 个文件 / 286 个用例（标准库 unittest）
 │
 ├─ frontend/                     # 仿真内核与可视化
 │  ├─ environment.py             # 世界状态、障碍判定、统计口径
@@ -563,6 +563,40 @@ python scripts/reproduce_phase1b2.py --quick
 
 > ⚠ 别用 `--quick` 的输出当结论：单 seed 没有分母（n=1 最小可达 p = 1.0），脚本会显式跳过
 > 符号检验并说明原因——空表比一个装饰性的 p 值诚实。
+
+### Phase 0 收尾：PSO/GA/OR-Tools 的 speed 门为什么曾「无分母」
+
+常驻门 `console/test_speed_fallback_gate.py` 曾报 `[pso][NO_DENOMINATOR]`（一步都没进批量优化器）。
+诊断结论：**不是代码缺陷、也不是判据问题，是 fixture 工况选错了** ⇒ 本轮只修 fixture，
+判据三条与触发阈值 15（`backend_si/config.yaml:16`）一个字没动。
+
+承重变量是**机队规模**（`heterogeneous.fleet_mix`），不是任务量。三面对照实测
+（seed=40901、episode=3600 步、阈值 15 不变；复算命令见下）：
+
+| 工况 | tasks | fleet_mix 合计 | `optimize()` 调用 | `flush_size` | buffer 峰值 | 门状态 |
+|---|---|---|---|---|---|---|
+| gate（重载，门的真实工况） | 240 | 6 (3,2,1) | 1477 | 1 | 15 | 有分母 ✓ |
+| noDenom（出厂轻载，原红门所在格） | 60 | 10 (5,3,2) | **0** | 0 | 2 | 无分母 ✗ |
+| mutate（只把机队 6→10） | 240 | 10 (5,3,2) | 3 | **0** | 3 | 牙线生效 ✓ |
+
+```bash
+# 复算（仓库根目录，逐面打印一行 TEETH 读数）
+python console/phase0_speed_gate_teeth_probe.py gate
+python console/phase0_speed_gate_teeth_probe.py noDenom
+python console/phase0_speed_gate_teeth_probe.py mutate
+```
+
+两条必须说出来的教训：
+
+1. **「切 `num_drones`」不是单变量。** `frontend/environment.py:144 build_fleet_drone_types()`
+   先按 `fleet_mix` 展开机型序列、再截断/补齐到 `num_drones`，所以 `num_drones=10` + mix 合计 6
+   拿到的仍是那 6 架机。我最初把变异打在 `num_drones` 上，门照样绿，差点误判成"门无牙"。
+2. **牙不能挂在 `optimize_calls > 0` 上。** 变异后仍有 3 次 timeout 兜底触发，足以糊过这条线；
+   真正会归零的是 `flush_size`。负面对照已实测：把阈值从 15 降到 2，gate 面 buffer 峰值只剩 5，
+   门当场红（退码非 0）⇒ 这些断言吃的是真实读数，不是恒真式。
+
+> ⚠ 由此登记一条口径限制（已写入总纲 §17）：**轻载（机多单少）下 PSO / GA 与 Greedy 行为等价**
+> —— 批量优化器根本不介入。任何"四算法性能对比"必须在重载场景做，否则比的是同一个算法。
 
 ```bash
 cd frontend
