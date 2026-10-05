@@ -15,6 +15,7 @@
 """
 from __future__ import annotations
 
+import json
 import os
 import pathlib
 import subprocess
@@ -159,6 +160,50 @@ class UnitConsistency(unittest.TestCase):
         self.assertAlmostEqual(e2, e1 / 2.0, places=9,
                                msg="time_step 翻倍而 ETA 没减半（%.4f → %.4f）⇒ ETA 单位不是 env-step"
                                    % (e1, e2))
+
+
+class ConfigSwitchIsLive(unittest.TestCase):
+    """G14：`config.environment.greedy.reach_weight` 必须真的被读到，且默认关闭。
+
+    为什么这道门值得常驻：本轮我先往 config 里塞了一个 `_reach_weight_note` 说明键，
+    被 test_config_keys_coverage 当场判成哑键（"改了不起作用"）——那正是这道门要防的形状：
+    配置里有开关、代码里没有消费者，答辩时以为调了参数其实没调。
+    三态缺一不可：默认 0 / config 生效 / env 优先于 config。
+    """
+
+    # 独立文件而不是 `python -c`：分号拼 if/elif 会被本机引号嵌套截成一行（本轮实测过）。
+    PROBE = "phase1b2_switch_probe.py"
+
+    def _read(self, mode):
+        proc = subprocess.run([sys.executable, "-X", "utf8", str(REPO / "console" / self.PROBE),
+                               mode],
+                              cwd=str(REPO), env=_clean_env(), text=True,
+                              capture_output=True, timeout=600, errors="replace")
+        out = proc.stdout + proc.stderr
+        line = [l for l in out.splitlines() if l.startswith("W=")]
+        self.assertTrue(line, "探针 %s 没有读数：%s" % (mode, out[-400:]))
+        got = float(line[0].split()[0][2:].rstrip("'"))
+        want = float(line[0].split()[1][5:].rstrip("'"))
+        return got, want
+
+    def test_g14a_default_off_in_shipped_config(self):
+        """出厂 config 的 reach_weight 必须是 0.0 ⇒ 本次改动没换掉生产默认行为。"""
+        cfg = json.loads((REPO / "config" / "simulation.json").read_text(encoding="utf-8"))
+        v = cfg["environment"]["greedy"].get("reach_weight", None)
+        self.assertIsNotNone(v, "config 里没有 reach_weight ⇒ 演示开关不存在")
+        self.assertEqual(float(v), 0.0, "出厂值不是 0.0 ⇒ 默认行为被改了，Gate B 失效")
+        got, want = self._read("off")
+        self.assertEqual(got, 0.0)
+
+    def test_g14b_config_key_is_consumed(self):
+        got, want = self._read("config")
+        self.assertEqual(got, want,
+                         "config.reach_weight 没被读 ⇒ 它是哑键（改了不起作用）：got=%r want=%r" % (got, want))
+
+    def test_g14c_env_overrides_config(self):
+        """两面都设时环境变量赢 —— 批量实验靠它切权重，优先级反了就会整批跑成同一个值。"""
+        got, want = self._read("both")
+        self.assertEqual(got, want, "env 没能覆盖 config ⇒ 实验注入通道失效：got=%r want=%r" % (got, want))
 
 
 class ReachabilityHasFreedom(unittest.TestCase):

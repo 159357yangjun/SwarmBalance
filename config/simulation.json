@@ -13,7 +13,8 @@
       "min_battery_ratio": 0.0,
       "max_active_drones_ratio": 1.0,
       "match_weight": 0.6,
-      "distance_weight": 0.4
+      "distance_weight": 0.4,
+      "reach_weight": 0.0
     },
     "reward_step": -0.01,
     "reward_priority_1": 100.0,

@@ -154,7 +154,7 @@ Windows 直接双击 `start_console_portable.bat`。此模式会使用项目自�
 >
 > 登记表/README 里的 `路径:行号` 引用由 `console/_citations.py` 核对（同一份判据也接进 discover）。
 > 光判"文件存在 + 行号不越界"是**半盲**的：行号漂到范围内另一处时它照样绿。
-> 所以代码事实类引用要写成 `config/simulation.json:88#carrying_capacity` ——
+> 所以代码事实类引用要写成 `config/simulation.json:89#carrying_capacity` ——
 > 锚点是被引行必须含的一段字，改了代码位置而忘了改引用就会红。
 > 引用已删除的文件时按约定写 `path:line 已移除@<sha>` 并附 `git show <sha>^:<path>` 取回命令。
 > **引用「作废产物」必须声明行集合**：被标作废的目录（判定=目录里有写着「作废」的
@@ -319,6 +319,32 @@ Web 控制台不是“只跑一次结果”的算法跑分页面，而是自由�
 > 项目申请书规划的是「贪心 / 经典求解器 / 本项目优化算法」三种方案，PSO 属于实现阶段的扩展对比。
 > 口径对应关系与扩展理由见 [`算法口径说明.md`](docs/算法口径说明.md)。
 
+### 调度器的两层增强（Phase 1B，均有对照实验；**默认全部关闭**）
+
+| 层 | 被替换的量 | 开关 | 实测效应（n=8 穷举符号检验） |
+|---|---|---|---|
+| **1B-1 距离感知** | Greedy 打分里的直线距离 → A\* 实际航路长度 | `SWARM_BALANCE_ROUTE_COST=planned_distance` | 完成任务数逐 seed Δ ∈ {−3…+4}、超时率最大 \|Δ\|=0.074 ⇒ **H0「几乎不变」已被否**；GA 面三档全逐位不变（阴性对照） |
+| **1B-2 履约保护** | 新增罚分项 `W·min(0, slack_full/300)`，`slack_full = 剩余时限 − ETA取货 − 送货腿/速度` | `config.environment.greedy.reach_weight`（出厂 **0.0**）或同名环境变量覆盖 | 超时率 **4/4 组 8/8 全同号下降**（C1/40901 0.274→0.102，迟到 29→11）、平均时延同向 8/8；**代价：完成任务数 4/4 组里 6~7 个 seed 变差** |
+
+两条必须一起讲：**1B-2 买的是履约、付的是吞吐**，只报超时率等于把代价藏起来。
+奖励式 ETA（`clamp(slack/300)` 当加分项）已在实测中被否掉——它让超时率 6/6 seed 恶化，
+根因是分子只算了取货段而 deadline 管送达（证据与一手机制见
+[`phase1b2_mechanism_diagnosis.md`](docs/取证输出/phase1b2_mechanism_diagnosis.md)）。
+
+答辩演示打开履约保护的命令（不改仓库默认值）：
+
+```bash
+SWARM_BALANCE_REACH_WEIGHT=1.2 python frontend/evaluate_metrics.py --policy greedy \
+       --episodes 1 --episode-steps 3600 --seed 40901
+```
+
+> 这条命令会写 `results/adhoc/frontend_greedy_metrics.csv`（已在 `.gitignore` 里），不碰已入库产物；
+> 上面这行本机实跑退出码 0，输出含 `禁飞区绕飞次数: 8.0000`（⇒ 距离口径确实在被使用）。
+> 权重走环境变量而不是改 config：两者等价（`G14c` 断言 env 优先），但演示不该动仓库默认值。
+
+门：G1–G9（1B-1）+ G10–G14（1B-2），共 15 项常驻用例；六个变异 V1–V6 + M1/M2 全部先红后绿。
+阶段状态与撤回记录见 [`SwarmBalance总体架构与真实性演进总纲.md`](docs/SwarmBalance总体架构与真实性演进总纲.md) §17.0–17.2。
+
 ### 任务链与顺路接入
 
 1. **优化器侧**：排列经贪婪分割解码后直接产出「每机一条有序任务链」，链内顺序不再被动态贪心重排打散；
@@ -391,7 +417,7 @@ swarm-balance/
 │  ├─ static/spec.html           # 「规范」页正文，由 /spec 路由渲染进 iframe
 │  ├─ static/vendor/             # 内置 vue.global.prod.js / echarts.min.js /
 │  │                             #   three.min.js + README（版本、来源、SHA-256）
-│  └─ test_*.py                  # 34 个文件 / 282 个用例（标准库 unittest）
+│  └─ test_*.py                  # 34 个文件 / 285 个用例（标准库 unittest）
 │
 ├─ frontend/                     # 仿真内核与可视化
 │  ├─ environment.py             # 世界状态、障碍判定、统计口径

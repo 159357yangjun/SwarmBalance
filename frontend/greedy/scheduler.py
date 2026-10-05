@@ -17,10 +17,15 @@ MAX_ACTIVE_DRONES_RATIO = float(_GREEDY_CFG.get("max_active_drones_ratio", 0.5))
 # 匹配度权重：0 表示纯就近（同质基线行为），1 表示纯匹配度
 MATCH_WEIGHT = float(_GREEDY_CFG.get("match_weight", 0.6))
 DISTANCE_WEIGHT = float(_GREEDY_CFG.get("distance_weight", 0.4))
-# Phase 1B-2：ETA 维度（reachability）的权重。
-# **默认 0.0** ⇒ 不进 config、不改生产行为；非 0 只由实验经环境变量注入。
-# 理由：默认非 0 会让"本次实现"本身改掉基线，Gate B（同 seed 零漂移）当场失效。
-REACH_WEIGHT = float(os.environ.get("SWARM_BALANCE_REACH_WEIGHT", "0"))
+# Phase 1B-2：ETA 维度（履约保护罚分）的权重。取值优先级：
+#   环境变量 SWARM_BALANCE_REACH_WEIGHT > config.environment.greedy.reach_weight > 0.0
+# **默认仍是 0.0** ⇒ 加了 config 键也不改生产行为；非 0 必须由显式配置或实验注入打开。
+# 为什么留环境变量这一层：批量实验每格一个子进程（experiments/runner.py:610），
+# 若只能靠 config，就得为每个权重写一份临时配置文件；而权重在 import 期冻结，
+# 同进程改 config 无效 —— 与 provider 开关同一套路数。
+REACH_WEIGHT = float(os.environ.get(
+    "SWARM_BALANCE_REACH_WEIGHT",
+    _GREEDY_CFG.get("reach_weight", 0.0)))
 # reachability 的归一分母：复用 matching.speed_match 里 urgency 的同一个 300（matching.py:44），
 # 不另起一个数 —— 两个时效量必须同尺度，否则新分量会劫持既有平衡。
 REF_SLACK_SECONDS = 300.0

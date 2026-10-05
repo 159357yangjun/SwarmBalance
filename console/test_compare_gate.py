@@ -292,6 +292,16 @@ class SidecarConsistencyTests(unittest.TestCase):
         self.assertIn("绝不能补 0", txt, "缺失列的渲染规则没写进声明")
 
 
+def _line_of(rel, needle):
+    """返回仓库内文件里第一条含 needle 的行号（1 起）。找不到就 fail 得明确。"""
+    path = ROOT / rel
+    for i, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+        if needle in line:
+            return i
+    raise AssertionError("[FIXTURE_ANCHOR_NOT_FOUND] %s 里没有 %r ⇒ 夹具前提已变，须改夹具而非放宽判据"
+                         % (rel, needle))
+
+
 class CitationIntegrityTests(unittest.TestCase):
     """登记簿/README 里写的 `路径:行号` 引用必须真的解析得到。
 
@@ -374,10 +384,15 @@ class CitationIntegrityTests(unittest.TestCase):
         本轮实测过：往登记表临时插一条 `frontend/does_not_exist_anywhere.py:9999`
         → test_cited_path_line_targets_exist FAILED（退出码 1），随后已还原。
         """
+        # 夹具里的行号必须【从真文件现查】，不能硬编码：本轮我在 config/simulation.json
+        # 插了两行（reach_weight），所有写死的行号就集体失配 —— 一道"验检测器不空转"的
+        # 门如果靠抄行号维持，它自己就成了最容易腐烂的那件东西。
+        _blt = _line_of("config/simulation.json", "battery_low_threshold")
+        _nbk = _line_of("config/simulation.json", "battery_load_penalty_factor")
         good = ["引用 `console/server.py:1` 合法",
                 "区间 `console/server.py:1-3` 合法",
-                "多段 `config/simulation.json:166,162-163` 合法",
-                "锚点 `config/simulation.json:166#battery_low_threshold` 合法",
+                "多段 `config/simulation.json:%d,%d-%d` 合法" % (_blt, _blt - 1, _blt),
+                "锚点 `config/simulation.json:%d#battery_low_threshold` 合法" % _blt,
                 "历史 `frontend/map_drawer_3d.py:40` 已移除@6b8c4c8 取回可用",
                 "历史区间 `backend_wx/pymarl-master/analyze_sacred_run.py:74-101`"
                 " 已移除@6b8c4c8 取回可用"]
@@ -392,7 +407,7 @@ class CitationIntegrityTests(unittest.TestCase):
                # 以及行号在范围内但内容不对（锚点失配）
                "`config/simulation.json:1-99999`",
                "`frontend/map_drawer_3d.py:145-149`",
-               "`config/simulation.json:166#not_a_real_key_in_that_block`"]
+               "`config/simulation.json:%d#not_a_real_key_in_that_block`" % _nbk]
         bc, ba, bb = self._scan_lines(bad, "合成")
         self.assertEqual(bc, 5, "区间/多段形式仍然没进扫描（%d/5）" % bc)
         self.assertEqual(len(bb), 5, "5 条坏引用只报了 %d 条：%s" % (len(bb), bb))
