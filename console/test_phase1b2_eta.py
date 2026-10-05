@@ -217,8 +217,8 @@ class ReachabilityHasFreedom(unittest.TestCase):
               % (len(vals), tight, 100.0 * tight / len(vals), min(vals), max(vals),
                  len(set(round(v, 6) for v in vals))))
         self.assertGreater(tight, 0,
-                           "所有候选的 reachability 都饱和在 1.0 ⇒ 该分量在当前 SLA 下是常数项，"
-                           "对排序零贡献。此时不得宣称'ETA 已接入调度'，须先改 REF_SLACK 或 SLA 档位")
+                           "所有候选的 reachability 都饱和在 1.0 ⇒ 全程余量在这个世界上恒定充裕，"
+                           "时效类分量缺少区分度。此时不得宣称'ETA 已接入调度'，须先动 SLA 档位")
         # 恒等于中性值 0.5 的假实现同样满足"存在 <1.0"（本轮变异 V1 就这么溜过去过一次），
         # 所以还要它有【多个不同取值】才算真的有自由度：常量项永远只有 1 个值。
         self.assertGreater(len(set(round(v, 6) for v in vals)), 3,
@@ -237,10 +237,117 @@ class ReachabilityHasFreedom(unittest.TestCase):
         self.assertEqual(GS._reachability(prov, (0.0, 0.0), t, 20.0), 0.5,
                          "无截止时间的任务不该被判最优或最差")
 
-    def test_g13c_none_provider_stays_homogeneous(self):
+    def test_g13c_no_infinite_deadline_means_neutral(self):
+        """无截止时间 ⇒ _slack_full_seconds 返回 None、_reachability 取中性 0.5。
+
+        两个函数现在分工明确：`_slack_full_seconds` 是罚分项的唯一输入（None = 不加不减），
+        `_reachability` 只保留 ∈[0,1] 的旧语义给对照与展示用。所以这里两条都要断言 ——
+        第一版我只断言了后者，判据写的是"provider=None 应返回 None"，而实现按新分工
+        返回中性 0.5 ⇒ 门红在【我自己的过期判据】上，不是代码错。判据要跟语义一起改。
+        """
         from greedy.scheduler import GreedyScheduler as GS
-        self.assertIsNone(GS._reachability(None, (0.0, 0.0), {"source": [1.0, 1.0]}, 20.0),
-                          "同质机型分支必须返回 None，让调用处保持原就近行为")
+        task = {"task_id": "x", "source": [1.0, 1.0], "destination": [2.0, 1.0],
+                "remaining_time": float("inf")}
+        self.assertIsNone(GS._slack_full_seconds(None, (0.0, 0.0), task, 20.0),
+                          "provider 缺失时必须拿不到 slack ⇒ 调用处退回 1B-1 行为")
+        self.assertIsNone(GS._slack_full_seconds(_FakeProv(), (0.0, 0.0), task, 20.0),
+                          "无截止时间的真实任务也必须走中性分支，不能被判最优或最差")
+
+    def test_g13e_penalty_is_one_sided(self):
+        """约束式的定义就是【单侧】：slack≥0 贡献恒 0，slack<0 才扣分。
+
+        这是本轮把"奖励式"换成"罚分式"的全部意义 —— 上一版的失败恰恰是它给
+        "取货看着从容、送货飞不完"的单加了分（诊断产物 §1）。所以这条必须直接断言：
+        存在被扣分的候选，且没有任何候选拿到正贡献。
+        """
+        import environment as em
+        from greedy.scheduler import GreedyScheduler as GS
+        from route_cost import EuclideanRouteCostProvider
+        env = em.Environment(str(OSM), episode_max_steps=60)
+        o = env.reset(seed=40901)
+        pe = EuclideanRouteCostProvider()
+        un = [t for t in o["unassigned_tasks"] if not str(t.get("task_id", "")).startswith("__pad_")]
+        pos_sum = []
+        for d_idx in range(len(env.drones)):
+            cap = o["drone_capabilities"][d_idx]
+            pos = tuple(o["drone_positions"][d_idx])
+            cand = [t for t in un[:60] if GS._is_feasible(cap, t)]
+            dists = pe.batch(pos, [tuple(t["source"]) for t in cand])
+            mn, mx = min(dists), max(dists)
+            dm = dict(zip([t["task_id"] for t in cand], dists))
+            for t in cand:
+                prox = 1.0 if mx <= mn else 1.0 - (dm[t["task_id"]] - mn) / (mx - mn)
+                s0 = GS._score_task(cap, pos, t, prox, provider=pe, reach_weight=0.0)
+                s4 = GS._score_task(cap, pos, t, prox, provider=pe, reach_weight=0.4)
+                if s0 == float("-inf"):
+                    continue
+                pos_sum.append((s4 - s0, GS._slack_full_seconds(pe, pos, t, float(cap["speed"]))))
+        self.assertTrue(pos_sum, "一个候选都测不到 ⇒ 门没有分母")
+        contribs = [c for c, _ in pos_sum]
+        self.assertLessEqual(max(contribs), 1e-12,
+                             "出现正贡献 ⇒ 又变回奖励式，约束语义丢失（这正是 1B-2 否掉的形状）")
+        neg = [c for c, sl in pos_sum if c < -1e-12]
+        print("[G13e] 候选=%d 被扣分=%d 最小贡献=%.6f | 全部零贡献(slack>=0)=%d"
+              % (len(pos_sum), len(neg), min(contribs), len(pos_sum) - len(neg)))
+        self.assertTrue(all(sl is None or sl >= 0 for c, sl in pos_sum if abs(c) <= 1e-12),
+                        "有候选 slack<0 却没被扣分 ⇒ min(0,·) 分支没接上")
+
+    def test_g13f_penalty_uses_the_delivery_leg(self):
+        """G13f：slack 必须真的含【送货腿】—— 用构造夹具逼出差异。
+
+        为什么需要这道门（本轮变异 V6 教出来的）：把 delivery_eta 摘成 0.0 之后，
+        真实世界 step=0 的 81 条候选仍然【一条都不被罚】⇒ G13e 的两面都是 0，抓不到。
+        我自己在诊断产物里写过"step=0 零触发不代表整局零触发"，然后就用了一个只在
+        step=0 取样的门去判语义 —— 这是同一个外推错误的第二次犯法，方向相反。
+        ⇒ 单侧性由 G13e 锁，定义域由这道门锁，且必须用夹具而不是自然快照。
+
+        夹具形状：同一 remaining_time、同一取货距离，只有送货距离不同（一近一远）。
+        若实现漏掉送货腿，两条的 slack 会相等 ⇒ 罚分相同 ⇒ 门红。
+        """
+        from greedy.scheduler import GreedyScheduler as GS
+        from route_cost import EuclideanRouteCostProvider
+        pe = EuclideanRouteCostProvider()
+        pos = (0.0, 0.0)
+        sp = 20.0
+        near = {"task_id": "near", "source": [100.0, 0.0], "destination": [120.0, 0.0],
+                "remaining_time": 30.0}          # 取货 5 s + 送货 1 s ⇒ slack=+24（从容）
+        far = {"task_id": "far", "source": [100.0, 0.0], "destination": [1100.0, 0.0],
+               "remaining_time": 30.0}           # 取货 5 s + 送货 49 s ⇒ slack=-24（注定赶不上）
+        s_near = GS._slack_full_seconds(pe, pos, near, sp)
+        s_far = GS._slack_full_seconds(pe, pos, far, sp)
+        print("[G13f] slack_full 近=%r 远=%r" % (s_near, s_far))
+        self.assertGreater(s_near, 0.0, "夹具不成立：近单本该余量为正")
+        self.assertLess(s_far, 0.0, "夹具不成立：远单本该余量为负")
+        self.assertLess(s_far, s_near - 1.0,
+                        "两条 slack 差不足 1 s ⇒ 送货腿没进公式（delivery 距离从 20 m 变到 1000 m "
+                        "却几乎不影响结果）。这正是变异 V6 的形状")
+        # 再确认它真的转成了罚分：远单被扣、近单不扣
+        c_near = GS._score_task({"drone_type": "x", "remaining_capacity": 99.0, "speed": sp,
+                                 "battery_capacity": 1e6, "battery_consumption_base": 1e-6},
+                                pos, near, 0.5, provider=pe, reach_weight=0.4) -                  GS._score_task({"drone_type": "x", "remaining_capacity": 99.0, "speed": sp,
+                                 "battery_capacity": 1e6, "battery_consumption_base": 1e-6},
+                                pos, near, 0.5, provider=pe, reach_weight=0.0)
+        c_far = GS._score_task({"drone_type": "x", "remaining_capacity": 99.0, "speed": sp,
+                                "battery_capacity": 1e6, "battery_consumption_base": 1e-6},
+                               pos, far, 0.5, provider=pe, reach_weight=0.4) -                 GS._score_task({"drone_type": "x", "remaining_capacity": 99.0, "speed": sp,
+                                "battery_capacity": 1e6, "battery_consumption_base": 1e-6},
+                               pos, far, 0.5, provider=pe, reach_weight=0.0)
+        self.assertAlmostEqual(c_near, 0.0, places=12, msg="余量为正的单不该拿到任何贡献（约束式）")
+        self.assertLess(c_far, 0.0, msg="注定赶不上的单必须被扣分")
+
+
+class _FakeProv:
+    """最小 provider 替身：只为让 _slack_full_seconds 走完取货+送货两段。"""
+    name = "fake"
+
+    @staticmethod
+    def eta(a, b, sp):
+        return ((a[0] - b[0]) ** 2 + (a[1] - b[1]) ** 2) ** 0.5 / sp
+
+    @staticmethod
+    def distance(a, b):
+        return ((a[0] - b[0]) ** 2 + (a[1] - b[1]) ** 2) ** 0.5
+
 
 
 if __name__ == "__main__":

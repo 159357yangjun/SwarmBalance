@@ -164,6 +164,28 @@ class GreedyScheduler(Scheduler):
         return float(task.get('weight', 0.0)) <= remaining_capacity
 
     @staticmethod
+    def _slack_full_seconds(provider, drone_pos, task, speed_m_per_s):
+        """真余量 = remaining_time − (取货 ETA + 送货腿耗时)，单位与 deadline 同源（秒）。
+
+        Phase 1B-2 的根因修复：上一版 reachability 只减【取货段】ETA，而 deadline 管的是
+        【送达】。实测后果 —— C-1 seed=40901 step=0 里 task_4 取货 slack=245.8 s 看着从容、
+        被加分顶成冠军，但它送货腿要飞 2277 m(113.8 s)，真余量只剩 +132 s；接单瞬间
+        "已注定赶不上"的比例因此从 25.0% 升到 52.1%。证据见
+        docs/取证输出/phase1b2_mechanism_diagnosis.md §1–§2。
+
+        返回 None 表示无从判断（无截止时间 / provider 缺失），调用方必须走中性分支。
+        """
+        if provider is None:
+            return None
+        remaining_time = task.get('remaining_time', float('inf'))
+        if remaining_time == float('inf'):
+            return None
+        pickup_eta = provider.eta(drone_pos, tuple(task['source']), speed_m_per_s)
+        delivery_eta = provider.distance(tuple(task['source']),
+                                         tuple(task['destination'])) / speed_m_per_s
+        return float(remaining_time) - pickup_eta - delivery_eta
+
+    @staticmethod
     def _reachability(provider, drone_pos, task, speed_m_per_s):
         """ETA 维度：这架机多久能赶到取货点，相对任务剩余时限有多从容。
 
@@ -183,13 +205,9 @@ class GreedyScheduler(Scheduler):
             否则"已经有多少单注定超时"看不见；
           · provider 为 None（同质机型走纯就近分支）⇒ 返回 None，让调用处保持原行为。
         """
-        if provider is None:
-            return None
-        remaining_time = task.get('remaining_time', float('inf'))
-        if remaining_time == float('inf'):
-            return 0.5
-        eta = provider.eta(drone_pos, tuple(task['source']), speed_m_per_s)
-        slack = float(remaining_time) - eta
+        slack = GreedyScheduler._slack_full_seconds(provider, drone_pos, task, speed_m_per_s)
+        if slack is None:
+            return 0.5          # 无截止时间 ⇒ 中性，不奖不罚
         return max(0.0, min(1.0, slack / REF_SLACK_SECONDS))
 
     @staticmethod
@@ -237,14 +255,18 @@ class GreedyScheduler(Scheduler):
 
         w_reach = REACH_WEIGHT if reach_weight is None else float(reach_weight)
         if w_reach:
-            # speed 用该机自己的巡航速度（cap['speed']），不是全局常量：ETA 的意义就是
-            # "这架机赶不赶得上"，用别人的速度算就等于没算。
-            reach = GreedyScheduler._reachability(provider, drone_pos, task,
-                                                  float(cap.get('speed', 200.0)))
-            if reach is None:
-                return MATCH_WEIGHT * match_score + DISTANCE_WEIGHT * proximity
-            return (MATCH_WEIGHT * match_score + DISTANCE_WEIGHT * proximity
-                    + w_reach * (1.0 - reach))
+            # speed 用该机自己的巡航速度（cap['speed']）：ETA 问的是"这架机赶不赶得上"，
+            # 用别人的速度算就等于没算。
+            sp = float(cap.get('speed', 200.0))
+            slack = GreedyScheduler._slack_full_seconds(provider, drone_pos, task, sp)
+            base = MATCH_WEIGHT * match_score + DISTANCE_WEIGHT * proximity
+            if slack is None:
+                return base                       # 无从判断 ⇒ 不加不减，退回 1B-1 行为
+            # 约束式罚分：slack ≥ 0 ⇒ 贡献恒为 0（绝不奖励"看着从容"的单）；
+            # slack < 0 ⇒ 按缺口的比例扣分。分母沿用 REF_SLACK_SECONDS=300，
+            # 与既有分量同尺度 —— 直接用秒级原值会劫持排序（实测 slack 量级 ±800 s，
+            # 而既有分数量级 0.3~0.8），那是登记表 M5 的同族量纲缺陷。
+            return base + w_reach * min(0.0, slack / REF_SLACK_SECONDS)
         return MATCH_WEIGHT * match_score + DISTANCE_WEIGHT * proximity
 
 
