@@ -541,6 +541,29 @@ env = Environment("data/map/part_of_yangpu.osm", data_source=ds)
 
 ## 🧪 复现实验
 
+### 复现 Phase 1B-2 的结论（一键，本地运行包入口）
+
+```bash
+# 仓库根目录执行；完整模式 = C-1/C-2 × 8 seeds × {w=0.0, w=1.2} = 32 cells，约 2 分钟
+python scripts/reproduce_phase1b2.py
+
+# 快速自检（只跑 seed 40901，4 cells）：验证链路通不通，**不产出统计结论**
+python scripts/reproduce_phase1b2.py --quick
+```
+
+它做四件事，全部走生产代码路径、不含任何演示用假数据：环境预检（解释器/依赖，缺了就报
+该用的绝对路径而不是抛 traceback）→ 逐格跑 worker → **现算**超时率/完成数对照表与穷举符号
+检验精确 p（复用 `console/_paired_readout.py`，与常驻门同一把尺子）→ 打印已知问题清单。
+日志写 `results/adhoc/reproduce_phase1b2.log`（已 gitignore），临时 config 跑完即删。
+
+本机实测输出（完整模式，退出码 0）：超时率 **4/4 组 8/8 全同号下降**、精确 p = 0.0078
+（n=8 可达最小值）；完成任务数 **6~7/8 变差** ⇒ 这一层是"用吞吐换履约"，两半一起看。
+判据「≥6/8 同号才算成立」由用户在拍板时给定。证据文件：
+[`phase1b2_sign_n8.md`](docs/取证输出/phase1b2_sign_n8.md)。
+
+> ⚠ 别用 `--quick` 的输出当结论：单 seed 没有分母（n=1 最小可达 p = 1.0），脚本会显式跳过
+> 符号检验并说明原因——空表比一个装饰性的 p 值诚实。
+
 ```bash
 cd frontend
 
