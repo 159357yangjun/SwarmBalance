@@ -1,0 +1,62 @@
+[
+  {
+    "zip_member": "data/raw_logs/E1_openfield/E1_openfield_sig4_seed002.ulg",
+    "download_url": "https://zenodo.org/api/records/19617182/files/data.zip/content",
+    "local": "data/raw/px4_logs/ulg/E1_openfield__E1_openfield_sig4_seed002.ulg",
+    "bytes": 108901,
+    "crc32": "cd2b9db6",
+    "sha256": "8d2a721a378646a429d04b6737642f4dbd0f076744de3bd81aa7a1d314e865fb",
+    "md5": "024118e0e30dfc42f2867eea27a960ee",
+    "manifest_md5": "024118e0e30dfc42f2867eea27a960ee",
+    "manifest_size": "108901",
+    "md5_matches_manifest": true
+  },
+  {
+    "zip_member": "data/raw_logs/E2_nearwall/run03.ulg",
+    "download_url": "https://zenodo.org/api/records/19617182/files/data.zip/content",
+    "local": "data/raw/px4_logs/ulg/E2_nearwall__run03.ulg",
+    "bytes": 9282528,
+    "crc32": "8287ebc8",
+    "sha256": "86684b81e4920f230fed8ac351309deb080d51786774ca727934d3e0d5c42ab7",
+    "md5": "38b15a9adb8075de07d3682c7a1b7ff5",
+    "manifest_md5": "38b15a9adb8075de07d3682c7a1b7ff5",
+    "manifest_size": "9282528",
+    "md5_matches_manifest": true
+  },
+  {
+    "zip_member": "data/raw_logs/E3_corridor/E3_corridor_sig4_seed001.ulg",
+    "download_url": "https://zenodo.org/api/records/19617182/files/data.zip/content",
+    "local": "data/raw/px4_logs/ulg/E3_corridor__E3_corridor_sig4_seed001.ulg",
+    "bytes": 108875,
+    "crc32": "7baf248b",
+    "sha256": "dc7725d03d87cccf4a4f8b50dde80182032f320a6a596d72a26e3e58120d2829",
+    "md5": "3cb97c66d398e4bb5a6eb9a8d971c601",
+    "manifest_md5": "3cb97c66d398e4bb5a6eb9a8d971c601",
+    "manifest_size": "108875",
+    "md5_matches_manifest": true
+  },
+  {
+    "zip_member": "data/raw_logs/E4_nearground/run01.ulg",
+    "download_url": "https://zenodo.org/api/records/19617182/files/data.zip/content",
+    "local": "data/raw/px4_logs/ulg/E4_nearground__run01.ulg",
+    "bytes": 9061585,
+    "crc32": "684630e8",
+    "sha256": "f40d2439989b88f4ae8d2d90fcadf7c1bb089d3cec219fea248784262b1683cd",
+    "md5": "4c91509584f2fdeda61193a8bc76bead",
+    "manifest_md5": "4c91509584f2fdeda61193a8bc76bead",
+    "manifest_size": "9061585",
+    "md5_matches_manifest": true
+  },
+  {
+    "zip_member": "data/raw_logs/E5_rooftop_edge/run01.ulg",
+    "download_url": "https://zenodo.org/api/records/19617182/files/data.zip/content",
+    "local": "data/raw/px4_logs/ulg/E5_rooftop_edge__run01.ulg",
+    "bytes": 8373584,
+    "crc32": "741496c0",
+    "sha256": "577dd75fd4d0fc547836676b46c29c1f6e1dcf5a8be9076a4944036e820e2ce4",
+    "md5": "9bbe53919ba4061b8630ce0033e47fa2",
+    "manifest_md5": "9bbe53919ba4061b8630ce0033e47fa2",
+    "manifest_size": "8373584",
+    "md5_matches_manifest": true
+  }
+]

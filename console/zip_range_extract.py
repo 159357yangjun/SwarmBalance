@@ -68,10 +68,15 @@ def read_central_directory(url: str) -> dict:
     blob = _fetch(url, cd_off, cd_off + cd_size - 1, timeout=180)
     out, p = {}, 0
     while p + 46 <= len(blob) and blob[p:p + 4] == CD_SIG:
-        # 中央目录头 PK\x01\x02 占签名(4)+版本(2)+所需版本(2)，故：
-        #   8:gp_flags 10:method 12:modtime 14:moddate 16:crc32
-        #   20:comp_size 24:uncomp_size 28:name_len 30:extra_len 32:comment_len
-        #   34:disk_start 36:internal_attr 38:external_attr 40:local_header_offset
+        # 中央目录头（APPNOTE 表 I.2）：签名(4) 后依次是
+        #   4:version_made_by 6:version_needed 8:gp_flags 10:method 12:modtime 14:moddate
+        #   16:crc32 20:comp_size 24:uncomp_size 28:name_len 30:extra_len 32:comment_len
+        #   34:disk_start 36:internal_attr 38:external_attr(4B) **42:local_header_offset**
+        # ⚠ local_header_offset 在 **42** 不是 40 —— 40 落在 external_attr 的后半截上。
+        #   本文件原先读 u32(40)，实测后果：对 Zenodo 19617182/data.zip 解出的偏移是
+        #   1,600,881,060 这种大于整包(467,774,360)的荒谬值 ⇒ Range 直接 416，
+        #   看起来像"服务器不支持 Range"，其实是量具自己把地址算错。
+        #   判据用本地夹具钉：zipfile 报 header_offset=384，u32@40=0、u32@42=384。
         h = blob[p:]  # 下面的偏移全部相对本条头起点，避免绝对/相对混用
         u16 = lambda o: struct.unpack_from("<H", h, o)[0]
         u32 = lambda o: struct.unpack_from("<I", h, o)[0]
@@ -82,7 +87,7 @@ def read_central_directory(url: str) -> dict:
         nlen = u16(28)
         elen = u16(30)
         clen = u16(32)
-        ext_off = u32(40)
+        ext_off = u32(42)          # 见上方表注：不是 40（40 是 external_attr 的后半）
         name = h[46:46 + nlen].decode("utf-8", "replace")
         out[name] = dict(offset=ext_off, comp_size=csize, uncomp_size=usize,
                          method=method, crc=crc)

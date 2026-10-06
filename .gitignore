@@ -22,6 +22,12 @@ venv/
 # metrics_schema 检测到表头不兼容时会自动备份旧结果，属本机临时文件
 results/compare/*.bak-*
 
+# ================= PX4 ULog 取证通道（#54）=================
+# .ulg 是外部 Zenodo 记录的副本（单条最大 96 MB），入库等于把别人的数据集搬进版本库；
+# 可复现性由 docs/取证输出/px4_ulog_provenance.json 承担：它记 zip 成员名 + URL + CRC32 +
+# SHA256 + 与仓内 manifest.csv 的 md5 对账结果，任何人可用 console/zip_range_extract.py 重取。
+data/raw/px4_logs/ulg/
+
 # ================= 本地调试 / 临时文件 =================
 tmp/
 frontend/test_multi_task.py
