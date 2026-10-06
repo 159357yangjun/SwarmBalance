@@ -82,7 +82,11 @@ SOURCES = [
          response_bytes="", sha256="", local_file="",
          verified_by="已试两次（文章页与 ndownloader 直链）均 403",
          notes="数据存在性已由论文证实；文件本体未取得 ⇒ 该来源目前只能支撑定性结论"),
-    dict(source_id="src_openmeteo_archive", name="Open-Meteo Historical Weather API（ERA5 再分析）",
+    # T9：名称里原先写「（ERA5 再分析）」——不成立。本轮请求未带 `models=` 参数、重放响应体
+    # 顶层不含 `models` 字段，而官方文档写明该端点默认是 "Best Match" 混合（候选含
+    # ERA5 / ERA5-Land / ECMWF IFS / ERA5-Ensemble / CERRA / ECMWF IFS Assimilation Long-Window）
+    # ⇒ 不能把本 CSV 钉到某个具体模式。名字只说能核的部分。
+    dict(source_id="src_openmeteo_archive", name="Open-Meteo Historical Weather API（再分析格点，默认 Best Match 混合，未指定模式）",
          publisher="Open-Meteo", url="https://archive-api.open-meteo.com/v1/archive",
          source_type="api_endpoint", retrieval_date=EVIDENCE_DATE, http_status="200",
          response_bytes="32885", sha256="44b2ad0dd0ad6319（前缀，本轮实测）",
@@ -90,7 +94,9 @@ SOURCES = [
          verified_by="本轮重放请求并与仓内 CSV 逐值对账（均值差 <1e-3 m/s）",
          # Complete：原件在仓内 + sha256 已登记 + 端点可重放，三者同时成立 ⇒ 复核不依赖别人改页面。
          traceability="Complete", transformation="As-published",
-         notes="再分析格点数据，非现场气象站观测；服务端把请求点吸附到最近格点 31.3181/121.537544"),
+         notes="再分析格点数据，非现场气象站观测；服务端把请求点吸附到最近格点 31.3181/121.537544。"
+               "⚠ 不得称『ERA5 数据』：请求未带 models= 参数、响应体无 models 字段，"
+               "官方文档载明默认是 Best Match 混合（T9）"),
     dict(source_id="src_osm_extract", name="OpenStreetMap 杨浦区域导出", publisher="OpenStreetMap contributors (ODbL)",
          url="https://www.openstreetmap.org/export#map=14/31.2932/121.5146", source_type="crowdsourced_gis",
          retrieval_date="下载事件时间未取得", http_status="本轮不可达", response_bytes="11098582",
@@ -352,8 +358,12 @@ DISABLED_CLAIMS = [
          reason="口径混用；本项目对应双电池 5–30 kg 档"),
     dict(claim_id="dc_6", claim="BS60 一次充 4 块飞行电池", verdict="禁用（未决）",
          reason="官方两处页面冲突且其中一处本轮无法独立取证"),
-    dict(claim_id="dc_7", claim="结项实验对比了四种调度算法的性能", verdict="当前证据不支持",
-         reason="默认轻载下三个批量优化器 optimize_calls=0，实际跑的是共用即时贪心通道"),
+    # T10：这条禁用原先写成"不能讲四算法对比"，范围过宽 —— 它否的是**默认轻载工况下的那份数据**，
+    # 不是"四算法比较"这件事本身。压力工况（C-1/C-2/S）下优化器真被调用，那时比较成立且已做过。
+    # 不加上作用域就等于用自己的研究空间换一句保守话。
+    dict(claim_id="dc_7", claim="用默认轻载工况的数据声称四种调度算法存在性能差异", verdict="当前证据不支持",
+         reason="该格实测三个批量优化器 optimize_calls=0（buffer 峰值 2 < 阈值 15），跑的是共用即时贪心通道；"
+                "**限定于轻载 ⇒ 重载/压力工况下优化器介入时，四算法比较仍然可做且已有数据**"),
     dict(claim_id="dc_8", claim="10 m 风速代表 60 m 巡航高度", verdict="已废",
          reason="模型里没有飞行高度这个量"),
 ]

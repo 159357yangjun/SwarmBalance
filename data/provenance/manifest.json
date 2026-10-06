@@ -56,9 +56,9 @@
       "sha256": "48803b0caf89211d29d931bbe00bc69be736877d63c5913d9445fab29633e6f4"
     },
     "sources.csv": {
-      "bytes": 3805,
+      "bytes": 3999,
       "lines": 11,
-      "sha256": "162489f8bcdddcc4426722a43a0d96c0ccbdd958940365fb3a34a9c96d5ba75b"
+      "sha256": "f9f61f29a4b32333ec84e6ca47eab90ef63c6485a2c2c84f0b32956c26d97be0"
     },
     "statistics.csv": {
       "bytes": 7092,
@@ -66,9 +66,9 @@
       "sha256": "7989bd0aee833a278c138f341ed2674bba6bb5584a6ef3065a7948e5f54c81c0"
     },
     "truth.jsonl": {
-      "bytes": 25732,
+      "bytes": 26086,
       "lines": 47,
-      "sha256": "9b3da0dcbe04a1db6581da3c4f3a2118583de7198d1cf63cee1ea7b91d0d04f0"
+      "sha256": "c68031776cc62b0906bc3c6ad1c9143ab7aee3ef0dab738f988101f2557e4922"
     },
     "wind_hourly.csv": {
       "bytes": 31336,
@@ -76,9 +76,9 @@
       "sha256": "6506ecaa258efd74f468902a35cc1f6faec7e5d5982388c79fe7a46842614fdb"
     }
   },
-  "generated_at": "2026-10-06T06:48:41",
+  "generated_at": "2026-10-06T07:02:20",
   "generator": "docs/build_truth_dataset.py",
-  "git_commit": "b80478ab38b2dd33e1df35b2bb884d99004321ca",
+  "git_commit": "c38da5cdfcd34ee3b33af55e740a55c8983e6ada",
   "license": "内部项目数据；OSM 部分继承 ODbL，Open-Meteo 部分受其服务条款约束",
   "parameter_counts": 24,
   "row_counts": {

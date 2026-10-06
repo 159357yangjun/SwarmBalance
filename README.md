@@ -307,12 +307,23 @@ Web 控制台不是“只跑一次结果”的算法跑分页面，而是自由�
 
 ## 🧠 调度算法
 
-| 方法 | 定位 | 编码 / 求解 | 代码位置 |
-|---|---|---|---|
-| **Greedy** | 基线 | 距离 + 优先级 + 紧迫度 + 电量 + 载荷 实时打分 | `frontend/greedy/` |
-| **PSO** | 群体智能 | 偏好矩阵编码，粒子群批量优化 + 事件驱动 | `backend_si/pso_scheduler.py` |
-| **GA** | 群体智能（主推） | **排列编码 + 贪婪分割解码** / 分配矩阵（可切换） | `backend_si/ga_scheduler.py`、`chain_codec.py` |
-| **OR-Tools** | 经典求解器基线 | CP-SAT，0/1 分配，目标 `makespan + Σ超时量` | `backend_si/ortools_scheduler.py` |
+| 方法 | 定位 | 编码 / 求解 | 代码位置 | **作用域（T10）** |
+|---|---|---|---|---|
+| **Greedy** | 基线 | 距离 + 优先级 + 紧迫度 + 电量 + 载荷 实时打分 | `frontend/greedy/` | 每步即时出解；**任何工况下都在工作**，也是另外三者的共用派发通道 |
+| **PSO** | 群体智能 | 偏好矩阵编码，粒子群批量优化 + 事件驱动 | `backend_si/pso_scheduler.py` | **仅当 `pending_buffer` 触发批量 flush 时介入**（阈值 `buffer_size_threshold=15`）⇒ 轻载下不工作 |
+| **GA** | 群体智能（主推） | **排列编码 + 贪婪分割解码** / 分配矩阵（可切换） | `backend_si/ga_scheduler.py`、`chain_codec.py` | 同上（与 PSO 共用外层与触发条件） |
+| **OR-Tools** | 经典求解器基线 | CP-SAT，0/1 分配，目标 `makespan + Σ超时量` | `backend_si/ortools_scheduler.py` | 同上；且需本机装有 OR-Tools，缺失时界面标为不可用 |
+
+> ⚠ **四算法对比的作用域限定（T10，必读）**：后三种"批量优化"算法**只在重载工况下才真正介入**。
+> 双通道设计里即时派发优先，只有待分配积压到阈值（15）或紧急/超时兜底时才调用优化器 ——
+> 而**出厂默认配置就是轻载**（10 机 / 60 任务，`pending_buffer` 峰值实测仅 2）。
+> 该格实测 `optimize_calls = 0`、`flush_size = 0` ⇒ 三者跑的其实是共用的即时贪心通道。
+> 因此：**不能用默认轻载工况的数据声称"四种算法性能有差异"**；在压力工况（如 C-1/C-2/S）下
+> 优化器确实被调用并产生不同结果，那时比较成立。这条由常驻门
+> `console/test_speed_fallback_gate.py::test_g2teeth_*` 的三面对照守着，复算：
+> `python console/phase0_speed_gate_teeth_probe.py gate|noDenom|mutate`。
+> 换句话说，本项目对外的可比结论是**「同一环境下 Greedy 与各优化器的差」而非「四个算法天然不同」**，
+> 且必须写明该环境是否触发了批量优化。
 
 **GA 的两种编码**（`backend_si/config.yaml` 的 `ga.encoding` 切换）：
 
