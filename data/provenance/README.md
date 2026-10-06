@@ -139,7 +139,7 @@ python -c "print(1984.4*2, 3968.8/28, 28/16)"
 
 ## 边界
 
-本数据集只登记『数字→来源→条件→算式→复算命令』的证据关系。A=官方直接值 B=原始公开实测 C=可由 A/B 复算的派生值 D=假设值 E=未验证或冲突。D/E 级字段不得对外称为厂商参数。
+本数据集只登记『数字→来源→条件→算式→复算命令』的证据关系。三条轴各自独立：evidence_grade A=官方直接值 B=原始公开实测 C=可由 A/B 复算的派生值 D=假设值 E=未验证或冲突（来源可信度）；traceability Complete=仓内留有原件或快照可不依赖在线服务复核 Partial=有明确出处但核验依赖厂商页面当前状态（改版即失效）None=无外部依据（溯源完整度）；transformation As-published=原文照抄 Derived=经过计算且有算式 Local-extraction=从原始文件提取 Assumption=无外部依据的设定（处理过程）。D/E 级字段不得对外称为厂商参数。
 
 `truth.jsonl` 中 `record_type=disabled_claim` 的 8 条为**对外禁用表述**，写论文/答辩稿前先比对这些行。
 

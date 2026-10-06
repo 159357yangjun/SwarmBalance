@@ -1,10 +1,10 @@
 {
-  "boundary": "本数据集只登记『数字→来源→条件→算式→复算命令』的证据关系。A=官方直接值 B=原始公开实测 C=可由 A/B 复算的派生值 D=假设值 E=未验证或冲突。D/E 级字段不得对外称为厂商参数。",
+  "boundary": "本数据集只登记『数字→来源→条件→算式→复算命令』的证据关系。三条轴各自独立：evidence_grade A=官方直接值 B=原始公开实测 C=可由 A/B 复算的派生值 D=假设值 E=未验证或冲突（来源可信度）；traceability Complete=仓内留有原件或快照可不依赖在线服务复核 Partial=有明确出处但核验依赖厂商页面当前状态（改版即失效）None=无外部依据（溯源完整度）；transformation As-published=原文照抄 Derived=经过计算且有算式 Local-extraction=从原始文件提取 Assumption=无外部依据的设定（处理过程）。D/E 级字段不得对外称为厂商参数。",
   "column_counts": {
     "formal_baseline_run.csv": 12,
     "osm_census.csv": 8,
-    "parameters.csv": 15,
-    "sources.csv": 12,
+    "parameters.csv": 17,
+    "sources.csv": 14,
     "statistics.csv": 11,
     "truth.jsonl": "-",
     "wind_hourly.csv": 4
@@ -51,14 +51,14 @@
       "sha256": "26fcdcdd2191fc26e0b337c083e597de681473116a9956535e2edf582201eb93"
     },
     "parameters.csv": {
-      "bytes": 6272,
+      "bytes": 6731,
       "lines": 25,
-      "sha256": "632e2768da79d547bb286616e069ba6734ca01d19312237bd2f410f5ed3937ac"
+      "sha256": "5aff82e4aa0e1d9b9ea9b6271bab7d2267d104dce8249722a411e4de207f643b"
     },
     "sources.csv": {
-      "bytes": 3635,
+      "bytes": 3805,
       "lines": 11,
-      "sha256": "754ba230da0b50b84100bbed97d9fde7de4fc41425dc52af26e6ecd41db1758b"
+      "sha256": "162489f8bcdddcc4426722a43a0d96c0ccbdd958940365fb3a34a9c96d5ba75b"
     },
     "statistics.csv": {
       "bytes": 6617,
@@ -66,9 +66,9 @@
       "sha256": "b5ce011026609cbeeaa0984226a076ef8a5b8d0625af469bee00c9acae7138aa"
     },
     "truth.jsonl": {
-      "bytes": 23217,
+      "bytes": 25266,
       "lines": 47,
-      "sha256": "7a36da885832d1bab46c54730d41959791186a70451d22e9dbb5557c9a1ef81b"
+      "sha256": "c796b2e0d23a18f3784ed15d8c4285d9bfbcdf59be201a4f5f035d2508d37f08"
     },
     "wind_hourly.csv": {
       "bytes": 31336,
@@ -76,9 +76,9 @@
       "sha256": "6506ecaa258efd74f468902a35cc1f6faec7e5d5982388c79fe7a46842614fdb"
     }
   },
-  "generated_at": "2026-10-03T08:58:54",
+  "generated_at": "2026-10-06T06:11:44",
   "generator": "docs/build_truth_dataset.py",
-  "git_commit": "32c7180ca9d8c433e3f992c9d57cdfbd65abf114",
+  "git_commit": "cb338085264115b9199f9e4403a1dc2ba3135601",
   "license": "内部项目数据；OSM 部分继承 ODbL，Open-Meteo 部分受其服务条款约束",
   "parameter_counts": 24,
   "row_counts": {
@@ -90,5 +90,14 @@
     "truth.jsonl": 47,
     "wind_hourly.csv": 1008
   },
-  "schema_version": "1.0.0"
+  "schema_version": "1.0.0",
+  "traceability_axes": {
+    "None": 12,
+    "Partial": 12
+  },
+  "transformation_axes": {
+    "As-published": 10,
+    "Assumption": 11,
+    "Derived": 3
+  }
 }

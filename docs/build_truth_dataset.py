@@ -88,6 +88,8 @@ SOURCES = [
          response_bytes="32885", sha256="44b2ad0dd0ad6319（前缀，本轮实测）",
          local_file="data/raw/openmeto_yangpu_wind_20260801_0911.csv",
          verified_by="本轮重放请求并与仓内 CSV 逐值对账（均值差 <1e-3 m/s）",
+         # Complete：原件在仓内 + sha256 已登记 + 端点可重放，三者同时成立 ⇒ 复核不依赖别人改页面。
+         traceability="Complete", transformation="As-published",
          notes="再分析格点数据，非现场气象站观测；服务端把请求点吸附到最近格点 31.3181/121.537544"),
     dict(source_id="src_osm_extract", name="OpenStreetMap 杨浦区域导出", publisher="OpenStreetMap contributors (ODbL)",
          url="https://www.openstreetmap.org/export#map=14/31.2932/121.5146", source_type="crowdsourced_gis",
@@ -95,7 +97,14 @@ SOURCES = [
          sha256="72c3ef9ca19c804387bc2985d3a2dd76a772fc28fc9add8872b003419e78a65b",
          local_file="frontend/data/map/part_of_yangpu.osm",
          verified_by="内容侧本轮实测（元素计数、署名块、changeset/uid/timestamp）；溯源侧本轮无法重下",
-         notes="本机 www.openstreetmap.org:443 连接失败(exit 7)、Overpass 406、kumi.systems 超时 ⇒ 溯源维持 E 级"),
+         # ⚠ 这一条正是"两条轴必须分开"的实证：旧体系只能写成「内容 A / 溯源 E」那个别扭的斜杠。
+         #   拆开看：文件本身是仓内原件、有哈希、可离线复算元素普查 ⇒ traceability=Complete；
+         #   但"它是哪一次 OSM 请求的产物"无凭据（下载事件时间/操作者/当时哈希都没留，
+         #   且本轮 openstreetmap.org 不可达无法重下）⇒ 这一点仍属未证，记在 notes 里而不是靠降级掩盖。
+         traceability="Complete", transformation="Local-extraction",
+         provenance_gap="下载事件无凭据（何时、谁、原始响应哈希）⇒ 只锁得住『现在的它』",
+         notes="本机 www.openstreetmap.org:443 连接失败(exit 7)、Overpass 406、kumi.systems 超时 ⇒ "
+               "文件级 traceability=Complete（原件+哈希在仓内），但**下载事件溯源仍未证**"),
     dict(source_id="src_meituan_media", name="美团无人机公开报道口径", publisher="媒体报道（非厂商规格页）",
          url="https://www.meituan.com/news", source_type="media_secondary", retrieval_date=EVIDENCE_DATE,
          http_status="不适用", response_bytes="", sha256="", local_file="", verified_by="未取得",
@@ -104,134 +113,206 @@ SOURCES = [
 
 # ---------------------------------------------------------------- 参数分级表
 # value 是项目里真正在用的值；source_value 是官方原文里的值；两者不等时 derivation 给完整算式。
+#
+# ── 三条轴，不要揉成一级（2026-10-06 起；外部评审第⑦条）──────────────────────
+# evidence_grade   A/B/C/D/E —— **来源可信度**：这个数字是谁给的。
+# traceability     Complete / Partial / None —— **溯源完整度**：别人能不能独立回到那份原始件。
+# transformation   As-published / Derived / Local-extraction / Assumption —— **处理过程**：它被改过没有。
+#
+# 为什么要拆开：旧写法把后两轴塞进一个字母里，于是产生了两类说不清的表述 ——
+#   · OSM 底图只能写成"内容 A / 溯源 E"，那个斜杠就是体系不够用的证据；
+#   · "A(接口) + C(换算)" 更是一个格子里塞了两个不同轴的值。
+# 拆开后同一份底图是 source=A / traceability=Complete / transformation=Local-extraction，三句话互不打架。
+#
+# ⚠ traceability 的判据里我加了一条评审原规则没有的东西：**厂商网页类来源最高只给 Partial**。
+#   理由（本轮实测得出）：`curl` 重放确实能拿到稳定页面对哈希（DJI 两次都是 67de8b0eeb5f6f52、
+#   ARK40 两次都是 192489504d1d934e 且与登记值逐位吻合），表面上满足"API 可重放 ⇒ Complete"。
+#   但那是**厂商随时可单方面改掉**的外部状态：页面一改版，Complete 就悄悄失效，而产物上看不出来。
+#   只有仓内留了原件（或有本地快照文件）才算 Complete —— Complete 的含义是"核验不依赖任何
+#   别人的在线服务还活着"，不是"此刻能 curl 通"。这条收紧会让数字更好看与否无关，故不让步。
+TRACEABILITY_VALUES = ("Complete", "Partial", "None")
+TRANSFORMATION_VALUES = ("As-published", "Derived", "Local-extraction", "Assumption")
+
+
+def _check_axes(p):
+    """逐条自检：枚举合法 + 两轴与来源等级之间不能自相矛盾。
+
+    为什么要有这个函数而不是靠人核对 24×2 个格子：批量填字段最容易出的错是"整列复制同一个值"
+    （那等于没分档），以及 transformation=Derived 却不给算式。这两类都能在这里当场拦住。
+    """
+    pid = p["param_id"]
+    tr, tf = p["traceability"], p["transformation"]
+    if tr not in TRACEABILITY_VALUES:
+        raise ValueError("[AXIS_ENUM] %s traceability=%r 不在 %s" % (pid, tr, TRACEABILITY_VALUES))
+    if tf not in TRANSFORMATION_VALUES:
+        raise ValueError("[AXIS_ENUM] %s transformation=%r 不在 %s" % (pid, tf, TRANSFORMATION_VALUES))
+    # Derived 必须能被复算：没有 derivation 也没有 recompute_cmd 的"派生值"就是手填。
+    if tf == "Derived" and not (p.get("derivation") or p.get("recompute_cmd")):
+        raise ValueError("[AXIS_INCONSISTENT] %s 标 Derived 却既无 derivation 也无 recompute_cmd" % pid)
+    # Assumption 意味着无外部依据 ⇒ 它不可能同时"有完整溯源"，也不可能是厂商发布值。
+    if tf == "Assumption":
+        if tr != "None":
+            raise ValueError("[AXIS_INCONSISTENT] %s transformation=Assumption 但 traceability=%s" % (pid, tr))
+        if p["is_real_measurement"] == "vendor_stated":
+            raise ValueError("[AXIS_INCONSISTENT] %s 既是假设又标 vendor_stated" % pid)
+    # D 级（纯设定）在三条轴上只能是 None/Assumption，否则 grade 与轴互相打脸。
+    if p["evidence_grade"].startswith("D") and (tr, tf) != ("None", "Assumption"):
+        raise ValueError("[AXIS_INCONSISTENT] %s evidence_grade=%s 但 (%s,%s) 不匹配" % (
+            pid, p["evidence_grade"], tr, tf))
+
+
 PARAMETERS = [
     dict(param_id="param_flycart_battery_wh", drone_type="heavy_cargo", field="battery_capacity",
-         value="3968.8", unit="Wh", evidence_grade="C", is_real_measurement="derived",
+         value="3968.8", unit="Wh", evidence_grade="C", traceability="Partial", transformation="Derived",
+         is_real_measurement="derived",
          error_band_vs_source_pct="0.00（整除双块）", source_value="1984.4 Wh × 2（DB2000 单块）",
          test_condition="官方标注：零海拔无风，仅供参考",
          derivation="3968.8 = 1984.4 * 2", recompute_cmd='python -c "print(1984.4*2)"',
          config_file="frontend/config/drone_types.yaml", status="在用",
          notes="官方直接发布的是单块 1984.4 Wh；双块总能量是我方派生，不得称『官方发布的双块值』"),
     dict(param_id="param_flycart_consumption_base", drone_type="heavy_cargo", field="consumption_base",
-         value="0.142", unit="Wh/m", evidence_grade="C", is_real_measurement="derived",
+         value="0.142", unit="Wh/m", evidence_grade="C", traceability="Partial", transformation="Derived",
+         is_real_measurement="derived",
          error_band_vs_source_pct="0.18", source_value="空载双电最大航程 28 km",
          test_condition="官方标注：零海拔无风，以 15 m/s 匀速飞行",
          derivation="3968.8 Wh / 28 km = 141.743 Wh/km = 0.141743 Wh/m ≈ 0.142",
          recompute_cmd='python -c "print(3968.8/28)"', config_file="frontend/config/drone_types.yaml",
          status="在用", notes="这就是 142 的标定依据；口径为【空载】，不可与满载锚点直接比"),
     dict(param_id="param_flycart_load_penalty", drone_type="heavy_cargo", field="load_penalty_factor",
-         value="0.75", unit="-", evidence_grade="C", is_real_measurement="derived",
+         value="0.75", unit="-", evidence_grade="C", traceability="Partial", transformation="Derived",
+         is_real_measurement="derived",
          error_band_vs_source_pct="0.00", source_value="空载 28 km ÷ 满载(30 kg) 16 km = 1.75",
          test_condition="官方标注：零海拔无风",
          derivation="1 + 0.75 = 1.75 = 28/16", recompute_cmd='python -c "print(28/16)"',
          config_file="frontend/config/drone_types.yaml", status="在用",
          notes="与 consumption_base 相互独立的第二个官方锚点，两条都吻合"),
     dict(param_id="param_flycart_speed", drone_type="heavy_cargo", field="speed",
-         value="20", unit="m/s", evidence_grade="A", is_real_measurement="vendor_stated",
+         value="20", unit="m/s", evidence_grade="A", traceability="Partial", transformation="As-published",
+         is_real_measurement="vendor_stated",
          error_band_vs_source_pct="0.00", source_value="水平飞行速度 20 米/秒（载重 30 千克）",
          test_condition="零海拔无风", derivation="", recompute_cmd="",
          config_file="frontend/config/drone_types.yaml", status="在用", notes="官方直接值"),
     dict(param_id="param_flycart_full_range", drone_type="heavy_cargo", field="full_load_range_km",
-         value="16", unit="km", evidence_grade="A", is_real_measurement="vendor_stated",
+         value="16", unit="km", evidence_grade="A", traceability="Partial", transformation="As-published",
+         is_real_measurement="vendor_stated",
          error_band_vs_source_pct="0.00", source_value="最大飞行距离（满载）双电（载重 30 千克）：16 千米",
          test_condition="零海拔无风", derivation="", recompute_cmd="",
          config_file="frontend/config/drone_types.yaml", status="在用",
          notes="同页另有单电（40 kg）8 km，勿混档"),
     dict(param_id="param_flycart_empty_range", drone_type="heavy_cargo", field="(未建模)空载航程",
-         value="28", unit="km", evidence_grade="A", is_real_measurement="vendor_stated",
+         value="28", unit="km", evidence_grade="A", traceability="Partial", transformation="As-published",
+         is_real_measurement="vendor_stated",
          error_band_vs_source_pct="0.00", source_value="最大飞行距离（空载）双电：28 千米／单电：12 千米",
          test_condition="零海拔无风、15 m/s 匀速", derivation="", recompute_cmd="",
          config_file="", status="仅作派生输入", notes="本轮首次从官方页取到，未单独建字段"),
     dict(param_id="param_flycart_payload_caliber", drone_type="heavy_cargo", field="carrying_capacity",
-         value="30", unit="kg", evidence_grade="E->已定", is_real_measurement="vendor_stated",
+         value="30", unit="kg", evidence_grade="E->已定", traceability="Partial", transformation="As-published",
+         is_real_measurement="vendor_stated",
          error_band_vs_source_pct="口径冲突", source_value="同页三口径并存：货箱 0–40 kg；吊挂 双电 5–30 kg / 单电 5–40 kg；最大起飞 95 kg（标配货箱，海平面附近）",
          test_condition="见各条原文", derivation="取双电池档上限 30 kg",
          recompute_cmd='curl -sSL https://www.dji.com/cn/flycart-30/specs | sed "s/<[^>]*>/ /g" | grep -o ".\\{0,30\\}载荷能力.\\{0,40\\}"',
          config_file="frontend/config/drone_types.yaml", status="在用",
          notes="对外禁用『载重 0–40 kg』描述本项目 30 kg 设定＝混档"),
     dict(param_id="param_flycart_wind_resist", drone_type="heavy_cargo", field="(未建模)抗风等级",
-         value="12", unit="m/s", evidence_grade="A", is_real_measurement="vendor_stated",
+         value="12", unit="m/s", evidence_grade="A", traceability="Partial", transformation="As-published",
+         is_real_measurement="vendor_stated",
          error_band_vs_source_pct="0.00", source_value="抗风等级 12 米/秒（载重 30 千克…）",
          test_condition="官方该行只标『零海拔』，未标『无风』——已核实原文确无此二字",
          derivation="", recompute_cmd="", config_file="", status="未建模",
          notes="模型里没有风速对运动学/可达性的约束（E1 只进能耗）"),
     dict(param_id="param_flycart_temp", drone_type="heavy_cargo", field="(未建模)工作温度",
-         value="-20~45", unit="℃", evidence_grade="E", is_real_measurement="unverified",
+         value="-20~45", unit="℃", evidence_grade="E", traceability="None", transformation="As-published",
+         is_real_measurement="unverified",
          error_band_vs_source_pct="", source_value="未取得（本轮 135 KB 页面文本内未命中该串）",
          test_condition="", derivation="", recompute_cmd="", config_file="", status="未建模",
          notes="撤回先前引用：我在已抓取的页面文本里找不到 ⇒ 降为 E"),
     dict(param_id="param_ark40_payload", drone_type="standard_cargo", field="carrying_capacity",
-         value="10", unit="kg", evidence_grade="A", is_real_measurement="vendor_stated",
+         value="10", unit="kg", evidence_grade="A", traceability="Partial", transformation="As-published",
+         is_real_measurement="vendor_stated",
          error_band_vs_source_pct="0.00", source_value="10kg 最大载荷重量", test_condition="官方页未附条件",
          derivation="", recompute_cmd="", config_file="frontend/config/drone_types.yaml", status="在用", notes=""),
     dict(param_id="param_ark40_range", drone_type="standard_cargo", field="full_load_range_km",
-         value="20", unit="km", evidence_grade="A", is_real_measurement="vendor_stated",
+         value="20", unit="km", evidence_grade="A", traceability="Partial", transformation="As-published",
+         is_real_measurement="vendor_stated",
          error_band_vs_source_pct="0.00", source_value="20km 最大航程", test_condition="官方页未附条件",
          derivation="", recompute_cmd="", config_file="frontend/config/drone_types.yaml", status="在用", notes=""),
     dict(param_id="param_ark40_speed", drone_type="standard_cargo", field="speed",
-         value="14", unit="m/s", evidence_grade="A", is_real_measurement="vendor_stated",
+         value="14", unit="m/s", evidence_grade="A", traceability="Partial", transformation="As-published",
+         is_real_measurement="vendor_stated",
          error_band_vs_source_pct="0.00", source_value="巡航速度14m/s", test_condition="官方页未附条件",
          derivation="", recompute_cmd="", config_file="frontend/config/drone_types.yaml", status="在用",
          notes="旧登记簿曾记『speed 无来源标注』，本轮已补上官方出处"),
     dict(param_id="param_ark40_mtow", drone_type="standard_cargo", field="(未建模)最大起飞重量",
-         value="46", unit="kg", evidence_grade="A", is_real_measurement="vendor_stated",
+         value="46", unit="kg", evidence_grade="A", traceability="Partial", transformation="As-published",
+         is_real_measurement="vendor_stated",
          error_band_vs_source_pct="0.00", source_value="46kg 最大起飞重量", test_condition="",
          derivation="", recompute_cmd="", config_file="", status="未建模", notes=""),
     dict(param_id="param_ark40_battery_wh", drone_type="standard_cargo", field="battery_capacity",
-         value="1600", unit="Wh", evidence_grade="D", is_real_measurement="assumed",
+         value="1600", unit="Wh", evidence_grade="D", traceability="None", transformation="Assumption",
+         is_real_measurement="assumed",
          error_band_vs_source_pct="不可估（无外部基准）",
          source_value="未取得：官方页关键词 mAh/毫安时/Wh/瓦时/电池容量 命中数全部为 0",
          test_condition="不适用", derivation="", recompute_cmd="",
          config_file="frontend/config/drone_types.yaml", status="在用（假设值）",
          notes="对外禁用『对标 ARK40 官方电池』"),
     dict(param_id="param_ark40_consumption", drone_type="standard_cargo", field="consumption_base",
-         value="0.06", unit="Wh/m", evidence_grade="D", is_real_measurement="assumed",
+         value="0.06", unit="Wh/m", evidence_grade="D", traceability="None", transformation="Assumption",
+         is_real_measurement="assumed",
          error_band_vs_source_pct="不可估", source_value="未取得（无电池容量即无法派生 Wh/km）",
          test_condition="不适用", derivation="", recompute_cmd="",
          config_file="frontend/config/drone_types.yaml", status="在用（假设值）", notes=""),
     dict(param_id="param_light_payload", drone_type="light_express", field="carrying_capacity",
-         value="2.4", unit="kg", evidence_grade="E", is_real_measurement="unverified",
+         value="2.4", unit="kg", evidence_grade="E", traceability="None", transformation="Assumption",
+         is_real_measurement="unverified",
          error_band_vs_source_pct="媒体口径 2.5 vs 项目 2.4（差 4%）",
          source_value="媒体报道口径 2.5 kg；无厂商规格页", test_condition="不适用",
          derivation="项目自行改为 2.4，理由未登记", recompute_cmd="",
          config_file="frontend/config/drone_types.yaml", status="在用", notes="改值理由缺失"),
     dict(param_id="param_light_battery_wh", drone_type="light_express", field="battery_capacity",
-         value="380", unit="Wh", evidence_grade="D", is_real_measurement="assumed",
+         value="380", unit="Wh", evidence_grade="D", traceability="None", transformation="Assumption",
+         is_real_measurement="assumed",
          error_band_vs_source_pct="不可估", source_value="未取得（美团从未公布电池）", test_condition="不适用",
          derivation="", recompute_cmd="", config_file="frontend/config/drone_types.yaml",
          status="在用（假设值）", notes=""),
     dict(param_id="param_light_consumption", drone_type="light_express", field="consumption_base",
-         value="0.032", unit="Wh/m", evidence_grade="D", is_real_measurement="assumed",
+         value="0.032", unit="Wh/m", evidence_grade="D", traceability="None", transformation="Assumption",
+         is_real_measurement="assumed",
          error_band_vs_source_pct="不可估", source_value="未取得", test_condition="不适用",
          derivation="", recompute_cmd="", config_file="frontend/config/drone_types.yaml",
          status="在用（假设值）", notes=""),
     dict(param_id="param_swap_time", drone_type="(全局)", field="swap_time_seconds",
-         value="180", unit="s", evidence_grade="D", is_real_measurement="assumed",
+         value="180", unit="s", evidence_grade="D", traceability="None", transformation="Assumption",
+         is_real_measurement="assumed",
          error_band_vs_source_pct="不可估",
          source_value="未取得：无任何官方换电动作时长。BS60 的 60 min 是『充满两块 TB60』的时间，不是换电动作耗时",
          test_condition="不适用", derivation="", recompute_cmd="",
          config_file="四处冗余定义（见 model_notes）", status="在用（假设值）",
          notes="对外禁用『换电 180 s 为厂商参数』"),
     dict(param_id="param_battery_low_threshold", drone_type="(全局)", field="battery_low_threshold",
-         value="0.2", unit="-", evidence_grade="D", is_real_measurement="assumed",
+         value="0.2", unit="-", evidence_grade="D", traceability="None", transformation="Assumption",
+         is_real_measurement="assumed",
          error_band_vs_source_pct="不可估", source_value="未取得", test_condition="不适用",
          derivation="", recompute_cmd="", config_file="", status="在用（假设值）", notes=""),
     dict(param_id="param_sla_base", drone_type="(全局)", field="sla_base_seconds",
-         value="420", unit="s", evidence_grade="D", is_real_measurement="assumed",
+         value="420", unit="s", evidence_grade="D", traceability="None", transformation="Assumption",
+         is_real_measurement="assumed",
          error_band_vs_source_pct="不可估", source_value="未取得",
          test_condition="不适用（且该值直接决定超时率）", derivation="", recompute_cmd="",
          config_file="", status="在用（假设值）", notes="对外禁用『真实时效约束』"),
     dict(param_id="param_sla_per_kg", drone_type="(全局)", field="sla_per_kg_seconds",
-         value="24", unit="s/kg", evidence_grade="D", is_real_measurement="assumed",
+         value="24", unit="s/kg", evidence_grade="D", traceability="None", transformation="Assumption",
+         is_real_measurement="assumed",
          error_band_vs_source_pct="不可估", source_value="未取得", test_condition="不适用",
          derivation="", recompute_cmd="", config_file="", status="在用（假设值）", notes=""),
     dict(param_id="param_height_fallback_floor", drone_type="(地图)", field="building_default_floors",
-         value="3.0", unit="层", evidence_grade="D+E", is_real_measurement="assumed",
+         value="3.0", unit="层", evidence_grade="D+E", traceability="None", transformation="Assumption",
+         is_real_measurement="assumed",
          error_band_vs_source_pct="未取得", source_value="未取得；且与另一处 12 m 固定值不一致",
          test_condition="不适用", derivation="两处 fallback 并存，未统一", recompute_cmd="",
          config_file="", status="在用", notes="经证明不进调度（二维相交），影响面＝可视化"),
     dict(param_id="param_bs60_charge", drone_type="(地面设施)", field="bs60_可同时充电块数",
-         value="未定", unit="块", evidence_grade="E", is_real_measurement="conflict_unresolved",
+         value="未定", unit="块", evidence_grade="E", traceability="None", transformation="Assumption",
+         is_real_measurement="conflict_unresolved",
          error_band_vs_source_pct="", source_value="冲突：官方商城商品页『4 块飞行电池 + 4 块遥控器电池』vs 支持页『存放 8×TB60+4×WB37，同时充 2×TB60+1×WB37』",
          test_condition="支持页本轮无法独立取证（JS 壳 458 B）", derivation="", recompute_cmd="",
          config_file="", status="未入正式表", notes="保守表述：存放 8+4；同时充电数量两页冲突未决"),
@@ -618,8 +699,20 @@ def build(write: bool):
                                evidence_grade=r["evidence_grade"], notes=r["notes"]) for r in base_stats]
 
     src_cols = ["source_id", "name", "publisher", "url", "source_type", "retrieval_date", "http_status",
-                "response_bytes", "sha256", "local_file", "verified_by", "notes"]
-    par_cols = ["param_id", "drone_type", "field", "value", "unit", "evidence_grade", "is_real_measurement",
+                "response_bytes", "sha256", "local_file", "verified_by",
+                # 全数据集唯二能标 Complete 的就是这两个 source（仓内留有原件 + sha256）；
+                # 不写进 CSV 的话，对外那份表格里"Complete"这一档等于不存在。
+                "traceability", "transformation", "notes"]
+    # 两条新轴必须同时进 parameters.csv：只加进 truth.jsonl 会让两个消费方看到的分级不一致
+    # （README 里 parameters.csv 与 truth.jsonl 并列对外，脚本读者拿不到 traceability 就会以为仍是单轴）。
+    for p in PARAMETERS:
+        p.setdefault("traceability", "")
+        p.setdefault("transformation", "")
+    for srow in SOURCES:
+        srow.setdefault("traceability", "")
+        srow.setdefault("transformation", "")
+    par_cols = ["param_id", "drone_type", "field", "value", "unit", "evidence_grade",
+                "traceability", "transformation", "is_real_measurement",
                 "error_band_vs_source_pct", "source_value", "test_condition", "derivation", "recompute_cmd",
                 "config_file", "status", "notes"]
     stt_cols = ["stat_id", "dataset", "metric", "value", "unit", "n", "method", "computed_from_file",
@@ -656,8 +749,28 @@ def build(write: bool):
                  "formal_baseline_run.csv": len(br_cols), "truth.jsonl": "-"}
 
     grades = {}
+    axes = {"traceability": {}, "transformation": {}}
     for p in PARAMETERS:
+        _check_axes(p)                     # 枚举合法 + 三轴不自相矛盾
         grades[p["evidence_grade"]] = grades.get(p["evidence_grade"], 0) + 1
+        for k in ("traceability", "transformation"):
+            axes[k][p[k]] = axes[k].get(p[k], 0) + 1
+    # 一整列同一个值 = 根本没分档，比填错更糟（填错还能被上面那条抓住）。
+    # ⚠ 但 Complete 这一档**允许在参数表里为空**，且本轮实测就是空的 —— 这不是漏标：
+    #   24 条 parameter 全是设备/SLA/换电类数值，其来源要么是厂商网页（按上面的收紧规则只给 Partial），
+    #   要么根本没有出处（None）。真正够得上 Complete 的是两个 source 级条目
+    #   （src_osm_extract 与 src_openmeteo_archive，仓内留有原件 + sha256），它们不在本表里。
+    #   所以判据是"每轴至少两档非空"，而不是"枚举里每个值都必须出现"——后者会逼我给
+    #   设备参数硬安一个 Complete，那才是把体系写坏。
+    for k, dist in axes.items():
+        if len(dist) < 2:
+            raise ValueError("[AXIS_DEGENERATE] %s 全部 %d 条都是 %s ⇒ 该轴没有起到区分作用" % (
+                k, len(PARAMETERS), list(dist)))
+    # 反向哨兵：若哪天有人为了"看起来完整"把某条设备参数提成 Complete，这里要能问一句凭什么。
+    for p in PARAMETERS:
+        if p["traceability"] == "Complete" and not p.get("local_snapshot"):
+            raise ValueError("[AXIS_UNSUPPORTED] %s 标 Complete 但没有 local_snapshot 字段"
+                             "（仓内原件路径）⇒ 请补原件或降回 Partial" % p["param_id"])
 
     manifest = dict(
         dataset="drone-scheduling truth/provenance dataset",
@@ -677,13 +790,19 @@ def build(write: bool):
             baseline_raw_runs=dict(path=baseline_rel, bytes=(REPO / baseline_rel).stat().st_size,
                                    sha256=_sha(REPO / baseline_rel))),
         evidence_grades=grades,
+        traceability_axes=axes["traceability"],
+        transformation_axes=axes["transformation"],
         parameter_counts=len(PARAMETERS),
         disabled_claims=len(DISABLED_CLAIMS),
         row_counts=counts,
         column_counts=colcounts,
         dependencies="Python 3.10 标准库（无第三方依赖）",
         boundary=("本数据集只登记『数字→来源→条件→算式→复算命令』的证据关系。"
-                  "A=官方直接值 B=原始公开实测 C=可由 A/B 复算的派生值 D=假设值 E=未验证或冲突。"
+                  "三条轴各自独立：evidence_grade A=官方直接值 B=原始公开实测 C=可由 A/B 复算的派生值 "
+                  "D=假设值 E=未验证或冲突（来源可信度）；traceability Complete=仓内留有原件或快照可不依赖"
+                  "在线服务复核 Partial=有明确出处但核验依赖厂商页面当前状态（改版即失效）None=无外部依据"
+                  "（溯源完整度）；transformation As-published=原文照抄 Derived=经过计算且有算式 "
+                  "Local-extraction=从原始文件提取 Assumption=无外部依据的设定（处理过程）。"
                   "D/E 级字段不得对外称为厂商参数。"),
     )
     if write:

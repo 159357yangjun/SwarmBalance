@@ -1,25 +1,25 @@
-param_id,drone_type,field,value,unit,evidence_grade,is_real_measurement,error_band_vs_source_pct,source_value,test_condition,derivation,recompute_cmd,config_file,status,notes
-param_flycart_battery_wh,heavy_cargo,battery_capacity,3968.8,Wh,C,derived,0.00（整除双块）,1984.4 Wh × 2（DB2000 单块）,官方标注：零海拔无风，仅供参考,3968.8 = 1984.4 * 2,"python -c ""print(1984.4*2)""",frontend/config/drone_types.yaml,在用,官方直接发布的是单块 1984.4 Wh；双块总能量是我方派生，不得称『官方发布的双块值』
-param_flycart_consumption_base,heavy_cargo,consumption_base,0.142,Wh/m,C,derived,0.18,空载双电最大航程 28 km,官方标注：零海拔无风，以 15 m/s 匀速飞行,3968.8 Wh / 28 km = 141.743 Wh/km = 0.141743 Wh/m ≈ 0.142,"python -c ""print(3968.8/28)""",frontend/config/drone_types.yaml,在用,这就是 142 的标定依据；口径为【空载】，不可与满载锚点直接比
-param_flycart_load_penalty,heavy_cargo,load_penalty_factor,0.75,-,C,derived,0.00,空载 28 km ÷ 满载(30 kg) 16 km = 1.75,官方标注：零海拔无风,1 + 0.75 = 1.75 = 28/16,"python -c ""print(28/16)""",frontend/config/drone_types.yaml,在用,与 consumption_base 相互独立的第二个官方锚点，两条都吻合
-param_flycart_speed,heavy_cargo,speed,20,m/s,A,vendor_stated,0.00,水平飞行速度 20 米/秒（载重 30 千克）,零海拔无风,,,frontend/config/drone_types.yaml,在用,官方直接值
-param_flycart_full_range,heavy_cargo,full_load_range_km,16,km,A,vendor_stated,0.00,最大飞行距离（满载）双电（载重 30 千克）：16 千米,零海拔无风,,,frontend/config/drone_types.yaml,在用,同页另有单电（40 kg）8 km，勿混档
-param_flycart_empty_range,heavy_cargo,(未建模)空载航程,28,km,A,vendor_stated,0.00,最大飞行距离（空载）双电：28 千米／单电：12 千米,零海拔无风、15 m/s 匀速,,,,仅作派生输入,本轮首次从官方页取到，未单独建字段
-param_flycart_payload_caliber,heavy_cargo,carrying_capacity,30,kg,E->已定,vendor_stated,口径冲突,同页三口径并存：货箱 0–40 kg；吊挂 双电 5–30 kg / 单电 5–40 kg；最大起飞 95 kg（标配货箱，海平面附近）,见各条原文,取双电池档上限 30 kg,"curl -sSL https://www.dji.com/cn/flycart-30/specs | sed ""s/<[^>]*>/ /g"" | grep -o "".\{0,30\}载荷能力.\{0,40\}""",frontend/config/drone_types.yaml,在用,对外禁用『载重 0–40 kg』描述本项目 30 kg 设定＝混档
-param_flycart_wind_resist,heavy_cargo,(未建模)抗风等级,12,m/s,A,vendor_stated,0.00,抗风等级 12 米/秒（载重 30 千克…）,官方该行只标『零海拔』，未标『无风』——已核实原文确无此二字,,,,未建模,模型里没有风速对运动学/可达性的约束（E1 只进能耗）
-param_flycart_temp,heavy_cargo,(未建模)工作温度,-20~45,℃,E,unverified,,未取得（本轮 135 KB 页面文本内未命中该串）,,,,,未建模,撤回先前引用：我在已抓取的页面文本里找不到 ⇒ 降为 E
-param_ark40_payload,standard_cargo,carrying_capacity,10,kg,A,vendor_stated,0.00,10kg 最大载荷重量,官方页未附条件,,,frontend/config/drone_types.yaml,在用,
-param_ark40_range,standard_cargo,full_load_range_km,20,km,A,vendor_stated,0.00,20km 最大航程,官方页未附条件,,,frontend/config/drone_types.yaml,在用,
-param_ark40_speed,standard_cargo,speed,14,m/s,A,vendor_stated,0.00,巡航速度14m/s,官方页未附条件,,,frontend/config/drone_types.yaml,在用,旧登记簿曾记『speed 无来源标注』，本轮已补上官方出处
-param_ark40_mtow,standard_cargo,(未建模)最大起飞重量,46,kg,A,vendor_stated,0.00,46kg 最大起飞重量,,,,,未建模,
-param_ark40_battery_wh,standard_cargo,battery_capacity,1600,Wh,D,assumed,不可估（无外部基准）,未取得：官方页关键词 mAh/毫安时/Wh/瓦时/电池容量 命中数全部为 0,不适用,,,frontend/config/drone_types.yaml,在用（假设值）,对外禁用『对标 ARK40 官方电池』
-param_ark40_consumption,standard_cargo,consumption_base,0.06,Wh/m,D,assumed,不可估,未取得（无电池容量即无法派生 Wh/km）,不适用,,,frontend/config/drone_types.yaml,在用（假设值）,
-param_light_payload,light_express,carrying_capacity,2.4,kg,E,unverified,媒体口径 2.5 vs 项目 2.4（差 4%）,媒体报道口径 2.5 kg；无厂商规格页,不适用,项目自行改为 2.4，理由未登记,,frontend/config/drone_types.yaml,在用,改值理由缺失
-param_light_battery_wh,light_express,battery_capacity,380,Wh,D,assumed,不可估,未取得（美团从未公布电池）,不适用,,,frontend/config/drone_types.yaml,在用（假设值）,
-param_light_consumption,light_express,consumption_base,0.032,Wh/m,D,assumed,不可估,未取得,不适用,,,frontend/config/drone_types.yaml,在用（假设值）,
-param_swap_time,(全局),swap_time_seconds,180,s,D,assumed,不可估,未取得：无任何官方换电动作时长。BS60 的 60 min 是『充满两块 TB60』的时间，不是换电动作耗时,不适用,,,四处冗余定义（见 model_notes）,在用（假设值）,对外禁用『换电 180 s 为厂商参数』
-param_battery_low_threshold,(全局),battery_low_threshold,0.2,-,D,assumed,不可估,未取得,不适用,,,,在用（假设值）,
-param_sla_base,(全局),sla_base_seconds,420,s,D,assumed,不可估,未取得,不适用（且该值直接决定超时率）,,,,在用（假设值）,对外禁用『真实时效约束』
-param_sla_per_kg,(全局),sla_per_kg_seconds,24,s/kg,D,assumed,不可估,未取得,不适用,,,,在用（假设值）,
-param_height_fallback_floor,(地图),building_default_floors,3.0,层,D+E,assumed,未取得,未取得；且与另一处 12 m 固定值不一致,不适用,两处 fallback 并存，未统一,,,在用,经证明不进调度（二维相交），影响面＝可视化
-param_bs60_charge,(地面设施),bs60_可同时充电块数,未定,块,E,conflict_unresolved,,冲突：官方商城商品页『4 块飞行电池 + 4 块遥控器电池』vs 支持页『存放 8×TB60+4×WB37，同时充 2×TB60+1×WB37』,支持页本轮无法独立取证（JS 壳 458 B）,,,,未入正式表,保守表述：存放 8+4；同时充电数量两页冲突未决
+param_id,drone_type,field,value,unit,evidence_grade,traceability,transformation,is_real_measurement,error_band_vs_source_pct,source_value,test_condition,derivation,recompute_cmd,config_file,status,notes
+param_flycart_battery_wh,heavy_cargo,battery_capacity,3968.8,Wh,C,Partial,Derived,derived,0.00（整除双块）,1984.4 Wh × 2（DB2000 单块）,官方标注：零海拔无风，仅供参考,3968.8 = 1984.4 * 2,"python -c ""print(1984.4*2)""",frontend/config/drone_types.yaml,在用,官方直接发布的是单块 1984.4 Wh；双块总能量是我方派生，不得称『官方发布的双块值』
+param_flycart_consumption_base,heavy_cargo,consumption_base,0.142,Wh/m,C,Partial,Derived,derived,0.18,空载双电最大航程 28 km,官方标注：零海拔无风，以 15 m/s 匀速飞行,3968.8 Wh / 28 km = 141.743 Wh/km = 0.141743 Wh/m ≈ 0.142,"python -c ""print(3968.8/28)""",frontend/config/drone_types.yaml,在用,这就是 142 的标定依据；口径为【空载】，不可与满载锚点直接比
+param_flycart_load_penalty,heavy_cargo,load_penalty_factor,0.75,-,C,Partial,Derived,derived,0.00,空载 28 km ÷ 满载(30 kg) 16 km = 1.75,官方标注：零海拔无风,1 + 0.75 = 1.75 = 28/16,"python -c ""print(28/16)""",frontend/config/drone_types.yaml,在用,与 consumption_base 相互独立的第二个官方锚点，两条都吻合
+param_flycart_speed,heavy_cargo,speed,20,m/s,A,Partial,As-published,vendor_stated,0.00,水平飞行速度 20 米/秒（载重 30 千克）,零海拔无风,,,frontend/config/drone_types.yaml,在用,官方直接值
+param_flycart_full_range,heavy_cargo,full_load_range_km,16,km,A,Partial,As-published,vendor_stated,0.00,最大飞行距离（满载）双电（载重 30 千克）：16 千米,零海拔无风,,,frontend/config/drone_types.yaml,在用,同页另有单电（40 kg）8 km，勿混档
+param_flycart_empty_range,heavy_cargo,(未建模)空载航程,28,km,A,Partial,As-published,vendor_stated,0.00,最大飞行距离（空载）双电：28 千米／单电：12 千米,零海拔无风、15 m/s 匀速,,,,仅作派生输入,本轮首次从官方页取到，未单独建字段
+param_flycart_payload_caliber,heavy_cargo,carrying_capacity,30,kg,E->已定,Partial,As-published,vendor_stated,口径冲突,同页三口径并存：货箱 0–40 kg；吊挂 双电 5–30 kg / 单电 5–40 kg；最大起飞 95 kg（标配货箱，海平面附近）,见各条原文,取双电池档上限 30 kg,"curl -sSL https://www.dji.com/cn/flycart-30/specs | sed ""s/<[^>]*>/ /g"" | grep -o "".\{0,30\}载荷能力.\{0,40\}""",frontend/config/drone_types.yaml,在用,对外禁用『载重 0–40 kg』描述本项目 30 kg 设定＝混档
+param_flycart_wind_resist,heavy_cargo,(未建模)抗风等级,12,m/s,A,Partial,As-published,vendor_stated,0.00,抗风等级 12 米/秒（载重 30 千克…）,官方该行只标『零海拔』，未标『无风』——已核实原文确无此二字,,,,未建模,模型里没有风速对运动学/可达性的约束（E1 只进能耗）
+param_flycart_temp,heavy_cargo,(未建模)工作温度,-20~45,℃,E,None,As-published,unverified,,未取得（本轮 135 KB 页面文本内未命中该串）,,,,,未建模,撤回先前引用：我在已抓取的页面文本里找不到 ⇒ 降为 E
+param_ark40_payload,standard_cargo,carrying_capacity,10,kg,A,Partial,As-published,vendor_stated,0.00,10kg 最大载荷重量,官方页未附条件,,,frontend/config/drone_types.yaml,在用,
+param_ark40_range,standard_cargo,full_load_range_km,20,km,A,Partial,As-published,vendor_stated,0.00,20km 最大航程,官方页未附条件,,,frontend/config/drone_types.yaml,在用,
+param_ark40_speed,standard_cargo,speed,14,m/s,A,Partial,As-published,vendor_stated,0.00,巡航速度14m/s,官方页未附条件,,,frontend/config/drone_types.yaml,在用,旧登记簿曾记『speed 无来源标注』，本轮已补上官方出处
+param_ark40_mtow,standard_cargo,(未建模)最大起飞重量,46,kg,A,Partial,As-published,vendor_stated,0.00,46kg 最大起飞重量,,,,,未建模,
+param_ark40_battery_wh,standard_cargo,battery_capacity,1600,Wh,D,None,Assumption,assumed,不可估（无外部基准）,未取得：官方页关键词 mAh/毫安时/Wh/瓦时/电池容量 命中数全部为 0,不适用,,,frontend/config/drone_types.yaml,在用（假设值）,对外禁用『对标 ARK40 官方电池』
+param_ark40_consumption,standard_cargo,consumption_base,0.06,Wh/m,D,None,Assumption,assumed,不可估,未取得（无电池容量即无法派生 Wh/km）,不适用,,,frontend/config/drone_types.yaml,在用（假设值）,
+param_light_payload,light_express,carrying_capacity,2.4,kg,E,None,Assumption,unverified,媒体口径 2.5 vs 项目 2.4（差 4%）,媒体报道口径 2.5 kg；无厂商规格页,不适用,项目自行改为 2.4，理由未登记,,frontend/config/drone_types.yaml,在用,改值理由缺失
+param_light_battery_wh,light_express,battery_capacity,380,Wh,D,None,Assumption,assumed,不可估,未取得（美团从未公布电池）,不适用,,,frontend/config/drone_types.yaml,在用（假设值）,
+param_light_consumption,light_express,consumption_base,0.032,Wh/m,D,None,Assumption,assumed,不可估,未取得,不适用,,,frontend/config/drone_types.yaml,在用（假设值）,
+param_swap_time,(全局),swap_time_seconds,180,s,D,None,Assumption,assumed,不可估,未取得：无任何官方换电动作时长。BS60 的 60 min 是『充满两块 TB60』的时间，不是换电动作耗时,不适用,,,四处冗余定义（见 model_notes）,在用（假设值）,对外禁用『换电 180 s 为厂商参数』
+param_battery_low_threshold,(全局),battery_low_threshold,0.2,-,D,None,Assumption,assumed,不可估,未取得,不适用,,,,在用（假设值）,
+param_sla_base,(全局),sla_base_seconds,420,s,D,None,Assumption,assumed,不可估,未取得,不适用（且该值直接决定超时率）,,,,在用（假设值）,对外禁用『真实时效约束』
+param_sla_per_kg,(全局),sla_per_kg_seconds,24,s/kg,D,None,Assumption,assumed,不可估,未取得,不适用,,,,在用（假设值）,
+param_height_fallback_floor,(地图),building_default_floors,3.0,层,D+E,None,Assumption,assumed,未取得,未取得；且与另一处 12 m 固定值不一致,不适用,两处 fallback 并存，未统一,,,在用,经证明不进调度（二维相交），影响面＝可视化
+param_bs60_charge,(地面设施),bs60_可同时充电块数,未定,块,E,None,Assumption,conflict_unresolved,,冲突：官方商城商品页『4 块飞行电池 + 4 块遥控器电池』vs 支持页『存放 8×TB60+4×WB37，同时充 2×TB60+1×WB37』,支持页本轮无法独立取证（JS 壳 458 B）,,,,未入正式表,保守表述：存放 8+4；同时充电数量两页冲突未决
