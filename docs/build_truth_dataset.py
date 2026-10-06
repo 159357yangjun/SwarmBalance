@@ -189,7 +189,14 @@ PARAMETERS = [
          test_condition="官方标注：零海拔无风",
          derivation="1 + 0.75 = 1.75 = 28/16", recompute_cmd='python -c "print(28/16)"',
          config_file="frontend/config/drone_types.yaml", status="在用",
-         notes="与 consumption_base 相互独立的第二个官方锚点，两条都吻合"),
+         # T5：原 notes 写「与 consumption_base 相互独立的第二个官方锚点」——该说法已订正。
+         # 两条都来自**同一对官方航程数**（28 km 空载 / 16 km 满载），只是除法顺序不同，
+         # 所以它们是同源派生而不是彼此独立的第二条证据；且比值成立还额外依赖一条未检假设（见下）。
+         notes="派生自官方航程比 28/16。**隐含假设：同一电池包、同一无风巡航条件下，"
+               "单位距离能耗与可飞航程成反比**（即 E_full/E_empty = R_empty/R_full）。"
+               "该假设未经实飞检验 ⇒ 若满载时改用不同飞行模式、或载重改变了速度/悬停占比，"
+               "此比值就不再等于能耗倍率，本参数需重新推导。"
+               "⚠ 与 consumption_base 属**同一对官方数据的两种除法**，不是两条独立证据"),
     dict(param_id="param_flycart_speed", drone_type="heavy_cargo", field="speed",
          value="20", unit="m/s", evidence_grade="A", traceability="Partial", transformation="As-published",
          is_real_measurement="vendor_stated",
@@ -528,7 +535,9 @@ def compute_wind_stats():
         row("stat_derive_noenergy", "flycart30_derived", "empty_load_energy_intensity", 3968.8 / 28.0, "Wh/km", 1,
             "3968.8 ÷ 28（官方双块能量 ÷ 空载航程）", "C", "项目 consumption_base=0.142 Wh/m 与之差 0.18%", src=False),
         row("stat_derive_ratio", "flycart30_derived", "full_over_empty_energy_ratio", 28.0 / 16.0, "-", 1,
-            "28 ÷ 16（空载航程 ÷ 满载航程）", "C", "= 1 + load_penalty_factor(0.75)，逐位吻合", src=False),
+            "28 ÷ 16（空载航程 ÷ 满载航程）", "C",
+            "= 1 + load_penalty_factor(0.75)，数值一致；但成立前提是"
+            "「同电池+单位距离能耗 ∝ 1/航程」这一未检假设 ⇒ 只作量级旁证（T5）", src=False),
         row("stat_derive_full", "flycart30_derived", "full_load_energy_intensity", 3968.8 / 16.0, "Wh/km", 1,
             "3968.8 ÷ 16", "C", "0.142×1.75=0.2485 Wh/m 自洽", src=False),
         row("stat_derive_hover", "flycart30_derived", "hover_power_ratio_proxy", 29.0 / 18.0, "-", 1,
