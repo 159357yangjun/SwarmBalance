@@ -112,9 +112,16 @@ def remap(doc: pathlib.Path, verify_anchor=True):
                 if rel_path.is_file():
                     body = rel_path.read_text(encoding="utf-8", errors="replace").splitlines()
                     word = anchor.lstrip("#")
-                    ok = all(1 <= v <= len(body) and word in body[v - 1] for v in mapped)
+                    # ⚠ 判据必须与 console/_citations.py 的 ANCHOR_MISS **同一把尺子**：
+                    # 那边是把整个引用区间 join 起来要求"锚点出现在其中任一行"，
+                    # 这边原先却要求"每一行都含锚点"（all(...)）。
+                    # 后果实测过：`environment.py:319-320#地图建筑` 是跨两行的 print 语句，
+                    # 词只在首行 ⇒ 本工具把它判成误平移并拒绝采纳，而门禁认为它合法。
+                    # 两把尺子不一致时，映射器会系统性拒掉它自己该修的那些引用。
+                    span = [body[v - 1] for v in mapped if 1 <= v <= len(body)]
+                    ok = len(span) == len(mapped) and any(word in l for l in span)
                     if not ok:
-                        rejected.append("%s:%s%s -> %s（目标行不含锚点词，判为误平移，未采纳）"
+                        rejected.append("%s:%s%s -> %s（目标区间不含锚点词，判为误平移，未采纳）"
                                         % (rel, spec, anchor, new_spec))
                         return mt.group(0)
             if new_spec != spec:
@@ -133,6 +140,7 @@ def main(argv=None):
     total = 0
     per_doc = collections.Counter()
     problems = []
+    rejected_total = 0
     for d in args.docs:
         p = (REPO / d) if not pathlib.Path(d).is_absolute() else pathlib.Path(d)
         if not p.is_file():
@@ -148,6 +156,7 @@ def main(argv=None):
             problems.extend(unresolved)
         for j in rejected:
             print("  [REJECTED_MISALIGN] %s" % j)
+        rejected_total += len(rejected)
         skipped_note = " 跳过历史引用行=%d" % skipped if skipped else ""
         print("[%s] 采纳改动=%d%s（另有 %d 条因锚点不自证被拒绝）"
               % (p.name, len(changes), skipped_note, len(rejected)))
@@ -155,6 +164,12 @@ def main(argv=None):
             p.write_text(new_text, encoding="utf-8", newline="\n")
     if problems:
         print("[UNRESOLVED_REMAIN] %d 条无法由 diff 唯一定位 ⇒ 未改动，需人工处理" % len(problems))
+        return 1
+    # ⚠ 被拒绝的映射同样是"没做完"：原先只打一行 [REJECTED_MISALIGN] 就退 0，
+    # 于是调用方（包括我）会以为"跑通了、无需处理"，而实际上文档里那些引用一条都没修。
+    # 本轮实测就是这样：拒了 13 条仍返回成功。现在拒过就退 1，把状态说真。
+    if rejected_total:
+        print("[REJECTED_REMAIN] %d 条被判为误平移而未采纳 ⇒ 引用仍是旧的，需人工确认" % rejected_total)
         return 1
     print(("已写" if args.write else "dry-run"))
     return 0

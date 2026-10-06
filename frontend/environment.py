@@ -175,11 +175,7 @@ class Environment:
 
         self.global_bounds = get_global_bounds(buildings_with_height)
 
-        self.high_buildings = [b for b in buildings_with_height if b['height'] is not None and b['height'] > 20]
-        # 性能：预计算高楼包围盒。is_path_clear 会被 A* 在每条路径规划中调用数千次，
-        # 先用纯 Python 的 bbox 剔除，可免掉绝大多数昂贵的 GEOS 相交调用。
-        # 这是等价优化：两条线段包围盒不重叠时，几何上不可能相交。
-        self._high_buildings_bbox = [(b['geometry'].bounds, b['geometry']) for b in self.high_buildings]
+        self._recompute_high_buildings(buildings_with_height)
         # is_path_clear 的结果缓存，见该方法注释。先留空：真正的桶要等 self.no_fly
         # 就位后才算得出几何指纹，所以延迟到首次判定时解析。
         self._path_clear_cache = None
@@ -371,6 +367,28 @@ class Environment:
         return self.global_bounds
 
     def get_high_buildings(self):
+        return self.high_buildings
+
+    # 建筑进入避障集合的高度阈值（米）。对外口径见 docs/模型真实结构修订.md §2.2：
+    # 这是一个**二值规则** —— 过阈值的楼等价于无限高平面棱柱，未过阈值的对航线完全透明；
+    # height 的具体数值在筛选之后不再被任何消费方读取（由 console/test_height_binary_gate.py 钉住）。
+    HIGH_BUILDING_MIN_HEIGHT_M = 20
+
+    def _recompute_high_buildings(self, buildings_with_height):
+        """从候选建筑里挑出参与避障的那些，并重建 bbox 索引。
+
+        抽成方法而不是内联那行列表推导：门要能对"同一批候选、只改高度"重跑这条规则，
+        内联的话夹具只能自己复制一份 `> 20` 判断 —— 那扇门测的就是夹具而不是被测对象
+        （第一版确实这样无牙：摘掉阈值后门照样绿）。
+        """
+        self.high_buildings = [b for b in buildings_with_height
+                               if b['height'] is not None
+                               and b['height'] > self.HIGH_BUILDING_MIN_HEIGHT_M]
+        # 性能：预计算高楼包围盒。is_path_clear 会被 A* 在每条路径规划中调用数千次，
+        # 先用纯 Python 的 bbox 剔除，可免掉绝大多数昂贵的 GEOS 相交调用。
+        # 这是等价优化：两条线段包围盒不重叠时，几何上不可能相交。
+        self._high_buildings_bbox = [(b['geometry'].bounds, b['geometry'])
+                                     for b in self.high_buildings]
         return self.high_buildings
 
     def add_drone(self):

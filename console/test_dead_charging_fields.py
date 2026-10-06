@@ -95,13 +95,29 @@ class DeadChargingFieldTests(unittest.TestCase):
             self.assertEqual(c["export"], [], "%s 出现在指标名单/字符串键里：%s —— 那属对外口径"
                              % (name, c["export"]))
 
+    def _line_of(self, name):
+        """按内容定位定义行，不写死行号。
+
+        原先这里硬编 (295, 296)：本轮把 `high_buildings` 那行抽成方法（environment.py:178→
+        `_recompute_high_buildings`）使文件行数变化，两行一起漂 ⇒ 本门红。
+        **为了让计数消失而发明判据**是不干的；但行号本来就不该由人抄 —— 它唯一的真源是文件本身。
+        现在改成"从源码里查这个属性在哪行被赋值"，漂了会自动跟，且仍能被内容核对证伪。
+        """
+        lines = ENV.read_text(encoding="utf-8").split("\n")
+        hits = [i + 1 for i, l in enumerate(lines) if ("self.%s =" % name) in l]
+        self.assertEqual(len(hits), 1,
+                         "%s 的定义行应为 1 处，实得 %s：%r ⇒ 内容定位失效，不许猜行号" % (
+                             name, hits, [lines[h - 1][:40] for h in hits]))
+        return hits[0]
+
     def test_ledger_still_holds_the_awaiting_user_record(self):
         """记录必须在，且带着两个可被引用门禁翻开的行号锚点。"""
         text = LEDGER.read_text(encoding="utf-8")
         self.assertIn("awaiting-user", text,
                       "A2 的待批记录不见了 —— 决定做了就改写它，别直接删掉这一段")
         # 这两个断言串也用拼出来的名字：写全名的话，本文件就成了那个键的一处"读取点"
-        for ln, name in zip((295, 296), NAMES):
+        want = [self._line_of(n) for n in NAMES]
+        for ln, name in zip(want, NAMES):
             anchor = "frontend/environment.py:%d#%s" % (ln, name)
             self.assertIn(anchor, text,
                           "M10 缺了引用 %s —— 引用门禁扫不到它，行号漂也没人报警" % anchor)
@@ -132,9 +148,10 @@ class DeadChargingFieldTests(unittest.TestCase):
         os.remove(p)
 
     def test_definition_lines_match_the_cited_anchors(self):
-        """记录里写的 295/296 必须真是那两行 —— 行号漂了引用门禁会红，这里再补一层内容核对。"""
+        """记录里写的行号必须真是那两行 —— 行号漂了引用门禁会红，这里再补一层内容核对。"""
         lines = ENV.read_text(encoding="utf-8").split("\n")
-        for name, ln in zip(NAMES, (295, 296)):
+        for name in NAMES:
+            ln = self._line_of(name)
             self.assertIn(name, lines[ln - 1],
                           "%s 已不在 environment.py:%d，那一行的原文是 %r —— 记录与锚点都要改"
                           % (name, ln, lines[ln - 1][:60]))
