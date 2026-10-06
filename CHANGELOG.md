@@ -2,6 +2,92 @@
 
 ## [Unreleased]
 
+### 2026-10-05：仓库状态订正 —— "无 remote"这句话从本轮起是错的
+
+本仓**有** remote（`origin = https://gitee.com/acgvgh/swarm-balance.git`，远端默认分支 `master`，
+本地分支 `main` 配的是 merge origin/master）。上面 2026-10-02 那批条目里反复出现的
+"`VERSION` 仍 1.0.0、**无 remote**"在写下当时就是失实的：真实状态是"有 remote 但未推"，
+两者对外行可验证性完全不同（前者云端什么都看不到，后者看得到但滞后）。
+按规矩历史条目不改写，只在此处指认 + 给正确版本。
+
+本轮已把 main 快进推到 origin/master：`78dfe6c..2e7dc37`（11 笔，非 force），
+推后 `git rev-list --left-right --count origin/master...HEAD` = `0  0` 复验通过。
+另一条待办：`origin/dev` 停在初始提交 `4d8ac93`，落后 main 165 笔 —— 是否删除属破坏性操作，等用户点名。
+
+### 2026-10-05：Phase 0 收尾 —— PSO 门「无分母」用修 fixture 闭合，判据与阈值一字未动
+
+`console/test_speed_fallback_gate.py::test_g2...` 长期红：`[pso][NO_DENOMINATOR]`。诊断结论是
+**fixture 工况选错**，不是代码缺陷、也不是判据过严：出厂配置 10 机 / 60 任务下 `pending_buffer`
+峰值只有 2，而批量优化触发阈值是 15（`backend_si/config.yaml:16`）⇒ `optimize()` 零调用 ⇒
+门根本没有分母。门换成 C-1 重载工况后 greedy/pso/ga/ortools 四者均有非零正例。
+
+新增常驻牙线 `test_g2teeth` + `console/phase0_speed_gate_teeth_probe.py`，三面对照（seed=40901、
+episode=3600、阈值不变）：`gate`(240/mix6) opt=1477 flush_size=1 peak=15；
+`noDenom`(60/mix10) **opt=0** peak=2 ← 原红门所在格；`mutate`(240/mix10) opt=3 **flush_size=0** peak=3。
+
+**本轮我自己两次新误判（与前几轮不同族，单独记）**：
+1. 把变异打在 `num_drones` 上当单变量 —— `environment.py:144 build_fleet_drone_types()` 先按
+   `fleet_mix` 展开机型再截断/补齐到 `num_drones`，所以 mix 合计 6 时改 `num_drones=10` 仍是那
+   6 架机，门照样绿被我差点读成"门无牙"。现在 fixture 里有恒等式（mix 合计 != num_drones 直接抛）。
+2. 想拿 `optimize_calls > 0` 当牙 —— 变异后仍有 3 次 timeout 兜底足以糊过去；会归零的只有
+   `flush_size`。**"有分母线"与"牙线"必须是两个不同谓词。**
+负面对照已实测：阈值 15→2 时 gate 面 buffer 峰值降为 5、本门当场红退码非 0（跑完已还原）。
+
+顺带修掉一个真实的跨模块缺陷：本门 import 期装临时配置，原先 `tearDownClass` 删目录并 pop 变量，
+而 `config_loder.py:108` 每次调用重开文件、`charging_station.py:99` 在 import 期就调它 ⇒ 字母序靠后的
+`test_swap_time_gate` 吃悬空路径 FileNotFoundError。现改为还原指针、保留目录。
+
+**登记一条影响所有对比实验的口径限制**：轻载（机多单少）下批量优化器不介入 ⇒ PSO/GA 与 Greedy
+行为等价。任何"四算法性能对比"必须在重载场景做，否则比的是同一个算法（总纲 §17.3 + README）。
+
+套件：console 286/286 OK(skipped=1)、experiments 32/32 OK。commit `2e7dc37`。
+
+复算：`python console/phase0_speed_gate_teeth_probe.py gate|noDenom|mutate`；
+`python -X utf8 -m unittest discover -s console -p "test_*.py"`。
+
+### 2026-10-05：本地运行包入口 `scripts/reproduce_phase1b2.py`（一键复现 1B-2 结论）
+
+预检（解释器/依赖，缺了就报该用的绝对路径）→ 逐格跑 worker → **现算**超时率/完成数对照表与
+穷举符号检验精确 p（复用 `console/_paired_readout.py`，与常驻门同一把尺子）→ 打印已知问题清单。
+完整模式 = C-1/C-2 × 8 seeds × {w=0.0, w=1.2} = 32 cells；`--quick` 只跑 seed 40901（4 cells），
+脚本会显式跳过统计并说明原因（n=1 最小可达 p = 1.0，空表比装饰性 p 值诚实）。
+本机实测输出：超时率 4/4 组 8/8 全同号下降、精确 p = 0.0078；完成任务数 6~7/8 变差。
+日志写 `results/adhoc/`（已 gitignore）。commit `c81081c`。
+
+### 2026-10-04/05：Phase 1B-2 ETA-aware 调度 —— 以【约束】身份成立、以【奖励】身份被否
+
+设计（`11feca3`，未改代码先行）→ 实现 + 72-cell 实验（`136a04c`）→ 机制诊断 → A 方案落地为
+约束式罚分（`6e3b479`）→ n=8 同号性检验 + 演示开关 G14（`a6018a6`）。
+公式：`score += W·min(0, slack_full/300)`，`slack_full = rt − ETA(取货) − 送货腿/speed`；
+出厂 `reach_weight = 0.0` ⇒ 生产行为零漂移（G14a/b/c 三态钉住：出厂值为 0、config 键被消费、env 优先）。
+
+**奖励式为什么被否**：`clamp((rt − ETA_取货)/300)` 让超时率 6/6 seed 恶化（C1 40901 0.274→0.583）。
+一手机制：ETA 只算到取货点而 deadline 管的是送达 —— task_4 取货 slack=245.8 s 看着从容被顶成冠军，
+其送货腿 2277 m 要 113.8 s，真余量仅 +132 s；接单瞬间"已注定赶不上"的比例从 25.0% → 52.1%。
+⇒ 不是权重问题，是分子用错了段。
+
+**n=8 结果（两半必须一起报）**：超时率与平均时延 4/4 组 8/8 全同号下降（p=0.0078）；
+完成任务数 4/4 组里 6~7 个 seed 变差（p=0.0234~0.1406）⇒ 这一层是"用吞吐换履约"。
+另：w≥0.4 时 E/P 两面约 2/3 格子逐位相同 ⇒ 1B-3 须预期距离层边际效应缩到约 1/3，各层不可加。
+
+**门被自己的变异教了两次**：G13 第一版被"恒等于 0.5 的假实现"溜过（补">3 distinct values"）；
+G13e 只在 step=0 取样被 V6（摘掉送货腿）溜过（补构造夹具 G13f：近单/远单同 rt 只差送货腿）。
+我自己的第二个 witness 是构造性不可满足的（drone→pickup 0% 被挡，E/P 的 reachability 不可能不同），
+换成合成被挡 OD 测试 G13d。教训：**快照不能替代 episode；判别式夹具必须能区分"没触发"与"没接上"。**
+
+### 2026-10-04：Phase 1B-1 distance-aware 调度 —— H0 被否，且 H0 的依据本身也是错的
+
+`c537e79` 距离口径可切换（Euclidean 控制面 / PlannedDistance 实验面）+ 配对实验；
+`1e65009` 撤回 attribution_trace 的追溯链（那是假证据）并用消融把归因钉在 provider 上。
+
+**两处自我撤回**：① 1B-0 探针的分母是伪造的（padding 在截断之后追加），原公布值
+7/10676 = 0.07% **作废**，修正后 7/302 = 2.32%；② 全局 RNG 污染（缺陷 g）导致 episode 级归因
+不成立 ⇒ 整条追溯链撤回。我第一次的修法（每步 `apply_seed`）是错的 —— 它重置了任务生成器，
+对照面完成数从 105 掉到 73，随即回滚并把过程写成教训。
+
+GA 面阴性对照量化成功：`flush_timeout=20` 但 provider 调用=0 ⇒ 批量优化器在该格不介入。
+H0（"换距离口径会改变调度决策分布"）在 C-1/C-2 × 3 seeds 两面各测下**未被支持**。
+
 ### 2026-10-02：把"配对表不构成显著性结论"从措辞升成双向门（它当场抓到两处裸引用）
 
 上一节自己说了一句"免责声明不能只是措辞"，本轮就把它做成断言：
