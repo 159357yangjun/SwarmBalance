@@ -24,9 +24,9 @@ stat_api_response_bytes,openmeteo_api_replay_20261003,response_body_size,32885,b
 stat_api_grid_lat,openmeteo_api_replay_20261003,returned_grid_latitude,31.3181,deg,1,响应自带字段,,-1,A,≠ 请求点 31.29 ⇒ 服务端吸附到最近格点
 stat_api_grid_lon,openmeteo_api_replay_20261003,returned_grid_longitude,121.538,deg,1,响应自带字段,,-1,A,≠ 请求点 121.51
 stat_api_grid_elev,openmeteo_api_replay_20261003,returned_grid_elevation,3,m,1,响应自带字段,,-1,A,
-stat_derive_noenergy,flycart30_derived,empty_load_energy_intensity,141.743,Wh/km,1,3968.8 ÷ 28（官方双块能量 ÷ 空载航程）,,-1,C,项目 consumption_base=0.142 Wh/m 与之差 0.18%
+stat_derive_noenergy,flycart30_derived,empty_load_energy_intensity,141.743,Wh/km,1,(1984.4 × 2) ÷ 28（官方单块能量 ×2 ÷ 官方空载航程）,,-1,C,项目 consumption_base=0.142 Wh/m 与之差 0.18%
 stat_derive_ratio,flycart30_derived,full_over_empty_energy_ratio,1.75,-,1,28 ÷ 16（空载航程 ÷ 满载航程）,,-1,C,= 1 + load_penalty_factor(0.75)，数值一致；但成立前提是「同电池+单位距离能耗 ∝ 1/航程」这一未检假设 ⇒ 只作量级旁证（T5）
-stat_derive_full,flycart30_derived,full_load_energy_intensity,248.05,Wh/km,1,3968.8 ÷ 16,,-1,C,0.142×1.75=0.2485 Wh/m 自洽
+stat_derive_full,flycart30_derived,full_load_energy_intensity,248.05,Wh/km,1,(1984.4 × 2) ÷ 16（官方单块能量 ×2 ÷ 官方满载航程）,,-1,C,⚠ 与 stat_derive_noenergy × stat_derive_ratio 是**同一个量的另一种写法**（0.142 × 1.75 里空载航程 28 会约掉 ⇒ 数值上等价于本行，仅单位为 Wh/m 而非 Wh/km），故不构成新增证据；旧 notes 写『自洽』容易被读成通过了一次独立校验，已订正（T8）
 stat_derive_hover,flycart30_derived,hover_power_ratio_proxy,1.61111,-,1,空载悬停 29 min ÷ 满载悬停 18 min,,-1,C,只能当旁证：悬停≠巡航
 stat_osm_height_missing,osm_yangpu_buildings,height_tag_missing_share,0.8574,-,2876,缺 tag 数 ÷ building 总数（历史普查口径）,,-1,E,本轮未重做 height-tag 普查，故不从文件复算；引用值
 stat_baseline_n_C1,formal_baseline_n10,sample_size[C1],10,runs,10,本轮逐行计数,results/experiments/formal_baseline_n10_20261003-010435/raw_runs.csv,10,B,配对种子 40901–40910

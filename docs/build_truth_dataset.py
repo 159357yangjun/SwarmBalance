@@ -175,8 +175,11 @@ PARAMETERS = [
          is_real_measurement="derived",
          error_band_vs_source_pct="0.18", source_value="空载双电最大航程 28 km",
          test_condition="官方标注：零海拔无风，以 15 m/s 匀速飞行",
-         derivation="3968.8 Wh / 28 km = 141.743 Wh/km = 0.141743 Wh/m ≈ 0.142",
-         recompute_cmd='python -c "print(3968.8/28)"', config_file="frontend/config/drone_types.yaml",
+         # T8：原 recompute_cmd 是 `print(3968.8/28)` —— 把 param_flycart_battery_wh 的**输出**
+         # 当已知量重喂进来 ⇒ 复算命令自身成环（用 A 推 B，再拿 B 验 A）。
+         # 改为链式：唯一外部输入是官方单块 1984.4 Wh 与官方空载航程 28 km。
+         derivation="E = 1984.4 × 2 = 3968.8 Wh；E ÷ 28 km = 141.743 Wh/km = 0.141743 Wh/m ≈ 0.142",
+         recompute_cmd='python -c "E = 1984.4 * 2; print(E / 28.0)"', config_file="frontend/config/drone_types.yaml",
          status="在用",
          # T4 措辞订正：本值是「官方标称容量 ÷ 官方标称航程」反推 ⇒ spec-derived anchor。
          # 全仓无任何拟合实现（curve_fit/polyfit/linregress/lstsq/sklearn.fit 实测 0 命中），
@@ -532,14 +535,27 @@ def compute_wind_stats():
             "响应自带字段", "A", "≠ 请求点 121.51", src=False),
         row("stat_api_grid_elev", "openmeteo_api_replay_20261003", "returned_grid_elevation", 3.0, "m", 1,
             "响应自带字段", "A", "", src=False),
-        row("stat_derive_noenergy", "flycart30_derived", "empty_load_energy_intensity", 3968.8 / 28.0, "Wh/km", 1,
-            "3968.8 ÷ 28（官方双块能量 ÷ 空载航程）", "C", "项目 consumption_base=0.142 Wh/m 与之差 0.18%", src=False),
+        # T8：这三行的 method 原先都写 `3968.8 ÷ …`，而 3968.8 本身是 1984.4×2 的派生值
+        # ⇒ 复算说明成环（用 A 推 B，再拿 B 当已知量）。改为写出**外部锚点**（官方单块 Wh + 官方航程 km），
+        #   并显式声明三行同源：它们只是同一组官方数字的三种除法，不是三条独立证据。
+        row("stat_derive_noenergy", "flycart30_derived", "empty_load_energy_intensity", (1984.4 * 2) / 28.0, "Wh/km", 1,
+            "(1984.4 × 2) ÷ 28（官方单块能量 ×2 ÷ 官方空载航程）", "C",
+            "项目 consumption_base=0.142 Wh/m 与之差 0.18%", src=False),
         row("stat_derive_ratio", "flycart30_derived", "full_over_empty_energy_ratio", 28.0 / 16.0, "-", 1,
             "28 ÷ 16（空载航程 ÷ 满载航程）", "C",
             "= 1 + load_penalty_factor(0.75)，数值一致；但成立前提是"
             "「同电池+单位距离能耗 ∝ 1/航程」这一未检假设 ⇒ 只作量级旁证（T5）", src=False),
-        row("stat_derive_full", "flycart30_derived", "full_load_energy_intensity", 3968.8 / 16.0, "Wh/km", 1,
-            "3968.8 ÷ 16", "C", "0.142×1.75=0.2485 Wh/m 自洽", src=False),
+        # T8：这一行的 notes 原先是「0.142×1.75=0.2485 Wh/m 自洽」——**全仓最紧的一个环**：
+        #   0.142 = (1984.4×2)/28、1.75 = 28/16，两者相乘时那个空载航程 28 **自己约掉了**
+        #   （精确分数已验：(E/28)×(28/16) == E/16，逐位相等），
+        #   于是 0.142×1.75 ≡ 本行左值。也就是说它拿自己的另一种写法来"自证一致"，恒真、不含新证据。
+        #   ⚠ 单位别混：本行是 Wh/**km**（248.05），那个乘式得的是 Wh/**m**（0.24805）⇒ 差 1000 倍；
+        #     旧 notes 把两个不同单位的量并排放着还写成"自洽"，读起来像通过了一次独立校验。
+        row("stat_derive_full", "flycart30_derived", "full_load_energy_intensity", (1984.4 * 2) / 16.0, "Wh/km", 1,
+            "(1984.4 × 2) ÷ 16（官方单块能量 ×2 ÷ 官方满载航程）", "C",
+            "⚠ 与 stat_derive_noenergy × stat_derive_ratio 是**同一个量的另一种写法**"
+            "（0.142 × 1.75 里空载航程 28 会约掉 ⇒ 数值上等价于本行，仅单位为 Wh/m 而非 Wh/km），"
+            "故不构成新增证据；旧 notes 写『自洽』容易被读成通过了一次独立校验，已订正（T8）", src=False),
         row("stat_derive_hover", "flycart30_derived", "hover_power_ratio_proxy", 29.0 / 18.0, "-", 1,
             "空载悬停 29 min ÷ 满载悬停 18 min", "C", "只能当旁证：悬停≠巡航", src=False),
         row("stat_osm_height_missing", "osm_yangpu_buildings", "height_tag_missing_share", 0.8574, "-", 2876,
