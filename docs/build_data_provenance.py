@@ -323,7 +323,7 @@ def build():
     chain_vals = sorted({float(r["顺路接入次数"]) for r in ac if r["算法key"] == "greedy"})
     A("| D5 | `greedy` 顺路接入次数恒为 %s：grep 显示任务链接只在 `backend_si/pso_scheduler.py` 等侧实现，greedy 侧无对应分支 | **本轮新发现，属设计还是缺陷待定** | 本文 §5 该行 + `grep -rn \"顺路接入\" frontend/greedy backend_si` |" % (
         "0" if chain_vals == [0.0] else str(chain_vals)))
-    A("| D6 | 同一份 .osm，缓存命中几何 roads=1237 vs 强制重解析 roads=1235（差 2 条道路） | **本轮实测，成因未定 ⇒ 未验** | `docs/取证输出/` 三面实验原始输出 |")
+    A("| D6 | 同一份 .osm，缓存面 vs 强制重解析的道路条数差 **±2**（原记 cached=1237 / fresh=1235；2026-10-05 复跑为 cached=1237 / fresh=**1236** ⇒ 漂移量 2→1） | **已核实：差异真实且可复现，但成因未定 ⇒ 仍未验** | `docs/取证输出/osm-cache-three-face.txt:15-16`（旧读数）＋本轮复算命令见 §8 |")
     A("| D7 | 双闸门（缺任一门就不写 latest）此前从未被夹具证明 | 本轮补，见 `console/test_publish_gate.py` | — |")
     A("| D8 | 无实机数据 ⇒ Validation 整条缺失 | **不可修（除非引入真实运行日志）** | 本文 §1 |")
     A("")
@@ -340,14 +340,33 @@ def build():
     A("| 符号检验最小可得 p | `%s console/_paired_readout.py --dir results/experiments/conclusion_20260911-043701 --metric 超时率 --gate` |" % py)
     A("| 双闸门会拦 | `%s -m unittest console.test_publish_gate -v` |" % py)
     A("| 缓存三面实验原始输出 | `cat docs/取证输出/osm-cache-three-face.txt` |")
+    # D6 的两面复算：走环境变量开关（frontend/tools/osm.py:255），**不删缓存文件**，
+    # 所以这条命令不动盘、可反复执行。数字必须现算，不能像上一版那样把读数抄进模板
+    # —— 抄进去的数下一次实测变了就没人发现（本轮就是这样：口头报的 1235 实为 1236）。
+    _d6_py = ("import sys;sys.path.insert(0,'frontend');"
+              "from environment import Environment;"
+              "e=Environment('frontend/data/map/part_of_yangpu.osm',episode_max_steps=1);"
+              "print(sum(len(v) for v in e.roads_by_type.values()),len(e.high_buildings))")
+    A("| D6 两面几何条数（缓存 vs 现算） | 缓存面：`%s -X utf8 -c \"%s\"`；"
+      "现算面：同一条命令前缀 `SWARM_BALANCE_OSM_CACHE=0`。两面的道路条数即 D6 的差值来源 |" % (py, _d6_py))
     A("| 口径单一真源 | `type results\\compare\\manifest.json`（或 `Get-Content`） |")
     A("")
     A("## 9. 未验清单（本轮没真跑到的面，不外推）")
     A("")
     A("- C 级参数的**敏感性区间**：未跑（用户已叫停实验批次）⇒ 不知道哪个系数一动结论就翻。")
+    A("- **D6 的成因**：两面已各复算一次（命令见 §8），确认差异真实存在且随环境变化"
+      "（旧 1237/1235、新 1237/1236），但**未定位到是哪条道路，也未排除 osmnx 版本因素** ⇒ 仍属未验。"
+      "⚠ 上一轮口头报过\"现算 1235\"，同口径实测是 1236 —— 那是把旧文档读数当成了本轮测量；"
+      "**引用 D6 以 §8 两条命令的输出为准，不要引任何人口头数字**。")
     A("- 当前代码重跑结项后的新数字与本报告数字的差：未跑。")
-    A("- D6 那 2 条道路的成因：未定位。")
-    A("- 前端 `judgment` 字段的落地（③）：只做了一半，`index.html` 未接。")
+    # 原「D6 那 2 条道路的成因：未定位」一行已被上面那条展开并取代（漂移量本轮实测为 1，
+    # 再写死\"2 条\"就是抄旧读数）；judgment 那条经实测撤回 —— server.py / index.html 命中均为 0。
+    A("- ~~前端 `judgment` 字段的落地（③）：只做了一半，`index.html` 未接。~~ **本行已失效（2026-10-05 实测）**："
+      "`console/server.py` 与 `console/static/index.html` 里 `judgment` 命中均为 **0** —— 不是\"做了一半\"，"
+      "是该字段根本不在当前代码里。这条口径原先唯一的证人是 `docs/取证输出/server_judgment_WIP_39lines.py.bak`"
+      "（一份旧 server.py 快照，含 `_compare_judgment()`），全仓 0 引用、文件名里的\"39lines\"与实际 1042 行也不符，"
+      "已于 commit 41cf759 删除。**教训：一条只存在于未入库快照里的\"未完成项\"，会被当成活台账反复外报。**"
+      "复算：`grep -c judgment console/server.py console/static/index.html` ⇒ 双双为 0。")
     A("- 实机数据对撞：仓内不存在该数据，**没有便宜通道**。")
     A("")
     return "\n".join(L) + "\n"
