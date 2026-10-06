@@ -177,7 +177,11 @@ PARAMETERS = [
          test_condition="官方标注：零海拔无风，以 15 m/s 匀速飞行",
          derivation="3968.8 Wh / 28 km = 141.743 Wh/km = 0.141743 Wh/m ≈ 0.142",
          recompute_cmd='python -c "print(3968.8/28)"', config_file="frontend/config/drone_types.yaml",
-         status="在用", notes="这就是 142 的标定依据；口径为【空载】，不可与满载锚点直接比"),
+         status="在用",
+         # T4 措辞订正：本值是「官方标称容量 ÷ 官方标称航程」反推 ⇒ spec-derived anchor。
+         # 全仓无任何拟合实现（curve_fit/polyfit/linregress/lstsq/sklearn.fit 实测 0 命中），
+         # 也没有实机飞行日志 ⇒ 不得称「标定/calibration」。真拟合过才配那个词。
+         notes="这就是 142 的【官方规格派生锚定】依据（非拟合标定）；口径为【空载】，不可与满载锚点直接比"),
     dict(param_id="param_flycart_load_penalty", drone_type="heavy_cargo", field="load_penalty_factor",
          value="0.75", unit="-", evidence_grade="C", traceability="Partial", transformation="Derived",
          is_real_measurement="derived",
