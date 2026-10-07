@@ -88,23 +88,28 @@ def classify(trace: dict, injected=None) -> dict:
 
     comp = [e for e in events if e["kind"] == "TASK_COMPLETION_RECORDED"]
     reached = {e["task_id"] for e in events if e["kind"] == "DESTINATION_REACHED"}
-    loaded_at = {}
+    # R2 取货前置：用 **sequence_no** 不用 timestamp —— 离散仿真同一 sim_time 可有多个事件。
+    #   seq(TASK_LOADED) < seq(DESTINATION_REACHED) <= seq(COMPLETION_RECORDED)
+    loaded_seq, reached_seq = {}, {}
     for e in events:
         if e["kind"] == "TASK_LOADED":
-            loaded_at.setdefault(e["task_id"], float(e["sim_time"]))
-    reached_at = {}
-    for e in events:
-        if e["kind"] == "DESTINATION_REACHED":
-            reached_at.setdefault(e["task_id"], float(e["sim_time"]))
+            loaded_seq.setdefault(e["task_id"], e["seq"])
+        elif e["kind"] == "DESTINATION_REACHED":
+            reached_seq.setdefault(e["task_id"], e["seq"])
+    r2 = []
+    for tid, rs in reached_seq.items():
+        ls = loaded_seq.get(tid)
+        if ls is None or not (ls < rs):
+            r2.append(tid)
 
     # R1 合法完成证据：计入 completed 必须有 DESTINATION_REACHED
     r1 = [e for e in comp if e["task_id"] not in reached]
 
     # R2 取货前置：TASK_LOADED 时间 < DESTINATION_REACHED
     r2 = []
-    for tid, ra in reached_at.items():
-        la = loaded_at.get(tid)
-        if la is None or not (la < ra):
+    for tid, rs in reached_seq.items():
+        ls = loaded_seq.get(tid)
+        if ls is None or not (ls < rs):
             r2.append(tid)
 
     # R3 唯一完成：同一 task_id 最多一个合法 completion
@@ -118,8 +123,10 @@ def classify(trace: dict, injected=None) -> dict:
     legal_unique = len({e["task_id"] for e in comp if e["task_id"] in reached})
     r4 = (counter != legal_unique)
 
-    # R5 cleanup 不得冒充 delivery：reason 非 destination_reached 却计入 completed
-    r5 = [e for e in comp if e.get("reason") != "destination_reached"]
+    # R5 cleanup 不得冒充 delivery：**走了 is_free_cleanup 分支、却没有送达几何证据**却计入 completed。
+    # ⚠ 判据不能写成「record_origin != destination_branch」—— 那会把 26 条合法 dest 完成也判违规
+    #   （本轮实测踩过：R5 一度=38）。origin 只说明代码走了哪条分支，是否算送达由几何证据定。
+    r5 = [e for e in comp if not e["has_destination_evidence"]]
 
     return {
         "completions_recorded": len(comp),
@@ -131,7 +138,7 @@ def classify(trace: dict, injected=None) -> dict:
         "R4_aggregate_not_recomputable": 1 if r4 else 0,
         "R5_cleanup_counted_as_delivery": len(r5),
         "R5_never_loaded_among_them": sum(1 for e in r5
-                                          if e.get("load_time_raw") is None),
+                                          if not e.get("has_load_evidence", False)),
     }
 
 
@@ -188,10 +195,16 @@ class C1LifecycleGate(unittest.TestCase):
 
     def test_3_reason_is_not_invented_state(self):
         """reason 只能是两种几何证据之一；出现第三种即有人在推断业务语义。"""
-        allowed = {"destination_reached", "no_delivery_evidence"}
-        got = {e.get("reason") for e in self.trace["events"]
+        # origin 只允许三种取值；出现业务语义词（released/failed/delivered…）即有人提前发明状态
+        allowed = {"destination_branch", "is_free_cleanup_branch", "unknown_call_site"}
+        got = {e.get("record_origin") for e in self.trace["events"]
                if e["kind"] == "TASK_COMPLETION_RECORDED"}
-        self.assertTrue(got <= allowed, f"[C1_REASON_INVENTED] {got - allowed}")
+        self.assertTrue(got <= allowed, f"[C1_ORIGIN_INVENTED_STATE] {got - allowed}")
+        banned = {"released", "failed", "delivered", "aborted", "requeued", "unassigned"}
+        self.assertFalse(got & banned, f"[C1_BUSINESS_SEMANTIC_PREMATURE] {got & banned}")
+        # 归因不得失败：unknown 必须为 0，否则量具瞎了却在报数
+        self.assertEqual(self.trace["summary"]["unattributed_completions"], 0,
+                         "[C1_ATTRIBUTION_BLIND] 有 completion 无法归因到调用分支")
 
     def test_4_mutation_face_proves_teeth(self):
         """mutation 面：注入『cleanup 被伪造成送达 + 同任务重复 completion』，R3/R5 必须变红。"""
@@ -204,20 +217,34 @@ class C1LifecycleGate(unittest.TestCase):
 
 
 def _inject(events):
-    """mutation：把一条 no_delivery completion 复制并伪造成 destination_reached。"""
+    """mutation：把一条无送达证据的 completion 复制并伪造成有送达，且同任务重复一次。
+
+    ⚠ 字段名必须跟 Observer 当前 schema 一致。本函数曾长期读**已废弃的 ``reason`` 键**，
+    导致 ``cand is None`` → 原样返回、mutate 面与 old 面读数完全相同（＝没有变异的"变异测试"）。
+    ⇒ 现在末尾有一条硬断言：**注入必须真的改变事件数**，否则当场报错而不是静默通过。
+    """
     ev = list(events)
     cand = next((e for e in ev if e["kind"] == "TASK_COMPLETION_RECORDED"
-                 and e.get("reason") == "no_delivery_evidence"), None)
+                 and not e.get("has_destination_evidence", True)), None)
     if cand is None:
-        return ev
+        raise AssertionError("[MUTATE_NO_TARGET] 轨迹里没有『无送达证据』的 completion，"
+                             "无法构造伪造样本 ⇒ mutate 面无意义")
     forged = dict(cand)
-    forged["reason"] = "destination_reached"
-    forged["delivery_evidence"] = True
-    ev.append(forged)
-    ev.append(dict(cand))          # 同任务再来一次 ⇒ R3 必须抓重复
-    ev.append({"kind": "DESTINATION_REACHED", "sim_time": cand["sim_time"],
-               "task_id": cand["task_id"], "drone_index": cand["drone_index"]})
-    return ev
+    forged["has_destination_evidence"] = True
+    forged["record_origin"] = "destination_branch"
+    reach = {"kind": "DESTINATION_REACHED", "sim_time": cand["sim_time"],
+             "task_id": cand["task_id"], "drone_index": cand["drone_index"],
+             "reach_has_load_evidence": cand.get("has_load_evidence", False),
+             "payload_at_reach": 0.0, "task_weight": 0.0}
+    dup = dict(cand)
+    before = len(ev)
+    out = ev + [forged, dup, reach]
+    # seq 必须重排：R2/R3 读的是 seq，沿用旧 seq 会让"顺序"这一判据失真
+    for n, e in enumerate(out, start=1):
+        e = dict(e); e["seq"] = n
+    out = [dict(x, seq=i + 1) for i, x in enumerate(out)]
+    assert len(out) > before, "[MUTATE_NOT_APPLIED] 注入没有改变事件集合"
+    return out
 
 
 # mutation 面走 classify(injected=_inject)，故在执行前替换 trace

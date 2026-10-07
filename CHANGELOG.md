@@ -2,6 +2,48 @@
 
 ## [Unreleased]
 
+### 2026-10-07（第六笔）：#68-C 取证轮 —— reason 字段作废、A 交叉表补齐、B R2 机制复现、C 动作插桩
+
+**总原则遵守：本轮只取证，未修 lifecycle。**
+
+一、Observer 字段去业务语义：`reason="cleanup_released"` 撤除（released/failed/delivered 未经证明不许出现），
+改为 `record_origin ∈ {destination_branch, is_free_cleanup_branch, unknown_call_site}` +
+`has_destination_evidence` + `has_load_evidence`。归因连踩两刀才立住：① sys.settrace 在本包装里拿不到被包裹函数的帧
+⇒ 38/38 全 unknown；② traceback 倒序先撞上外层包装帧（行文本同样含 _record_task_completion）
+⇒ 38/38 全成 is_free_cleanup_branch（比第一次更隐蔽：给了自洽但错的答案）。
+最终只认「语句以 self._record_task_completion( 开头」的帧 + 读其上方 12 行源码文本找分支锚，
+得 {destination_branch:26, is_free_cleanup_branch:12}，与几何证人 legal=26/illegal=12 **两条独立路径互证一致**；
+unattributed_completions=0 已写成断言（匹配不上必须显式暴露，不许静默归类）。
+
+A 旧污染范围交叉表（2018425 老行为 / seed=40907 / greedy / 1200）：
+cleanup(12) in_timeout=1 in_delay=1 Σdelay=85.5 | never_loaded_cleanup(3) 0/0/0 | dest_without_load(7) 0/0/0；
+恒等式 26+12=38=counter 成立。
+**新风险结论：能耗未被污染，不宣布**。途中载重采样 BATTERY_CONSUMED 共 7480 条，load_at_consumption==0 的有 0 条
+（Σwh_used=10330.8 Wh 全部发生在有货状态）。⚠ 我最初想用 payload_at_reach 回答此问，但它无区分力——
+连 19 条有取货证据的正常任务也全是 0（:1211 record 早于 :1214 卸货，读到同一刻已清零的值）；
+若拿它说"空载飞完全程"就是错的，故改成每步采 load_at_consumption 才拿到有效证据。
+
+B R2 最小受控复现（console/test_r2_destination_without_load.py，Ran 3 OK）：机制从源码定位非猜——
+load_time 只在弹出航点带 'source' 标签且坐标等于 task.source 时才写(:1192-1203)，而标签按 point==source_route[-1]
+赋给规划末点(:1853-1862)；当 plan_route_around_buildings(current_pos, source) 只返回一个点时走 else 分支，
+贴 'source' 的是唯一点而非真取货点 ⇒ 严格相等失败、取货事实丢失，dest 航点照常弹出。
+三组 C1 正常航线须命中／C2 单点退化必丢 TASK_LOADED（复现）／C3 双重校验下退化判不命中＋正常判命中。
+C3 只在内存定义替代规则，不落盘不改生产代码。
+
+C 动作插桩前先验证动作真实存在：assignments.remove() :1220/:1240、del drone_assignments :1231/:1242/:1245、
+回池 :573-574（update_status('pending')+unassigned_tasks.append）、out_of_service drone.py:111
+⇒ 新增 ASSIGNMENT_RELEASED(had_load) / TASK_RETURNED_TO_POOL（仅当该 id 确实出现在 unassigned_tasks 才记）/
+DRONE_OUT_OF_SERVICE（false→true 差分）/ BATTERY_CONSUMED。全部用状态差分发现，不锚行号。
+零漂移重验 Ran 8 OK（sequence sha256/KPI/task_ids/counters/energy/swap/steps 逐位相同）。
+
+三、R2 判据改用 sequence_no：离散仿真同一 sim_time 可有多事件 ⇒ seq(TASK_LOADED)<seq(DESTINATION_REACHED)，
+事件写入统一分配全局 seq。
+
+门自身又坏过一次：_inject 长期读已废弃的 reason 键 ⇒ cand=None 原样返回，mutate 面读数与 old 面完全相同
+＝一次没有变异的"变异测试"。改为新 schema 取目标 + 找不到就 raise [MUTATE_NO_TARGET] + 注入后 assert len 增大。
+现在 mutate 面 completions 38→40、R3 0→1，注入确实生效。印证台账"变异要先证生效"。
+
+README 计数 --fix 同步为 38 文件/307 用例；三条门禁 RC=0；VERSION 1.0.0 未动；未修 lifecycle bug。
 ### 2026-10-07（第五笔）：审查三问逐条以一手证据回答 + C1 门建成并对旧代码转红
 
 **Q1 报告自相矛盾——我错了**：打出真实事件 JSON，#68-B 交付时 **没有 `reason` 字段**

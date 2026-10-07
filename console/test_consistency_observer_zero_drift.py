@@ -140,7 +140,7 @@ class ObserverZeroDrift(unittest.TestCase):
                          self.off["kpi"].get("completed_tasks")),
                          "[RECONCILE_COMPLETION_VS_KPI]")
         # 恒等式：两类证据之和必须等于总数，否则某类既不算通过也不算失败
-        self.assertEqual(s["with_delivery_evidence"] + s["without_delivery_evidence"],
+        self.assertEqual(s["legal_completions"] + s["illegal_completions_no_destination_evidence"],
                          s["completions_recorded"], "[EVIDENCE_SPLIT_IDENTITY]")
 
     def test_f_no_invented_state_events(self):
@@ -151,10 +151,10 @@ class ObserverZeroDrift(unittest.TestCase):
     def test_g_completion_reasoning_is_fact_based(self):
         """无送达证据的 completion 必须存在且带原始 load_time —— 这是 C1 门的正例来源。"""
         s = self.on["observer_summary"]
-        self.assertGreater(s["without_delivery_evidence"], 0,
+        self.assertGreater(s["illegal_completions_no_destination_evidence"], 0,
                            "[NO_POSITIVE_CASE_FOR_C1] 若为 0 则本门无从判定")
         bad = [e for e in self.on["observer_events"]
-               if e["kind"] == "TASK_COMPLETION_RECORDED" and not e["delivery_evidence"]]
+               if e["kind"] == "TASK_COMPLETION_RECORDED" and not e["has_destination_evidence"]]
         self.assertTrue(all(e["sim_time"] >= 0 for e in bad))
         # 每条都要能追溯到一次真实计数增量
         self.assertEqual(sum(e["d_completed"] for e in bad), len(bad),
@@ -167,12 +167,17 @@ class ObserverZeroDrift(unittest.TestCase):
         任一方变了说明其中一把尺子坏了 —— 特别是本 Observer 曾因"在 step 之后读
         drone_assignments"而把 26 条真实送达误报成 0（assignment 在 :1220 被 remove）。
         """
-        BASELINE = {"with_delivery_evidence": 26,
-                    "without_delivery_evidence": 12,
-                    "without_delivery_and_never_loaded": 3}
+        BASELINE = {"legal_completions": 26,
+                    "illegal_completions_no_destination_evidence": 12,
+                    "illegal_and_never_loaded": 3,
+                    "destination_without_load": 7}
         s = self.on["observer_summary"]
         for k, v in BASELINE.items():
             self.assertEqual(s[k], v, f"[ATTRIBUTION_DRIFT {k}] got={s[k]} want={v}")
+        # 归因走源码文本锚；匹配不上必须显式暴露，不许静默归到某一类
+        self.assertEqual(s["unattributed_completions"], 0, "[ATTRIBUTION_BLIND]")
+        self.assertEqual(s["completion_origins"].get("destination_branch"), 26, "[ORIGIN_DEST_COUNT]")
+        self.assertEqual(s["completion_origins"].get("is_free_cleanup_branch"), 12, "[ORIGIN_CLEANUP_COUNT]")
 
 
 if __name__ == "__main__":
