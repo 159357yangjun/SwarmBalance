@@ -2,6 +2,35 @@
 
 ## [Unreleased]
 
+### 2026-10-07（第七笔）：#69-A 12 条 cleanup 事实命运表 —— 第二个 lost-task bug；并纠正我上轮"能耗未污染"的定性过头
+
+**先撤自己一句过头话**（BI 指出，成立）：我写过"能耗未被污染 / 途中均有载重"。`BATTERY_CONSUMED.load_at_consumption > 0`
+只证明**物理载荷字段非零**，与 `load_time`/`TASK_LOADED` 是两套表达（后者才是业务取货事实）。
+⇒ 正确措辞只能是「本 seed 未发现直接能耗污染证据」，不得写"lifecycle bug 不影响 energy"。
+
+插桩又坏过一次（本轮第 3 次同类，已修）：DRONE_BECAME_FREE 在 1200 步里 0 次。根因不是没发生——
+`_prev_free_status` 在 step 末尾被重算成当前值(environment.py:1251)，而我在 step **之后**读它做差分 ⇒
+(not was_free and now_free) 恒 False。修法：新增 snapshot_pre_step()，在原 step() 调用前抓 free/oos 基线。
+修后 DRONE_BECAME_FREE=38、ASSIGNMENT_RELEASED=38，零漂移仍 Ran 8 OK。
+⇒ 教训：差分插桩必须先确认基线是在变化之前抓的；"计数为 0"有"没发生"与"基线错"两种成因，靠独立预期才识破。
+
+命运表（trace 直读，seed=40907/greedy/1200）：12 条 cleanup 全部 ASSIGNMENT_RELEASED 发生、
+之后既无 TASK_RETURNED_TO_POOL、也无再取货、也无送达；回合结束仍在 unassigned pool=0、仍在 drone_assignments=0
+⇒ **从所有可寻址结构消失 = 12/12**（其中 9 条有取货证据却被清理＝更像送达前中止，3 条从未取货＝更像分配后未执行）。
+out_of_service 本局从未发生；生成 44 完成 38 ⇒ KPI unfinished=6（这 12 条不计入 unfinished，因为计了 completed）。
+
+⚠ returned_to_pool 全 0 的正确解读：回池动作只存在于 set_drone_out_of_service()(:517，含 update_status('pending')
++ unassigned_tasks.append :573-574)，该函数本局从未被调用 ⇒ 这是「该路径未触发」，**不能**说成「系统判定已完成故不必回池」。
+要区分"没有回池代码被执行"与"回池代码不存在"，前者成立后者不成立。
+⇒ 按 BI 分支这属于「release 后既没回池也没再分配也没 delivery evidence 就消失」＝**第二个 lost-task bug**（与 R1 同源后果不同）。
+
+timeout 三分（trace 直读，不反推）：total=2 / legal_delivery=1 / cleanup=1 ⇒ 恰好一半超时来自非法 cleanup completion，
+与 KPI 超时率 0.0526≈2/38 一致（分母同为被污染的 counter）。BI 猜的"约一半"此处为实测。
+产物 docs/取证输出/cleanup_fate_table.json。C1 门仍 old FAILED(2)（未修任何 bug）。
+
+**#69-A 完成即停，未动 #69-B**。等审查确认：① 这 12 条归 lost-task（进 #69-C）还是先按 requeue 处理；
+② #69-B 的"source leg 最终航点才有 source 语义"是否需同时覆盖顺路接入(detour)生成的航线。
+VERSION 未动，生产文件对 c4069ac 基线仍零改动（仅 Observer），三条门禁 RC=0。
 ### 2026-10-07（第六笔）：#68-C 取证轮 —— reason 字段作废、A 交叉表补齐、B R2 机制复现、C 动作插桩
 
 **总原则遵守：本轮只取证，未修 lifecycle。**

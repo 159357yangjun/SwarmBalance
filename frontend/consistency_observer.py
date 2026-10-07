@@ -188,7 +188,20 @@ def _delta(before: tuple, after: tuple) -> Dict[str, float]:
             "d_completed": after[2] - before[2]}
 
 
-def observe_step_facts(env, observer: ConsistencyObserver) -> None:
+def snapshot_pre_step(env) -> Dict[str, Any]:
+    """``env.step()`` **之前**抓快照。
+
+    ⚠ 必须早于 step：``_prev_free_status`` 会在 step 末尾被重算成当前值
+    （environment.py:1251），若在 step 之后再读，(not was_free and now_free) 恒为 False
+    ⇒ DRONE_BECAME_FREE 一次都不会发（本轮实测：1200 步里转换数被读成 0）。
+    """
+    return {
+        "free": {i: bool(getattr(d, "is_free", False)) for i, d in enumerate(env.drones)},
+        "oos": {i: bool(getattr(d, "out_of_service", False)) for i, d in enumerate(env.drones)},
+    }
+
+
+def observe_step_facts(env, observer: ConsistencyObserver, pre: Optional[Dict[str, Any]] = None) -> None:
     """在 ``env.step()`` 之后从环境既有可读状态抽事实。只做读取，不写任何对象。
 
     事件靠**状态差分**发现（不锚源码行号）：
@@ -232,9 +245,10 @@ def observe_step_facts(env, observer: ConsistencyObserver) -> None:
     _STATE["assigns"] = now_snap
 
     # ---- 3) 无人机转空闲 + 途中载重采样 --------------------------------
-    prev = getattr(env, "_prev_free_status", {})
+    pre_free = (pre or {}).get("free", {})
+    pre_oos = (pre or {}).get("oos", {})
     for idx, drone in enumerate(env.drones):
-        was_free = bool(prev.get(idx, True))
+        was_free = bool(pre_free.get(idx, True))
         now_free = bool(getattr(drone, "is_free", False))
         if (not was_free) and now_free:
             observer.record("DRONE_BECAME_FREE", sim_time=t, drone_index=int(idx),
@@ -252,13 +266,11 @@ def observe_step_facts(env, observer: ConsistencyObserver) -> None:
                                 wh_used=round(prev_bat - bat, 6))
             last[idx] = bat
 
-    # ---- 3) out_of_service 由假变真 -----------------------------------
-    oos_prev = _STATE.setdefault("oos", {})
+    # ---- 4) out_of_service 由假变真（同样用 step 前快照做基线）----------
     for idx, drone in enumerate(env.drones):
         now_oos = bool(getattr(drone, "out_of_service", False))
-        if now_oos and not oos_prev.get(idx, False):
+        if now_oos and not pre_oos.get(idx, False):
             observer.record("DRONE_OUT_OF_SERVICE", sim_time=t, drone_index=int(idx))
-        oos_prev[idx] = now_oos
 
     # ---- 4) 泊位占用差分 -------------------------------------------------
     for st in getattr(env, "charging_stations", []) or []:
@@ -314,9 +326,10 @@ def install(env, observer: ConsistencyObserver):
         return result
 
     def step(actions):
+        pre = snapshot_pre_step(env)          # 必须在 step 之前
         out = orig_step(actions)
         try:
-            observe_step_facts(env, observer)
+            observe_step_facts(env, observer, pre)
         except Exception as exc:
             observer.record("_OBSERVER_ERROR", sim_time=float(env.current_time),
                             error=f"{type(exc).__name__}: {exc}")

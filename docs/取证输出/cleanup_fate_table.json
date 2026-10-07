@@ -1,0 +1,154 @@
+{
+ "fate": [
+  {
+   "task": "task_11",
+   "t": 95,
+   "has_load": true,
+   "weight": null,
+   "released": 1,
+   "returned_after": 0,
+   "loaded_after": 0,
+   "reached_after": 0,
+   "d_ontime": 1,
+   "d_delay": 0.0
+  },
+  {
+   "task": "task_3",
+   "t": 172,
+   "has_load": false,
+   "weight": null,
+   "released": 1,
+   "returned_after": 0,
+   "loaded_after": 0,
+   "reached_after": 0,
+   "d_ontime": 1,
+   "d_delay": 0.0
+  },
+  {
+   "task": "task_8",
+   "t": 190,
+   "has_load": false,
+   "weight": null,
+   "released": 1,
+   "returned_after": 0,
+   "loaded_after": 0,
+   "reached_after": 0,
+   "d_ontime": 1,
+   "d_delay": 0.0
+  },
+  {
+   "task": "task_4",
+   "t": 197,
+   "has_load": true,
+   "weight": null,
+   "released": 1,
+   "returned_after": 0,
+   "loaded_after": 0,
+   "reached_after": 0,
+   "d_ontime": 1,
+   "d_delay": 0.0
+  },
+  {
+   "task": "task_9",
+   "t": 229,
+   "has_load": true,
+   "weight": null,
+   "released": 1,
+   "returned_after": 0,
+   "loaded_after": 0,
+   "reached_after": 0,
+   "d_ontime": 1,
+   "d_delay": 0.0
+  },
+  {
+   "task": "task_14",
+   "t": 304,
+   "has_load": true,
+   "weight": null,
+   "released": 1,
+   "returned_after": 0,
+   "loaded_after": 0,
+   "reached_after": 0,
+   "d_ontime": 1,
+   "d_delay": 0.0
+  },
+  {
+   "task": "task_25",
+   "t": 593,
+   "has_load": true,
+   "weight": null,
+   "released": 1,
+   "returned_after": 0,
+   "loaded_after": 0,
+   "reached_after": 0,
+   "d_ontime": 1,
+   "d_delay": 0.0
+  },
+  {
+   "task": "task_24",
+   "t": 886,
+   "has_load": false,
+   "weight": null,
+   "released": 1,
+   "returned_after": 0,
+   "loaded_after": 0,
+   "reached_after": 0,
+   "d_ontime": 1,
+   "d_delay": 0.0
+  },
+  {
+   "task": "task_30",
+   "t": 900,
+   "has_load": true,
+   "weight": null,
+   "released": 1,
+   "returned_after": 0,
+   "loaded_after": 0,
+   "reached_after": 0,
+   "d_ontime": 1,
+   "d_delay": 0.0
+  },
+  {
+   "task": "task_37",
+   "t": 998,
+   "has_load": true,
+   "weight": null,
+   "released": 1,
+   "returned_after": 0,
+   "loaded_after": 0,
+   "reached_after": 0,
+   "d_ontime": 1,
+   "d_delay": 0.0
+  },
+  {
+   "task": "task_35",
+   "t": 1006,
+   "has_load": true,
+   "weight": null,
+   "released": 1,
+   "returned_after": 0,
+   "loaded_after": 0,
+   "reached_after": 0,
+   "d_ontime": 1,
+   "d_delay": 0.0
+  },
+  {
+   "task": "task_34",
+   "t": 1091,
+   "has_load": true,
+   "weight": null,
+   "released": 1,
+   "returned_after": 0,
+   "loaded_after": 0,
+   "reached_after": 0,
+   "d_ontime": 0,
+   "d_delay": 85.5
+  }
+ ],
+ "lost": 12,
+ "timeout": {
+  "total": 2,
+  "legal": 1,
+  "cleanup": 1
+ }
+}
