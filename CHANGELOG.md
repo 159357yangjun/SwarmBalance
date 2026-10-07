@@ -2,6 +2,46 @@
 
 ## [Unreleased]
 
+### 2026-10-07（第三笔）：cleanup × timeout/delay 交叉污染核查 —— 答案是 >0，三个 KPI 共用同一棵被污染分母
+
+BI 要求补掉的一格。先定位真实计算入口（不反推）：`timeout_rate = 1 − total_on_time_tasks / total_completed_tasks`（`environment.py:986`）、
+`avg_delay = total_delay / total_completed_tasks`（`:987`）、单条 `delay = max(0, completion_time − deadline)`（`:439-443`）。
+⇒ **完成率、超时率、平均时延三者共用同一棵被污染的分母**，不是只污染分子。
+
+归因方式改为"每次 `_record_task_completion` 调用前后的计数器增量"（非事后猜测），并先用恒等式验量具：
+```
+ΣΔcompleted = 38  == KPI 完成任务数 38.0
+ΣΔon_time   = 36  → 超时数 2，与发布超时率 0.0526×38 = 2 一致
+ΣΔdelay     = 106.5 == 平均时延 2.8026 × 38 = 106.5
+```
+
+| 桶 | n | in_timeout | in_delay | Σdelay |
+|---|---|---|---|---|
+| cleanup | 12 | **1** | **1** | **85.5** |
+| never_loaded_cleanup | 3 | 0 | 0 | 0.0 |
+| dest（对照） | 26 | 1 | 1 | 21.0 |
+
+⇒ 按 BI 给的分支走 **>0** 那条：`timeout_rate` 与 `mean_delay` 同受此错误直接污染。
+且 cleanup 只占完成数 31.6%，却贡献全部延迟量的 **80.3%** ⇒ **对平均时延的污染强度远大于对完成率的**。
+反事实（剔除 12 条 cleanup）：完成率 0.8636→0.5909(+0.2727)、超时率 0.0526→0.0385(−0.0142)、平均时延 2.8026→0.8077(−1.9949)。
+⚠ 这是**影响量级估计不是修正值**（它假设"剔除即正确"，而 cleanup 该归哪个终态未定）；n=1 seed 数值不外推，可外推的是结构事实。
+
+两处自我纠错（都是量具错，不是新发现）：
+1. 第一次算反事实把超时数写成 `int(round(超时率×T))` 再套错符号，得"剔除后超时率 **1.3462**"这种 >1 非法值。
+   修成逐条 `d_ontime` 求和才得 0.0385 ⇒ **派生比率算完必须验定义域，概率越界即算式坏，先怀疑量具**。
+2. 差点把 never_loaded 的 delay=0 写成"未取货任务不影响时延"：实测三条 `cleanup_t`(172/190/886) 均 < 各自
+   `deadline`(626/579/1071)，而 delay 只看 `completion_time − deadline`、**与是否取货无关** ⇒ 那是**本 seed 巧合非免疫**。
+
+另采纳 BI 关于恒等式的提醒并写进文档：`total_completed_tasks = dest + cleanup` 只证明"旧计数与旧事件路径自洽"，
+是量具没测错的证据，**不是未来正确性判据**；修复后该成立的是
+`total_completed_tasks = 具有合法 delivery completion evidence 的唯一任务数`，后者才是 #68-C 要断言的。
+
+六格状态定稿（生产可达性已证 / 正式 KPI 消费已证 / 业务语义错误已证 / 污染范围已查清 / 正确终态语义未定 / 修复暂缓）。
+README §已知局限 同步补污染范围。**旧逻辑挖掘到此停止，下一轮进入 #68-B 只读 Observer**（record fact 而非 infer state，
+不得生成 `task_state=completed` 变成第四套状态系统；固定 seed 双跑要求正式 KPI + action/assignment 序列 +
+generated task IDs + total_completed_tasks + energy + swap + steps 全零漂移；零漂移通过即停，不自动修 lifecycle bug）。
+编辑过程中我把本文 §6-G 插到了 §7 之后、并一度造成 §7 重复标题，连续三次切片失败后改用"先打印行号再按行号切"修好——
+记入工具性教训：**改文档结构要先读回实际行号，别靠字符串偏移推断**。未改生产代码，VERSION 未动，未新增测试。
 ### 2026-10-07（第二笔）：生产路径复现成功 —— 完成率分子被兜底路径污染，历史 KPI 转 pending revalidation
 
 BI 第 1 步达成。驱动方式换成**论文实验同一条正式路径** `experiments.worker.run_one(config,"greedy",40907,1200,内置杨浦地图)`

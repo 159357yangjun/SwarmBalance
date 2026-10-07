@@ -1,0 +1,33 @@
+{
+ "identity": {
+  "sum_d_comp": 38,
+  "KPI_completed": 38.0,
+  "sum_d_ontime": 36,
+  "sum_d_delay": 106.5
+ },
+ "crosscontam": {
+  "cleanup": {
+   "n": 12,
+   "in_timeout": 1,
+   "in_delay": 1,
+   "sum_delay": 85.5
+  },
+  "never_loaded_cleanup": {
+   "n": 3,
+   "in_timeout": 0,
+   "in_delay": 0
+  },
+  "dest": {
+   "n": 26,
+   "in_timeout": 1,
+   "in_delay": 1
+  }
+ },
+ "published_kpi": {
+  "完成任务数": 38.0,
+  "生成任务数": 44.0,
+  "完成率": 0.8636363636363636,
+  "超时率": 0.052631578947368474,
+  "平均时延": 2.8026315789473686
+ }
+}

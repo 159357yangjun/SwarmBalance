@@ -785,6 +785,8 @@ Windows 也可以直接双击 `run_conclusion.bat`，或在命令行执行 `run_
   实测 38 条完成记录里有 **12 条来自 `is_free` 兜底清理而非抵达送达点**（占 31.6%，其中 3 条连取货证据都没有），
   且这 38 与 KPI「完成任务数=38.0」逐位相等 ⇒ 完成率分子被污染。当前系统没有完整、持久、逐任务的完成真源
   （`completed_tasks` 是单步缓冲、`completed_task_log` 截断至 120 行、只有计数器 `total_completed_tasks` 承重）。
+  实测交叉污染：**三个指标共用同一棵被污染的分母**（`timeout_rate = 1 − on_time/total_completed_tasks`、`avg_delay = total_delay/total_completed_tasks`），
+  且 cleanup 那 12 条贡献了全部延迟量的 **80.3%**（85.5/106.5）——对平均时延的污染强度远大于对完成率的。
   ⇒ 在闭环（旁路 Observer → C1 完成不变量门 → 业务语义修复 → 重跑）之前，
   **`results/compare/*.csv` 与论文侧引用的完成率/超时率/平均时延一律视为 pending lifecycle-consistency revalidation**。
   取证与设计见 [`docs/当前状态真源图.md`](docs/当前状态真源图.md) §6、`docs/取证输出/prod_completion_repro.json`；
