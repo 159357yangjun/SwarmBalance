@@ -19,7 +19,7 @@
 | 档位 | 含义 | 本项目现状 |
 |---|---|---|
 | **内部一致性** | 产物能被同一份代码逐位重算出来 | ✅ 已达成（两条 `--verify` 门 RC=0，套件绿） |
-| **外部可回溯** | 每个被当作事实的数字能点回一个来源 | ✅ 大部分达成（三轴分级登记在 [`真实性审计表.md`](真实性审计表.md)） |
+| **外部可回溯** | 每个被当作事实的数字能点回一个来源 | 🟡 **大部分达成**：厂商规格/OSM/气象接口均可回放；但 PX4 数据集那份 manifest 的**原始计算者未确认**（§4.1-bis），日志全量分类也**未完成**（§4.1-ter） |
 | **实机有效性** | 数值与真实飞行物理量对得上 | ❌ **未达成**，且当前无可用通道 |
 
 ---
@@ -92,15 +92,42 @@ python -c "E = 1984.4 * 2; print(E, E / 28.0, 28.0 / 16.0)"
 | 步骤 | 结果 | 一手证据 |
 |---|---|---|
 | 修复 HTTP Range 抽取 | 可用（根因是 ZIP 中央目录偏移写错：`u32(40)`→应为 `u32(42)`，40 是 external_attr 后半） | `console/zip_range_extract.py`，夹具用 `zipfile` 当裁判：`header_offset=384`、`u32@40=0`、`u32@42=384` |
-| 取得该记录的清单 | `data/raw/px4_logs/manifest.csv`，**与 Zenodo 上的 manifest.csv/content 逐字节相同**（sha256 前缀 `876e5ca895c4fcea`） | 见下方复算 |
+| 取得该记录的清单 | `data/raw/px4_logs/manifest.csv`，sha256 前缀 `876e5ca895c4fcea` | 见下方复算 |
 | 真 .ulg 规模 | **67 个**，来自 `asi_runs.zip`(52) + `asi-runs-2.zip`(15)，合计 **1526.2 MB** | 本轮 `csv.DictReader` 重扫 |
 | 抽样取回并与外部清单对账 | 5 个文件 **md5 5/5 全部吻合** manifest 登记值（尺寸亦逐一致） | `docs/取证输出/px4_ulog_provenance.json` |
 
-**为什么 5/5 对账算"外部证人"**：因为 manifest 本身是从 Zenodo 取的、且与对方持有件逐字节相同，
-不是我本地生成的名单。若 manifest 是我自己产的，5/5 吻合就只是自我确认。
+### ⚠ 4.1-bis「是谁算的 MD5」—— 未确认（本节的结论被本轮实测驳回过一次）
+
+上一版这里写的是"manifest 与 Zenodo 上的件逐字节相同 ⇒ 证人是外部的"。**这句现在是错的**，理由：
+
+Zenodo 19617182 当前 `data.zip` 的中央目录有 245 条成员，其中**没有任何 `code/` 开头的文件**；
+而仓内 `manifest.csv` 登记了 **9 个 `code/*`** 条目（含上游自己的打包脚本 `make_asi_dataset.py`、
+`asi_extract.py`）。⇒ 这份 manifest **不是从 data.zip 生成的**，它覆盖的是 `asi_runs.zip` /
+`asi-runs-2.zip` 等**上游原始包**，而那些包此刻不在该记录里。
+
+因此必须把三个问题分开，当前只答上了第一个：
+
+| 问题 | 状态 | 依据 |
+|---|---|---|
+| **① 文件完整性**：本地件与登记的哈希是否一致 | ✅ **已证**（5/5 md5+尺寸吻合） | `px4_ulog_provenance.json` |
+| **② 记录来源**：manifest 由谁、何时、依据哪些原始件生成 | ❌ **未确认** | manifest 含 data.zip 里不存在的 `code/*` ⇒ 非本记录产物；无任何上游生成脚本/日志可查 |
+| **③ 数据真实性**：内容对应真实飞行还是仿真 | ✅ 对**抽样的 5 个**已证为 SITL | 每个含 170 个 `SIM_*` 参数（§4.2） |
+
+唯一拿到的上游哈希级记录是 `data/manifests/ulog_manifest.txt`（585 B，md5 `78916e3746d4c657a1cd37c2013f1a23`
+与 manifest 登记值逐位吻合，已存 `data/raw/px4_logs/upstream/`）——但它是 **E1–E5 × run01–05 = 25 条纯路径列表，不含任何哈希**，
+所以它能证明"哪些日志被上游选入"，**不能**用来认定 md5 的计算者。
+
+⇒ **写法要求**：对外只能说"本地文件与我们所获 manifest 一致"，不能说"经第三方校验"。
+manifest 的来源属性记为 **「原始计算者未确认」**，除非将来能找到上游生成它的脚本运行记录。
+
+### ⚠ 4.1-ter 抽样不能外推：全量分类**未完成**
+
+「抽样 5/5 是 SITL」**推不出**「67 个全是 SITL」。全量分类需重传 ~1.5 GB，本轮起跑后中止（临时目录已清空）。
+⇒ 本节关于 SITL 的结论，有效范围**只有那 5 个文件**。其余 62 个的状态是**未分类**，不是"也是仿真"。
+要闭合需要一次带断点续传的全量扫描，产出 `SIM_*` 计数分布表；在此之前不得把"整批都是仿真"写进任何对外材料。
 
 ```bash
-# 复算 1：清单规模与外部一致性
+# 复算 1：清单规模（注意：这是【我们仓内】的 manifest，不是 data.zip 的产物）
 sha256sum data/raw/px4_logs/manifest.csv | cut -c1-16      # 期望 876e5ca895c4fcea
 python - <<'PY'                                            # 期望 total=128 / ulg=67 / 1526.2 MB / {asi_runs.zip:52, asi-runs-2.zip:15}
 import csv, pathlib
@@ -108,7 +135,7 @@ rows=list(csv.DictReader(open("data/raw/px4_logs/manifest.csv",encoding="utf-8")
 u=[r for r in rows if r["path"].endswith(".ulg")]
 print(len(rows), len(u), round(sum(int(r["size_bytes"]) for r in u)/1024/1024,1))
 PY
-# 复算 2：逐文件 md5 对账（期望 5/5 true）
+# 复算 2：逐文件 md5 对账（期望 5/5 true）—— 这只证【完整性】，不证来源
 python - <<'PY'
 import json, hashlib, pathlib
 ok=0
@@ -118,6 +145,18 @@ for r in json.load(open("docs/取证输出/px4_ulog_provenance.json",encoding="u
     d=hashlib.md5(p.read_bytes()).hexdigest()
     ok += (d==r["manifest_md5"] and p.stat().st_size==int(r["manifest_size"]))
 print("md5+size matched:", ok, "/ 5")
+PY
+# 复算 3：manifest 里有 code/* 而 data.zip 没有 ⇒ 来源未确认（期望 code_rows=9 / cd_code_members=0）
+python - <<'PY'
+import csv, sys, pathlib
+sys.path.insert(0,"console")
+from zip_range_extract import read_central_directory
+cd=read_central_directory("https://zenodo.org/api/records/19617182/files/data.zip/content")
+rows=list(csv.DictReader(open("data/raw/px4_logs/manifest.csv",encoding="utf-8")))
+print("code_rows_in_manifest", sum(1 for r in rows if r["path"].startswith("code/")),
+      "| code_members_in_data_zip", sum(1 for k in cd if k.startswith("code/") and "__MACOSX" not in k))
+up=pathlib.Path("data/raw/px4_logs/upstream/ulog_manifest.txt").read_text().splitlines()
+print("upstream_list_lines", len([x for x in up if x.strip()]))   # 25，且无哈希列
 PY
 ```
 
@@ -176,3 +215,47 @@ PY
 | 分支 ahead/behind | `0 0` |
 | VERSION | `1.0.0`（**未动**） |
 | 临时取回的 26 MB 仿真日志 | 位于 `data/raw/px4_logs/ulg/`，已被 `.gitignore` 排除；可复现性由 `docs/取证输出/px4_ulog_provenance.json` 承担 |
+
+---
+
+## 7. 冻结决定与下一阶段（2026-10-06 定）
+
+**本文件与全部验证门自本笔起冻结**：不再新增 Verification 测试。
+现有 290 + 32 项测试、两条 `--verify` 门、变异测试、固定 seed/配置、敏感性扫描、错误撤回机制
+已构成足够基础；再加测试对论文说服力的边际收益低于同等工时投入别处。
+
+下一阶段只做两件事，按顺序：
+
+**(A) 外部 Validation —— 独立预测误差实验**（不是"再多几个门"）
+
+```
+真实无人机飞行数据（时间 / 速度 / 载荷 / 轨迹 / 电压 / 电流）
+        ↓  同工况重放
+本项目模型逐条预测（时间 / 能耗 / 航程）
+        ↓
+独立误差评估：偏差量级、误差分布、误差来源分解、不确定性区间
+        ↓
+有效范围声明：哪些工况可信、哪些超出模型能力
+```
+
+关键约束：**判据必须在比对之前定死并落盘**，否则事后会挑一个好看的口径。
+候选源与访问状态见 §5；PX4/Gazebo SITL 只可用于**跨仿真器对照**，不得冒充真实飞行观测。
+
+**(B) 论文贡献层面：把"可信度评估方法"做成可重复的对照实验**
+
+仅汇总开发日志不构成研究贡献。要回答的问题是：
+
+> 这套可信度评估方法，相比没有这些措施的普通仿真工作流，能发现哪些**原本不容易被发现**的问题？
+
+本项目已经攒下四个**真实案例**，每个都有当时的先红后绿证据，可直接作为实验素材：
+
+| 案例 | 缺陷类型 | 无此方法时的表现 |
+|---|---|---|
+| 参数来源错误（MARL 六行找不到对应运算） | 发布值与运算脱钩，23:0 单向偏离 | 长期留在对比表里被引用 |
+| 优化器未实际介入（轻载 buffer 峰值 2 < 阈值 15） | "四算法对比"其实是同一算法 | 结论看起来完全正常 |
+| 统计分母缺失（`NO_DENOMINATOR`） | 零调用也报数 | 报告里出现无来源支撑的百分比 |
+| 建筑高度二值化（`>20 m` 阈值承重） | 阈值被摘掉后行为不变而文档称其必要 | 文档与代码静默背离 |
+
+**注意**：这一节记录的是"下一步要做成可重复对照实验"，不是"已经做了"。
+当前只有案例集，没有对照组设计 ⇒ 还不能作为论文里的方法有效性证据。
+
