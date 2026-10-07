@@ -2,6 +2,39 @@
 
 ## [Unreleased]
 
+### 2026-10-07（第五笔）：审查三问逐条以一手证据回答 + C1 门建成并对旧代码转红
+
+**Q1 报告自相矛盾——我错了**：打出真实事件 JSON，#68-B 交付时 **没有 `reason` 字段**
+（实有字段 kind/sim_time/task_id/drone_index/load_time_raw/assigned_time_raw/deadline_raw/drone_position/
+delivery_evidence/pickup_evidence/d_delay/d_ontime/d_completed）。我在 §6-H 写"含 reason"是错的。本轮补上该字段，
+且只映射几何证据（destination_reached / no_delivery_evidence），**不猜业务意图**。
+
+**Q2 清单与数字不符——两边都错一半**：白名单声明 11 类，实测只出现 **4 类**；
+`DESTINATION_REACHED`/`ASSIGNMENT_RELEASED`/`DRONE_BECAME_FREE` 的 record 调用次数分别是 0/0/1 ⇒ 本局一个都没发。
+berth 两类**确是** Observer 事件（非旁读统计）⇒ C4 有证人；但 **C1 缺送达证人** ⇒ 本轮补入 DESTINATION_REACHED，
+现实测 5 类。summary 改读 `event_kinds_observed`（实测集合）而非白名单声明。
+
+**Q3 "对 HEAD 零 diff"不足——批评成立**：那句只证明工作树干净。按指定命令重跑
+`git diff --numstat c4069ac..4db8c0e -- frontend backend_si` ⇒ 唯一一行 `219 0 frontend/consistency_observer.py`，
+即纯新增文件、八个既有生产文件零改动，无条件/赋值/返回值/控制流修改。
+
+**C1 门 `console/test_c1_lifecycle_gate.py` 三面结果**：
+old FAILED(failures=2,skipped=1) ← 本该如此；mutate FAILED 且 R3_duplicate_completion=1（注入的重复被抓到）；
+fixed Ran 0 tests OK(skipped=1) ← 如实标『未跑』不当通过。
+old 读数：counter=38 legal_unique=26 R1=12 R2=7 R3=0 R4=1 R5=12（其中从未取货 3）
+⇒ 与审查预期完全一致；恒等式 counter==legal_unique+R1 成立，无第三类漏网。
+
+**意外发现第二个缺陷 R2=7**：task_15/16/17/20/21/26/38 的事件都是
+DESTINATION_REACHED(t=X) → COMPLETION(t=X, load_time_raw=None)，两条同刻且取货事实缺失
+⇒ 走的是 dest 路径（几何证明确实到了 destination）但 load_time 从未写入。机制候选：source 命中要求坐标严格相等(:1201)，
+顺路吸附/一步跨过取货点时不会精确落在 source ⇒ 取货事实丢失而送达成立。**这是推断非定论**，需单独受控复现，本轮不修；
+但不能因"像量具问题"就把 R2 从门里删掉。
+
+我自己在这步的两个错（都已修）：① FACE 从 sys.argv[1] 读 ⇒ unittest 把模块名塞进 argv，face 变任意串走 else 分支，
+**本该红的 old 面第一次跑出来是绿的**；改为只认环境变量 C1_FACE，非法值降到最保守的 old，并加文件名 assert 防再产垃圾产物。
+② 第一版 test_1 打印违规数却不断言 ⇒ 典型都会绿的门，重写为逐条 assertEqual(...,0)。教训：**门输出里有数字 ≠ 门有牙**。
+
+Observer 改后零漂移复跑仍 OK(Ran 8)；三条门禁 RC=0。按指令 **C1 稳定红即停，不进入修复**。V6 继续暂停。VERSION 未动。
 ### 2026-10-07（第四笔）：#68-B 完成 —— 只读 ConsistencyObserver，双跑零漂移通过；按指令停止，不自动修 lifecycle bug
 
 交付 `frontend/consistency_observer.py` + `console/test_consistency_observer_zero_drift.py`（8 项断言）

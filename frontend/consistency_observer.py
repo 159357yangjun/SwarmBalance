@@ -89,7 +89,9 @@ class ConsistencyObserver:
                              and abs(float(pos[1]) - float(dst[1])) < 1e-6)
 
         if delivery_evidence:
-            self._seen_reached.add(tid)
+            # 送达事实要在这一刻单独成条：它是 C1 规则①的证人，也是"取货早于送达"的时间锚。
+            self.record("DESTINATION_REACHED", sim_time=float(env.current_time),
+                        task_id=tid, drone_index=int(drone_idx))
         self.record(
             "TASK_COMPLETION_RECORDED",
             sim_time=float(env.current_time),
@@ -101,6 +103,11 @@ class ConsistencyObserver:
             drone_position=[float(pos[0]), float(pos[1])] if len(pos) >= 2 else None,
             delivery_evidence=delivery_evidence,
             pickup_evidence=(tid in self._loaded) or (assignment.get("load_time") is not None),
+            # reason 是**几何证据的直接映射**，不是对业务意图的猜测：
+            #   destination_reached ⇒ 无人机此刻恰在该任务 destination 上
+            #   no_delivery_evidence ⇒ 此刻不在；至于它为何被记账（is_free 清理？其它路径？）
+            #   属于待 #68-C1 之后用轨迹反推的问题，本字段不替它作答。
+            reason=("destination_reached" if delivery_evidence else "no_delivery_evidence"),
             **counter_delta,                                     # Δcompleted / Δon_time / Δdelay
         )
 
@@ -110,8 +117,12 @@ class ConsistencyObserver:
         with_ev = [e for e in comp if e["delivery_evidence"]]
         without = [e for e in comp if not e["delivery_evidence"]]
         no_pickup = [e for e in without if not e["pickup_evidence"]]
+        kinds: Dict[str, int] = {}
+        for e in self.events:
+            kinds[e["kind"]] = kinds.get(e["kind"], 0) + 1
         return {
             "events_total": len(self.events),
+            "event_kinds_observed": dict(sorted(kinds.items())),   # 实际出现过的事件，不是白名单声明
             "rejected_event_names": sorted(set(self.rejected)),
             "completions_recorded": len(comp),
             "with_delivery_evidence": len(with_ev),
@@ -120,8 +131,8 @@ class ConsistencyObserver:
             "sum_delta_completed": sum(e["d_completed"] for e in comp),
             "sum_delta_on_time": sum(e["d_ontime"] for e in comp),
             "sum_delta_delay": round(sum(e["d_delay"] for e in comp), 6),
-            "berth_occupied_events": sum(1 for e in self.events if e["kind"] == "BERTH_OCCUPIED"),
-            "berth_vacated_events": sum(1 for e in self.events if e["kind"] == "BERTH_VACATED"),
+            "berth_occupied_events": kinds.get("BERTH_OCCUPIED", 0),
+            "berth_vacated_events": kinds.get("BERTH_VACATED", 0),
         }
 
     def dump(self, path: pathlib.Path) -> None:

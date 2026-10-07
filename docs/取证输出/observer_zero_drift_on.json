@@ -5004,7 +5004,14 @@
  ],
  "generated_task_ids": [],
  "observer_summary": {
-  "events_total": 77,
+  "events_total": 103,
+  "event_kinds_observed": {
+   "BERTH_OCCUPIED": 5,
+   "BERTH_VACATED": 5,
+   "DESTINATION_REACHED": 26,
+   "TASK_COMPLETION_RECORDED": 38,
+   "TASK_LOADED": 29
+  },
   "rejected_event_names": [],
   "completions_recorded": 38,
   "with_delivery_evidence": 26,
@@ -5067,6 +5074,12 @@
    "load_time": 82.0
   },
   {
+   "kind": "DESTINATION_REACHED",
+   "sim_time": 83.0,
+   "task_id": "task_1",
+   "drone_index": 7
+  },
+  {
    "kind": "TASK_COMPLETION_RECORDED",
    "sim_time": 83.0,
    "task_id": "task_1",
@@ -5080,6 +5093,7 @@
    ],
    "delivery_evidence": true,
    "pickup_evidence": true,
+   "reason": "destination_reached",
    "d_delay": 0.0,
    "d_ontime": 1,
    "d_completed": 1
@@ -5090,6 +5104,12 @@
    "task_id": "task_13",
    "drone_index": 7,
    "load_time": 85.0
+  },
+  {
+   "kind": "DESTINATION_REACHED",
+   "sim_time": 91.0,
+   "task_id": "task_12",
+   "drone_index": 9
   },
   {
    "kind": "TASK_COMPLETION_RECORDED",
@@ -5105,6 +5125,7 @@
    ],
    "delivery_evidence": true,
    "pickup_evidence": true,
+   "reason": "destination_reached",
    "d_delay": 0.0,
    "d_ontime": 1,
    "d_completed": 1
@@ -5123,9 +5144,16 @@
    ],
    "delivery_evidence": false,
    "pickup_evidence": true,
+   "reason": "no_delivery_evidence",
    "d_delay": 0.0,
    "d_ontime": 1,
    "d_completed": 1
+  },
+  {
+   "kind": "DESTINATION_REACHED",
+   "sim_time": 104.0,
+   "task_id": "task_6",
+   "drone_index": 1
   },
   {
    "kind": "TASK_COMPLETION_RECORDED",
@@ -5141,6 +5169,7 @@
    ],
    "delivery_evidence": true,
    "pickup_evidence": true,
+   "reason": "destination_reached",
    "d_delay": 0.0,
    "d_ontime": 1,
    "d_completed": 1
@@ -5160,6 +5189,12 @@
    "load_time": 151.0
   },
   {
+   "kind": "DESTINATION_REACHED",
+   "sim_time": 158.0,
+   "task_id": "task_2",
+   "drone_index": 5
+  },
+  {
    "kind": "TASK_COMPLETION_RECORDED",
    "sim_time": 158.0,
    "task_id": "task_2",
@@ -5173,6 +5208,7 @@
    ],
    "delivery_evidence": true,
    "pickup_evidence": true,
+   "reason": "destination_reached",
    "d_delay": 0.0,
    "d_ontime": 1,
    "d_completed": 1
@@ -5183,6 +5219,12 @@
    "task_id": "task_14",
    "drone_index": 1,
    "load_time": 169.0
+  },
+  {
+   "kind": "DESTINATION_REACHED",
+   "sim_time": 170.0,
+   "task_id": "task_5",
+   "drone_index": 6
   },
   {
    "kind": "TASK_COMPLETION_RECORDED",
@@ -5198,6 +5240,7 @@
    ],
    "delivery_evidence": true,
    "pickup_evidence": true,
+   "reason": "destination_reached",
    "d_delay": 0.0,
    "d_ontime": 1,
    "d_completed": 1
@@ -5216,6 +5259,7 @@
    ],
    "delivery_evidence": false,
    "pickup_evidence": false,
+   "reason": "no_delivery_evidence",
    "d_delay": 0.0,
    "d_ontime": 1,
    "d_completed": 1
@@ -5234,6 +5278,7 @@
    ],
    "delivery_evidence": false,
    "pickup_evidence": false,
+   "reason": "no_delivery_evidence",
    "d_delay": 0.0,
    "d_ontime": 1,
    "d_completed": 1
@@ -5252,6 +5297,7 @@
    ],
    "delivery_evidence": false,
    "pickup_evidence": true,
+   "reason": "no_delivery_evidence",
    "d_delay": 0.0,
    "d_ontime": 1,
    "d_completed": 1
@@ -5277,9 +5323,16 @@
    ],
    "delivery_evidence": false,
    "pickup_evidence": true,
+   "reason": "no_delivery_evidence",
    "d_delay": 0.0,
    "d_ontime": 1,
    "d_completed": 1
+  },
+  {
+   "kind": "DESTINATION_REACHED",
+   "sim_time": 253.0,
+   "task_id": "task_7",
+   "drone_index": 8
   },
   {
    "kind": "TASK_COMPLETION_RECORDED",
@@ -5295,9 +5348,16 @@
    ],
    "delivery_evidence": true,
    "pickup_evidence": true,
+   "reason": "destination_reached",
    "d_delay": 0.0,
    "d_ontime": 1,
    "d_completed": 1
+  },
+  {
+   "kind": "DESTINATION_REACHED",
+   "sim_time": 277.0,
+   "task_id": "task_13",
+   "drone_index": 7
   },
   {
    "kind": "TASK_COMPLETION_RECORDED",
@@ -5313,9 +5373,16 @@
    ],
    "delivery_evidence": true,
    "pickup_evidence": true,
+   "reason": "destination_reached",
    "d_delay": 0.0,
    "d_ontime": 1,
    "d_completed": 1
+  },
+  {
+   "kind": "DESTINATION_REACHED",
+   "sim_time": 304.0,
+   "task_id": "task_16",
+   "drone_index": 0
   },
   {
    "kind": "TASK_COMPLETION_RECORDED",
@@ -5331,6 +5398,7 @@
    ],
    "delivery_evidence": true,
    "pickup_evidence": false,
+   "reason": "destination_reached",
    "d_delay": 0.0,
    "d_ontime": 1,
    "d_completed": 1
@@ -5349,9 +5417,16 @@
    ],
    "delivery_evidence": false,
    "pickup_evidence": true,
+   "reason": "no_delivery_evidence",
    "d_delay": 0.0,
    "d_ontime": 1,
    "d_completed": 1
+  },
+  {
+   "kind": "DESTINATION_REACHED",
+   "sim_time": 333.0,
+   "task_id": "task_10",
+   "drone_index": 5
   },
   {
    "kind": "TASK_COMPLETION_RECORDED",
@@ -5367,6 +5442,7 @@
    ],
    "delivery_evidence": true,
    "pickup_evidence": true,
+   "reason": "destination_reached",
    "d_delay": 0.0,
    "d_ontime": 1,
    "d_completed": 1
@@ -5377,6 +5453,12 @@
    "task_id": "task_18",
    "drone_index": 8,
    "load_time": 371.0
+  },
+  {
+   "kind": "DESTINATION_REACHED",
+   "sim_time": 422.0,
+   "task_id": "task_18",
+   "drone_index": 8
   },
   {
    "kind": "TASK_COMPLETION_RECORDED",
@@ -5392,6 +5474,7 @@
    ],
    "delivery_evidence": true,
    "pickup_evidence": true,
+   "reason": "destination_reached",
    "d_delay": 0.0,
    "d_ontime": 1,
    "d_completed": 1
@@ -5402,6 +5485,12 @@
    "task_id": "task_22",
    "drone_index": 8,
    "load_time": 453.0
+  },
+  {
+   "kind": "DESTINATION_REACHED",
+   "sim_time": 454.0,
+   "task_id": "task_15",
+   "drone_index": 4
   },
   {
    "kind": "TASK_COMPLETION_RECORDED",
@@ -5417,9 +5506,16 @@
    ],
    "delivery_evidence": true,
    "pickup_evidence": false,
+   "reason": "destination_reached",
    "d_delay": 0.0,
    "d_ontime": 1,
    "d_completed": 1
+  },
+  {
+   "kind": "DESTINATION_REACHED",
+   "sim_time": 462.0,
+   "task_id": "task_17",
+   "drone_index": 6
   },
   {
    "kind": "TASK_COMPLETION_RECORDED",
@@ -5435,6 +5531,7 @@
    ],
    "delivery_evidence": true,
    "pickup_evidence": false,
+   "reason": "destination_reached",
    "d_delay": 0.0,
    "d_ontime": 1,
    "d_completed": 1
@@ -5445,6 +5542,12 @@
    "task_id": "task_19",
    "drone_index": 7,
    "load_time": 508.0
+  },
+  {
+   "kind": "DESTINATION_REACHED",
+   "sim_time": 536.0,
+   "task_id": "task_22",
+   "drone_index": 8
   },
   {
    "kind": "TASK_COMPLETION_RECORDED",
@@ -5460,6 +5563,7 @@
    ],
    "delivery_evidence": true,
    "pickup_evidence": true,
+   "reason": "destination_reached",
    "d_delay": 0.0,
    "d_ontime": 1,
    "d_completed": 1
@@ -5478,6 +5582,12 @@
    "occupied": 1
   },
   {
+   "kind": "DESTINATION_REACHED",
+   "sim_time": 549.0,
+   "task_id": "task_21",
+   "drone_index": 9
+  },
+  {
    "kind": "TASK_COMPLETION_RECORDED",
    "sim_time": 549.0,
    "task_id": "task_21",
@@ -5491,6 +5601,7 @@
    ],
    "delivery_evidence": true,
    "pickup_evidence": false,
+   "reason": "destination_reached",
    "d_delay": 0.0,
    "d_ontime": 1,
    "d_completed": 1
@@ -5529,9 +5640,16 @@
    ],
    "delivery_evidence": false,
    "pickup_evidence": true,
+   "reason": "no_delivery_evidence",
    "d_delay": 0.0,
    "d_ontime": 1,
    "d_completed": 1
+  },
+  {
+   "kind": "DESTINATION_REACHED",
+   "sim_time": 611.0,
+   "task_id": "task_27",
+   "drone_index": 4
   },
   {
    "kind": "TASK_COMPLETION_RECORDED",
@@ -5547,9 +5665,16 @@
    ],
    "delivery_evidence": true,
    "pickup_evidence": true,
+   "reason": "destination_reached",
    "d_delay": 0.0,
    "d_ontime": 1,
    "d_completed": 1
+  },
+  {
+   "kind": "DESTINATION_REACHED",
+   "sim_time": 622.0,
+   "task_id": "task_19",
+   "drone_index": 7
   },
   {
    "kind": "TASK_COMPLETION_RECORDED",
@@ -5565,6 +5690,7 @@
    ],
    "delivery_evidence": true,
    "pickup_evidence": true,
+   "reason": "destination_reached",
    "d_delay": 0.0,
    "d_ontime": 1,
    "d_completed": 1
@@ -5590,6 +5716,12 @@
    "occupied": 1
   },
   {
+   "kind": "DESTINATION_REACHED",
+   "sim_time": 694.0,
+   "task_id": "task_26",
+   "drone_index": 3
+  },
+  {
    "kind": "TASK_COMPLETION_RECORDED",
    "sim_time": 694.0,
    "task_id": "task_26",
@@ -5603,9 +5735,16 @@
    ],
    "delivery_evidence": true,
    "pickup_evidence": false,
+   "reason": "destination_reached",
    "d_delay": 0.0,
    "d_ontime": 1,
    "d_completed": 1
+  },
+  {
+   "kind": "DESTINATION_REACHED",
+   "sim_time": 697.0,
+   "task_id": "task_29",
+   "drone_index": 9
   },
   {
    "kind": "TASK_COMPLETION_RECORDED",
@@ -5621,6 +5760,7 @@
    ],
    "delivery_evidence": true,
    "pickup_evidence": true,
+   "reason": "destination_reached",
    "d_delay": 0.0,
    "d_ontime": 1,
    "d_completed": 1
@@ -5645,6 +5785,12 @@
    "occupied": 0
   },
   {
+   "kind": "DESTINATION_REACHED",
+   "sim_time": 758.0,
+   "task_id": "task_23",
+   "drone_index": 8
+  },
+  {
    "kind": "TASK_COMPLETION_RECORDED",
    "sim_time": 758.0,
    "task_id": "task_23",
@@ -5658,9 +5804,16 @@
    ],
    "delivery_evidence": true,
    "pickup_evidence": true,
+   "reason": "destination_reached",
    "d_delay": 0.0,
    "d_ontime": 1,
    "d_completed": 1
+  },
+  {
+   "kind": "DESTINATION_REACHED",
+   "sim_time": 760.0,
+   "task_id": "task_28",
+   "drone_index": 5
   },
   {
    "kind": "TASK_COMPLETION_RECORDED",
@@ -5676,9 +5829,16 @@
    ],
    "delivery_evidence": true,
    "pickup_evidence": true,
+   "reason": "destination_reached",
    "d_delay": 0.0,
    "d_ontime": 1,
    "d_completed": 1
+  },
+  {
+   "kind": "DESTINATION_REACHED",
+   "sim_time": 765.0,
+   "task_id": "task_20",
+   "drone_index": 0
   },
   {
    "kind": "TASK_COMPLETION_RECORDED",
@@ -5694,6 +5854,7 @@
    ],
    "delivery_evidence": true,
    "pickup_evidence": false,
+   "reason": "destination_reached",
    "d_delay": 0.0,
    "d_ontime": 1,
    "d_completed": 1
@@ -5744,6 +5905,7 @@
    ],
    "delivery_evidence": false,
    "pickup_evidence": false,
+   "reason": "no_delivery_evidence",
    "d_delay": 0.0,
    "d_ontime": 1,
    "d_completed": 1
@@ -5769,6 +5931,7 @@
    ],
    "delivery_evidence": false,
    "pickup_evidence": true,
+   "reason": "no_delivery_evidence",
    "d_delay": 0.0,
    "d_ontime": 1,
    "d_completed": 1
@@ -5788,6 +5951,12 @@
    "load_time": 911.0
   },
   {
+   "kind": "DESTINATION_REACHED",
+   "sim_time": 924.0,
+   "task_id": "task_32",
+   "drone_index": 4
+  },
+  {
    "kind": "TASK_COMPLETION_RECORDED",
    "sim_time": 924.0,
    "task_id": "task_32",
@@ -5801,6 +5970,7 @@
    ],
    "delivery_evidence": true,
    "pickup_evidence": true,
+   "reason": "destination_reached",
    "d_delay": 21.0,
    "d_ontime": 0,
    "d_completed": 1
@@ -5819,6 +5989,12 @@
    "occupied": 0
   },
   {
+   "kind": "DESTINATION_REACHED",
+   "sim_time": 995.0,
+   "task_id": "task_39",
+   "drone_index": 4
+  },
+  {
    "kind": "TASK_COMPLETION_RECORDED",
    "sim_time": 995.0,
    "task_id": "task_39",
@@ -5832,6 +6008,7 @@
    ],
    "delivery_evidence": true,
    "pickup_evidence": true,
+   "reason": "destination_reached",
    "d_delay": 0.0,
    "d_ontime": 1,
    "d_completed": 1
@@ -5856,6 +6033,7 @@
    ],
    "delivery_evidence": false,
    "pickup_evidence": true,
+   "reason": "no_delivery_evidence",
    "d_delay": 0.0,
    "d_ontime": 1,
    "d_completed": 1
@@ -5874,9 +6052,16 @@
    ],
    "delivery_evidence": false,
    "pickup_evidence": true,
+   "reason": "no_delivery_evidence",
    "d_delay": 0.0,
    "d_ontime": 1,
    "d_completed": 1
+  },
+  {
+   "kind": "DESTINATION_REACHED",
+   "sim_time": 1016.0,
+   "task_id": "task_33",
+   "drone_index": 7
   },
   {
    "kind": "TASK_COMPLETION_RECORDED",
@@ -5892,6 +6077,7 @@
    ],
    "delivery_evidence": true,
    "pickup_evidence": true,
+   "reason": "destination_reached",
    "d_delay": 0.0,
    "d_ontime": 1,
    "d_completed": 1
@@ -5902,6 +6088,12 @@
    "task_id": "task_34",
    "drone_index": 3,
    "load_time": 1042.0
+  },
+  {
+   "kind": "DESTINATION_REACHED",
+   "sim_time": 1044.0,
+   "task_id": "task_36",
+   "drone_index": 5
   },
   {
    "kind": "TASK_COMPLETION_RECORDED",
@@ -5917,6 +6109,7 @@
    ],
    "delivery_evidence": true,
    "pickup_evidence": true,
+   "reason": "destination_reached",
    "d_delay": 0.0,
    "d_ontime": 1,
    "d_completed": 1
@@ -5935,9 +6128,16 @@
    ],
    "delivery_evidence": false,
    "pickup_evidence": true,
+   "reason": "no_delivery_evidence",
    "d_delay": 85.5,
    "d_ontime": 0,
    "d_completed": 1
+  },
+  {
+   "kind": "DESTINATION_REACHED",
+   "sim_time": 1125.0,
+   "task_id": "task_38",
+   "drone_index": 1
   },
   {
    "kind": "TASK_COMPLETION_RECORDED",
@@ -5953,6 +6153,7 @@
    ],
    "delivery_evidence": true,
    "pickup_evidence": false,
+   "reason": "destination_reached",
    "d_delay": 0.0,
    "d_ontime": 1,
    "d_completed": 1
