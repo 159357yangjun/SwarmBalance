@@ -2,6 +2,34 @@
 
 ## [Unreleased]
 
+### 2026-10-07（第四笔）：#68-B 完成 —— 只读 ConsistencyObserver，双跑零漂移通过；按指令停止，不自动修 lifecycle bug
+
+交付 `frontend/consistency_observer.py` + `console/test_consistency_observer_zero_drift.py`（8 项断言）
++ 两面原始输出 `docs/取证输出/observer_zero_drift_{off,on}.json`。
+
+三条约束的实现方式：**没有** `TASK_COMPLETED` 这类带语义事件，只有 `TASK_COMPLETION_RECORDED`（"计数器被加 1"的事实）；
+事件名走白名单，未登记名进 rejected ⇒ `test_f` 断言 rejected==[] 即"本模块不许发明状态"；全程只读 env 既有状态；
+monkeypatch 仅实例级且原样返回、观察异常被吞成一条错误事件不影响仿真。**八个生产文件对 HEAD 逐文件 git diff 为 0**。
+
+零漂移（seed=40907/greedy/1200 各跑一整局）：sequence_len 1200/1200、action 全序列 sha256 相同、
+total_completed 38/38、episode_step 1200/1200、generated_task_ids 相同、KPI 全字段 dict 相等、energy/swap 相同 ⇒ Ran 8 OK。
+轨迹非空且对账：events_total=77、completions_recorded=38==计数器==KPI、with(26)+without(12)==38 恒等式、
+never_loaded=3、ΣΔdelay=106.5、berth occupy/vacate 各 5、TASK_LOADED 29。
+⇒ **26/12/3 与上轮 traceback 行号归因逐位一致**（已钉成 test_h）：两个不同量具互核，几何证人那个不随代码挪行失效。
+
+本轮我自己的两处错（都已修并写进文档 §6-H）：
+1. **归因时机错**：把 DESTINATION_REACHED 放在 step() 之后重算谓词，而 dest 路径紧接着 `assignments.remove()`
+   （environment.py:1220）⇒ 事后遍历看不到该 assignment，实测 with_delivery_evidence=0（真值 26）。
+   **门当时仍全绿**——我只断言"两类之和==总数"，它对全错划分同样成立。是读产物发现的不是读断言发现的。
+   ⇒ 教训：**恒等式成立 ≠ 分类正确**；新增分类维度必须配正例下限断言（现由 test_g/test_h 补上）。
+2. **字符串替换把源码改坏**：恢复被变异行时 `"\...\..."` 里的 `
+` 落成字面两字符 ⇒ :87 SyntaxError、单测 Ran 0 tests，
+   我差点当成"产品有问题"。改用 Edit 显式换行 + `py_compile` 作改码后固定检查。印证台账"批量字符串补丁会半成功"。
+
+套件：console `Ran 298`（新增 8）skipped=1，唯一红是 test_readme_counts_match_measured 抓到"加了测试没同步 README 计数
+（35/290→36/298）"，按它给的 --fix 修好复跑 OK。两条 --verify 与 verify_data_provenance RC=0。VERSION 未动。
+变异面另证 test_h 有牙：把 delivery_evidence 强置 True 后 got=38 want=26 当场红（两面原始输出均留档）。
+**下一步 #68-C：用这份轨迹建 C1 完成不变量门，门先红再谈修复。**
 ### 2026-10-07（第三笔）：cleanup × timeout/delay 交叉污染核查 —— 答案是 >0，三个 KPI 共用同一棵被污染分母
 
 BI 要求补掉的一格。先定位真实计算入口（不反推）：`timeout_rate = 1 − total_on_time_tasks / total_completed_tasks`（`environment.py:986`）、
