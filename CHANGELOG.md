@@ -2,6 +2,32 @@
 
 ## [Unreleased]
 
+### 2026-10-07：#68-A 当前状态真源图 —— 撤两处我自己的错判，并实测到一条真的逻辑矛盾
+
+BI 纠正我上一轮两处定性，均接受：① `Task.status` 应称 **stale shadow state / 状态真源分裂风险**，不是"已发生双重解释冲突"；
+② `predicted_*` 缺失证明的是 **C6 Plan-vs-Actual 不可审计**，不能拿来宣称"时间一致性失败"（那是 C3，查事件顺序）。
+Gate 体系按 C1–C6 重排替换我的 I1–I5。交付 [`docs/当前状态真源图.md`](docs/当前状态真源图.md)。
+
+**我又撤了两条更严重的自己的错**（都在本轮实测中暴露）：
+- 「完成由 `completed_tasks` 列表决定」**是错的**：`environment.py:239-242` 注释写明它是**本步临时缓冲**、
+  `_compute_reward()` 末尾 `clear()`（`:1528`）⇒ 真源是 `completed_task_log`，且**上限 120 行、超出即删**。承重结构读错了。
+- 我在文档初稿把兜底写成「12/12 从未取货」，实测是 **5/12**（`load_time is None`），而 `delivery_time==0` 有 12 个
+  （含"取了货但取送同刻"）⇒ **两个数口径不同，不能混用**。已在 §2 就地写出差别与可站住的表述。
+
+§2 实测发现（seed=40907、1200 步跑满、贪心直派驱动）：`_record_task_completion` 共 27 次，
+其中 **dest 路径 15 次、is_free 兜底路径 12 次**（`environment.py:1234-1244`）⇒
+**12 个未经"抵达 destination"判定即计入 `total_completed_tasks`，其中 5 个明确从未取货**；
+机制是 `if load_time is None: load_time = assigned_time` 让未取货任务得到一个看起来正常的 delivery_time 而非"未完成"标记。
+这才是 BI 定义的真不自洽（执行结果与业务语义不一致），不是预测误差。
+**为什么一直没被发现**：status 从不写终态（前端/API 看不见）、统计只加计数器（聚合值正常）、log 截断 120（明细也会被削）。
+
+边界如实标注：n=1 seed × 1 种驱动方式，且我的驱动非生产 `greedy_action_from_observation` 同源 ⇒
+**44% 这个比率不得引用，须先用生产 worker 复算**；但"兜底会计完成"是代码级事实，与驱动无关，足以立门。
+
+§4 顺序采纳 A→E：本轮 #68-A 完，下一轮 **#68-B ConsistencyObserver 旁路事件轨迹**（第一版不是新真源、不参与业务决策，
+可做零漂移 gate）；#68-D DecisionRecord **只记当时真算过的量**（Greedy 实际只有 proximity/range_match 就只记这两个，
+不许为表格漂亮凭空补 ETA/energy ⇒ 那会造出"展示能力大于模型能力"）。V6 不停但不同时大规模编码。
+未改生产代码，VERSION 未动，未新增测试。
 ### 2026-10-06（第六笔）：三层可信度结构落地第二层 —— E2E 一致性门设计，实测「五条不变量只有两条今天能建门」
 
 BI 提出系统级逻辑自洽判据「前一层假设不得被后一层无声推翻」，要求 V6 之外另立 End-to-End Consistency Gate。
