@@ -2,6 +2,31 @@
 
 ## [Unreleased]
 
+### 2026-10-07（第九笔）：把 #69-B 的实质写成一条可复用的设计教训 —— 修层间契约，不塞坐标点
+
+补 `docs/当前状态真源图.md` §6-L。裁定原话值得留档：「RoutePlanner 已经有一套『到达』的定义，
+而业务层又偷偷定义了另一套更严格的『到达』」——这类跨层语义不一致普通单元测试抓不到，因为每层各自都通过。
+
+三处判据并置后形状很清楚：planner `euclidean(current,goal)<1`(:160) 说到了；装配把 leg 末点标 'source'；
+消费侧还要 `get_source() == source_pos`(:1199-1203) 逐位相等 ⇒ 下层说到了、上层说没到，
+合起来产出"既送达又从未取货"的状态，即 C1 R2 那 7 例。
+
+修法只有一句：**让"到达"只有一个定义**（装配统一 direct/detour/fallback 的前 N-1 transit + 末点 service，
+消费只认标签弹出）。刻意不做的是往 planner 输出追加精确 goal 点 —— 上一版我这么干过并被驳回，
+那等于用第三套补丁弥合两套定义，且实测连带把 Gate A 的路径等价打断（旧/新航点表多出一个点）。
+一般化写进文档：两个抽象层对同一谓词各有定义时，先判定哪个是权威、再让另一方成为它的投影，不要新增第三个概念去对齐。
+
+同形状的还有两处，一并登记（解释了三件看似无关的事）：payload_at_reach 读到载重 0 但途中明明带货
+（物理量 vs 业务量两套表达）、Task.status 停在 assigned 而完成由计数器决定（状态字段 vs 集合真源）。
+⇒ 共同形状：同一事实存在两套表示且没有一处断言要求它们一致。后续建门优先给这类跨层谓词配互检断言。
+
+提交态 d6b6c0b 验收复跑全绿：Gate A Ran 5 OK / A-D source 夹具 Ran 4 OK / Observer 零漂移 Ran 8 OK(skipped=1) /
+C1 old FAILED(1)（cleanup 未修＝期望红）/ mutate FAILED(1) / forced_cleanup FAILED(1) / fixed OK；
+paired replay 第一处分歧 index=369 t=43 task_3 TASK_LOADED，KPI delta 全 0。三条门禁 RC=0。
+
+⚠ 明确记一条未达成：BI 验收里的「全量 suite GREEN」我没做到 —— Ran 308 仍有 2 条预存红
+(test_g2_*、citation 覆盖率打印门)，二者在基线 580c937 上同样表现（standalone 分别 OK / rc=0，仅聚合运行红）
+⇒ 属测试间干扰非本轮引入，需单独一轮处理隔离或 fixture 顺序。不把它算作通过。
 ### 2026-10-07（第八笔）：#69-B source-leg 语义修复 —— planner 不动、只改装配；R2 归零而 cleanup 仍红
 
 按裁定执行：**撤销上一轮越界实现**（planner 追加 exact-goal waypoint + arrival_exact 字段已 `git checkout HEAD` 恢复，
