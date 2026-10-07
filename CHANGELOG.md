@@ -2,6 +2,28 @@
 
 ## [Unreleased]
 
+### 2026-10-07（第十笔）：撤回我"两条预存红＝测试间干扰"的归因 —— 其中一条是我自己造成的
+
+上轮我在 #69-B 验收里写「test_g2_* 与 citation 覆盖率门在基线 580c937 上同样表现，属测试间干扰非本轮引入」。
+**这个归因是错的**，本轮一手复算：
+
+`console/_citations.py --verify` 独立跑就报 `[FAIL][REWRITE_MAP_STALE] docs/提交改写映射表.md differs from what git says now`。
+根因不是干扰，是**我自己造的垃圾对象**：那张表由代码现算、明写"禁止手填"，它数的是仓库里的不可达对象；
+而我在 #69-B 那几轮为了隔离验证反复 `git stash / git stash pop`，每次都在对象库里留下 WIP/index 对象
+（stash ref 清了、对象未回收）。重生成后差异恰好是 **+6 条悬空对象、不可达 29→35**，
+且新增 6 行全部标注 `git stash 留下的对象`，标题逐条指回 `580c937` ⇒ 因果清楚，不是我误读。
+
+处置：按该工具自己给的 fix 方向跑 `--rewrite-report --write` 重新生成（不手改一个值），
+`--verify` 回到 RC=0，citation 门 `Ran 1 OK`。**没有动 .git 里任何东西**（不 gc、不 reflog expire）——
+那些对象是回收它们才会真正破坏这张表的证据链。
+
+顺带记一条：**我把 stash 当成了无害的隔离手段，它其实会改动物库状态并被一个只读门检测到**。
+以后要在两个 ref 之间对比行为，优先用 `git worktree add --detach`（本轮 paired replay 就是这么做的，
+用完 `worktree remove`，不留悬空 commit），而不是 stash。
+
+另一条红 `test_g2_all_four_algorithms_get_real_fleet_speed` 本轮 standalone 复跑 `Ran 1 OK (117.8s)`
+⇒ 它确实只在聚合运行下红，属真实的测试间干扰（上一轮这条判断成立，只有把它和 citation 门并案归因是错的）。
+所以「全量 suite GREEN」仍差这一条，需要单独一轮做 fixture 隔离，不在本轮顺手改。
 ### 2026-10-07（第九笔）：把 #69-B 的实质写成一条可复用的设计教训 —— 修层间契约，不塞坐标点
 
 补 `docs/当前状态真源图.md` §6-L。裁定原话值得留档：「RoutePlanner 已经有一套『到达』的定义，
