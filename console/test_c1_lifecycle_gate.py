@@ -32,20 +32,45 @@ SEED, STEPS, ALGO = 40907, 1200, "greedy"
 #: 面只能由环境变量指定。**不能读 sys.argv** —— `python -m unittest console.test_x` 会把
 #: 模块名塞进 argv[1]，导致 face 变成任意字符串、断言静默走进 else 分支（本轮实测踩过：
 #: 门"通过"了本该红的 old 面）。非法/缺失取值一律降到最保守的 ``old``（要求红）。
-_VALID_FACES = ("old", "fixed", "mutate")
+_VALID_FACES = ("old", "fixed", "mutate", "forced_cleanup")
 FACE = os.environ.get("C1_FACE", "old").strip().lower()
 if FACE not in _VALID_FACES:
     FACE = "old"
-FIXED_TRACE = OUT_DIR / "c1_fixed_baseline_trace.json"   # 修复后由同脚本重生成
+FIXED_TRACE = OUT_DIR / "c1_face_r2_fixed.json"   # 修复后的生产轨迹（old 面写出）
 
 
 def _collect(face: str) -> dict:
-    """跑一局生产仿真取轨迹；face=fixed 时读已归档的修复基线（修复落地前不存在 ⇒ 该面 skip 并点名原因）。"""
+    """按 face 取轨迹。fixed 读归档产物；mutate / forced_cleanup 在真实轨迹上注入。
+
+    ⚠ 分派必须看**形参** face，不能读模块级 FACE —— 上一版就是这么错的：
+    `_collect(FACE)` 传了参数却仍按模块常量走 old 分支，于是 forced_cleanup 面
+    与 old 面读数逐字相同，看起来"跑了"其实什么都没注入（＝又一次没有变异的变异测试）。
+    """
     if face == "fixed":
         if not FIXED_TRACE.is_file():
-            raise unittest.SkipTest("[FIXED_FACE_UNAVAILABLE] lifecycle 修复尚未落地，"
-                                    f"缺 {FIXED_TRACE}；此面按规矩记『未跑』而非通过")
-        return json.loads(FIXED_TRACE.read_text(encoding="utf-8"))
+            raise unittest.SkipTest("[FIXED_FACE_UNAVAILABLE] 缺 "
+                                    f"{FIXED_TRACE.name}；此面记『未跑』而非通过")
+        raw = json.loads(FIXED_TRACE.read_text(encoding="utf-8"))
+        # 归档产物的形状是 {face, verdict, events}；counter 在 verdict.counter 里。
+        # 不假设它一定叫 total_completed_tasks —— 读不到就明说，不拿 0 兜底。
+        if "total_completed_tasks" not in raw:
+            v = raw.get("verdict") or {}
+            if "counter" not in v:
+                raise AssertionError("[FIXED_TRACE_NO_COUNTER] 归档产物既无 total_completed_tasks"
+                                     " 也无 verdict.counter ⇒ 无法核对聚合可重算性")
+            raw["total_completed_tasks"] = v["counter"]
+        return raw
+    if face in ("mutate", "forced_cleanup"):
+        raw = _run_production_trace()
+        raw["events"] = (_inject(raw["events"]) if face == "mutate"
+                         else _force_cleanup(raw["events"]))
+        if face == "forced_cleanup":
+            raw["total_completed_tasks"] = int(raw["total_completed_tasks"]) + 1
+        return raw
+    return _run_production_trace()
+
+
+def _run_production_trace() -> dict:
     script = r'''
 import json, os, sys, pathlib
 ROOT = pathlib.Path(sys.argv[1]).resolve()
@@ -149,13 +174,19 @@ class C1LifecycleGate(unittest.TestCase):
         cls.res = classify(cls.trace)
         OUT_DIR.mkdir(parents=True, exist_ok=True)
         assert FACE in _VALID_FACES, f"[C1_BAD_FACE] {FACE}"
-        (OUT_DIR / f"c1_face_{FACE}.json").write_text(
+        # ⚠ 冻结证据不可被测试覆盖：c1_face_old.json 属于 580c937 基线（BI 裁定）。
+        #    当前工作树的读数一律另存 c1_face_r2_fixed.json。
+        name = ("c1_face_r2_fixed.json" if FACE == "old" else f"c1_face_{FACE}.json")
+        (OUT_DIR / name).write_text(
             json.dumps({"face": FACE, "verdict": cls.res, "events": cls.trace["events"]},
                        ensure_ascii=False, indent=1), encoding="utf-8")
 
     def test_0_event_kinds_are_the_observed_set(self):
         """断言读实测集合：DESTINATION_REACHED 必须真的出现过（#68-B 曾只在白名单里声明）。"""
-        kinds = self.trace["summary"]["event_kinds_observed"]
+        kinds = (self.trace.get("summary") or {}).get("event_kinds_observed")
+        if kinds is None:                       # 归档产物形状不含 summary ⇒ 从事件现算
+            from collections import Counter
+            kinds = dict(Counter(e["kind"] for e in self.trace["events"]))
         self.assertIn("DESTINATION_REACHED", kinds, "[C1_NO_DELIVERY_WITNESS]")
 
     def test_1_rules_are_enforced(self):
@@ -163,14 +194,18 @@ class C1LifecycleGate(unittest.TestCase):
         r = self.res
         print(f"[C1 VERDICT face={FACE}] {json.dumps(r, ensure_ascii=False)}")
         if FACE == "fixed":
-            expect_zero = ("R1_missing_destination_evidence", "R3_duplicate_completion",
-                           "R4_aggregate_not_recomputable", "R5_cleanup_counted_as_delivery")
-            for k in expect_zero:
-                self.assertEqual(r[k], 0, f"[C1_FIXED_STILL_RED {k}] got={r[k]}")
+            # ⚠ 判据范围必须等于本轮修复范围。#69-B 只修 source pickup 语义，
+            #   cleanup accounting 明确未动（BI 裁定）⇒ 这里只能要求 R2=0，
+            #   要求 R1/R5=0 就是把"未修的缺陷"当成"修复失败"，反之若为了变绿去改 cleanup 就是越界。
+            self.assertEqual(r["R2_pickup_not_before_delivery"], 0,
+                             f"[C1_R2_NOT_FIXED] got={r['R2_pickup_not_before_delivery']}")
+            self.assertEqual(r["R3_duplicate_completion"], 0, "[C1_R3]")
         else:
-            # R1：计入 completed 的每条都必须有 DESTINATION_REACHED 证人
-            self.assertEqual(r["R1_missing_destination_evidence"], 0,
-                             f"[C1_R1] {r['R1_missing_destination_evidence']} 条 completion 无送达证据")
+            # old / mutate / forced_cleanup 面：**期望红**。
+            # cleanup accounting 本轮明确未修 ⇒ R1 必须 >0；若它为 0，要么缺陷被悄悄修了
+            # （越界），要么门失去侦测力。断言写成 assertGreater 而不是 assertEqual(0)。
+            self.assertGreater(r["R1_missing_destination_evidence"], 0,
+                               "[C1_NO_TEETH] cleanup 未修却测不到无送达证据的 completion")
             # R3：合法 completion 必须唯一
             self.assertEqual(r["R3_duplicate_completion"], 0, f"[C1_R3] {r['R3_duplicate_completion']} 个任务重复完成")
             # R4：聚合计数器必须能由无截断轨迹里的**合法** completion 重算
@@ -203,8 +238,12 @@ class C1LifecycleGate(unittest.TestCase):
         banned = {"released", "failed", "delivered", "aborted", "requeued", "unassigned"}
         self.assertFalse(got & banned, f"[C1_BUSINESS_SEMANTIC_PREMATURE] {got & banned}")
         # 归因不得失败：unknown 必须为 0，否则量具瞎了却在报数
-        self.assertEqual(self.trace["summary"]["unattributed_completions"], 0,
-                         "[C1_ATTRIBUTION_BLIND] 有 completion 无法归因到调用分支")
+        unattr = (self.trace.get("summary") or {}).get("unattributed_completions")
+        if unattr is None:
+            unattr = sum(1 for e in self.trace["events"]
+                         if e["kind"] == "TASK_COMPLETION_RECORDED"
+                         and e.get("record_origin") == "unknown_call_site")
+        self.assertEqual(unattr, 0, "[C1_ATTRIBUTION_BLIND] 有 completion 无法归因到调用分支")
 
     def test_4_mutation_face_proves_teeth(self):
         """mutation 面：注入『cleanup 被伪造成送达 + 同任务重复 completion』，R3/R5 必须变红。"""
@@ -214,6 +253,31 @@ class C1LifecycleGate(unittest.TestCase):
         self.assertGreaterEqual(base["R3_duplicate_completion"], 0)
         dup = base["R3_duplicate_completion"]
         self.assertGreater(dup, 0, "[C1_MUTATE_R3_NOT_CAUGHT] 注入的重复未被抓到")
+
+
+def _force_cleanup(events):
+    """D 组 mutation：人工制造『无合法 destination evidence 却进入 cleanup completion』。
+
+    当前 seed 因 pickup 修复不再触发真实 cleanup ⇒ 门若只跑生产轨迹，就无法证明
+    latent cleanup defect 仍被捕获。这里显式注入一条 cleanup 分支的 completion，
+    要求 C1 必须 RED —— 否则说明门只是跟着生产行为变绿，失去了对未修缺陷的侦测力。
+    """
+    ev = [dict(e) for e in events]
+    n_before = len(ev)
+    comp = [e for e in ev if e["kind"] == "TASK_COMPLETION_RECORDED"]
+    if not comp:
+        raise AssertionError("[FORCED_NO_TEMPLATE] 轨迹里没有 completion 事件可作模板")
+    tmpl = comp[0]
+    forged = dict(tmpl)
+    forged.update(kind="TASK_COMPLETION_RECORDED", task_id="forced_lost_task",
+                  record_origin="is_free_cleanup_branch",
+                  has_destination_evidence=False, has_load_evidence=False,
+                  load_time_raw=None, sim_time=float(tmpl["sim_time"]) + 0.5,
+                  d_completed=1, d_ontime=1, d_delay=0.0)
+    ev.append(forged)
+    ev = [dict(x, seq=i + 1) for i, x in enumerate(ev)]
+    assert len(ev) > n_before, "[FORCED_NOT_APPLIED]"
+    return ev
 
 
 def _inject(events):
@@ -253,7 +317,8 @@ if FACE == "mutate":
 
     def _collect(face):                                # noqa: F811
         t = _orig_collect("old")
-        t["events"] = _inject(t["events"])
+        t["events"] = (_inject(t["events"]) if face == "mutate"
+                       else _force_cleanup(t["events"]))
         return t
 
 

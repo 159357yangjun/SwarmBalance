@@ -2,6 +2,42 @@
 
 ## [Unreleased]
 
+### 2026-10-07（第八笔）：#69-B source-leg 语义修复 —— planner 不动、只改装配；R2 归零而 cleanup 仍红
+
+按裁定执行：**撤销上一轮越界实现**（planner 追加 exact-goal waypoint + arrival_exact 字段已 `git checkout HEAD` 恢复，
+Gate A 重新 GREEN）。本轮生产改动只有 `frontend/environment.py` 一个文件（15+/13-），全在 source-leg 装配与取货消费两处。
+
+统一 direct/detour/fallback 的装配规则：source leg **前 N-1 个 = transit，最后一个 = source service waypoint**。
+取货由"服务航点被弹出"触发，**删除** `assignment['task'].get_source() == source_pos` 这条坐标严格相等判据
+—— 它与业务标签构成两套判据并存，在 A* 容差抵达（`route_planner.py:160` `euclidean(current,goal)<1`）时永远失配。
+不新增精确 goal 点、不改 planner 航点序列、不改 destination 语义 / cleanup accounting / Task.status / KPI / 调度器。
+
+前置核实（BI 要求先查容差）：A* 以 <1 m 容差终止 ⇒ detour 末点不保证等于 goal；direct/fallback 末点精确等于 goal。
+⇒ 这推翻了我 #69-A 写的"单点退化走 else 分支"是主因；真实缺陷面是 **detour 航线**。
+
+验收清单（逐项实测）：
+- Gate A **GREEN**（Ran 5 OK）—— planner 未被改动
+- A/B/C/D source 夹具 **GREEN**（Ran 4 OK），且全部走真实 `plan_route_for_tasks` 出口；
+  C 组打印「服务航点精确等于 source: **False**」⇒ 确实覆盖到容差抵达这条路径，不是测我的复刻逻辑
+- forced_cleanup mutation 面 **RED**（R1 12→13、never_loaded 0→1）⇒ latent cleanup defect 仍被门捕获
+- Observer ON/OFF 在修复后代码上零漂移 **OK(skipped=1)**
+- C1 生产 R2_pickup_not_before_delivery = **0**
+- paired replay 580c937 → fixed：**第一处分歧 index=369 / t=43 / task_3 TASK_LOADED**，
+  可完全解释为 source pickup 修复；KPI delta 全 0（completed/rate/timeout/avg_delay/energy/swaps）
+- 三条门禁 RC=0
+
+两个重要澄清：
+① **撤销旧预期"R2=0 且 R1>0"是对的，但结论方向与我上轮相反**：修复后 old 面 R1 仍 =12、R5=12，
+   即 pickup 与 cleanup **并未耦合**——我上轮看到的"R1 一起归零"是 planner 改动带来的行为外溢，不是因果必然。
+   C1 现在正确地继续红（红在 R4 counter=38 != legal_unique=26），cleanup 保持未修状态。
+② 我把 test_1 的期望从"必须绿"改成"old/mutate/forced_cleanup 面必须红"（assertGreater(R1,0)），
+   否则一旦 cleanup 悄悄变 0，门会静默失去侦测力。fixed 面只断言 R2=0 与 R3=0 —— **判据范围等于本轮修复范围**。
+
+遗留（如实报，不当已通过）：全量套件 Ran 308 有 4 红，逐条一手核过——
+test_g2 与 citation 覆盖率门**在基线 580c937 上同样表现**（standalone 分别 OK / rc=0，聚合时才红）＝预存的测试间干扰，非本轮引入；
+readme_counts 与 C1 两条已由本轮修正。README 计数 --fix 同步为 38 文件/308 用例。
+产物：c1_face_r2_fixed.json / c1_face_forced_cleanup.json / r2_paired_replay.json；冻结证据 c1_face_old.json 未被覆盖
+（测试改为写 r2_fixed，并加了 FIXED_TRACE_NO_COUNTER 防形状假设兜底）。
 ### 2026-10-07（第七笔）：#69-A 12 条 cleanup 事实命运表 —— 第二个 lost-task bug；并纠正我上轮"能耗未污染"的定性过头
 
 **先撤自己一句过头话**（BI 指出，成立）：我写过"能耗未被污染 / 途中均有载重"。`BATTERY_CONSUMED.load_at_consumption > 0`

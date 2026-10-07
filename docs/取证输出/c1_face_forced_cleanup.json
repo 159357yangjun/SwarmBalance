@@ -1,15 +1,15 @@
 {
- "face": "mutate",
+ "face": "forced_cleanup",
  "verdict": {
-  "completions_recorded": 40,
-  "counter": 38,
-  "legal_unique": 27,
-  "R1_missing_destination_evidence": 11,
+  "completions_recorded": 39,
+  "counter": 39,
+  "legal_unique": 26,
+  "R1_missing_destination_evidence": 13,
   "R2_pickup_not_before_delivery": 0,
-  "R3_duplicate_completion": 1,
+  "R3_duplicate_completion": 0,
   "R4_aggregate_not_recomputable": 1,
   "R5_cleanup_counted_as_delivery": 13,
-  "R5_never_loaded_among_them": 0
+  "R5_never_loaded_among_them": 1
  },
  "events": [
   {
@@ -61873,54 +61873,23 @@
   {
    "seq": 7671,
    "kind": "TASK_COMPLETION_RECORDED",
-   "sim_time": 95.0,
-   "task_id": "task_11",
-   "drone_index": 8,
-   "record_origin": "destination_branch",
-   "caller_line": "self._record_task_completion(i, assignment)",
-   "has_destination_evidence": true,
-   "has_load_evidence": true,
-   "load_time_raw": 57.0,
-   "assigned_time_raw": 0,
-   "deadline_raw": 296.0,
-   "drone_position": [
-    358182.77,
-    3462796.07
-   ],
-   "d_delay": 0.0,
-   "d_ontime": 1,
-   "d_completed": 1
-  },
-  {
-   "seq": 7672,
-   "kind": "TASK_COMPLETION_RECORDED",
-   "sim_time": 95.0,
-   "task_id": "task_11",
-   "drone_index": 8,
+   "sim_time": 83.5,
+   "task_id": "forced_lost_task",
+   "drone_index": 7,
    "record_origin": "is_free_cleanup_branch",
    "caller_line": "self._record_task_completion(i, assignment)",
    "has_destination_evidence": false,
-   "has_load_evidence": true,
-   "load_time_raw": 57.0,
+   "has_load_evidence": false,
+   "load_time_raw": null,
    "assigned_time_raw": 0,
-   "deadline_raw": 296.0,
+   "deadline_raw": 636,
    "drone_position": [
-    358182.77,
-    3462796.07
+    358744.300499,
+    3462283.547369
    ],
    "d_delay": 0.0,
    "d_ontime": 1,
    "d_completed": 1
-  },
-  {
-   "kind": "DESTINATION_REACHED",
-   "sim_time": 95.0,
-   "task_id": "task_11",
-   "drone_index": 8,
-   "reach_has_load_evidence": true,
-   "payload_at_reach": 0.0,
-   "task_weight": 0.0,
-   "seq": 7673
   }
  ]
 }

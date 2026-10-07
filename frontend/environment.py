@@ -1195,12 +1195,13 @@ class Environment:
                         assignments = self.drone_assignments[i]
                         if isinstance(assignments, dict):
                             assignments = [assignments]
+                        # 服务航点被弹出即视为取货完成：判据只有标签一条。
+                        # 旧写法还要求 source_pos == task.source，与上面的标签判据并存时
+                        # 会在 detour（A* 容差抵达，末点非精确 source）下永远失配 ⇒ 无取货却算送达。
                         for assignment in assignments:
-                            if (
-                                assignment.get('load_time') is None
-                                and assignment['task'].get_source() == source_pos
-                            ):
+                            if assignment.get('load_time') is None:
                                 assignment['load_time'] = self.current_time
+                                break
                 if len(popped) >= 3 and popped[2] == 'dest':
                     dest_pos = (popped[0], popped[1])
                     if i in self.drone_assignments:
@@ -1850,15 +1851,16 @@ class Environment:
             
             # 第一步：当前位置 → 起始点（绕行）
             source_route = self.plan_route_around_buildings(current_pos, source)
-            for point in source_route:
-                # 最后一个点是 source，其他是 waypoint
-                if len(source_route) > 1:
-                    if point == source_route[-1]:
-                        full_route.append((point[0], point[1], 'source'))
-                    else:
-                        full_route.append((point[0], point[1], 'waypoint'))
-                else:
-                    full_route.append((point[0], point[1], 'source'))
+            # #69-B source-leg 业务语义装配（统一 direct / detour / fallback 三种 outcome）：
+            #   前 N-1 个 waypoint = transit，最后一个 waypoint = source service waypoint。
+            # A* 以 <1 m 容差终止 ⇒ detour 的末点可能不精确等于 source；这是既有 RoutePlanner
+            # 模型语义，本轮不改 planner、不新增精确 goal 点、不改航点序列。
+            # 取货事实由「服务航点被消费」触发（见 :1192-1203 的标签判据），
+            # 不再额外要求 position == task.source —— 那与业务标签构成两套判据共同决定取货。
+            n_leg = len(source_route)
+            for idx_pt, point in enumerate(source_route):
+                kind = 'source' if idx_pt == n_leg - 1 else 'waypoint'
+                full_route.append((point[0], point[1], kind))
             
             # 第二步：起始点 → 终点（绕行）
             dest_route = self.plan_route_around_buildings(source, dest)
