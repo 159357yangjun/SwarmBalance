@@ -1,0 +1,723 @@
+{
+ "total": 38,
+ "cleanup": 12,
+ "free_events": 38,
+ "cleanup_records": [
+  {
+   "branch": "is_free_cleanup",
+   "sim_time": 95.0,
+   "task_id": "task_11",
+   "drone_index": 8,
+   "drone_id": "drone_8",
+   "has_load_evidence": true,
+   "load_time_raw": 57.0,
+   "assigned_time_raw": 0,
+   "deadline_raw": 296.0,
+   "weight": 5.0,
+   "drone_is_free": true,
+   "current_load": 0.0,
+   "position": [
+    358182.77,
+    3462796.07
+   ],
+   "remaining_assigned_task_ids": [
+    "task_11"
+   ],
+   "n_remaining_assignments": 1,
+   "remaining_waypoints": [],
+   "n_remaining_waypoints": 0,
+   "suspended_route_len": 0,
+   "awaiting_berth": false,
+   "out_of_service": false,
+   "battery": 3668.284498284351,
+   "battery_capacity": 3968.8,
+   "in_pending_pool": false,
+   "task_status": "assigned"
+  },
+  {
+   "branch": "is_free_cleanup",
+   "sim_time": 172.0,
+   "task_id": "task_3",
+   "drone_index": 0,
+   "drone_id": "drone_0",
+   "has_load_evidence": true,
+   "load_time_raw": 43.0,
+   "assigned_time_raw": 0,
+   "deadline_raw": 626,
+   "weight": 1.0,
+   "drone_is_free": true,
+   "current_load": 0.0,
+   "position": [
+    357755.82,
+    3464120.54
+   ],
+   "remaining_assigned_task_ids": [
+    "task_3"
+   ],
+   "n_remaining_assignments": 1,
+   "remaining_waypoints": [],
+   "n_remaining_waypoints": 0,
+   "suspended_route_len": 0,
+   "awaiting_berth": false,
+   "out_of_service": false,
+   "battery": 262.8101547038424,
+   "battery_capacity": 380.0,
+   "in_pending_pool": false,
+   "task_status": "assigned"
+  },
+  {
+   "branch": "is_free_cleanup",
+   "sim_time": 190.0,
+   "task_id": "task_8",
+   "drone_index": 3,
+   "drone_id": "drone_3",
+   "has_load_evidence": true,
+   "load_time_raw": 110.0,
+   "assigned_time_raw": 0,
+   "deadline_raw": 579,
+   "weight": 2.0,
+   "drone_is_free": true,
+   "current_load": 0.0,
+   "position": [
+    358105.26,
+    3462940.49
+   ],
+   "remaining_assigned_task_ids": [
+    "task_8"
+   ],
+   "n_remaining_assignments": 1,
+   "remaining_waypoints": [],
+   "n_remaining_waypoints": 0,
+   "suspended_route_len": 0,
+   "awaiting_berth": false,
+   "out_of_service": false,
+   "battery": 241.40984513288782,
+   "battery_capacity": 380.0,
+   "in_pending_pool": false,
+   "task_status": "assigned"
+  },
+  {
+   "branch": "is_free_cleanup",
+   "sim_time": 197.0,
+   "task_id": "task_4",
+   "drone_index": 2,
+   "drone_id": "drone_2",
+   "has_load_evidence": true,
+   "load_time_raw": 79.0,
+   "assigned_time_raw": 0,
+   "deadline_raw": 609,
+   "weight": 1.0,
+   "drone_is_free": true,
+   "current_load": 0.0,
+   "position": [
+    357274.7,
+    3461609.98
+   ],
+   "remaining_assigned_task_ids": [
+    "task_4"
+   ],
+   "n_remaining_assignments": 1,
+   "remaining_waypoints": [],
+   "n_remaining_waypoints": 0,
+   "suspended_route_len": 0,
+   "awaiting_berth": false,
+   "out_of_service": false,
+   "battery": 245.6305484077443,
+   "battery_capacity": 380.0,
+   "in_pending_pool": false,
+   "task_status": "assigned"
+  },
+  {
+   "branch": "is_free_cleanup",
+   "sim_time": 229.0,
+   "task_id": "task_9",
+   "drone_index": 9,
+   "drone_id": "drone_9",
+   "has_load_evidence": true,
+   "load_time_raw": 114.0,
+   "assigned_time_raw": 91.0,
+   "deadline_raw": 966,
+   "weight": 16.0,
+   "drone_is_free": true,
+   "current_load": 0.0,
+   "position": [
+    358873.97,
+    3464556.45
+   ],
+   "remaining_assigned_task_ids": [
+    "task_9"
+   ],
+   "n_remaining_assignments": 1,
+   "remaining_waypoints": [],
+   "n_remaining_waypoints": 0,
+   "suspended_route_len": 0,
+   "awaiting_berth": false,
+   "out_of_service": false,
+   "battery": 3126.9365966615296,
+   "battery_capacity": 3968.8,
+   "in_pending_pool": false,
+   "task_status": "assigned"
+  },
+  {
+   "branch": "is_free_cleanup",
+   "sim_time": 304.0,
+   "task_id": "task_14",
+   "drone_index": 1,
+   "drone_id": "drone_1",
+   "has_load_evidence": true,
+   "load_time_raw": 169.0,
+   "assigned_time_raw": 104.0,
+   "deadline_raw": 759.0,
+   "weight": 2.0,
+   "drone_is_free": true,
+   "current_load": 0.0,
+   "position": [
+    358315.67,
+    3464741.62
+   ],
+   "remaining_assigned_task_ids": [
+    "task_14"
+   ],
+   "n_remaining_assignments": 1,
+   "remaining_waypoints": [],
+   "n_remaining_waypoints": 0,
+   "suspended_route_len": 0,
+   "awaiting_berth": false,
+   "out_of_service": false,
+   "battery": 161.61092634152996,
+   "battery_capacity": 380.0,
+   "in_pending_pool": false,
+   "task_status": "assigned"
+  },
+  {
+   "branch": "is_free_cleanup",
+   "sim_time": 593.0,
+   "task_id": "task_25",
+   "drone_index": 2,
+   "drone_id": "drone_2",
+   "has_load_evidence": true,
+   "load_time_raw": 544.0,
+   "assigned_time_raw": 462.0,
+   "deadline_raw": 971.0,
+   "weight": 1.0,
+   "drone_is_free": true,
+   "current_load": 0.0,
+   "position": [
+    357957.02,
+    3462729.68
+   ],
+   "remaining_assigned_task_ids": [
+    "task_25"
+   ],
+   "n_remaining_assignments": 1,
+   "remaining_waypoints": [],
+   "n_remaining_waypoints": 0,
+   "suspended_route_len": 0,
+   "awaiting_berth": false,
+   "out_of_service": false,
+   "battery": 156.43684088602834,
+   "battery_capacity": 380.0,
+   "in_pending_pool": false,
+   "task_status": "assigned"
+  },
+  {
+   "branch": "is_free_cleanup",
+   "sim_time": 886.0,
+   "task_id": "task_24",
+   "drone_index": 1,
+   "drone_id": "drone_1",
+   "has_load_evidence": true,
+   "load_time_raw": 757.0,
+   "assigned_time_raw": 446.0,
+   "deadline_raw": 1071.0,
+   "weight": 1.0,
+   "drone_is_free": true,
+   "current_load": 0.0,
+   "position": [
+    358315.67,
+    3464741.62
+   ],
+   "remaining_assigned_task_ids": [
+    "task_24"
+   ],
+   "n_remaining_assignments": 1,
+   "remaining_waypoints": [],
+   "n_remaining_waypoints": 0,
+   "suspended_route_len": 0,
+   "awaiting_berth": false,
+   "out_of_service": false,
+   "battery": 290.42265381289974,
+   "battery_capacity": 380.0,
+   "in_pending_pool": false,
+   "task_status": "assigned"
+  },
+  {
+   "branch": "is_free_cleanup",
+   "sim_time": 900.0,
+   "task_id": "task_30",
+   "drone_index": 6,
+   "drone_id": "drone_6",
+   "has_load_evidence": true,
+   "load_time_raw": 711.0,
+   "assigned_time_raw": 587.0,
+   "deadline_raw": 1243.0,
+   "weight": 2.0,
+   "drone_is_free": true,
+   "current_load": 0.0,
+   "position": [
+    359006.73,
+    3464942.82
+   ],
+   "remaining_assigned_task_ids": [
+    "task_30"
+   ],
+   "n_remaining_assignments": 1,
+   "remaining_waypoints": [],
+   "n_remaining_waypoints": 0,
+   "suspended_route_len": 0,
+   "awaiting_berth": false,
+   "out_of_service": false,
+   "battery": 903.1259368865677,
+   "battery_capacity": 1600.0,
+   "in_pending_pool": false,
+   "task_status": "assigned"
+  },
+  {
+   "branch": "is_free_cleanup",
+   "sim_time": 998.0,
+   "task_id": "task_37",
+   "drone_index": 8,
+   "drone_id": "drone_8",
+   "has_load_evidence": true,
+   "load_time_raw": 881.0,
+   "assigned_time_raw": 877.0,
+   "deadline_raw": 1509.0,
+   "weight": 2.0,
+   "drone_is_free": true,
+   "current_load": 0.0,
+   "position": [
+    358182.77,
+    3462796.07
+   ],
+   "remaining_assigned_task_ids": [
+    "task_37"
+   ],
+   "n_remaining_assignments": 1,
+   "remaining_waypoints": [],
+   "n_remaining_waypoints": 0,
+   "suspended_route_len": 0,
+   "awaiting_berth": false,
+   "out_of_service": false,
+   "battery": 957.9895352041523,
+   "battery_capacity": 3968.8,
+   "in_pending_pool": false,
+   "task_status": "assigned"
+  },
+  {
+   "branch": "is_free_cleanup",
+   "sim_time": 1006.0,
+   "task_id": "task_35",
+   "drone_index": 0,
+   "drone_id": "drone_0",
+   "has_load_evidence": true,
+   "load_time_raw": 891.0,
+   "assigned_time_raw": 789.0,
+   "deadline_raw": 1419.0,
+   "weight": 2.0,
+   "drone_is_free": true,
+   "current_load": 0.0,
+   "position": [
+    358873.97,
+    3464556.45
+   ],
+   "remaining_assigned_task_ids": [
+    "task_35"
+   ],
+   "n_remaining_assignments": 1,
+   "remaining_waypoints": [],
+   "n_remaining_waypoints": 0,
+   "suspended_route_len": 0,
+   "awaiting_berth": false,
+   "out_of_service": false,
+   "battery": 191.36258130822156,
+   "battery_capacity": 380.0,
+   "in_pending_pool": false,
+   "task_status": "assigned"
+  },
+  {
+   "branch": "is_free_cleanup",
+   "sim_time": 1091.0,
+   "task_id": "task_34",
+   "drone_index": 3,
+   "drone_id": "drone_3",
+   "has_load_evidence": true,
+   "load_time_raw": 1042.0,
+   "assigned_time_raw": 751.0,
+   "deadline_raw": 1005.5,
+   "weight": 1.0,
+   "drone_is_free": true,
+   "current_load": 0.0,
+   "position": [
+    357957.02,
+    3462729.68
+   ],
+   "remaining_assigned_task_ids": [
+    "task_34"
+   ],
+   "n_remaining_assignments": 1,
+   "remaining_waypoints": [],
+   "n_remaining_waypoints": 0,
+   "suspended_route_len": 0,
+   "awaiting_berth": false,
+   "out_of_service": false,
+   "battery": 307.03937367669,
+   "battery_capacity": 380.0,
+   "in_pending_pool": false,
+   "task_status": "assigned"
+  }
+ ],
+ "free_events_detail": [
+  {
+   "sim_time": 83.0,
+   "drone_index": 7,
+   "waypoints_before": 1,
+   "load_before": 9.0,
+   "load_after": 0.0,
+   "assignments_left": [],
+   "still_has_unloaded": false
+  },
+  {
+   "sim_time": 91.0,
+   "drone_index": 9,
+   "waypoints_before": 1,
+   "load_before": 7.0,
+   "load_after": 0.0,
+   "assignments_left": [],
+   "still_has_unloaded": false
+  },
+  {
+   "sim_time": 95.0,
+   "drone_index": 8,
+   "waypoints_before": 1,
+   "load_before": 5.0,
+   "load_after": 0.0,
+   "assignments_left": [],
+   "still_has_unloaded": false
+  },
+  {
+   "sim_time": 104.0,
+   "drone_index": 1,
+   "waypoints_before": 1,
+   "load_before": 1.0,
+   "load_after": 0.0,
+   "assignments_left": [],
+   "still_has_unloaded": false
+  },
+  {
+   "sim_time": 158.0,
+   "drone_index": 5,
+   "waypoints_before": 1,
+   "load_before": 8.0,
+   "load_after": 0.0,
+   "assignments_left": [],
+   "still_has_unloaded": false
+  },
+  {
+   "sim_time": 170.0,
+   "drone_index": 6,
+   "waypoints_before": 1,
+   "load_before": 10.0,
+   "load_after": 0.0,
+   "assignments_left": [],
+   "still_has_unloaded": false
+  },
+  {
+   "sim_time": 172.0,
+   "drone_index": 0,
+   "waypoints_before": 1,
+   "load_before": 1.0,
+   "load_after": 0.0,
+   "assignments_left": [],
+   "still_has_unloaded": false
+  },
+  {
+   "sim_time": 190.0,
+   "drone_index": 3,
+   "waypoints_before": 1,
+   "load_before": 2.0,
+   "load_after": 0.0,
+   "assignments_left": [],
+   "still_has_unloaded": false
+  },
+  {
+   "sim_time": 197.0,
+   "drone_index": 2,
+   "waypoints_before": 1,
+   "load_before": 1.0,
+   "load_after": 0.0,
+   "assignments_left": [],
+   "still_has_unloaded": false
+  },
+  {
+   "sim_time": 229.0,
+   "drone_index": 9,
+   "waypoints_before": 1,
+   "load_before": 16.0,
+   "load_after": 0.0,
+   "assignments_left": [],
+   "still_has_unloaded": false
+  },
+  {
+   "sim_time": 253.0,
+   "drone_index": 8,
+   "waypoints_before": 1,
+   "load_before": 3.0,
+   "load_after": 0.0,
+   "assignments_left": [],
+   "still_has_unloaded": false
+  },
+  {
+   "sim_time": 277.0,
+   "drone_index": 7,
+   "waypoints_before": 1,
+   "load_before": 10.0,
+   "load_after": 0.0,
+   "assignments_left": [],
+   "still_has_unloaded": false
+  },
+  {
+   "sim_time": 304.0,
+   "drone_index": 0,
+   "waypoints_before": 1,
+   "load_before": 1.0,
+   "load_after": 0.0,
+   "assignments_left": [],
+   "still_has_unloaded": false
+  },
+  {
+   "sim_time": 304.0,
+   "drone_index": 1,
+   "waypoints_before": 1,
+   "load_before": 2.0,
+   "load_after": 0.0,
+   "assignments_left": [],
+   "still_has_unloaded": false
+  },
+  {
+   "sim_time": 333.0,
+   "drone_index": 5,
+   "waypoints_before": 1,
+   "load_before": 10.0,
+   "load_after": 0.0,
+   "assignments_left": [],
+   "still_has_unloaded": false
+  },
+  {
+   "sim_time": 422.0,
+   "drone_index": 8,
+   "waypoints_before": 1,
+   "load_before": 4.0,
+   "load_after": 0.0,
+   "assignments_left": [],
+   "still_has_unloaded": false
+  },
+  {
+   "sim_time": 454.0,
+   "drone_index": 4,
+   "waypoints_before": 1,
+   "load_before": 2.0,
+   "load_after": 0.0,
+   "assignments_left": [],
+   "still_has_unloaded": false
+  },
+  {
+   "sim_time": 462.0,
+   "drone_index": 6,
+   "waypoints_before": 1,
+   "load_before": 6.0,
+   "load_after": 0.0,
+   "assignments_left": [],
+   "still_has_unloaded": false
+  },
+  {
+   "sim_time": 536.0,
+   "drone_index": 8,
+   "waypoints_before": 1,
+   "load_before": 23.0,
+   "load_after": 0.0,
+   "assignments_left": [],
+   "still_has_unloaded": false
+  },
+  {
+   "sim_time": 549.0,
+   "drone_index": 9,
+   "waypoints_before": 1,
+   "load_before": 22.0,
+   "load_after": 0.0,
+   "assignments_left": [],
+   "still_has_unloaded": false
+  },
+  {
+   "sim_time": 593.0,
+   "drone_index": 2,
+   "waypoints_before": 1,
+   "load_before": 1.0,
+   "load_after": 0.0,
+   "assignments_left": [],
+   "still_has_unloaded": false
+  },
+  {
+   "sim_time": 611.0,
+   "drone_index": 4,
+   "waypoints_before": 1,
+   "load_before": 1.0,
+   "load_after": 0.0,
+   "assignments_left": [],
+   "still_has_unloaded": false
+  },
+  {
+   "sim_time": 622.0,
+   "drone_index": 7,
+   "waypoints_before": 1,
+   "load_before": 9.0,
+   "load_after": 0.0,
+   "assignments_left": [],
+   "still_has_unloaded": false
+  },
+  {
+   "sim_time": 694.0,
+   "drone_index": 3,
+   "waypoints_before": 1,
+   "load_before": 1.0,
+   "load_after": 0.0,
+   "assignments_left": [],
+   "still_has_unloaded": false
+  },
+  {
+   "sim_time": 697.0,
+   "drone_index": 9,
+   "waypoints_before": 1,
+   "load_before": 19.0,
+   "load_after": 0.0,
+   "assignments_left": [],
+   "still_has_unloaded": false
+  },
+  {
+   "sim_time": 758.0,
+   "drone_index": 8,
+   "waypoints_before": 1,
+   "load_before": 17.0,
+   "load_after": 0.0,
+   "assignments_left": [],
+   "still_has_unloaded": false
+  },
+  {
+   "sim_time": 760.0,
+   "drone_index": 5,
+   "waypoints_before": 1,
+   "load_before": 2.0,
+   "load_after": 0.0,
+   "assignments_left": [],
+   "still_has_unloaded": false
+  },
+  {
+   "sim_time": 765.0,
+   "drone_index": 0,
+   "waypoints_before": 1,
+   "load_before": 2.0,
+   "load_after": 0.0,
+   "assignments_left": [],
+   "still_has_unloaded": false
+  },
+  {
+   "sim_time": 886.0,
+   "drone_index": 1,
+   "waypoints_before": 1,
+   "load_before": 1.0,
+   "load_after": 0.0,
+   "assignments_left": [],
+   "still_has_unloaded": false
+  },
+  {
+   "sim_time": 900.0,
+   "drone_index": 6,
+   "waypoints_before": 1,
+   "load_before": 2.0,
+   "load_after": 0.0,
+   "assignments_left": [],
+   "still_has_unloaded": false
+  },
+  {
+   "sim_time": 924.0,
+   "drone_index": 4,
+   "waypoints_before": 1,
+   "load_before": 2.0,
+   "load_after": 0.0,
+   "assignments_left": [],
+   "still_has_unloaded": false
+  },
+  {
+   "sim_time": 995.0,
+   "drone_index": 4,
+   "waypoints_before": 1,
+   "load_before": 1.0,
+   "load_after": 0.0,
+   "assignments_left": [],
+   "still_has_unloaded": false
+  },
+  {
+   "sim_time": 998.0,
+   "drone_index": 8,
+   "waypoints_before": 1,
+   "load_before": 2.0,
+   "load_after": 0.0,
+   "assignments_left": [],
+   "still_has_unloaded": false
+  },
+  {
+   "sim_time": 1006.0,
+   "drone_index": 0,
+   "waypoints_before": 1,
+   "load_before": 2.0,
+   "load_after": 0.0,
+   "assignments_left": [],
+   "still_has_unloaded": false
+  },
+  {
+   "sim_time": 1016.0,
+   "drone_index": 7,
+   "waypoints_before": 1,
+   "load_before": 10.0,
+   "load_after": 0.0,
+   "assignments_left": [],
+   "still_has_unloaded": false
+  },
+  {
+   "sim_time": 1044.0,
+   "drone_index": 5,
+   "waypoints_before": 1,
+   "load_before": 2.0,
+   "load_after": 0.0,
+   "assignments_left": [],
+   "still_has_unloaded": false
+  },
+  {
+   "sim_time": 1091.0,
+   "drone_index": 3,
+   "waypoints_before": 1,
+   "load_before": 1.0,
+   "load_after": 0.0,
+   "assignments_left": [],
+   "still_has_unloaded": false
+  },
+  {
+   "sim_time": 1125.0,
+   "drone_index": 1,
+   "waypoints_before": 1,
+   "load_before": 2.0,
+   "load_after": 0.0,
+   "assignments_left": [],
+   "still_has_unloaded": false
+  }
+ ]
+}

@@ -2,6 +2,34 @@
 
 ## [Unreleased]
 
+### 2026-10-07（第十一笔）：#69-C0 根因取证 —— 找到共同上游根因，按指令停止未打补丁
+
+基线 39165c2。产物 docs/取证输出/c0_cleanup_forensics.json（12 条 cleanup × 20 字段 + 38 次转空闲现场）。
+
+**关键反转**：#69-A 记的"12 条中 3 条从未取货"在 R2 修复后变成 **0 条**（has_load_evidence 全为 True）。
+⇒ 那 3 条本是 R2 pickup 契约的下游表现、已被 #69-B 顺带消除；我上轮据 load_time_raw is None 分的
+"更像分配后未执行"一类，实为记账缺失造成的误分。
+
+12 条共同上游特征（每字段取值集合均为单点）：is_free=True、current_load=0.0、remaining_waypoints=0、
+suspended_route=0、awaiting_berth=False、out_of_service=False、in_pending_pool=False、
+has_load_evidence=True、task_status='assigned'、n_remaining_assignments={1} 且含自身；
+battery/capacity ∈ [0.241,0.924] 无一低于阈值 0.2 ⇒ 排除换电路径。
+决定性分布：**38 次转空闲事件的 waypoints_before 全为 1**。
+
+根因＝分类 B（route 提前清空），不是 cleanup 分支写错：dest leg 装配仍是旧双判据写法
+(environment.py:1867-1874，#69-B 只改了 source leg) ⇒ A* <1m 容差使末点非精确 dest ⇒ 该点弹出后
+scheduled_position 空 ⇒ drone.py:335 依其契约置 is_free=True 并 :336 清零载重；而环境侧消费 dest
+要求 popped[2]=='dest' 且坐标等于 destination(:1204/:1223)，两条件同时不成立 ⇒ 无 DESTINATION_REACHED
+却由下一轮 _prev_free_status 差分命中 cleanup 分支被计成完成。
+A 残留 assignment 否（assignment 与 waypoints 同步存在）；C free 错误派生于 B；D 资源/电量路径全部排除。
+
+为何必须停（BI 两条规则同时命中）：①「发现共同上游根因先停并汇报」；②「paired replay 第一处分歧
+不得提前出现在 route/source/scheduler」——若现在修 dest leg 装配，分歧必落在 route 装配，直接违反②；
+若只在 cleanup 内改 requeue/incomplete，则是掩盖上游且那 12 架机货已被 :336 清掉，requeue 会造成幽灵配送。
+
+⇒ #69-C1 原两方案都不干净，登记三选项待裁：P1 把 #69-B 的 service-waypoint 契约对称推广到 dest leg
+（需解除"本轮不改 destination semantics"，我倾向此项）／P2 仅修 cleanup 语义（掩盖上游+幽灵配送风险）／
+P3 先修 :336 转空闲即清零载重（触及 cargo 语义，风险更大）。未动任何生产代码，三条门禁 RC=0，VERSION 未动。
 ### 2026-10-07（第十笔）：撤回我"两条预存红＝测试间干扰"的归因 —— 其中一条是我自己造成的
 
 上轮我在 #69-B 验收里写「test_g2_* 与 citation 覆盖率门在基线 580c937 上同样表现，属测试间干扰非本轮引入」。
