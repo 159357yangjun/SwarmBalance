@@ -2,6 +2,40 @@
 
 ## [Unreleased]
 
+### 2026-10-07（第二笔）：生产路径复现成功 —— 完成率分子被兜底路径污染，历史 KPI 转 pending revalidation
+
+BI 第 1 步达成。驱动方式换成**论文实验同一条正式路径** `experiments.worker.run_one(config,"greedy",40907,1200,内置杨浦地图)`
+（含 `greedy_action_from_observation`），不再是我自写的循环：
+
+```
+completion 记录合计 = 38      ← 与 KPI「完成任务数 = 38.0」逐位相等（第二证人成立）
+  ├─ dest（抵达 destination）  26
+  └─ is_free_cleanup           12   ← 占完成数 31.6%
+       └─ load_time is None（无取货证据）= 3
+KPI：生成 44 | 完成 38 | 完成率 0.8636 | 超时率 0.0526
+样例 task_3 t=172 load=None assigned=0 / task_8 t=190 / task_24 t=886 assigned=446
+```
+
+⇒ 判据只需"至少一条 cleanup 且无 delivery evidence"，实测 12 条（其中 3 条连取货都没有）。
+产物留档 `docs/取证输出/prod_completion_repro.json`。
+⚠ 口径纪律：**不引用上一轮临时驱动的 44%**，本轮生产读数是 31.6%，两者不可混用；n=1 seed ⇒ 31.6% 也只是这一格。
+但"`total_completed_tasks == dest + cleanup` 且 cleanup 无任何送达判定"是与 seed 无关的**结构事实**，这才是立门依据。
+
+采纳 BI 第三处纠正：`completed_task_log` **也不能叫完成真源**（它截断至 120 行）⇒ 实为三套性质不同的数据：
+单步缓冲 `completed_tasks`(:239-242,:1528 clear) / 有上限审计记录 `completed_task_log`(:480-481) /
+唯一承重的聚合计数器 `total_completed_tasks`(:276)。**没有一套是完整、持久、逐任务的 completion truth source。**
+⇒ C1 因此更清楚：唯一承重的是一棵计数器，它没有任何可核对的明细层。
+
+后果登记（README §已知局限 + 本文 §6-7-D）：闭环前所有已归档 `results/compare/*.csv` 与论文侧引用的
+完成率/超时率/平均时延一律标 **pending lifecycle-consistency revalidation** —— 不是全部作废，而是不得再默认当可信结果。
+
+修复方向按 BI 第 4 步：**先不定性就不动代码** —— fallback 想表达的语义在
+aborted/released/failed/unassigned/特殊终态 五种之间未定，等 #68-B Observer 的事件轨迹反推
+（这些任务后续是否又被派发、机巢是否占用、无人机是否 out_of_service）再定业务语义。不删调用、不改计数。
+
+另：我一度把本文 §6 复算命令整节替换掉（那正是我给每篇文档立的规矩），发现后补回并加了一条警告——
+T4 靠 traceback 行号归因，**行号随代码改动失效**，重跑前须先重新定位 1211/1224/1239/1244。
+V6 编码继续暂停。未改生产代码，VERSION 未动，未新增测试，三条门禁 RC=0。
 ### 2026-10-07：#68-A 当前状态真源图 —— 撤两处我自己的错判，并实测到一条真的逻辑矛盾
 
 BI 纠正我上一轮两处定性，均接受：① `Task.status` 应称 **stale shadow state / 状态真源分裂风险**，不是"已发生双重解释冲突"；
