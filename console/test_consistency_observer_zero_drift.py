@@ -90,7 +90,9 @@ def _run(mode: str, tmpdir: pathlib.Path) -> dict:
     script = tmpdir / f"runner_{mode}.py"
     script.write_text(_RUNNER, encoding="utf-8")
     proc = subprocess.run([sys.executable, str(script), mode, str(ROOT)],
-                          capture_output=True, text=True, timeout=1800)
+                          capture_output=True, text=True, timeout=1800,
+                          encoding="utf-8", errors="replace",
+                          env={**os.environ, "PYTHONIOENCODING": "utf-8"})
     if proc.returncode != 0:
         raise AssertionError(f"[OBSERVER_RUN_FAILED] mode={mode} rc={proc.returncode}\n"
                              f"{proc.stdout[-1500:]}\n{proc.stderr[-2500:]}")

@@ -1203,33 +1203,34 @@ class Environment:
                                 assignment['load_time'] = self.current_time
                                 break
                 if len(popped) >= 3 and popped[2] == 'dest':
-                    dest_pos = (popped[0], popped[1])
                     if i in self.drone_assignments:
                         assignments = self.drone_assignments[i]
                         if isinstance(assignments, list):
-                            for assignment in list(assignments):
-                                if assignment['task'].get_destination() == dest_pos:
-                                    self._record_task_completion(i, assignment)
-                                    # 送达即卸货：此前 current_load 只在整条航线跑完时
-                                    # 才清零，导致在途机永远"满载"、任务链被载重检查锁死。
-                                    drone.current_load = max(
-                                        0.0,
-                                        float(drone.current_load)
-                                        - float(assignment['task'].get_weight()))
-                                    self.drone_chain_len[i] = max(
-                                        0, int(self.drone_chain_len.get(i, 0)) - 1)
-                                    assignments.remove(assignment)
-                                    break
-                        elif isinstance(assignments, dict):
-                            if assignments['task'].get_destination() == dest_pos:
-                                self._record_task_completion(i, assignments)
+                            # 服务航点被弹出即视为送达：判据只有标签一条（同 :1198 source 侧）。
+                            # 取"最早尚未送达的那条"：assignment 在送达时即被 remove，
+                            # 因此"仍在列表里"本身就等价于"尚未送达"，无需新字段；
+                            # 航线按任务顺序装配，第 k 个 dest 服务航点对应第 k 条未送达 assignment。
+                            if assignments:
+                                assignment = assignments[0]
+                                self._record_task_completion(i, assignment)
+                                # 送达即卸货：此前 current_load 只在整条航线跑完时
+                                # 才清零，导致在途机永远"满载"、任务链被载重检查锁死。
                                 drone.current_load = max(
                                     0.0,
                                     float(drone.current_load)
-                                    - float(assignments['task'].get_weight()))
+                                    - float(assignment['task'].get_weight()))
                                 self.drone_chain_len[i] = max(
                                     0, int(self.drone_chain_len.get(i, 0)) - 1)
-                                del self.drone_assignments[i]
+                                assignments.remove(assignment)
+                        elif isinstance(assignments, dict):
+                            self._record_task_completion(i, assignments)
+                            drone.current_load = max(
+                                0.0,
+                                float(drone.current_load)
+                                - float(assignments['task'].get_weight()))
+                            self.drone_chain_len[i] = max(
+                                0, int(self.drone_chain_len.get(i, 0)) - 1)
+                            del self.drone_assignments[i]
 
             # is_free 转换兜底：无人机变为空闲时清理剩余分配记录
             if not self._prev_free_status.get(i, True) and drone.is_free:
@@ -1864,14 +1865,16 @@ class Environment:
             
             # 第二步：起始点 → 终点（绕行）
             dest_route = self.plan_route_around_buildings(source, dest)
-            for point in dest_route:
-                if len(dest_route) > 1:
-                    if point == dest_route[-1]:
-                        full_route.append((point[0], point[1], 'dest'))
-                    else:
-                        full_route.append((point[0], point[1], 'waypoint'))
-                else:
-                    full_route.append((point[0], point[1], 'dest'))
+            # #69-C1 destination service 契约（与 #69-B source leg 对称，同一规则）：
+            #   前 N-1 个 waypoint = transit，最后一个 waypoint = dest service waypoint。
+            # A* 以 <1 m 容差终止 ⇒ detour 的末点可能不精确等于 dest；这是既有 RoutePlanner 语义，
+            # planner 零修改、航点序列零改变。送达事实由「服务航点被消费」触发（见 :1205 消费块），
+            # 不再额外要求 position == task.destination —— 那与标签构成两套判据，
+            # 会在 detour 下永远失配 ⇒ 无 DESTINATION_REACHED 却仍被 is_free 兜底计成完成。
+            n_leg_dest = len(dest_route)
+            for idx_pt, point in enumerate(dest_route):
+                kind = 'dest' if idx_pt == n_leg_dest - 1 else 'waypoint'
+                full_route.append((point[0], point[1], kind))
             
             current_pos = dest
         

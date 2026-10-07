@@ -2,6 +2,37 @@
 
 ## [Unreleased]
 
+### 2026-10-07（第十二笔）：#69-C1 destination service 契约修复（选 P1，仅改 dest leg）
+
+基线 f654587。裁定：P1 落地；P2 淘汰；P3 拆为 #69-C2/#69-C3 后续做。本轮**只**修 destination service 契约，
+不动 route_planner.py / drone.py:335-336 / cleanup accounting / TaskState / scheduler / KPI 定义（全部零 diff，已核）。
+
+改动（frontend/environment.py）：dest leg 装配对称套用 #69-B 的 service-waypoint 规则——前 N-1 个 waypoint = transit、
+末个 = dest service waypoint；消费块删除第二套判据 `get_destination() == dest_pos`（含其唯一消费者 dest_pos 变量），
+送达改由"dest 服务航点被弹出"这一条标签触发。列表分支取最早未送达 assignment（remove-on-deliver ⇒ 存在即未送达，
+无需新字段），dict 分支同步去掉相等守卫。
+
+观察层（frontend/consistency_observer.py）随之对齐同一契约：DESTINATION_REACHED 证人从几何 pos==dest(<1e-6)
+改为 origin==destination_branch（否则 detour 容差抵达会把合法送达误报成无证据，正是本任务要消除的层间不一致）；
+分支文本锚从旧守卫行改挂到消费块注释特征行「服务航点被弹出即视为送达」；has_destination_evidence **保留几何原义**
+作 R5 的唯一证人（cleanup 分支 + 无人机不在目的地），不用 origin 顶替。
+
+门与夹具（console/test_c1_lifecycle_gate.py + 新增 test_c1_destination_leg_semantics.py）：
+fixed 面改为直接跑当前生产代码（不再读 #69-B 时代的冻结 JSON，那反映的是修复前行为）；old/mutate/forced_cleanup
+三面判据范围收窄到本轮实际修复面——牙从 R1 迁到 R5（cleanup 仍未修）+ mutate 注入 R3 + forced_cleanup 注入 R4/R1。
+四组 dest 夹具 direct/detour/fallback-single/mutation 全绿；D 静态哨兵经变异验证有牙（加回相等判据当场红）。
+两处 subprocess GBK 解码 bug（parent text=True 用 locale codec 解 UTF-8 子进程输出 → proc.stdout=None）一并修
+（encoding="utf-8" + PYTHONIOENCODING）。README 测试计数由 _readme_counts.py --fix 更新为 console=39文件/312用例。
+
+验收读数（seed 40907 / greedy / 1200 步，配对回放 docs/取证输出/c1_paired_replay_f654587_fixed.json）：
+第一处分歧 index=852 seq=853 t=95 task_11 —— before 走 is_free_cleanup_branch(has_destination_evidence=false)，
+after 走 DESTINATION_REACHED(dest service leg)，同任务同时刻、只有分类变化。九项 delta：
+DESTINATION_REACHED 26→38(+12)、cleanup completion 12→0(−12)、completed 38→38(0)、timeout_rate/mean_delay/
+energy/swap/action-distance 全部 Δ=0、unfinished 6→6。**聚合 KPI 零变化但 12 条 cleanup 完成转为合法 destination
+完成** —— 这是有效结果，命中 ChatGPT 待验证假设。套件：Gate A 35 例逐点等价 GREEN、source A/B/C/D GREEN、
+Observer 零漂移 8/8（test_h 按基线门控 skip）、C1 fixed GREEN / mutate RED(R3) / forced_cleanup RED(R4,R1)、
+全量 console 三批除 README 计数（已修）外全绿。完成后停止，不进 #69-C2、不改 drone.py。
+
 ### 2026-10-07（第十一笔）：#69-C0 根因取证 —— 找到共同上游根因，按指令停止未打补丁
 
 基线 39165c2。产物 docs/取证输出/c0_cleanup_forensics.json（12 条 cleanup × 20 字段 + 38 次转空闲现场）。

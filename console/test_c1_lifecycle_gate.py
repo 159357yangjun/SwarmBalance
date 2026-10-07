@@ -40,26 +40,16 @@ FIXED_TRACE = OUT_DIR / "c1_face_r2_fixed.json"   # 修复后的生产轨迹（o
 
 
 def _collect(face: str) -> dict:
-    """按 face 取轨迹。fixed 读归档产物；mutate / forced_cleanup 在真实轨迹上注入。
+    """按 face 取轨迹。
 
+    ⚠ #69-C1：``fixed`` 面**直接跑当前生产代码**，不再读归档 JSON。
+      旧写法读 ``c1_face_r2_fixed.json``（#69-B 时代冻结的 R2-only 轨迹）——那反映的是
+      dest 契约修复**之前**的行为，用它当"修复后期望"等于拿旧尺子量新代码（本轮实测踩过：
+      归档里 R1=12，而当前代码 R1=0）。归档产物只作历史留档，判据一律来自 live trace。
     ⚠ 分派必须看**形参** face，不能读模块级 FACE —— 上一版就是这么错的：
     `_collect(FACE)` 传了参数却仍按模块常量走 old 分支，于是 forced_cleanup 面
     与 old 面读数逐字相同，看起来"跑了"其实什么都没注入（＝又一次没有变异的变异测试）。
     """
-    if face == "fixed":
-        if not FIXED_TRACE.is_file():
-            raise unittest.SkipTest("[FIXED_FACE_UNAVAILABLE] 缺 "
-                                    f"{FIXED_TRACE.name}；此面记『未跑』而非通过")
-        raw = json.loads(FIXED_TRACE.read_text(encoding="utf-8"))
-        # 归档产物的形状是 {face, verdict, events}；counter 在 verdict.counter 里。
-        # 不假设它一定叫 total_completed_tasks —— 读不到就明说，不拿 0 兜底。
-        if "total_completed_tasks" not in raw:
-            v = raw.get("verdict") or {}
-            if "counter" not in v:
-                raise AssertionError("[FIXED_TRACE_NO_COUNTER] 归档产物既无 total_completed_tasks"
-                                     " 也无 verdict.counter ⇒ 无法核对聚合可重算性")
-            raw["total_completed_tasks"] = v["counter"]
-        return raw
     if face in ("mutate", "forced_cleanup"):
         raw = _run_production_trace()
         raw["events"] = (_inject(raw["events"]) if face == "mutate"
@@ -67,6 +57,7 @@ def _collect(face: str) -> dict:
         if face == "forced_cleanup":
             raw["total_completed_tasks"] = int(raw["total_completed_tasks"]) + 1
         return raw
+    # old / fixed 都跑当前生产代码；二者区别只在 test_1 的期望（见下）。
     return _run_production_trace()
 
 
@@ -94,7 +85,9 @@ print(json.dumps({"summary": obs_obj.summary(), "events": obs_obj.events,
         f = pathlib.Path(td) / "c1_run.py"
         f.write_text(script, encoding="utf-8")
         proc = subprocess.run([sys.executable, str(f), str(ROOT)],
-                              capture_output=True, text=True, timeout=1800)
+                              capture_output=True, text=True, timeout=1800,
+                              encoding="utf-8", errors="replace",
+                              env={**os.environ, "PYTHONIOENCODING": "utf-8"})
     if proc.returncode != 0:
         raise AssertionError(f"[C1_RUN_FAILED] rc={proc.returncode}\n{proc.stderr[-2000:]}")
     return json.loads(proc.stdout.strip().splitlines()[-1])
@@ -127,7 +120,9 @@ def classify(trace: dict, injected=None) -> dict:
         if ls is None or not (ls < rs):
             r2.append(tid)
 
-    # R1 合法完成证据：计入 completed 必须有 DESTINATION_REACHED
+    # R1 合法完成证据：计入 completed 必须有 DESTINATION_REACHED。
+    #   ⚠ #69-C1 后送达证人 = dest service leg 被消费（origin==destination_branch），
+    #   不再是几何 pos==dest —— 后者在 detour 容差抵达下会把合法送达误判成无证据。
     r1 = [e for e in comp if e["task_id"] not in reached]
 
     # R2 取货前置：TASK_LOADED 时间 < DESTINATION_REACHED
@@ -174,9 +169,11 @@ class C1LifecycleGate(unittest.TestCase):
         cls.res = classify(cls.trace)
         OUT_DIR.mkdir(parents=True, exist_ok=True)
         assert FACE in _VALID_FACES, f"[C1_BAD_FACE] {FACE}"
-        # ⚠ 冻结证据不可被测试覆盖：c1_face_old.json 属于 580c937 基线（BI 裁定）。
-        #    当前工作树的读数一律另存 c1_face_r2_fixed.json。
-        name = ("c1_face_r2_fixed.json" if FACE == "old" else f"c1_face_{FACE}.json")
+        # ⚠ 冻结证据不可被测试覆盖：c1_face_old.json（580c937）与 c1_face_r2_fixed.json
+        #   （#69-B 后、#69-C1 前的 R2-only 轨迹，R1=12/R5=12）都是**历史基线留档**。
+        #   old/fixed 面现在都跑当前工作树代码 ⇒ 一律写到 live 产物 c1_face_live_<face>.json，
+        #   绝不回写上面两个冻结文件。
+        name = f"c1_face_live_{FACE}.json" if FACE in ("old", "fixed") else f"c1_face_{FACE}.json"
         (OUT_DIR / name).write_text(
             json.dumps({"face": FACE, "verdict": cls.res, "events": cls.trace["events"]},
                        ensure_ascii=False, indent=1), encoding="utf-8")
@@ -190,31 +187,34 @@ class C1LifecycleGate(unittest.TestCase):
         self.assertIn("DESTINATION_REACHED", kinds, "[C1_NO_DELIVERY_WITNESS]")
 
     def test_1_rules_are_enforced(self):
-        """五条规则逐条断言。old 面必然在 R1/R4/R5 上红 —— 那才是本门的用途。"""
+        """五条规则逐条断言。判据范围 = 本轮修复范围（#69-C1 只修 dest 契约，cleanup accounting 未动）。"""
         r = self.res
         print(f"[C1 VERDICT face={FACE}] {json.dumps(r, ensure_ascii=False)}")
         if FACE == "fixed":
-            # ⚠ 判据范围必须等于本轮修复范围。#69-B 只修 source pickup 语义，
-            #   cleanup accounting 明确未动（BI 裁定）⇒ 这里只能要求 R2=0，
-            #   要求 R1/R5=0 就是把"未修的缺陷"当成"修复失败"，反之若为了变绿去改 cleanup 就是越界。
+            # #69-C1 后：dest service 契约已修 ⇒ R1（送达证人）应全部到位、聚合可重算；
+            #   但 cleanup accounting 明确未修 ⇒ R5 必须仍 >0（否则就是把未修缺陷当已修，或为变绿偷改 cleanup）。
+            self.assertEqual(r["R1_missing_destination_evidence"], 0,
+                             f"[C1_R1_NOT_FIXED] got={r['R1_missing_destination_evidence']}")
             self.assertEqual(r["R2_pickup_not_before_delivery"], 0,
                              f"[C1_R2_NOT_FIXED] got={r['R2_pickup_not_before_delivery']}")
             self.assertEqual(r["R3_duplicate_completion"], 0, "[C1_R3]")
+            self.assertEqual(r["R4_aggregate_not_recomputable"], 0,
+                             f"[C1_R4] counter={r['counter']} != legal_unique={r['legal_unique']}")
+            self.assertGreater(r["R5_cleanup_counted_as_delivery"], 0,
+                               "[C1_FIXTURE_STALE] fixed 面却测不到 cleanup 无送达证据的 completion"
+                               " ⇒ 要么 cleanup 被越界修了，要么 R5 几何证人失效")
         else:
-            # old / mutate / forced_cleanup 面：**期望红**。
-            # cleanup accounting 本轮明确未修 ⇒ R1 必须 >0；若它为 0，要么缺陷被悄悄修了
-            # （越界），要么门失去侦测力。断言写成 assertGreater 而不是 assertEqual(0)。
-            self.assertGreater(r["R1_missing_destination_evidence"], 0,
+            # old / mutate / forced_cleanup：**期望红**。
+            # ⚠ #69-C1 后 old==当前代码 ⇒ R1 已修（=0），不能再拿它当牙；
+            #   本门对当前唯一未修缺陷（cleanup accounting）的侦测力由 **R5>0** 承担。
+            #   mutate/forced_cleanup 各自再注入 R3/R4 违规（见其专属断言）。
+            self.assertGreater(r["R5_cleanup_counted_as_delivery"], 0,
                                "[C1_NO_TEETH] cleanup 未修却测不到无送达证据的 completion")
             # R3：合法 completion 必须唯一
             self.assertEqual(r["R3_duplicate_completion"], 0, f"[C1_R3] {r['R3_duplicate_completion']} 个任务重复完成")
             # R4：聚合计数器必须能由无截断轨迹里的**合法** completion 重算
             self.assertEqual(r["R4_aggregate_not_recomputable"], 0,
                              f"[C1_R4] counter={r['counter']} != legal_unique={r['legal_unique']}")
-            # R5：cleanup / 无送达不得冒充 delivery
-            self.assertEqual(r["R5_cleanup_counted_as_delivery"], 0,
-                             f"[C1_R5] {r['R5_cleanup_counted_as_delivery']} 条无送达证据却计入 completed"
-                             f"（其中 {r['R5_never_loaded_among_them']} 条从未取货）")
 
     def test_2_pickup_precedes_delivery(self):
         """R2 取货前置：TASK_LOADED 时间必须早于 DESTINATION_REACHED。"""

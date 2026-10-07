@@ -25,15 +25,17 @@ __all__ = ["ConsistencyObserver", "install"]
 
 #: 调用点文本 → record_origin。键是 environment.py 里那两行**语句本身**。
 _ORIGIN_MARKERS = (
-    ("dest_pos_matches_completion", "assignment['task'].get_destination() == dest_pos"),
+    ("dest_service_leg_completion", "assignment = assignments[0]"),
     ("is_free_cleanup", "if not self._prev_free_status.get(i, True) and drone.is_free:"),
 )
 
 
 #: 分支判定的**源码文本锚**。每条 = (标识, 该分支内调用语句上方若干行必须包含的子串)。
 #: 用文本而非行号 ⇒ 生产代码挪行仍成立；若两处都匹配不上则 unknown（可见失败），不猜。
+#: ⚠ #69-C1：destination 分支的旧锚是「get_destination() == dest_pos」这条坐标严格相等守卫，
+#:   契约修复把它删了（送达改由 dest service waypoint 标签触发）⇒ 锚同步改为消费块的注释特征行。
 _BRANCH_ANCHORS = (
-    ("destination_branch", ("get_destination() == dest_pos",)),
+    ("destination_branch", ("服务航点被弹出即视为送达",)),
     ("is_free_cleanup_branch", ("not self._prev_free_status.get(i, True) and drone.is_free",)),
 )
 
@@ -110,7 +112,15 @@ class ConsistencyObserver:
         origin = _classify_origin(list(caller_ctx or []))
         if origin == "unknown_call_site":
             self.unattributed += 1
-        if has_dst_ev:
+        # ⚠ #69-C1：送达证人（DESTINATION_REACHED / R1）从「几何精确相等」改为
+        #   「dest service leg 被消费」（origin==destination_branch）。生产契约修复后
+        #   「末个 waypoint = dest service、弹出即送达」，若观察层仍用 pos==dest(<1e-6) 判定，
+        #   detour 下 A* 容差抵达会让 pos≠dest ⇒ 把合法送达误报成无证据（两套到达定义，正是要消除的）。
+        #   但 has_destination_evidence **保持几何原义**：它是 R5 的唯一证人——
+        #   "走的是 cleanup 分支、无人机却没停在目的地"。不能用 origin 当它的替身，
+        #   否则一旦将来 cleanup 也带真实位置，R5 会把合法投递误判成违规。
+        has_delivery_contract = (origin == "destination_branch")
+        if has_delivery_contract:
             # 送达事实单独成条：它是 C1 R1 的证人，也是 R2 的顺序锚。
             # payload_at_reach / task_weight 是**当时的实际载重与货重**：
             # 用于回答"未取货却送达的任务，无人机是不是仍按空载在飞"——只记事实，不下结论。

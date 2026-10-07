@@ -1,0 +1,88 @@
+{
+ "baseline_before": "f654587",
+ "after": "working-tree #69-C1",
+ "seed": 40907,
+ "steps": 1200,
+ "algorithm": "greedy",
+ "first_divergence": {
+  "index": 852,
+  "before": {
+   "seq": 853,
+   "kind": "TASK_COMPLETION_RECORDED",
+   "sim_time": 95.0,
+   "task_id": "task_11",
+   "drone_index": 8,
+   "record_origin": "is_free_cleanup_branch",
+   "caller_line": "self._record_task_completion(i, assignment)",
+   "has_destination_evidence": false,
+   "has_load_evidence": true,
+   "load_time_raw": 57.0,
+   "assigned_time_raw": 0,
+   "deadline_raw": 296.0,
+   "drone_position": [
+    358182.77,
+    3462796.07
+   ],
+   "d_delay": 0.0,
+   "d_ontime": 1,
+   "d_completed": 1
+  },
+  "after": {
+   "seq": 853,
+   "kind": "DESTINATION_REACHED",
+   "sim_time": 95.0,
+   "task_id": "task_11",
+   "drone_index": 8,
+   "payload_at_reach": 0.0,
+   "task_weight": 5.0,
+   "reach_has_load_evidence": true
+  }
+ },
+ "metrics": {
+  "completed": {
+   "before": 38,
+   "after": 38,
+   "delta": 0
+  },
+  "destination_reached": {
+   "before": 26,
+   "after": 38,
+   "delta": 12
+  },
+  "cleanup_completion": {
+   "before": 12,
+   "after": 0,
+   "delta": -12
+  },
+  "timeout_rate": {
+   "before": 0.052632,
+   "after": 0.052632,
+   "delta": 0.0
+  },
+  "mean_delay": {
+   "before": 2.802632,
+   "after": 2.802632,
+   "delta": 0.0
+  },
+  "unfinished": {
+   "before": 6,
+   "after": 6,
+   "delta": 0
+  },
+  "energy_wh": {
+   "before": 10349.680274,
+   "after": 10349.680274,
+   "delta": 0.0
+  },
+  "swap": {
+   "before": 5,
+   "after": 5,
+   "delta": 0
+  },
+  "action_flight_distance_m": {
+   "before": 133087.467,
+   "after": 133087.467,
+   "delta": 0.0
+  }
+ }
+}
