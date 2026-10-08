@@ -1,0 +1,13 @@
+...
+----------------------------------------------------------------------
+Ran 3 tests in 115.985s
+
+OK
+[P4_VERDICT] ran_ab=40 ran_ba=40 rc_ab=[0, 0, 0, 0, 0, 0, 0, 0] rc_ba=[0, 0, 0, 0, 0, 0, 0, 0] state_diff=0 members=8 cost_ab_s=25.4 cost_ba_s=30.8 exit_criterion=(state_diff==0) and (no member rc!=0 on either side)
+[P4_AGREE] 40 个用例 × 8 成员，两种顺序逐用例状态一致；两侧各 Ran=40/40
+[P4_TEETH_VERDICT] probe_at_head=pass probe_at_tail=fail exit_criterion=(head_state != tail_state)
+[P4_COST] subset_modules=8 est_side_s=28.5 est_gate_s=57.0 excluded_expensive=2 exit_criterion=(est_gate_s<=180) —— 超过就该分层跑而不是删成员
+[P4_COST_REAL] this_run_ab_s=25.4 this_run_ba_s=30.8 test_A_two_sides_s=56.3 whole_gate_wall_s=116.0 est_vs_measured=2.03 overhead_outside_two_sides_s=59.7 exit_criterion=(whole_gate_wall_s<=180)
+[P4_EXCLUDED] console.test_p1_order_independence_gate 单跑≈146.7s（自身已含 fresh-process A/B）⇒ 未入子集，本门**没覆盖**它
+[P4_EXCLUDED] console.test_speed_fallback_gate 单跑≈190.0s（四算法子进程×3 面(由 10 模块合跑 359.62s 反推)）⇒ 未入子集，本门**没覆盖**它
+EXIT=0
