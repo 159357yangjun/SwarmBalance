@@ -2,6 +2,27 @@
 
 ## [Unreleased]
 
+### 2026-10-08（第三十六笔）：#70 阶段⑤ —— E1 载重惩罚归属的两种口径**并列入档**（不动实现）+ 隐身门普查（因果落到一手证据）
+
+基线 79ce795。主控裁定 (一) 只入档口径、不改代码；(二) 先查清"为什么一直没被跑到"再谈修复，**不许直接修**。生产零改动；未 push、未打 tag、paper/ 未碰、`drone.py` 三段未动。
+
+**阶段⑤ 三件（`docs/P70_E1_load_penalty_attribution_two_readings.md`）**：
+① **两种口径并列写、不选一藏另一**。最硬的一条事实是本仓**现在同时**在跑这两种相反口径：同一个"派单后飞往 source 的空驶段"，能耗侧算成载货（吃惩罚），里程/KPI 侧算成空载。⇒ 这不是待选方案，是已共存于生产代码的不一致。
+② **哪一行按哪种口径在跑（真实行号 + 原文）**：口径甲 = `frontend/drone.py:170 load_factor = (self.current_load / self.carrying_capacity) * …`（写入时机 `:247-249 add_load()`，卸货 `:244`/`:343`）；口径乙 = `frontend/environment.py:1741-1758 _is_carrying()`，其 docstring `:1742-1749` 亲口承认"环境在派单时刻就调用 add_load ⇒ 直接用 `current_load>0` 会把空驶算成载货、空载率被低估到接近 0"，唯一消费点 `:1168`。量级引自 `docs/C3_state_field_audit.md §3.3`：飞往取货段 109497.5 m / 7847.1 Wh **占加载能耗 48.7%**。
+⚠ **关键不对称**：口径乙有两把常驻门（`test_c4_is_carrying_discriminator` + `test_c4_cargo_truth_scan_gate`，本轮复跑 `Ran 9 tests OK`），口径甲**一把都没有** —— 扫描门的措辞是"禁止**新代码**拿 current_load 当载货真值"，`drone.py:170` 正是它豁免的历史用法。⇒ 本仓已正式认定那种判法是错的，但同一判法仍在能耗公式里每天跑且无人守。
+③ **对外红线新增一条**：口径未定前不得对外声称任何 `Wh/km` 绝对值（分子含 48.7% 归属未定的惩罚、分母用另一种口径划分 ⇒ 商无定义）。与 `#65_parameter_provenance.md:78`「机型不同不可背书绝对 Wh/km」**并列而非重复**：那条是外部数据无背书力，本条是内部两口径自相矛盾 ⇒ 任一条都足以否掉对外声称。
+为何停在入档是对的（非回避）：E1 主锚点 CMU KiltHub 下载页 403、文件未取到属未验 ⇒ 现在改归属等于用一个同样无源的假设替换现有假设，且会改变行为面（消耗↓换电↓完成率可能↑），属"为让数好看改语义"那一类。顺序应是先取数据 → 再定口径 → 才谈改哪一行。
+
+**裁定 (二) 的因果（`docs/P70_invisible_gate_census.md`）——三个候选原因里只有第二个成立**：
+✗ 假设① discover 模式抓不到：**被实测驳回** —— `discover -s frontend -p "test_*.py"` ⇒ `Ran 19 tests in 29.547s / FAILED (failures=1)`，命名与 pattern 都没问题。
+✓ 假设② **目录布局是根因**，四手证据：(i) `_readme_counts.py:33-36 TARGETS` 只列 console/experiments ⇒ README 那句"51 文件/367 用例"**按构造装不下 frontend**；(ii) README 唯一全量命令是 `:252 discover -s console`；(iii) 决定性实测 `discover('console', top_level_dir='.')` total=367、含 wind 用例 **0**；(iv) **仓库根也救不了** —— `discover('.', top_level_dir='.')` total=402 仍抓到 0 条，因为 **`frontend/` 没有 `__init__.py`**（console/experiments 都有）⇒ 根 discover 不把该目录当可导入包整目录跳过；两种 top_level_dir 各试一次结论相同。
+✗ 假设③ 历史上跑过后来删了：`grep -rn "discover -s frontend"` 全仓命中 2 处均为我本轮所写文档 ⇒ 从未有任何脚本/文档/CI 以 frontend 为起点跑过测试。
+**同类隐身规模**：全仓 `test_*.py` 分布 = console 51 / experiments 3 / **frontend 2 / 根 1** ⇒ **3 文件 22 例在分母之外，其中当前 1 例红**；另两个文件虽绿但同样"没人跑所以绿不说明任何事"。
+**[G]/[P]/[D] 定性答**：既不是 [P]（代码还在能跑）、也不是 [D]（有真断言真基线真能红）、也不该记 [G]（[G] 要求"进 discover"而它进不去）⇒ 准确定性 = **具备 [G] 的实现、处于 [G] 之外的接线，即从未接入门禁计数**；`grep -n "wind" docs/C5_收口与结项.md` **无输出**，门禁总表连一行都没有。
+⚠ 连带一条更要紧的：`docs/模型真实结构修订.md:20` 写着「zero-wind 逐 run == E0 **已验证**」，引用出处正是这条现在红的门 ⇒ 这是 **[D] 级对外结论站在一条无人跑的 [G]-shaped 门上、且该门当前为假**，须挂 pending revalidation。
+处置顺序（等裁，本轮一律不动）：不先修那条红（可能是 D-iv 的正确后果也可能是真缺陷，未做受控消融分不清）→ 先做**接线**（三条路：加 `__init__.py` / `_readme_counts.TARGETS` 加一项 / README 增第二条显式命令并让某常驻门去跑它；接线不改判据不改生产语义）→ 再做 `3c54c37^` vs HEAD 的受控消融定性质 → 顺手处理同批隐身的另外 3 例。
+
+
 ### 2026-10-08（第三十五笔）：P4 落地后第一次真咬咬到自己（墙钟判据被驳回）+ 四扇门盲区入档 + E1 范围核查发现一条长期无人跑的具名红
 
 基线 ad47e44。生产代码零改动；硬边界照旧（未 push、未打 tag、paper/ 未碰、`drone.py` 三段未动）。
