@@ -41,6 +41,10 @@ def _suffix_rule_k(prev, curr) -> int:
 class RealPopEventFixtures(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
+        # #70-P1 判据③（普查门改版后实测抓到本模块）：原先这里 setenv + 改 sys.path 却不还原，
+        # 于是 console/test_speed_fallback_gate 之类"取内核时才装配置"的门会读到别人那份 config。
+        cls._prev_cfg = os.environ.get("SWARM_BALANCE_SIM_CONFIG")
+        cls._prev_path = list(sys.path)
         os.environ["SWARM_BALANCE_SIM_CONFIG"] = str((ROOT / "config" / "simulation.json").resolve())
         for p in (str(ROOT), str(ROOT / "frontend")):
             if p not in sys.path:
@@ -54,6 +58,14 @@ class RealPopEventFixtures(unittest.TestCase):
         cls.Environment = _preflight.load_kernel_environment()[0].Environment
         cls.Drone = Drone
         cls.STEP_DIST = float(DRONE_SPEED) * float(DRONE_TIME_STEP)   # 一步最大位移（当前 17.0）
+
+    @classmethod
+    def tearDownClass(cls):
+        if cls._prev_cfg is None:
+            os.environ.pop("SWARM_BALANCE_SIM_CONFIG", None)
+        else:
+            os.environ["SWARM_BALANCE_SIM_CONFIG"] = cls._prev_cfg
+        sys.path[:] = cls._prev_path
 
     def _mk(self, x, y, route):
         d = self.Drone(x=x, y=y, drone_id="t")

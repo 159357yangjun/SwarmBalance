@@ -163,9 +163,12 @@ def _install_gate_config():
     return _load_config_for_gate()
 
 
-_INSTALLED = _install_gate_config()
-
-
+# ⚠ #70-P1 普查门改版后实测抓到这一行：`_install_gate_config()` 在**模块顶层**跑，
+#    而 Python import 一个模块失败时仍会把它的部分执行留在 sys.modules 里 ⇒
+#    于是"本门根本没跑（OSM 缺失被 skip）"也照样把 SWARM_BALANCE_SIM_CONFIG 改走了。
+#    定稿形状是 `_pf_kernel()`：装配置 → 按路径 exec 内核 → 当场核对该内核的常量指纹，
+#    三步绑成一个动作、且只在真要取内核时做 ⇒ 顶层那次安装从来不是判据的一部分，删掉它
+#    不改变任何判定（G2 走子进程、G1 与探针都各自重装）。
 def _pf_kernel():
     """装好本门配置 → 按**文件路径**加载内核 → 当场核对配置指纹（三步绑成一个动作）。
 

@@ -2,6 +2,35 @@
 
 ## [Unreleased]
 
+### 2026-10-08（第三十二笔）：#70-P1 裁定 (i) 落地 —— P3 普查集改为按谓词从盘上现算，谓词两面各配证人；另交阶段② g2teeth 纸面标定方案
+
+基线 b25634c。主控批 (i) 不批 (ii)，并补两条要求：① 该门要先红后绿归档；② **谓词本身要两面**——写了但不还原才违规，正确还原的不得被拉进名单当违规。硬边界照旧：未 push、未打 tag、paper/ 未碰、生产代码零改动。
+
+**(i) 实现**：`console/test_p3_no_cross_test_residue.py` 的 `CLEAN_MODULES` 从手写 5 个具名模块改为 `census_modules()` 按谓词现算 ⇒ 基线 **covered=10 / matching=10**（原手写名单漏了 5 个写入者）。判据写成 `(matching - covered)==0`，两个数都来自本轮扫描并排印出对账（`[P3_COVERAGE] modules_covered=10 modules_matching_predicate=10`）。新增 test_C（覆盖率恒等式）、test_D（豁免表理由+失效，基线空表）、test_E（谓词两面）、test_F（自我观测）。
+
+**范围与判据分开（这是要求②想通的那一点）**：源码谓词只决定**观测范围**（写了全局态就入册，不看有没有 tearDown —— 用 has_restore 去豁免等于给"加一个空 tearDownClass"留逃生口）；**是否违规**由运行时 diff 决定（正确还原者 env_changed=False / path_added=[]，在 test_A 自然不报红）。test_E 三面断言钉住这个划分。
+
+**谓词四次自纠（每一次都是一手实测，不是推演）**：
+1. 朴素谓词命中 **37** 个模块 ⇒ 绝大多数只是把仓库永久目录挂上 sys.path 的 import 引导，属误伤；
+2. 排除 raw-string 子进程脚本正文（c1_lifecycle_gate:48 / h3_lifecycle_gates:48 / observer_zero_drift:41 里的 setenv 都在新进程里执行）⇒ 降到 27；
+3. 改成"文件级看有没有 tempfile 字样"又误伤 7 个（compare_csv_census / portable_runtime / stale_bytecode… 只是别处用了临时文件）⇒ 一度涨回 17；
+4. 定稿为**极窄数据流**：只认"`X = tempfile.mkdtemp()` 之类赋值出的名字，且 insert 参数里出现它"⇒ 回到 **10**，且注入样本 `_zzd = mkdtemp(); sys.path.insert(0, _zzd)`（insert 行里没有 tempfile 字样）照样被抓到。宁可漏不误伤：漏的那类由 test_A 运行时 diff 兜住。
+
+**先红后绿归档（要求①）**：临时造 `console/test_zz_redface_tmp.py`（插临时目录、无还原），跑完即删。读数 `[A] predicate_hit_new_module=True covered=11` / `[B] gap_if_list_handwritten=['test_zz_redface_tmp'] -> P3_COVERAGE_GAP red`（模拟"有人把名单写死回去"）/ `[C] runtime path_added=True` ⇒ **结构面与运行时面都抓到注入**；还原后复绿。
+
+**顺带修掉两处本门自身的缺陷**：
+· 自我嵌套：本门也在普查集里，子进程内再"真跑完自己"会起第二层全量普查 ⇒ 实测堆到 **18 个 python.exe** 仍不收敛、只能外部终止（我已把我起的这些进程清干净，未动别的会话的）。修法=子进程固定跳过自身那一支 + 显式证人 `SELF_EXCLUDED=yes`；丢掉的覆盖面由 **test_F** 用另一条通道补回（父进程加载并跑完本模块的**有界**用例集，再 diff env/sys.path ⇒ `[P3_SELF_VERDICT] env_left=0 path_added=0 tests_run_in_self=2`，0.25 s）。
+· `_CHILD` 里曾写 `SELF = SELF_NAME` ⇒ 子进程拿不到主模块的全局名，直接 NameError 让整条门跑不起来（已改字面量并写明原因）。
+· 我自己的红面驱动脚本第一次也因中文 print 在 GBK 下 UnicodeEncodeError 中断 ⇒ 改纯 ASCII 重跑（这条形状上一笔刚记过，这次是我自己踩）。
+
+**两处真实残留顺手补齐**（普查改版后立即暴露）：`test_h3_real_pop_events` 的 setUpClass 补记账+tearDownClass；`test_speed_fallback_gate` 删掉模块顶层那次 `_install_gate_config()`（它在"本门因缺 OSM 被 skip"时仍会把环境变量改走，且 `_pf_kernel()` 每次都会重装 ⇒ 顶层那次从来不是判据的一部分）。
+
+读数汇总：`Ran 7 tests OK`（P3 全套，367 s）；回归 `test_h3_real_pop_events + test_speed_fallback_gate + test_p2_*` `Ran 15 tests OK (skipped=1)`，G1/G2 正常、`[P2_VERDICT] violations=0`；citation exit=0（problems=0）；README 计数由工具核对一致（console 49 文件/**356** 用例，比上一笔 +4 = 本笔新增 test_C/D/E/F）。
+
+**(ii) 登记为挂账（本轮不实现）**：触发条件采纳主控建议并收紧为三条 —— ① (i) 的红发生一次以上（即普查门抓到过新的跨测试全局态写入点）；② 开始阶段② g2teeth 重标定**之前**；③ 任一时刻出现"聚合红但单跑绿"的新案例（那是顺序相关的最直接症状）。判据草案（字母序 vs 逆序跑有界子集、逐用例比对状态集合与关键读数、两侧各印 Ran N）留在 docs/P70_which_gate_is_the_resident_one.md §3(ii)。
+
+**阶段② 纸面方案已交**：docs/P70_g2teeth_calibration_plan.md —— 命题拆两层（L1 机制层用合成场景 K1–K6 做常驻门、L2 真实工况读数只作信息不进退码），阈值 15 的来源如实写为"历史常数、仓内无推导依据"且**本次不动它**，冻结三元组（阈值来源+夹具集合+生产文件哈希版本），并列明四种允许重开 calibration 的情形与三种不允许的理由。**等批才改码。**
+
 ### 2026-10-08（第三十一笔）：#70-P1 定性更正 —— 第 6 条的常驻门是 P2+P3，P1 不在其职责上；明写还欠两条（只给判据，不动手）
 
 基线 f75f423。主控指出我把两问答成了一问：他补的是"门没跑起来时报红还是静默"，上位裁定第 6 条要的是**一条常驻 order-independence 回归门（后人重新引入全局污染时会红）**。我上一轮那句"三扇门都报非零退码"容易被读成"六条判据齐了"⇒ **就地收回一半：三门 ≠ 第 6 条已满足**。
