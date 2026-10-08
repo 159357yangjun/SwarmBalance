@@ -2,6 +2,16 @@
 
 ## [Unreleased]
 
+### 2026-10-08（第十九笔）：#65 四算法重跑轮 —— delta 表 + 旧数字作废清单 + opt-in observer
+
+基线 f2bcdf5。锁 seeds 101–105 / [greedy,ga,pso,ortools] / fleet light5-std3-heavy2 / episode 3600，走生产入口 experiments.worker.run_one。改动面 = experiments/worker.py（新增**默认关**的 --with-observer，产 lifecycle 两读数；runner 不传⇒现有链路与 latest 逐字不变，smoke 证 metrics 零漂移）+ docs/#65_rerun_delta.md + docs/取证输出/rerun65_cells.json。临时驱动同轮删。
+
+结果：completion 四算法恒 1.0。delta(old=one_click_latest→new)：greedy timeout Δ0、delay +0.085(latest/raw 口径差非本轮)、energy −620；ga/pso/ortools timeout −0.010~−0.013、delay −0.6~−0.9。**确定性已验**：greedy 五 seed new==old-raw 逐位相同 ⇒ delta 非噪声；差异只在批量优化器真正介入的 s101/102/104。**排名翻转**：按超时率/时延第 3–4 名 pso↔ortools 互换（greedy 最优、ga 次之不变），但 n=5 符号检验不可判 ⇒ 论文不得据此断言 ortools>pso。
+
+作废清单三分类：A 直接作废=无；B 旧证据失效待重跑=latest 全部指标（生成于 C1 前代码），尤其 ga/pso/ortools 超时率/时延随 C1 变；C 不受影响但统一刷新=完成率恒1.0/里程量/figures 重绘。撤回我先前"旧 latest 不可复算"一句——greedy 超时率 latest 0.053333==其 raw 均值，可复算，仅 delay 有批次口径差。
+
+⚠ **意外发现 R7（具名交回，未修）**：cleanup_completion_without_service 在生产 seed 上=1（greedy-s102、ga/pso/ortools-s101），一手复现 task_44 t=1415装载/t=1666经 is_free_cleanup 计完成/无 DESTINATION_REACHED ⇒ 计入 completed 却从未妥投。pre-C1(f654587 worktree)同 seed=14/27，post-C1=1 ⇒ C1 消掉绝大多数但残留一条另一路径。**更正 #69-C2a/F 说法**："cleanup 不可达/R5=0"只对 seed 40907 成立、系过度外推；结项报告"latent defect 仅注入面"应改为"有真实正例(seed101/102)+注入面"。是否开 #69-H/R7 修复轮交主控定。停在重跑汇报，未 publish、未 push。
+
 ### 2026-10-07（第十八笔）：#69-G 结项 —— 待裁①落地（old 面降为审计快照）+ 结项报告
 
 基线 8a76462。改动面 = console/test_c1_lifecycle_gate.py（test_1 增 elif FACE=="old"→skip）+ docs/#69_结项报告.md；production 零 diff。

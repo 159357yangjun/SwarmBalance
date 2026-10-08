@@ -34,7 +34,8 @@ def _build_scheduler(policy: str, env, seed: int):
     raise ValueError(f"未知算法: {policy}")
 
 
-def run_one(config_path: Path, algorithm: str, seed: int, episode_steps: int, osm_path: Path):
+def run_one(config_path: Path, algorithm: str, seed: int, episode_steps: int, osm_path: Path,
+            with_observer: bool = False):
     # 必须在导入 environment / drone / task 之前设置。
     os.environ["SWARM_BALANCE_SIM_CONFIG"] = str(config_path.resolve())
     for p in (str(PROJECT_ROOT), str(FRONTEND_ROOT)):
@@ -48,12 +49,18 @@ def run_one(config_path: Path, algorithm: str, seed: int, episode_steps: int, os
     obs = env.reset(seed=int(seed))
     scheduler = _build_scheduler(algorithm, env, int(seed))
 
-    if algorithm == "greedy":
-        from greedy.scheduler import greedy_action_from_observation
+    # #65 重跑轮：opt-in 旁路观察者，只额外产出两个生命周期读数，不改 metrics/latest/论文主表。
+    # co.install 已被 #68-B 证明对生产行为零漂移；默认 with_observer=False ⇒ 现有链路逐字不变。
+    observer = None
+    if with_observer:
+        import consistency_observer as co
+        observer = co.ConsistencyObserver()
+        co.install(env, observer)
 
     done = False
     while not done:
         if algorithm == "greedy":
+            from greedy.scheduler import greedy_action_from_observation
             action = greedy_action_from_observation(obs)
         else:
             action = scheduler.step(obs, current_time=env.current_time)
@@ -69,6 +76,25 @@ def run_one(config_path: Path, algorithm: str, seed: int, episode_steps: int, os
         "metrics": to_output_metrics(stats),
         "scheduler_stats": scheduler.get_stats() if scheduler is not None and hasattr(scheduler, "get_stats") else {},
     }
+    if observer is not None:
+        s = observer.summary()
+        comp = [e for e in observer.events if e["kind"] == "TASK_COMPLETION_RECORDED"]
+        reached = {e["task_id"] for e in observer.events if e["kind"] == "DESTINATION_REACHED"}
+        legal_unique = len({e["task_id"] for e in comp if e["task_id"] in reached})
+        # r5：dest-branch 合法送达中坐标非精确抵达数；cleanup_without_service：走兜底却无送达证人（latent 缺陷牙）
+        r5 = sum(1 for e in comp if not e["has_destination_evidence"])
+        cleanup_no_svc = sum(1 for e in comp
+                             if e.get("record_origin") == "is_free_cleanup_branch"
+                             and e["task_id"] not in reached)
+        result["lifecycle"] = {
+            "r5_nonexact_arrival_count": r5,
+            "cleanup_completion_without_service": cleanup_no_svc,
+            "completions_recorded": len(comp),
+            "destination_reached": len(reached),
+            "counter": int(env.total_completed_tasks),
+            "legal_unique": legal_unique,
+            "unattributed_completions": s.get("unattributed_completions"),
+        }
     return result
 
 
@@ -80,13 +106,17 @@ def main() -> int:
     parser.add_argument("--episode-steps", required=True, type=int)
     parser.add_argument("--osm", required=True)
     parser.add_argument("--output", required=True)
+    parser.add_argument("--with-observer", action="store_true",
+                        help="#65 重跑轮：额外产出 lifecycle 读数（r5_nonexact_arrival_count / "
+                             "cleanup_completion_without_service）；默认关，不影响现有链路与论文主表。")
     args = parser.parse_args()
 
     out = Path(args.output)
     out.parent.mkdir(parents=True, exist_ok=True)
     started = time.perf_counter()
     try:
-        result = run_one(Path(args.config), args.algorithm, args.seed, args.episode_steps, Path(args.osm))
+        result = run_one(Path(args.config), args.algorithm, args.seed, args.episode_steps, Path(args.osm),
+                         with_observer=args.with_observer)
     except Exception as exc:  # worker 失败要落盘，主编排器继续跑其他组合
         result = {
             "ok": False,
