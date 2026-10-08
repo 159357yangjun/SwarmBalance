@@ -1,0 +1,107 @@
+diff --git a/frontend/environment.py b/frontend/environment.py
+index 95dcd22..402b874 100644
+--- a/frontend/environment.py
++++ b/frontend/environment.py
+@@ -290,6 +290,8 @@ class Environment:
+         self.total_energy_consumed = 0.0  # 总耗电量 (Wh)
+         self.total_charging_energy = 0.0  # 总充电量 (Wh)
+         self.total_charging_sessions = 0  # 总充电次数
++        # #69-H2：curr 第二证人——k>0 但 curr != prev[k:] 的步数（信息读数，不进退码、不参与判优）
++        self.total_inconsistent_pops = 0
+         self.total_flight_distance = 0.0  # 总飞行距离（米）
+         # 载运效率指标：空载里程 / 载货里程 / 机队忙步数（利用率与空载率的分母与分子）
+         self.total_empty_distance = 0.0   # 空载（无货）飞行里程
+@@ -420,32 +422,40 @@ class Environment:
+         print(f"{'='*70}")
+     
+     @staticmethod
+-    def _consumed_prefix_len(prev, curr) -> int:
+-        """返回本步从队首被弹出消费的航点数 k（0 = 没有"弹出式前进"）。
+-
+-        #69-H R7：旧送达检测用 len(prev)>len(curr)，在同一步"弹掉 dest 服务点 + 追加换电/仓库点"
+-        时净长度不变 ⇒ 漏检（seed 102 task_44，实测此类转移 10 次）。分两种情形正确计数：
+-          (a) 纯后缀（正常前进）：curr == prev[k:] 的最小 k≥1 —— 就是被弹出的前 k 个；
+-          (b) 弹出+追加（换电改道同帧）：curr 不是任何后缀。此时只认【队首连续的服务航点】为已消费，
+-              且该服务点的坐标不得仍出现在 curr 里（防止把"其实还在飞"的点误判成送达）。遇到第一个
+-              非服务点、或仍在 curr 中出现的点即停。
+-        整体 re-route（队首是非服务点或被整段替换）→ (a) 不成立、(b) 队首非服务 → k=0，不入送达账。
++    def _consumed_prefix_len(prev, curr, sx, sy, ex, ey):
++        """返回 (k, inconsistent_pop)：本步从队首被"途经消费"的航点数 + curr 一致性旗子。
++
++        #69-H2（行进线段谓词，主控批准设计）：主证人＝几何"该航点落在本步位移线段 [S,E] 上"，
++        不是 curr 的形状、也不是只看队首一点。这样同时覆盖三类残余——
++          · task_44 / t79 同帧追加：dest 在 S→E 路径上（终点即它）⇒ 计入；
++          · seed102 九例 mid-flight re-route：dest 离侧向改道的 [S,E] 垂距 >> 容差 ⇒ 不计（修假阳性）；
++          · t521 一步弹多点(waypoint 头)：waypoint 与 dest 都在这条直线推进的 [S,E] 上 ⇒ 连续计入（修纯几何漏计）。
++        单步运动模型已核实为直线（drone.py:355-360），故用线段而非真实轨迹。
++        TOL 严格 < 1.0，逐字对齐 route_planner.py:160 `euclidean(current, goal) < 1`（同一"到达"定义）。
++
++        curr 降为【第二证人】：k>0 但 curr != prev[k:]（既非正常后缀弹出）时置 inconsistent_pop=True，
++        只作信息读数进报告行，**不否决 k**（真发生时处置要看现场，不在此猜）。
+         """
++        TOL = 1.0   # 与 planner <1m 同一把尺子；严格小于
++
++        def _passed(p) -> bool:
++            px, py = float(p[0]), float(p[1])
++            vx, vy = ex - sx, ey - sy
++            wx, wy = px - sx, py - sy
++            seg2 = vx * vx + vy * vy
++            if seg2 <= 1e-12:                       # 本步几乎没动：只有与该点重合才算经过
++                return math.hypot(wx, wy) < TOL
++            t = (wx * vx + wy * vy) / seg2
++            tc = min(1.0, max(0.0, t))              # 垂足夹到线段内
++            dx, dy = wx - tc * vx, wy - tc * vy
++            return math.hypot(dx, dy) < TOL and t >= 0.0   # 且在该点之前（不越过终点方向）
++
+         n = len(prev)
+-        if n == 0:
+-            return 0
+-        # (a) 正常：curr 是 prev 去掉前 k 个的后缀
+-        for k in range(1, n + 1):
+-            if list(prev[k:]) == list(curr):
+-                return k
+-        # (b) 弹出+追加：数队首连续的、且已从 curr 消失的服务航点
+-        curr_coords = {(round(float(p[0]), 6), round(float(p[1]), 6)) for p in curr}
+         k = 0
+-        while k < n and len(prev[k]) >= 3 and prev[k][2] in ('source', 'dest'):
+-            if (round(float(prev[k][0]), 6), round(float(prev[k][1]), 6)) in curr_coords:
+-                break
++        while k < n and _passed(prev[k]):
+             k += 1
+-        return k
++        inconsistent = (k > 0 and list(curr) != list(prev[k:]))
++        return k, inconsistent
+ 
+     def _record_task_completion(self, drone_idx, assignment):
+         """记录单个任务完成的统计数据"""
+@@ -1214,13 +1224,15 @@ class Environment:
+             prev = prev_scheduled[i]
+             curr = drone.scheduled_position
+ 
+-            # 航点弹出检测（#69-H R7：从"长度差"改为"前缀比对"）
+-            # 旧判据 len(prev)>len(curr) 在"同一 step 内弹掉 dest 服务航点 + 又追加换电/仓库点"时
+-            # 净长度不变 ⇒ 漏检送达 ⇒ assignment 残留被 is_free_cleanup 兜底计成完成（从未妥投）。
+-            # 新判据：只有当 curr 是 prev 去掉前 k(k>=1) 个元素后的【后缀】时，才认定 prev[:k] 这批
+-            # 航点在本步被逐个弹出消费；若 curr 不是 prev 的任何后缀 ⇒ 判为整体 re-route（非弹出式
+-            # 替换），不计入取货/送达账。这样既补上同步步的漏检，又不误伤"改道换航线"。
+-            popped_count = self._consumed_prefix_len(prev, curr)
++            # 航点弹出检测（#69-H2：行进线段谓词，主证人＝"该航点落在本步位移线段 [S,E] 上"）
++            # 覆盖三类残余：task_44/t79 同帧追加、seed102 九例 mid-flight re-route 侧向假阳性、
++            # t521 一步弹多点(waypoint 头)。TOL 严格 <1.0 对齐 route_planner:160。
++            # curr 降为第二证人：k>0 但 curr != prev[k:] 记 inconsistent_pop（信息读数，不否决 k）。
++            sx, sy = prev_positions[i]
++            popped_count, inconsistent_pop = self._consumed_prefix_len(
++                prev, curr, sx, sy, drone.x, drone.y)
++            if inconsistent_pop:
++                self.total_inconsistent_pops += 1
+             for popped in prev[:popped_count]:
+                 if len(popped) >= 3 and popped[2] == 'source':
+                     source_pos = (popped[0], popped[1])
+@@ -1468,6 +1480,7 @@ class Environment:
+         self.total_loaded_distance = 0.0
+         self.total_no_fly_detours = 0
+         self.total_chain_insertions = 0
++        self.total_inconsistent_pops = 0   # #69-H2：同属逐回合累计量，reset 必须归零否则跨轮叠加
+ 
+         # 重置机巢泊位竞争状态与周转指标（创新点2）
+         self._nest_waiting = {s.station_id: [] for s in self.charging_stations}

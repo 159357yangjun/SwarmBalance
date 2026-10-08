@@ -58,3 +58,30 @@ per-seed 对账 new(f2bcdf5) vs old-raw(conclusion_20261001)：**greedy 五 seed
 - pre-C1 对照（worktree @ f654587，同 seed）：该读数 = 14(s101)/27(s102)；post-C1 = 1/1 ⇒ **C1 把绝大多数 cleanup-冒充-delivery 消掉了，但残留 1 条/seed 走的是另一条路径**（不是 dest-leg 装配缺失那条已被修的根因）。
 - ⚠ 更正我在 #69-C2a/F 的说法："cleanup 分支在生产 seed 不可达、R5=0"只对 seed 40907 成立，**过度外推**；结项报告里"latent defect 有牙（仅注入面）"应改为"有真实正例（seed 101/102）+ 注入面"。
 - 这是新的具名缺陷候选（记为 R7），不在本轮修复范围（本轮只重跑+出表）。交主控定是否开 #69-H/R7 轮。
+
+## 7. D-iv 改变行为面的具名读数（2026-10-08，随 #69-H3 入档）
+
+**"修复改变行为面"条目 —— 论文不得拿旧 buffer 峰值当 PSO 特性证据。**
+
+g2teeth 门工况（seed=40901 / tasks=240 / fleet_mix={light:3,std:2,heavy:1}=6机 / 阈值15 全程未动），
+HEAD(后缀规则) vs D-iv(执行器真 pop) 一手对照：
+
+| 读数 | HEAD 后缀规则 | D-iv 真 pop | Δ |
+|---|---|---|---|
+| pending_buffer **峰值** | **15** | **10** | −5 |
+| flush_size（size 触发口开几次） | **1** | **0** | −1 |
+| flush_emergency | 1621 | 1453 | −168 |
+| flush_timeout | 461 | 456 | −5 |
+| optimize_calls（有分母证人） | 2083 | 1909 | −174 |
+| has_denominator | True | True | 不变 |
+
+复算命令：`python console/phase0_speed_gate_teeth_probe.py gate`（分别在 HEAD 树与 D-iv 树各跑一次）。
+
+**因果（已证）**：旧后缀规则那 9 例 mid-flight re-route 提前计 completion ⇒ 无人机更早回待分配池 ⇒
+pending_buffer 被虚增到刚好触到 size 阈值(15)、size 触发口开了 1 次。D-iv 按裁定根除提前 completion ⇒
+积压真实降到 10、size 触发口一次没开、批量优化全靠 emergency+timeout。⇒ **旧的 buffer_peak=15 / flush_size=1
+是在替 R7 那个 bug 记账，不是 PSO 的真实吞吐特性**。任何引用"PSO 在 6 机工况下靠 size 触发攒批"的说法作废。
+
+⚠ 由此得出具名结论：**g2teeth 的牙（原挂 flush_size≥1 / peak≥15）无法在不失牙的前提下迁到 D-iv 树**——
+D-iv 上 flush_size=0，改判 `flush_size>0`＝永红夹具；改判 `optimize_calls>0`＝无牙（mutate 面=6≠0）。
+该门整体是在旧缺陷负载下标定的。停此交主控定夺（见 #69-H_terminal.md 挂账 + H3 终态汇报），未自行放宽或删牙。

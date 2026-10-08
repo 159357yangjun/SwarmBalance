@@ -44,5 +44,22 @@
 
 **结项判定不受影响**：#69 主链十笔仍成立；H-R1/H-R2 是 R7 修复的精度残余，非新缺陷类别。论文若引 seed102 greedy 的 delay/timeout 具体值，须待 H2 定标后刷新，或按"±1 步计时不确定"标注。
 
+## 裁定更新（2026-10-08，D-iv）—— 覆盖上表处置栏与 faceoff §"保留"措辞
+主控/ChatGPT 裁定 **不选 D-i/D-ii/D-iii**，改走第四方向 **D-iv**：
+> **上位原则（冻结）**：到达不是几何观察值，而是执行器完成某服务航点的离散事件；几何只决定航点能否被执行器接受，业务只消费执行事件。
+
+据此对本表的效力修订：
+- **9b1cd15（suffix+service-prefix heuristic）降为历史中间对照，不作最终 lifecycle-correct baseline**。faceoff §当前状态里"已提交的 9b1cd15 规则**保留**"那句作废——它只是通往 D-iv 真实事件机制途中的启发式快照，其"curr 形状即弹出"的推断仍属被禁止的反推族。
+- **#69-H2 行进线段谓词（本表 H-R2 拟修方案）已被否决并丢弃**：工作树那 71 行未提交改动回退至 HEAD `483fc6c`；原 diff 存档于 docs/取证输出/h2_segment_predicate_discarded.diff（防丢，非采用）。停报见 docs/#69-H2_stop_report.md。
+- **H-R1 的 9 例 mid-flight re-route 假阳性由 D-iv 真实 pop 事件机制消除**（T5 夹具直接杀），不再依赖任何几何/形状推断。
+- #69-H3 交付判据、六硬夹具 T1–T6、五门 G-H3-A..E 见下轮正文；(b) 参照数 avg_delay=2.802632 经溯源门 test_h_b_baseline_provenance.py 钉死，**不得 re-freeze 到 2.776316**。
+
+## H3 复跑收口状态（2026-10-08）—— citation 已闭 / g2teeth 停裁 / 并发假象登记不修
+全量 console suite（post-remap，330 tests）4 处红逐条定性：
+- **citation 三门随 remap 收口 ✅**：`_citations.py --verify` 曾报 `[REWRITE_MAP_STALE]`（提交改写映射表落后 git，HEAD 上即存在、非 D-iv 引入）。执行 `--rewrite-report --write` 重生成表（旧指针18/悬空32/问题0）后 verify exit=0，`test_coverage_is_printed` standalone OK。environment.py 行号漂移的 12+1 条 path:line 已 remap，citation 门 0 breaks。
+- **并发假象 ×2 登记为已知干扰、不修**：`test_g2_all_four_algorithms_get_real_fleet_speed`、`test_rewrite_map.test_batch_read_matches_per_object_read` 在聚合 discover 里红、standalone 均绿 ⇒ 是 OSM-booting 慢测并发/资源干扰所致，与被测语义无关，遵"偶发红写带分母、不当缺陷"处理，只登记不动代码。
+- **g2teeth 停在待裁 ⛔**：一手证据见 docs/#65_rerun_delta.md §7 —— D-iv 树 gate 工况 flush_size=**0**、buffer_peak=**10**（HEAD 是 1/15）。size 触发口在修正计时后从未打开 ⇒ "重定为结构事实 flush_size>0"＝永红夹具、"optimize_calls>0"＝无牙(mutate=6≠0)。按主控裁定①"若重定后 D-iv 树仍红，停下交具名证据"停此，未删牙未降阈。论文侧：旧 buffer_peak=15/flush_size=1 作废，不得当 PSO 特性证据（裁定②）。
+- **自纠入档**：上一轮我误把 unittest 缓冲的进度点读成"无 FAIL/ERROR"，本轮以一手文件读数（FAILED failures=4 + 具名清单）纠正。
+
 ## #69-H2 计划（待纸面设计审批，本轮未动码）
 谓词方向：prev 前缀逐点判是否落在本步位移线段 [start,end] 可信容差内 + curr 与剩余一致。容差真源拟引用 route_planner.py:160 `euclidean(current,goal)<1`（同一 <1m "close enough" 定义）。验收三件：(a) seed102 九例判回 k=0；(b) seed40907 含 avg_delay 逐字不变；(c) t=521/t=79 双向分歧各归其位；三面先红后绿留档（旧规则在 (a)(c) 实测报红）。

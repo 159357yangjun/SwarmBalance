@@ -2,7 +2,23 @@
 
 ## [Unreleased]
 
-### 2026-10-08（第二十笔）：#69-H R7 修复 —— env 弹出检测改前缀比对（不碰 drone.py）
+### 2026-10-08（第二十一笔）：#69-H3 D-iv —— 消费证人改为"执行器真 pop 离散事件"，废除一切反推
+
+基线 483fc6c。主控/ChatGPT 裁定不选 D-i/D-ii/D-iii，走第四方向 **D-iv**；上位原则冻结：
+"到达不是几何观察值，而是执行器完成某服务航点的离散事件；几何只决定航点能否被执行器接受，业务只消费执行事件。"
+
+① 回退 #69-H2 未提交的线段谓词（environment.py 那 71 行工作树改动丢弃，原 diff 存档 docs/取证输出/h2_segment_predicate_discarded.diff）。9b1cd15 后缀启发式降为历史中间对照、不作最终 lifecycle-correct baseline（见 #69-H_terminal.md「裁定更新 D-iv」）。
+② 实现真实事件机制：`Drone.update()` 在 `scheduled_position.pop(0)`（drone.py:328）处 append 进单步有序缓冲 `consumed_waypoints_this_step`；Environment 每步读出即清空、只消费这些事实。**删除** `_consumed_prefix_len` 反推函数与 step() 里的 `prev_scheduled` 快照——长度差/前后缀/线段穿越一律不再用于判弹出。
+③ 六硬夹具 console/test_h3_real_pop_events.py（T1 direct pop / T2 detour pop / T3 同帧弹+追加净长不变仍计 / T4 途经无弹出必不计 / T5 mid-flight re-route 无弹出必不计·杀 9 例 / T6 多 pop 保序 + 幽灵事件不变量），含变异面 M1/M2 证牙。
+④ 五把门 console/test_h3_lifecycle_gates.py G-H3-A..E（A seed40907 avg_delay 恢复 2.802632 / B seed102 cleanup=0+task_44 送达 / C 执行器 pop 处确发事件 / D 那 9 例不再提前 completion / E 反推符号彻底移除），全 live 复算不读归档。摘掉 append 行→C+B 双双实测报红（有牙）。
+⑤ 回放判据实测：seed40907 avg_delay=2.8026315789473686（=冻结证人，task_3 真 pop 在 t=172，非回归）；seed102 cleanup_no_svc=0、task_44∈DESTINATION_REACHED；旧 9 例假阳性时刻无一再计送达。**未 re-freeze 到 2.776316**。C1 门/Observer 零漂移/GateA 全绿；citation 门随 environment.py 行号上移重指 12+1 条后归 0 breaks。
+⚠ **一处 D-iv 行为外溢停在待裁（本笔不含其修复）**：`test_speed_fallback_gate.test_g2teeth` 红——一手对照见 #65_rerun_delta.md §7：D-iv 树 gate 工况 flush_size=**0**/buffer_peak=**10**（HEAD 是 1/15）。旧后缀规则的 9 例提前 completion 虚增了 PSO pending_buffer、把 size 触发口顶到阈值；D-iv 修好计时后峰值真实回落 ⇒ 该门的牙是在替 R7 缺陷负载标定。按主控裁定①"重定后仍红则停下交具名证据"停此：**不删牙、不降阈、不改判据**（flush_size>0＝永红夹具、optimize_calls>0＝无牙 mutate=6≠0），等下一轮方向。论文侧旧 buffer_peak=15/flush_size=1 作废、不得当 PSO 特性证据（裁定②已入 #65_rerun_delta.md §7）。并发假象 ×2（g2_all_four / rewrite_map.batch_read）standalone 均绿，登记为已知干扰不修（裁定③）。citation 三门随 remap+rewrite-report 收口 ✅。自纠入档：上一轮误读 unittest 缓冲进度点为"无 FAIL"，本轮以一手 failures=4 纠正。
+⑥ 论文口径句入档 docs/D_KPI定义层盘点.md 附录："取货/送达时间定义为执行层消费服务航点的离散 sim_time；<1m 是 planner endpoint 选择规则，不构成服务完成事件。"
+⑦ 硬边界遵守：drone.py:335-336 未改（仅在 :328 pop 处新增 append）、cleanup/is_free 兜底语义未动；current_load/is_free 状态审计留待后续 #69-C3。
+
+改动面：frontend/drone.py(+8/-1) · frontend/environment.py(+11/-47) · console/{test_h3_real_pop_events.py,test_h3_lifecycle_gates.py} 新建 · test_h_r7_delivery_detection.py 退役纯函数面留端到端 · README 计数(console 43/330) · docs{#69-H_terminal,D_KPI定义层盘点,数据来源与可追溯性登记表,#69-H2_stop_report}。停在 H3 终态汇报。
+
+
 
 基线 f1e3a5b。按主控裁定"修在 env 检测层、H1 批文作废"落地。改动面 = frontend/environment.py + console/test_h_r7_delivery_detection.py + 登记表 path:line 重指 + README；drone.py/route_planner/metrics_schema/runner 未动。
 

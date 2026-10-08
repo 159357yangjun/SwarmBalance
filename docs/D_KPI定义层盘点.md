@@ -5,7 +5,6 @@
 全程零修改，已核。
 
 ## 1. KPI 定义清单（定义位置 · 吃哪些字段 · C1 后是否自洽）
-
 真源链：`_record_task_completion`(environment.py:422-490) 累加计数器 → `get_statistics`(:903-1007) 派生比率
 → step info(:1255-1287) 导出英文键 → `metrics_schema._STAT_KEY_MAP`(frontend/metrics_schema.py:104-129) 映射中文列
 → `experiments/reporting.py` 方向标注(HIGHER/LOWER/DIRECTION_AMBIGUOUS)。
@@ -82,3 +81,17 @@ C1 前该分母含 12 条非法 completion ⇒ 每任务能耗被虚低；C1 后
 > 一行互检：若将来把它导出，必须同时在 reporting 登记方向，否则会被算法对比静默当作中性列。不为此单独建门。
 
 相关：docs/当前状态真源图.md §6-L、CHANGELOG 2026-10-07 第十五笔。
+
+## 附（2026-10-08，#69-H3 D-iv）：取货/送达时间的权威口径句 —— 论文引用以此为准
+
+主控裁定上位原则冻结后，`avg_delay / completion_time / on_time` 的"完成时刻"语义正式定名如下，
+论文与对外口径**必须逐字采用**，不得再用"几何到达"表述：
+
+> **取货/送达时间定义为执行层消费服务航点的离散 sim_time；`<1m` 是 planner endpoint 选择规则，不构成服务完成事件。**
+
+对应到本表：`_record_task_completion` 的 `completion_time = self.current_time`（:467）之所以可信，
+是因为它现在只在 `Drone.update()` 真正 `scheduled_position.pop(0)`（drone.py:328）并经
+`consumed_waypoints_this_step` 事件缓冲被 Environment 消费时才触发——证人从"curr 形状/长度差/线段途经"
+的反推，换成了执行器离散事件本身。route_planner.py:160 的 `euclidean(current,goal)<1` 仍只决定
+"航点能否被执行器接受为终点"，不再兼任"服务已完成"的定义。这消除了 #69-B/C1/H 反复出现的
+跨层"两套到达定义"残余（H-R1 那 9 例 re-route 假阳性即由无-pop 机制根除，见 G-H3-D）。

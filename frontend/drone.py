@@ -86,6 +86,10 @@ class Drone:
         self.scheduled_position = []
         self.executing_task_id = None  # 当前正在执行的已分配任务ID
         self.is_free = True # 表示无人机是否可以接单
+        # #69-H3 D-iv：执行器"真正弹出服务航点"的离散事件缓冲（唯一权威证人）。
+        # update() 里每次 pop(0) append 一个 (sim_time, waypoint)，保持发生顺序；
+        # Environment 每步消费后清空。几何途经/长度差/前后缀一律不再反推弹出。
+        self.consumed_waypoints_this_step = []
         
         # ==================== 电量系统（机巢换电模式） ====================
         self.battery_capacity = battery_capacity  # 电池最大容量 (Wh)
@@ -321,7 +325,10 @@ class Drone:
                 # 到达目标，消耗电量
                 self.consume_battery(distance, wind_along)
                 # Remove this target from schedule as we've reached it
-                self.scheduled_position.pop(0)
+                _popped = self.scheduled_position.pop(0)
+                # #69-H3 D-iv：这是执行器真正消费航点的唯一离散事件点——append 进有序缓冲。
+                # 只有这里（抵达并 pop）算消费；侧向飞过、整体改道、追加 nest 都不产生此事件。
+                self.consumed_waypoints_this_step.append(_popped)
                 if not self.scheduled_position:
                     if self._suspended_route or self._manual_charge_requested:
                         # 预判/人工换电改道：已抵达机巢，登记泊位请求等待环境仲裁。

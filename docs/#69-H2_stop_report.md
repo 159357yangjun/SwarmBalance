@@ -1,5 +1,10 @@
 # #69-H2 停报：线段谓词过 (a) 不过 (b)，停在待裁（未提交、未删）
 
+> **裁定后续（2026-10-08，D-iv）**：主控/ChatGPT 未采纳本停报的 D-i/D-ii/D-iii，改走第四方向 D-iv——
+> "执行器真 pop 服务航点＝唯一权威证人"。本停报描述的 H2 线段谓词**已回退丢弃**（diff 存档
+> docs/取证输出/h2_segment_predicate_discarded.diff），落地实现见 CHANGELOG 第二十一笔 +
+> console/test_h3_real_pop_events.py / test_h3_lifecycle_gates.py。下文保留作历史决策依据。
+
 基线 ffeb222。本轮按主控批准实现"行进线段消费谓词"（`frontend/environment.py` 的 `_consumed_prefix_len`，约 71 行改动），跑完验收三件后 **(b) 不通过**，按约束「任一面不过停下交具名证据、禁改夹具、禁猜第四种谓词」停在此处。**environment.py 那笔保持未提交挂在工作树**，不进仓也不删，交主控定方向。
 
 ## 1. 三面读数（均生产入口 `experiments/worker.py` 实测，非推断）
