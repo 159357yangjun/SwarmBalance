@@ -2,6 +2,16 @@
 
 ## [Unreleased]
 
+### 2026-10-07（第十八笔）：#69-G 结项 —— 待裁①落地（old 面降为审计快照）+ 结项报告
+
+基线 8a76462。改动面 = console/test_c1_lifecycle_gate.py（test_1 增 elif FACE=="old"→skip）+ docs/#69_结项报告.md；production 零 diff。
+
+待裁①裁定 (b) 落地：old 面从"永久红的测试"改为显式 `skipTest("[OLD_IS_BASELINE_AUDIT_SNAPSHOT] pre-C1 基线审计见 docs/取证输出/c1_face_old.json")`，不删。理由＝聚合 runner 长期绿是验收基础设施前提，而 old 的历史证人已在冻结 c1_face_old.json(R1=12/R4=1/R5=12)+#69-A/C0 文档持有，不需红灯持有它。牙仍由 mutate/forced_cleanup 注入面 + GD-a/GD-b 承担。
+实测：C1 default face（无 env）Ran 8 OK(skipped=2) ⇒ 跑默认 face 的聚合不再因此红；四面 fixed/mutate/forced_cleanup OK、old skip。
+聚合复跑（本轮现测）：A90+B38+C117+D25=**270 tests 0 failures** + C1 门 8(skip=2)=合计 278 全绿。
+待裁②(C2b :336 语义重叠)关闭不修、待裁③(D-1 措辞)记于 D 文档 §3 留用户直接指令。
+结项判定：系统内部自洽层闭合——硬不变量有门、latent defect 有牙、replay 闭合、KPI 疑点门化。会话进入观察期，不自动开新阶段；V6 (#67) 仍暂停；未 push。停在结项汇报。
+
 ### 2026-10-07（第十七笔）：#69-F 收口确认轮 —— 全量门禁总表 + replay 终态对账（零代码改动）
 
 HEAD 7d36b99。纯确认轮：不改任何码，只把 C1–E 的门禁在本轮重跑一遍并逐字段核对 replay。产物 docs/F_收口门禁总表.md。

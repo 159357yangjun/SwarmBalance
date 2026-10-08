@@ -235,13 +235,17 @@ class C1LifecycleGate(unittest.TestCase):
                              " ⇒ fixed 代码上竟有 completion 走兜底却无送达证人")
             # R5 是信息量：只要求它是个非负整数读数，不进退码、不作通过/失败判据。
             self.assertGreaterEqual(r["r5_nonexact_arrival_count"], 0)
+        elif FACE == "old":
+            # 待裁①（#69-F）裁定 (b)：old 面**降为基线审计快照、不是失败测试**。
+            #   old==当前代码 ⇒ 三者全 0（缺陷已被 C1 修 + 新门只认 origin），拿它当"永久红的测试"
+            #   会让跑默认 face 的聚合 runner 长期红，破坏验收基础设施。历史证人不靠这个红持有——
+            #   它在冻结产物 c1_face_old.json（R1=12/R4=1/R5=12）+ #69-A/C0 文档里。故显式 skip，不删。
+            self.skipTest("[OLD_IS_BASELINE_AUDIT_SNAPSHOT] pre-C1 基线审计见 docs/取证输出/c1_face_old.json"
+                          "（R1=12/R4=1/R5=12）；old 面不作通过/失败判据，牙由 mutate/forced_cleanup 注入面持有")
         else:
-            # old / mutate / forced_cleanup：期望"有牙才通过"。
+            # mutate / forced_cleanup：期望"有牙才通过"。
             #   · forced_cleanup 注入 origin=cleanup+无 DESTINATION_REACHED ⇒ 语义门=1（本门的用途）
             #   · mutate 注入重复 completion ⇒ R3=1
-            #   · old==当前代码：三者全 0 ⇒ teeth=False ⇒ test_1 **红**，这是刻意的：
-            #     C2a 判据下当前代码不再自带 cleanup 违规（缺陷已被 C1 修 + 新门只认 origin），
-            #     其历史违规数见冻结 c1_face_old.json；old 面在此红＝"用注入面而非生产轨迹证明牙"的代价。
             teeth = (r["cleanup_completion_without_service"] > 0
                      or r["R3_duplicate_completion"] > 0
                      or r["R4_aggregate_not_recomputable"] > 0)
