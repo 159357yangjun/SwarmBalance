@@ -64,8 +64,17 @@ class _Probe:
 
 
 def _episode(algorithm, steps=3600, seed=40901, probe=None):
-    """跑一个短回合，返回每一步 observation 里出现的 speed 值列表。"""
-    from environment import Environment
+    """跑一个短回合，返回每一步 observation 里出现的 speed 值列表。
+
+    ⚠ #70-P1：内核走 `_pf_kernel()`（按文件路径 exec、每调一次就是一次全新加载），
+    **不读 sys.modules["environment"]**。原因是一手实测发现的真正污染源：
+    `console/sim_session.py:43` 在 import 期就按名字 `import environment as _env_module`，
+    而 discover 字母序下 `console/test_server_guards.py:22` 会先 `import console.server`
+    ⇒ 主进程那份常量早在 swap_time_gate 之前就被冻成出厂 10 机（本轮就是这样让 G1 报
+    `[GATE_FROZEN_BY_FOREIGN_IMPORT]`）。那个名字绑定是生产代码 reload 语义所需，不该由测试去改；
+    所以本门**自己加载一份**并核对它的常量 ⇒ 与"谁先 import"彻底无关。
+    """
+    Environment = _pf_kernel().Environment
     env = Environment(str(OSM), episode_max_steps=steps)
     obs = env.reset(seed=seed)
     if algorithm == "greedy":
@@ -154,7 +163,49 @@ def _install_gate_config():
     return _load_config_for_gate()
 
 
-_install_gate_config()
+_INSTALLED = _install_gate_config()
+
+
+def _pf_kernel():
+    """装好本门配置 → 按**文件路径**加载内核 → 当场核对配置指纹（三步绑成一个动作）。
+
+    为什么不能拆开：`frontend/environment.py:87/:100/:105` 在 import 期从
+    `SWARM_BALANCE_SIM_CONFIG` 指向的那份 config 冻结常量 ⇒ "先 setenv、之后随便什么时候
+    import"这个假设不成立；也不读 `sys.modules["environment"]`（主进程那份最早由生产代码
+    `console/sim_session.py:43` 绑定，不该由测试改）。三次被实测驳回的猜法记在下面
+    那段历史注释里，防止下一个人在同一处再猜一次。
+    """
+    _install_gate_config()          # 装配置 → 加载 → 核对，三步绑成一个动作（见下面注释）
+    if str(ROOT) not in sys.path:
+        sys.path.insert(0, str(ROOT))
+    from console import _preflight
+    module = _preflight.load_kernel_environment()[0]
+    want_n, want_mix = 6, {"light_express": 3, "standard_cargo": 2, "heavy_cargo": 1}
+    got_n, got_mix = int(module.DEFAULT_NUM_DRONES), dict(module.FLEET_MIX or {})
+    if (got_n, got_mix) != (want_n, want_mix):
+        raise AssertionError(
+            "[GATE_CONFIG_NOT_APPLIED] 本门刚装好重载配置、按路径新加载的内核却读到："
+            "DEFAULT_NUM_DRONES=%s FLEET_MIX=%s，应为 %s / %s。"
+            "⇒ 配置读取通道断了（config_loder 没吃这个环境变量，或文件没写成），"
+            "这是夹具失效、不是算法缺陷。" % (got_n, got_mix, want_n, want_mix))
+    return module
+
+
+# #70-P1 历史记录（**已删除的写法**，只留说明、不留死代码）：
+#   原缺陷：本门假设"我在 import 期抢在所有人之前 setenv"。但 discover 按字母序，
+#   console/test_r2_destination_without_load.py:34（setUpClass 里 `from environment import Environment`）
+#   排在前面 ⇒ environment.py:105 的 DEFAULT_NUM_DRONES 先被出厂配置冻结成 10，
+#   本门随后换 env 已经太晚 ⇒ 机队变 10 机轻载 ⇒ PSO buffer 峰=2 < 阈值 15 ⇒ optimize 零调用
+#   ⇒ G2 报 `[pso][NO_DENOMINATOR]`，把**测试隔离缺陷冒充成被测对象缺陷**。
+#   曾提出三种修法，前两种被实测驳回、第三种被第三次实测驳回，都记在这里防止重犯：
+#     · 放 setUpClass 核对主进程常量 ⇒ 把一个已免疫顺序的 G2 判死（ORDER-A 因此仍红）；
+#     · 放用例体内核对主进程常量 ⇒ 实测仍红：主进程那份最早由 console/sim_session.py:43 绑定
+#       （经 console/test_server_guards.py:22 的 `import console.server` 拉进来），
+#       那是生产 reload 语义所需，不该由测试改、也不该由测试判它死活；
+#     · "模块顶层装一次配置 + 之后按路径加载"⇒ 全量复跑仍红（读数 10/{5,3,2}）：
+#       字母序在我之后的 console/test_swap_time_gate.py:63 会把同一个环境变量改走。
+#   ⇒ 最终做法见 `_pf_kernel()`：**每次取内核前**重装配置、按路径 exec 一份、当场核对
+#      那份常量的指纹 ⇒ 校验对象与消费对象是同一个模块对象，与"谁先 import""谁后改 env"无关。
 
 
 class SpeedFallbackGateTests(unittest.TestCase):
@@ -165,6 +216,12 @@ class SpeedFallbackGateTests(unittest.TestCase):
         # 记下本门进来时的值：直接 pop 会把模块顶部 setdefault 的那份也一起抹掉，
         # 那会让后面被 discover 到的模块拿到与单独运行时不同的环境（跨用例顺序耦合）。
         cls._prev_cfg = os.environ.get("SWARM_BALANCE_SIM_CONFIG")
+        # ⚠ #70-P1：这里**不做**"主进程常量核对"。G2 已改为每算法各起干净子进程跑，
+        #    主进程的 environment 常量是否被前序 import 冻结与本门无关；在 setUpClass 里 bail
+        #    反而会把一个本来免疫顺序的测试判死（实测：ORDER-A 因此仍红）。
+        #    机队规模的正确守法是"子进程回传 num_drones 并由断言核对 ==6"（见 G2 末尾），
+        #    它校验的是**真正被测那份进程**的状态，而不是父进程的残留。
+        #    G1 走 `_pf_kernel()`：自己按路径加载一份内核并就地核对配置指纹。
 
     @classmethod
     def tearDownClass(cls):
@@ -181,6 +238,8 @@ class SpeedFallbackGateTests(unittest.TestCase):
 
 
     def test_g1_observed_speeds_are_finite_and_in_fleet_range(self):
+        # 配置的指纹核对长在 `_pf_kernel()` 里：加载内核与核对配置是同一个动作，
+        # 不可能"读了一份、核了另一份"（#70-P1）。
         seen, env = _episode("greedy")
         self.assertGreater(len(seen), 0, "observation 里一个 speed 都没有 ⇒ 门没有分母，等于没测")
         bad = [v for v in seen if not math.isfinite(v)]
@@ -261,19 +320,143 @@ class SpeedFallbackGateTests(unittest.TestCase):
         return algorithm, len(obs_seen), sorted(set(obs_seen)), len(opt_seen)
 
     def test_g2_all_four_algorithms_get_real_fleet_speed(self):
-        """G2：greedy / pso / ga / ortools 四者逐一过门（不是抽查其一）。"""
-        results = [self._gate_one_algorithm(a) for a in ALGORITHMS]
-        import json
-        cfg = json.loads((ROOT / "config" / "simulation.json").read_text(encoding="utf-8"))
+        """G2：greedy / pso / ga / ortools 四者逐一过门（不是抽查其一）。
+
+        #70-P1 顺序无关化：本门的判据依赖"重载配置真的生效"，而 environment.py:87/:100/:105
+        在 **import 时**冻结常量 ⇒ 主进程内跑它等于赌自己抢到第一个 import（discover 字母序下
+        console/test_r2_destination_without_load.py:34 会先抢，于是 10 机轻载、buffer 峰=2、
+        optimize 零调用 ⇒ `[pso][NO_DENOMINATOR]` 把测试隔离缺陷冒充成算法缺陷）。
+
+        ⇒ 改为**每个算法各起一个干净子进程**跑（与本文件 G2TEETH 探针同一手法，天然免疫 import 竞速），
+        父进程只做断言。这样单跑与聚合跑的是同一份代码路径，满足"fresh process 下单跑与聚合一致"。
+        """
+        payload = []
+        for algorithm in ALGORITHMS:
+            r = self._run_g2_in_subprocess(algorithm)
+            payload.append(r)
+        for r in payload:
+            self.assertTrue(r["ok"], "[G2_SUBPROCESS_FAIL] %s：%s" % (r["algorithm"], r.get("err", "")))
+            obs_seen = r["obs_speeds"]
+            self.assertGreater(len(obs_seen), 0, "[%s][NO_OBS_SAMPLE] observation 里一个 speed 都没有" % r["algorithm"])
+            self.assertNotIn(DEFAULT_FALLBACK, obs_seen, "[%s] observation 出现 speed=200" % r["algorithm"])
+            bad = [v for v in obs_seen if not (FLEET_SPEED_RANGE[0] <= v <= FLEET_SPEED_RANGE[1])]
+            self.assertEqual(bad, [], "[%s] observation speed 超出机型包络 %s：%s" % (r["algorithm"], FLEET_SPEED_RANGE, bad))
+            if r["algorithm"] == "greedy":
+                self.assertEqual(r["optimize_calls"], 0, "greedy 不该经过后端 optimize")
+                print("[G2/%-7s] (subprocess) observation %d 次 speed=%s；无批量优化器调用" % (
+                    r["algorithm"], len(obs_seen), sorted(set(obs_seen))))
+                continue
+            self.assertGreater(r["optimize_calls"], 0,
+                               "[%s][NO_DENOMINATOR] 一步都没进 optimize() ⇒ 该算法的门没有分母，不许算通过" % r["algorithm"])
+            o200 = [v for v in r["opt_speeds"] if v == DEFAULT_FALLBACK]
+            self.assertEqual(o200, [], "[%s] optimize 收到 speed=200 ⇒ ETA 按快 10 倍算" % r["algorithm"])
+            oout = [v for v in r["opt_speeds"] if not (FLEET_SPEED_RANGE[0] <= v <= FLEET_SPEED_RANGE[1])]
+            self.assertEqual(oout, [], "[%s] optimize 收到的 speed 超出包络：%s" % (r["algorithm"], oout))
+            print("[G2/%-7s] (subprocess) observation %d 次 speed=%s | optimize %d 台机×批次 speed=%s" % (
+                r["algorithm"], len(obs_seen), sorted(set(obs_seen)),
+                r["optimize_calls"], sorted(set(r["opt_speeds"]))))
+        # 机队规模必须是门要的那个（子进程里核对后回传）
+        for r in payload:
+            self.assertEqual(r["num_drones"], 6,
+                             "[GATE_FROZEN_BY_FOREIGN_IMPORT] %s 子进程仍拿到 %s 机 ⇒ 配置注入没生效" % (
+                                 r["algorithm"], r["num_drones"]))
+        # 兜底值本身不该是配置默认（否则"落到兜底"与"读到配置"不可分，门失去意义）
+        import json as _json
+        cfg = _json.loads((ROOT / "config" / "simulation.json").read_text(encoding="utf-8"))
         ds = float(cfg["drone"]["speed"])
         self.assertNotEqual(ds, DEFAULT_FALLBACK, "config.drone.speed 就是 200 ⇒ 兜底即默认，门失去意义")
-        for alg, n, vals, opt_n in results:
-            # 4 元组：_gate_one_algorithm 从 1B-* 起多返回一个 optimize 调用数。
-            # 这处解包此前从未被执行到（pso 在上面就 assert 失败），门有分母后才暴露成
-            # ValueError ⇒ 修 fixture 顺带抓出一个真实的测试缺陷，不是本次改坏的。
-            print("[G2/%-7s] _extract_capacity %d 次 / optimize 入口 %d 台机·批次，speed=%s"
-                  % (alg, n, opt_n, vals))
-        print("[G2] 配置兜底 drone.speed=%.1f（非 200）" % ds)
+        print("[G2] 配置兜底 drone.speed=%.1f（非 200）；四算法均在干净子进程内过门 ⇒ 与发现顺序无关" % ds)
+
+    _G2_CHILD = r'''
+import json, os, sys, pathlib
+ROOT = pathlib.Path(sys.argv[1]).resolve(); ALGO = sys.argv[2]
+sys.path[:0] = [str(ROOT), str(ROOT / "frontend")]
+# 与主进程同款重载配置：6 机 / fleet 3-2-1 / 240 任务 / interval_scale 0.70
+base = json.loads((ROOT / "config" / "simulation.json").read_text(encoding="utf-8"))
+base["task_generation"]["realistic"].update({"interval_scale": 0.70, "total_tasks": 240})
+base["environment"]["num_drones"] = 6
+base["heterogeneous"]["fleet_mix"] = {"light_express": 3, "standard_cargo": 2, "heavy_cargo": 1}
+tmpd = pathlib.Path(os.environ.get("TMP", "/tmp")) / ("g2child_%d" % os.getpid())
+tmpd.mkdir(parents=True, exist_ok=True)
+cfg = tmpd / "sim.json"
+cfg.write_text(json.dumps(base, ensure_ascii=False), encoding="utf-8")
+os.environ["SWARM_BALANCE_SIM_CONFIG"] = str(cfg)     # 必须在 import environment 之前
+import environment as E
+obs_seen, opt_seen, calls = [], [], {"n": 0}
+from backend_si import pso_scheduler as P
+orig_extract = P.PSOScheduler._extract_capacity
+def wrapped_extract(self, observation):
+    for c in (observation.get("drone_capabilities", []) or []):
+        v = c.get("speed")
+        calls["n"] += 1
+        if v is not None:
+            obs_seen.append(float(v))
+    return orig_extract(self, observation)
+P.PSOScheduler._extract_capacity = wrapped_extract
+opt_seen = []
+import backend_si.ga_scheduler as G
+import backend_si.ortools_scheduler as OT
+orig_opt = (P.PSOOptimizer.optimize, G.GAOptimizer.optimize, OT.ORToolsOptimizer.optimize)
+def wrap(orig):
+    def inner(self, drones_info, tasks_info, current_time, verbose=True):
+        for d in drones_info or []:
+            v = d.get("speed")
+            if v is not None:
+                opt_seen.append(float(v))
+        return orig(self, drones_info, tasks_info, current_time, verbose=verbose)
+    return inner
+P.PSOOptimizer.optimize = wrap(orig_opt[0])
+G.GAOptimizer.optimize = wrap(orig_opt[1])
+OT.ORToolsOptimizer.optimize = wrap(orig_opt[2])
+from environment import Environment
+from greedy.scheduler import greedy_action_from_observation
+OSM = str(ROOT / "frontend" / "data" / "map" / "part_of_yangpu.osm")
+env = Environment(OSM, episode_max_steps=3600)
+obs = env.reset(seed=40901)
+if ALGO == "greedy":
+    nxt = lambda o: greedy_action_from_observation(o)
+elif ALGO == "pso":
+    from backend_si.pso_scheduler import PSOScheduler
+    s = PSOScheduler(num_drones=len(env.drones), verbose=False, seed=40901); nxt = lambda o: s.step(o, current_time=env.current_time)
+elif ALGO == "ga":
+    from backend_si.ga_scheduler import GAScheduler
+    s = GAScheduler(num_drones=len(env.drones), verbose=False, seed=40901); nxt = lambda o: s.step(o, current_time=env.current_time)
+else:
+    from backend_si.ortools_scheduler import ORToolsScheduler, ORTOOLS_AVAILABLE
+    if not ORTOOLS_AVAILABLE:
+        print(json.dumps({"skip": "OR-Tools 不可用"})); raise SystemExit(0)
+    s = ORToolsScheduler(num_drones=len(env.drones), verbose=False, seed=40901); nxt = lambda o: s.step(o, current_time=env.current_time)
+done = False
+while not done:
+    obs, _, done, _ = env.step(nxt(obs))
+    # observation 层的 speed 直接从返回的 obs 采样（两个 key 都看）：greedy 不经过后端
+    # _extract_capacity，若只靠那个钩子取样，greedy 会得到空样本 ⇒ 假 NO_OBS_SAMPLE。
+    for key in ("drone_capabilities", "drone_chain_info"):
+        for c in (obs.get(key) or []):
+            v = c.get("speed") if isinstance(c, dict) else None
+            if v is not None:
+                obs_seen.append(float(v))
+print(json.dumps({"ok": True, "algorithm": ALGO, "obs_speeds": sorted(set(obs_seen)),
+                  "opt_speeds": sorted(set(opt_seen)), "optimize_calls": len(opt_seen),
+                  "num_drones": int(E.DEFAULT_NUM_DRONES)}))
+'''
+
+    def _run_g2_in_subprocess(self, algorithm):
+        import json, subprocess
+        r = subprocess.run([sys.executable, "-c", self._G2_CHILD, str(ROOT), algorithm],
+                           capture_output=True, text=True, encoding="utf-8", errors="replace",
+                           env=dict(os.environ, PYTHONIOENCODING="utf-8"), timeout=900)
+        line = (r.stdout or "").strip().splitlines()
+        if not line:
+            raise AssertionError("[G2_SUBPROCESS_EMPTY] %s 无输出；stderr 前 300 字：%s" % (algorithm, (r.stderr or "")[:300]))
+        try:
+            data = json.loads(line[-1])
+        except ValueError:
+            raise AssertionError("[G2_SUBPROCESS_UNPARSEABLE] %s 末行=%r" % (algorithm, line[-1][:200]))
+        if data.get("skip"):
+            raise unittest.SkipTest(data["skip"])
+        data.setdefault("err", (r.stderr or "")[-300:])
+        return data
 
     def _probe(self, face):
         """在干净子进程里跑三面对照探针，返回解析后的读数 dict。

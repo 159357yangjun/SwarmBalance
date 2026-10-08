@@ -56,7 +56,8 @@ def _run_probe(name):
 
 def _world(kind):
     """构造一个已切好 provider 的 Environment（G13d 与 G10 共用）。"""
-    import environment as em
+    from console import _preflight as _pf   # #70-P1：按路径加载，见 docs/P70_import_order_pollution.md
+    em = _pf.load_kernel_environment()[0]
     env = em.Environment(str(OSM), episode_max_steps=60)
     env.reset(seed=40901)
     env.set_route_cost_provider(kind)
@@ -239,7 +240,8 @@ class ReachabilityHasFreedom(unittest.TestCase):
                            "planned 面 ETA 没变长 ⇒ eta() 没消费航路长度（恒等常量或漏接）")
 
     def test_g13_some_candidates_are_actually_tight(self):
-        import environment as em
+        from console import _preflight as _pf   # #70-P1：按路径加载，见 docs/P70_import_order_pollution.md
+        em = _pf.load_kernel_environment()[0]
         from greedy.scheduler import GreedyScheduler as GS
         from route_cost import PlannedDistanceRouteCostProvider
         env = em.Environment(str(OSM), episode_max_steps=60)
@@ -272,7 +274,8 @@ class ReachabilityHasFreedom(unittest.TestCase):
 
 
     def test_g13b_neutral_on_infinite_deadline(self):
-        import environment as em
+        from console import _preflight as _pf   # #70-P1：按路径加载，见 docs/P70_import_order_pollution.md
+        em = _pf.load_kernel_environment()[0]
         from greedy.scheduler import GreedyScheduler as GS
         from route_cost import PlannedDistanceRouteCostProvider
         env = em.Environment(str(OSM), episode_max_steps=60)
@@ -305,7 +308,8 @@ class ReachabilityHasFreedom(unittest.TestCase):
         "取货看着从容、送货飞不完"的单加了分（诊断产物 §1）。所以这条必须直接断言：
         存在被扣分的候选，且没有任何候选拿到正贡献。
         """
-        import environment as em
+        from console import _preflight as _pf   # #70-P1：按路径加载，见 docs/P70_import_order_pollution.md
+        em = _pf.load_kernel_environment()[0]
         from greedy.scheduler import GreedyScheduler as GS
         from route_cost import EuclideanRouteCostProvider
         env = em.Environment(str(OSM), episode_max_steps=60)

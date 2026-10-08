@@ -46,6 +46,12 @@ class RealPopEventFixtures(unittest.TestCase):
             if p not in sys.path:
                 sys.path.insert(0, p)
         from drone import Drone, DRONE_SPEED, DRONE_TIME_STEP
+        # #70-P1 判据②：内核（Environment）走按路径加载器，不按名字 import ⇒
+        # 不在 sys.modules["environment"] 里留下"首次 import 冻结的配置常量"。
+        if str(ROOT) not in sys.path:
+            sys.path.insert(0, str(ROOT))
+        from console import _preflight
+        cls.Environment = _preflight.load_kernel_environment()[0].Environment
         cls.Drone = Drone
         cls.STEP_DIST = float(DRONE_SPEED) * float(DRONE_TIME_STEP)   # 一步最大位移（当前 17.0）
 

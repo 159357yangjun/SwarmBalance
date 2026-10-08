@@ -53,15 +53,46 @@ def _is_cargo_truth_test(code):
             return True
     return False
 
-#: 豁免表：path → {lineno → 理由}。**无理由不得进表**（无条目即视为违规）。
+#: 豁免表：path → {符号锚点 → 理由}。**无理由不得进表**（无条目即视为违规）。
+#: ⚠ 键刻意写成 `(定义该行的函数/方法名, 该行内的子串)` 而**不是行号**：#70-P1 把测试模块的
+#:   内核加载方式换掉后，这个文件里所有行号都会漂（本轮实测就是这样让两条与本意无关的
+#:   c4 断言同时红 —— 一条报"新违规"、一条报"豁免已过期"）。行号键会把文档改动作废成
+#:   "必须回来改门"，而符号+子串只在被豁免的那句话本身被改动时失效（那正是该重新审的时候）。
 EXEMPT = {
     "frontend/environment.py": {
-        1751: "_is_carrying 内部把 load<=1e-9 当下界短路，随后仍按航线标签定夺；非载货真值",
+        ("_is_carrying", "current_load', 0.0)) <= 1e-9"):
+            "_is_carrying 内部把 load<=1e-9 当下界短路，随后仍按航线标签定夺；非载货真值",
     },
     "console/test_c4_is_carrying_discriminator.py": {
-        82: "变异面故意构造的退化写法（lambda bad），用于证明加固①夹具会咬；扫它等于自杀",
+        ("test_mutation_current_load_rule_is_caught", "getattr(d, 'current_load', 0.0)) > 0"):
+            "变异面故意构造的退化写法（lambda bad），用于证明加固①夹具会咬；扫它等于自杀",
     },
 }
+
+
+def _enclosing_name(src_lines, idx0):
+    """第 idx0（0-based）行所属的最近 def/class 名；模块顶层记 `<module>`。"""
+    indent = len(src_lines[idx0]) - len(src_lines[idx0].lstrip())
+    for j in range(idx0 - 1, -1, -1):
+        m = re.match(r"^(\s*)(?:def|class)\s+(\w+)", src_lines[j])
+        if m and len(m.group(1)) < indent:
+            return m.group(2)
+    return "<module>"
+
+
+def _anchor_find(rel, src_text, anchor):
+    """豁免锚点 `(符号名, 行内子串)` → 命中行号（1-based），找不到返回 None。
+
+    为什么不用行号：#70-P1 换掉测试模块的内核加载方式后所有行号都会漂，本轮实测就是这样
+    让两条与本意无关的 c4 断言同时红（一条报"新违规"、一条报"豁免已过期"）。
+    符号 + 子串只在**被豁免的那句话本身**被改动时失效 —— 那正是该重新审的时刻。
+    """
+    sym, needle = anchor
+    lines = src_text.splitlines()
+    for ln, text in enumerate(lines, start=1):
+        if needle in text and _enclosing_name(lines, ln - 1) == sym:
+            return ln
+    return None
 
 
 def _iter_py_files():
@@ -113,33 +144,51 @@ def _code_lines(path):
 
 
 def scan(files=None):
-    """-> (hits, violations)；hit=(relpath, lineno, text)。violations = hits - exempt。"""
-    hits, violations = [], []
+    """-> (hits, violations, exempt_lines)；hit=(relpath, lineno, text)。violations = hits - exempt。
+
+    豁免按**锚点**（符号名 + 行内子串）解析出当前行号，不写死行号 —— 见 EXEMPT 上方说明。
+    """
+    hits, violations, exempt_lines = [], [], set()
     for path in (files if files is not None else _iter_py_files()):
         try:
             rel = path.relative_to(ROOT).as_posix()
         except ValueError:
             rel = str(path)
         raw = {}
+        src_text = ""
         try:
-            raw = {i: l for i, l in enumerate(path.read_text(encoding="utf-8").splitlines(), 1)}
+            src_text = path.read_text(encoding="utf-8")
+            raw = {i: l for i, l in enumerate(src_text.splitlines(), 1)}
         except (OSError, UnicodeDecodeError):
             continue
+        anchors = EXEMPT.get(rel, {})
+        resolved = {}
+        for anchor in anchors:
+            ln = _anchor_find(rel, src_text, anchor)
+            if ln is not None:
+                resolved[ln] = anchor
+                exempt_lines.add((rel, ln))
+        # 锚点在别的行也有同样文本时，_code_lines 的行才是权威：以命中行为准逐个核
         for ln, code in _code_lines(path).items():
             if _is_cargo_truth_test(code):
                 hits.append((rel, ln, raw.get(ln, code).strip()[:90]))
-                reason = EXEMPT.get(rel, {}).get(ln)
-                if reason is None:
-                    violations.append((rel, ln, raw.get(ln, code).strip()[:90]))
-    return hits, violations
+                if ln in resolved:
+                    continue
+                # 兜底：命中行本身含某条锚点的子串、且归属同一符号，也算在册
+                sym_hit = _enclosing_name(src_text.splitlines(), ln - 1)
+                if any(a[0] == sym_hit and a[1] in raw.get(ln, "") for a in anchors):
+                    exempt_lines.add((rel, ln))
+                    continue
+                violations.append((rel, ln, raw.get(ln, code).strip()[:90]))
+    return hits, violations, exempt_lines
 
 
 class CargoTruthScanGate(unittest.TestCase):
     def test_clean_face_repo_has_no_violation(self):
-        hits, violations = scan()
+        hits, violations, _ = scan()
         self.assertGreater(len(hits), 0,
                            "[C4_SCAN_BLIND] 一条命中都没有 ⇒ 扫描器或模式失效；"
-                           "已知至少应有 environment.py:1751 与变异面")
+                           "已知至少应有 environment.py 的 _is_carrying 下界与变异面")
         print("[C4_SCAN_BASELINE] hits=%d exempt=%d violations=%d（本轮判：预防性门，零违规）" % (
             len(hits), len(hits) - len(violations), len(violations)))
         for rel, ln, txt in violations:
@@ -149,12 +198,26 @@ class CargoTruthScanGate(unittest.TestCase):
                          % len(violations))
 
     def test_exempt_entries_are_not_stale(self):
-        """豁免项必须真的还能扫到——条目还在表里却扫不到 ⇒ 该豁免已过期，要删。"""
-        hits, _ = scan()
-        seen = {(rel, ln) for rel, ln, _ in hits}
-        stale = [(rel, ln) for rel, d in EXEMPT.items() for ln in d if (rel, ln) not in seen]
+        """豁免锚点必须真的还能扫到——条目还在表里却解析不到 ⇒ 该豁免已过期，要删。
+
+        ⚠ 这条现在测的是"**锚点是否还解析得到**"而不是"那一行号是否还被命中"：
+          后者会被无关的行漂移打成假过期（本轮实测红过一次），前者只在被豁免的那句话
+          本身被改动/删除时报红 —— 那才是真该重新审的信号。
+        """
+        _, _, exempt_lines = scan()
+        stale = []
+        for rel, anchors in EXEMPT.items():
+            for anchor in anchors:
+                path = ROOT / rel
+                if not path.is_file():
+                    stale.append((rel, anchor, "文件不存在"))
+                    continue
+                if _anchor_find(rel, path.read_text(encoding="utf-8"), anchor) is None:
+                    stale.append((rel, anchor, "符号或子串已不在册"))
         self.assertEqual(stale, [],
-                         "[C4_EXEMPT_STALE] 这些豁免行已扫不到，请从表里删除：%s" % stale)
+                         "[C4_EXEMPT_STALE] 这些豁免锚点已解析不到，请复核后更新或删除：%s" % stale)
+        print("[C4_EXEMPT_LIVE] 在册豁免=%d 条，全部解析得到：%s" % (
+            len(exempt_lines), sorted(exempt_lines)))
 
     def test_detector_shape_specificity(self):
         """检测器自身的两面：该命中的必须命中，不该命中的（容量算术）绝不能命中。
@@ -192,7 +255,7 @@ class CargoTruthScanGate(unittest.TestCase):
         f = tmpdir / "offender.py"
         f.write_text(src, encoding="utf-8")
         try:
-            hits, violations = scan(files=[f])
+            hits, violations, _ = scan(files=[f])
             self.assertEqual(len(hits), 1, "[C4_DIRTY_NOT_CAUGHT] 违规样本没被扫到（hits=%d）" % len(hits))
             self.assertEqual(len(violations), 1,
                              "[C4_DIRTY_NOT_CAUGHT] 违规样本被扫到却没判违规 ⇒ 豁免逻辑漏了")

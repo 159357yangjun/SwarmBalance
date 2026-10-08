@@ -57,9 +57,21 @@ class _EmptyNoFly:
         return False
 
 
-def _env():
-    from environment import Environment
-    env = Environment(str(OSM), episode_max_steps=1)
+def _kernel():
+    """#70-P1 判据②：内核走 console/_preflight.py 的按路径加载器。
+
+    本门要读写**进程级** `environment._PATH_CLEAR_BUCKETS`（见 tearDownClass 的还原理由），
+    所以必须拿到"自己这次加载的那个模块对象"，而不是靠名字去 sys.modules 里抢 ——
+    按名字 import 会把首次 import 的配置冻结留给全进程（顺序敏感的根因就在这）。
+    """
+    if str(ROOT) not in sys.path:
+        sys.path.insert(0, str(ROOT))
+    from console import _preflight
+    return _preflight.load_kernel_environment()[0]
+
+
+def _env(kernel):
+    env = kernel.Environment(str(OSM), episode_max_steps=1)
     env.reset(seed=40901)
     return env
 
@@ -73,9 +85,9 @@ class HeightBinaryGate(unittest.TestCase):
         # 关磁盘缓存只是防止把合成楼的判定写进仓内缓存、被后续真实实验读回。
         cls._prev_toggle = os.environ.get(_TOGGLE)
         os.environ[_TOGGLE] = "0"
-        import environment as _em
-        cls._orig_buckets = dict(_em._PATH_CLEAR_BUCKETS)   # 见 tearDownClass 的还原理由
-        cls.env = _env()
+        cls._kernel = _kernel()
+        cls._orig_buckets = dict(cls._kernel._PATH_CLEAR_BUCKETS)   # 见 tearDownClass 的还原理由
+        cls.env = _env(cls._kernel)
         # 造一栋合成楼：几何固定，只换 height —— 不用真楼，避免"真楼本来就没进集合"的混淆。
         from shapely.geometry import Polygon
         min_x, min_y, max_x, max_y = cls.env.global_bounds   # (minx,miny,maxx,maxy) 四元组
@@ -108,9 +120,8 @@ class HeightBinaryGate(unittest.TestCase):
         # 触发它的 `.clear()` —— 而字母序靠后的 `test_server_guards.PathClearBucketFingerprintTests`
         # 正持有自己那个 base 桶并断言"几何还原后回到同一个桶"。本轮实测就是这样红了一条
         # 与本门无关的用例（单独跑 OK、同进程连跑 FAIL）。合成楼的判定结果不该外溢给别的门。
-        import environment as _em
-        _em._PATH_CLEAR_BUCKETS.clear()
-        _em._PATH_CLEAR_BUCKETS.update(cls._orig_buckets)
+        cls._kernel._PATH_CLEAR_BUCKETS.clear()
+        cls._kernel._PATH_CLEAR_BUCKETS.update(cls._orig_buckets)
 
     def _install(self, height, jitter=0.0):
         """把障碍集合换成"只有这一栋楼（可选平移 jitter 米）"，筛选交给被测对象自己做。

@@ -21,11 +21,12 @@ from console import _preflight
 _preflight.require("numpy", "shapely", gated_in="console/test_environment_incidents.py")
 
 sys.modules.setdefault("osmnx", types.ModuleType("osmnx"))
-# 其它测试可能先把 environment 替换成轻量 fake；这里明确恢复真实模块。
-if "environment" in sys.modules and getattr(sys.modules["environment"], "__file__", None) is None:
-    del sys.modules["environment"]
-
-import environment  # noqa: E402
+# #70-P1 判据②：内核改走按路径加载器，不在模块顶层 `import environment`。
+# 原先这里还会"发现 sys.modules['environment'] 是假桩就把它删掉再按名字重导"——
+# 那是**替全进程**决定"environment 这个名字指向哪份代码"，正是要消除的顺序耦合源。
+# 按路径加载得到的模块不进 sys.modules，本模块自造一份真内核即可，与别人的桩互不干扰。
+_env_kernel = _preflight.load_kernel_environment()[0]
+Environment = _env_kernel.Environment
 from charging_station import ChargingStation  # noqa: E402
 from drone import Drone  # noqa: E402
 from task import Task  # noqa: E402
@@ -37,7 +38,7 @@ class _Generator:
 
 
 def make_env():
-    env = environment.Environment.__new__(environment.Environment)
+    env = Environment.__new__(Environment)
     env.charging_stations = [
         ChargingStation(0, 0.0, 0.0, berths=1),
         ChargingStation(1, 1000.0, 0.0, berths=1),

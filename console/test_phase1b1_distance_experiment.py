@@ -29,7 +29,8 @@ FLIP_DOC = REPO / "docs" / "取证输出" / "phase1b1_flip_witness.txt"
 
 def _fresh_env(provider_kind):
     """构造一个已切好 provider 的 Environment（in-process，只用于门 G1~G3）。"""
-    import environment as em
+    from console import _preflight as _pf   # #70-P1：按路径加载，见 docs/P70_import_order_pollution.md
+    em = _pf.load_kernel_environment()[0]
     env = em.Environment(str(OSM), episode_max_steps=120)
     env.reset(seed=40901)
     got = env.set_route_cost_provider(provider_kind)

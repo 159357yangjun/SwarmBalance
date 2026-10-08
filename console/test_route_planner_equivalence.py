@@ -45,7 +45,12 @@ def _legacy_plan(env, start_pos, end_pos):
 class RoutePlannerEquivalence(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        from environment import Environment
+        # #70-P1 判据②：内核走按路径加载器，不按名字 import（首次 import 会冻结
+        # frontend/environment.py:87/:100/:105 的配置常量 ⇒ 顺序敏感）。
+        if str(REPO) not in sys.path:
+            sys.path.insert(0, str(REPO))
+        from console import _preflight
+        Environment = _preflight.load_kernel_environment()[0].Environment
         cls.env = Environment(str(OSM))
         cls.env.reset(seed=40901)
         # 判别式前提：旧实现必须还在，否则本门自证

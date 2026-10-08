@@ -23,15 +23,34 @@ import unittest
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 
+# #70-P1 判据②：本模块**不在 import 期**加载 environment。
+# frontend/environment.py:87/:100/:105 在 import 时把 CFG / FLEET_MIX / DEFAULT_NUM_DRONES
+# 从 SWARM_BALANCE_SIM_CONFIG 冻结，而这份冻结是进程级、一次性、不可逆的 ⇒
+# "谁先 import"决定全进程看到的常量。discover 按字母序跑，一个测试模块抢先 import
+# 就能静默废掉后面依赖别的配置的模块（本轮实测：console/test_speed_fallback_gate 的
+# 重载配置被冻成出厂 10 机 ⇒ PSO buffer 峰=2 < 阈值 15 ⇒ optimize 零调用 ⇒
+# `[pso][NO_DENOMINATOR]` 把测试隔离缺陷冒充成算法缺陷）。
+# ⇒ 内核一律经 console/_preflight.py 的按路径加载器取，且只在 setUpClass 里取一次。
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))          # discover / -m unittest 两种入口都保证 `console` 可导
+from console import _preflight  # noqa: E402
 
 class SourceLegSemantics(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
+        # #70-P1 判据③：进门先记账，退出时原样还原 —— 本模块会改 `SWARM_BALANCE_SIM_CONFIG`
+        # 与 `sys.path`，原先不还原，是全仓"跨测试全局态残留"的实例之一。
+        # ⚠ 这只挡住"我把别人的环境弄脏"；挡不住"我抢先 import environment 把常量冻成出厂值"
+        #   （frontend/environment.py:87/:100/:105 在 import 期冻结，一次性、不可逆）。
+        #   后者由本模块改用按路径加载（见上）+ test_speed_fallback_gate 子进程化
+        #   + console/test_p1_order_independence_gate.py 守。
+        cls._prev_cfg = os.environ.get("SWARM_BALANCE_SIM_CONFIG")
+        cls._prev_path = list(sys.path)
         os.environ["SWARM_BALANCE_SIM_CONFIG"] = str((ROOT / "config" / "simulation.json").resolve())
         for p in (str(ROOT), str(ROOT / "frontend")):
             if p not in sys.path:
                 sys.path.insert(0, p)
-        from environment import Environment
+        Environment = _preflight.load_kernel_environment()[0].Environment
         cls.Environment = Environment
         cls.OSM = str(ROOT / "frontend" / "data" / "map" / "part_of_yangpu.osm")
         env = Environment(cls.OSM, episode_max_steps=2)
@@ -40,6 +59,17 @@ class SourceLegSemantics(unittest.TestCase):
         bb = env.global_bounds
         cls.cx = (bb[0] + bb[2]) / 2.0
         cls.cy = (bb[1] + bb[3]) / 2.0
+
+    @classmethod
+    def tearDownClass(cls):
+        # 还原到"本模块 setUpClass 之前"的状态（判据③：不留未还原的全局态）。
+        # sys.path 整表替换回快照：本模块 insert 过两条路径，留着会让后续模块
+        # 拿到与单独运行时不同的 import 解析顺序。
+        if cls._prev_cfg is None:
+            os.environ.pop("SWARM_BALANCE_SIM_CONFIG", None)
+        else:
+            os.environ["SWARM_BALANCE_SIM_CONFIG"] = cls._prev_cfg
+        sys.path[:] = cls._prev_path
 
     # ------------------------------------------------------------------
     def _route_tags(self, start, src, dst):

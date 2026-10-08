@@ -2,6 +2,31 @@
 
 ## [Unreleased]
 
+### 2026-10-08（第三十笔）：#70-P1 测试隔离 —— 污染源定位到行 + 消除"谁先 import"这件事 + 两扇顺序门（生产零改动）
+
+基线 5fc4471。上位裁定把"阶段通过"定义成六条**结构事实**（不是"这次聚合刚好绿"），本轮按 #70-P1 授权范围做①②③三件。硬边界照旧：未 push、未打 tag、paper/ 未碰；**生产代码零改动**（`git status --short frontend/ experiments/ console/server.py console/sim_session.py` 输出为空 ⇒ drone.py 三段、environment.py 皆未动，本笔只改测试与文档）。
+
+**① 污染源本体（不停在"import 顺序有关"这句描述）**：三方链，逐步行号与一手读数见 docs/P70_import_order_pollution.md。
+`console/test_r2_destination_without_load.py:30` setenv(出厂 config) → `:34` `from environment import Environment`（**首次 import 就发生在这一行**，由拦截 `builtins.__import__` 打栈实证）→ `frontend/environment.py:87/:100/:105` 模块级冻结 CFG/FLEET_MIX/DEFAULT_NUM_DRONES 成 10/{5,3,2} → `console/test_speed_fallback_gate.py` 随后换 SWARM_BALANCE_SIM_CONFIG 已太晚 ⇒ PSO buffer 峰=2 < 阈值 15 ⇒ optimize 零调用 ⇒ `[pso][NO_DENOMINATOR]`。**被改动的全局态 = Python 模块缓存 `sys.modules["environment"]` 里那份 import 期冻结的常量**（另含 `SWARM_BALANCE_SIM_CONFIG`、`sys.path`）。本轮自纠两处错判一并入档：先前"r2+speed_gate 两方"漏了第三方；先前"r2 不 import 重货、是别人干的"源于只 grep 顶部 40 行的 `^import`，漏了函数体内的 import。
+
+**② 修复 + 六条判据落地**：
+1. G2 改为**每算法各起干净子进程**跑完整真路径（子进程自己写重载配置、在 import 之前 setenv），主进程常量不再参与判定；机队规模由**被测那份进程自报** `num_drones==6` 核对（短码 `[GATE_FROZEN_BY_FOREIGN_IMPORT]`）。
+2. **消除"谁先 import"这件事本身**（不是点修 r2）：11 处从"按名字 import 内核"迁到 `console/_preflight.py:load_kernel_environment()`（按文件路径 exec、不进 sys.modules、用完还原 sys.path）—— r2 / c1_destination_leg / c4_is_carrying / h_r7 / h3_real_pop_events / route_planner_equivalence / height_binary_gate / environment_incidents / phase1b1_distance_experiment / phase1b2_eta(×4) / speed_gate 的 `_episode`。`test_environment_incidents` 原先还"发现桩就删掉再按名字重导"（替全进程决定这个名字指向哪份代码），一并去掉；height gate 改为持有**自己那份**内核引用、只还原自己那份。留在主进程按名字 import 的只有两类且结构上必须：生产代码 `console/sim_session.py:43`（reload 语义依赖名字绑定，不在测试侧改动范围）与 `test_command_console.py`（刻意装桩、自带 `tearDownModule` ⇒ 由 P2 的 test_C 单独管"装了必须有复原路径"）。
+3. **残留记账还原**（判据③）：r2 补 `tearDownClass` 还原 `SWARM_BALANCE_SIM_CONFIG` + `sys.path` 快照；建 P3 普查门时又实测抓到四处同样改了不还原的，一并补齐 —— c1_destination_leg、c4_is_carrying（各加 `setUpClass` 记账 + `tearDownClass`）、h_r7（它在**用例体内** setenv ⇒ 用 `setUp`/`tearDown` 成对切换）。
+
+**③ 两扇新门，两面配齐**：
+- `console/test_p1_order_independence_gate.py`：GREEN=两种显式相反顺序（r2→G2 / G2→r2）各跑 fresh process，双双 rc=0 **且** `[G2/pso] optimize` 读数逐字相同（只断"都通过"不够——读数漂移也是顺序相关）；RED=注入复刻 r2 形状的已知污染样本，断言它确实把 DEFAULT_NUM_DRONES 冻成出厂 10，否则报 `[P1_INJECT_NO_EFFECT]` 而非默默绿。实测读数：`Ran 2 tests OK` / `[P1_AGREE] … optimize=11454 一致` / `[P1_TEETH] 注入生效…冻成 10`。诚实边界写在 docstring 里：B 面证"污染机制仍在"，A 面才证"目标不被带偏"，二者不可互替。
+- `console/test_p2_no_name_based_kernel_import.py`（新增结构门）：扫 console/test_*.py 找主进程内按名字加载内核的语句，判据=命中 0，豁免须在册且带理由，**同时核"条目还在/已消失"**（防白名单变万能钥匙）。基线白名单为**空表**（迁移完 speed_gate 后测试侧已无合法理由按名字读内核）。三面实测：清洁树 `OK`（扫描 48 文件、命中 0、在册 0、已消失 0、普通字符串待确认 4）；负例注入被抓（第 5 行）；raw-string 子进程脚本不误伤；**真实变异**（把 c4 的 loader 换回 `from environment import Environment`）当场 `FAILED [P2_NAME_IMPORT]`，还原后复绿。另有 test_C 专管装桩模块"装了必须有 tearDownModule"。解析纪律：docstring 用 AST 识别（第一版用"独立成句的字符串"启发式会误伤拼接串）、隐式拼接串被 tokenize 合成单 token（实测 start=99/end=102）⇒ 普通字符串只按语句起始行登记，避免整块误豁免。
+- `console/test_p3_no_cross_test_residue.py`（新增残留门，判据③的常驻证人）：fresh 子进程里**真跑完**指定模块（含 setUpClass/tearDownClass），前后 diff `SWARM_BALANCE_SIM_CONFIG` 与 `sys.path`，判据=空；并逐模块点名（不靠聚合的巧合）。三面实测：`Ran 3 tests OK` — `[P3_CLEAN] 5 个模块全程跑完后残留=0` / `[P3_TEETH] 注入生效：读到残留 [{"kind":"env",…,"after":"/tmp/p3_injected_not_restored.json"}]` / `[P3_WITNESS] 正例证人通过`。两次自纠入档：(i) 第一版用 `loadTestsFromName` 只 import 不 run ⇒ 那个"0 残留"是量具到不了、不是现场干净（r2 的 setUpClass 根本没执行）；(ii) 注入样本一度只进 PYTHONPATH 却按 `console.<名>` 加载 ⇒ 样本压根没跑，会把"看不见"误报成"注入无效"，故补正例证人。**`sys.modules` 这一面实测撤掉**：任何真运行都会正常导入 drone/task/route_planner/config.config_loder 等 12 个名字，那是运行副作用不是"改了没还原"，当判据会让门永远红、只能靠放宽过活；该面改由 P2 从源码结构侧守。随机状态/注册表单例**未测**（本轮没实测到有人改了不还原 ⇒ 明写无人证得过，不写都会绿的门）。
+
+**④ G1 这条门的修法换了三次，全部留档（防止下一个人在同一处再猜）**：
+(a) 在主进程 setUpClass 核对机队 ⇒ ORDER-A 仍红（把已免疫顺序的 G2 判死）；
+(b) 改成"按路径加载一份内核 + 读主进程那份常量核对" ⇒ 全量复跑仍红 `[GATE_FROZEN_BY_FOREIGN_IMPORT] DEFAULT_NUM_DRONES=10`，因为**真正的第一个 importer 是生产代码** `console/sim_session.py:43`（经 `console/test_server_guards.py:22` 的 `import console.server` 拉进来；判别式=拦 `builtins.__import__` 打栈，输出 `[FIRST environment] … sim_session.py:43` / `>>> first import happened while loading: console.test_server_guards`）；对着一个合法的生产名字绑定喊狼是不行的。
+(c) 改成"模块顶层装一次配置 + 按路径加载" ⇒ 第三次全量复跑仍红 `[GATE_CONFIG_NOT_APPLIED] DEFAULT_NUM_DRONES=10`：字母序在 speed_gate 之后的 `console/test_swap_time_gate.py:63`（及 `test_sla_consumption_gate.py:68`）会把同一个环境变量改走 ⇒ 我 import 时装的那份早被人顶掉。
+**定稿**：`_pf_kernel()` 每次取内核前重装配置、按路径 exec 一份、当场核对该内核的常量指纹 ⇒ 校验对象与消费对象是同一个模块对象，与"谁先 import""谁后改 env"都无关。判别式实测三面：`sla+g1` 10 tests OK / `r2+g1` 5 tests OK / 单跑 g1 OK，断言面（取值集合）三面同为 `[14.0, 20.0]`。
+⚠ 诚实标注：G1 的**采样次数**随前序模块是否改走过 task_generation 配置而在 43200/28824 之间变，它不是本门判据、也没被写成判据；若要把它钉成判据得先让它对配置注入时序不敏感。
+
+
 ### 2026-10-08（第二十九笔）：#69-C6 追问更正 —— 6-A 未守住 C2 命题，§6-D 那句升级就地作废
 
 基线 2e5931a。主控追问"白名单相等门守的是 is_free=True 赋值点集合，它真的守住 C2 的命题了吗"。**实测答案：没有 ⇒ 选①**，C2 仍属 [P]/[D]。
@@ -14,6 +39,24 @@ C2 有两条承重前提：(i) 赋值点集合有限已知（6-A 守这条）；
 
 处置：docs/#69_结项报告.md §6-E 纯追加(+19/-0)记作废与实测读数，**§6-D 原句保留不删**（就地标效力作废），并把 §5.3"C2 无门可守"恢复为有效残余盲区、明写不得对外称 C2 已有门守。
 门文件 docstring 同步收窄：加一段"只覆盖前提 (i)、不覆盖 (ii)"并引 §6-E，防下一个读者重犯我这个错。测试仍 4 tests OK、citation --verify exit=0、生产代码零改动。
+
+**⑤ 六条结构事实的落地状态（本轮实测，不含推断）**：
+| # | 判据 | 读数 | 复算命令 |
+|---|---|---|---|
+| 1 | fresh process 单跑=聚合 | G2 四算法 optimize 逐字同：pso 11454 / ga 114 / ortools 120（聚合与单跑各一遍） | `python -m unittest discover -s console` vs `python -m unittest console.test_speed_fallback_gate` |
+| 2 | 换发现/import 顺序结果不变 | `[P1_AGREE] 两种顺序均通过且 pso optimize=11454 一致` | `python -m unittest console.test_p1_order_independence_gate` |
+| 3 | 无未还原的全局态残留 | `[P3_CLEAN] 5 个模块全程跑完后残留=0`（env/sys.path 两面，逐模块点名亦空） | `python -m unittest console.test_p3_no_cross_test_residue` |
+| 4 | g2_all_four 不依赖前序模块初始化 | 该用例现在只在子进程里跑，父进程常量不参与；两向顺序皆绿（见 #2） | 同 #2 |
+| 5 | 除具名 skip 外无顺序相关红项 | 本笔定稿后全量 `Ran 352 tests in 1092.777s` / `OK (skipped=5)`，退码 0；五条 skip 全部具名（见下） | 见下"套件分母" |
+
+`citation --verify` exit=0（183 条 path:line，74 条带锚点，problems=0）。
+| 6 | 有新的顺序无关回归门 | P1（运行时两向对撞）+ P2（源码结构扫描）+ P3（残留 diff）三扇常驻门，各自两面/正例证人齐 | 三门各自单跑 |
+
+**套件分母（口径要分开）**：定稿后那一轮全量 = console **`Ran 352 tests ... OK (skipped=5)`，退码 0**，与 `_readme_counts.py --verify` 现算的总数一致（console 49 文件 / 352 用例、experiments 3 文件 / 32 用例）。本笔过程中另有一轮是 `Ran 349 ... OK` —— 差的 3 条是当时刚建、尚未计入那一轮的 P3 门。**引用哪个数都要说清是哪一轮、哪一棵树**。复算命令：`python -m unittest discover -s console -p "test_*.py"`（实跑）与 `python console/_readme_counts.py --verify`（总数）。
+五条具名 skip 原文：`[OLD_IS_BASELINE_AUDIT_SNAPSHOT]`（old 面不作通过/失败判据）、`仅 mutation 面执行`、`[H_SKIPPED_NOT_FROZEN_BASELINE] 该基准只对 580c937 有效`、`正式配对实验耗时长，显式 SWARM_1B1_FULL=1 才跑`、`[GATE_CALIBRATION_STALE]`（g2teeth，#69-H3 裁定①留的显式 skip，既非通过也非失败）。
+具名 skip 五条原文见 /tmp 那轮日志尾，分别是：`[OLD_IS_BASELINE_AUDIT_SNAPSHOT]`、`仅 mutation 面执行`、`[H_SKIPPED_NOT_FROZEN_BASELINE]`、`SWARM_1B1_FULL=1 才跑`、`[GATE_CALIBRATION_STALE]`（g2teeth，#69-H3 裁定①留的显式 skip，既非通过也非失败）。
+
+**残余边界（写清楚没做到什么）**：(i) 生产侧 `console/sim_session.py:43` 的名字绑定仍在——它是 reload 语义所需，改它属另一类授权；(ii) P3 只测 env/sys.path 两面，随机状态与注册表单例未测（本轮没实测到"改了不还原"的样本）；(iii) G1 的采样次数随配置注入时序漂移，已明写不作判据。
 
 选项③（补一条覆盖顺序的门）判据本轮不写死、不动手，待主控另行放行。硬边界照旧：未 push、未打 tag、paper/ 未碰。
 

@@ -19,6 +19,13 @@ import os, pathlib, sys, unittest
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 
+# #70-P1 判据②：内核改走 console/_preflight.py 的按路径加载器（只在 setUpClass 里取），
+# 不在 import 期 `from environment import ...` —— 首次 import 会冻结
+# frontend/environment.py:87/:100/:105 的配置常量，令后续依赖别的配置的模块静默拿到出厂值。
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+from console import _preflight  # noqa: E402
+
 # ⚠ 不能把 staticmethod 存成类属性再 `_is_carrying(d)` 调：那样 Python 会把 self 注进去
 #   （本轮实测报 takes-1-positional-but-2）。走模块级函数名调用，绑定与生产代码一致。
 _IC = None
@@ -32,15 +39,27 @@ class IsCarryingDiscriminator(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         global _IC
+        # #70-P1 判据③：进门记账、退出还原（由 console/test_p3_no_cross_test_residue.py 守）。
+        cls._prev_cfg = os.environ.get("SWARM_BALANCE_SIM_CONFIG")
+        cls._prev_path = list(sys.path)
         os.environ["SWARM_BALANCE_SIM_CONFIG"] = str((ROOT / "config" / "simulation.json").resolve())
         for p in (str(ROOT), str(ROOT / "frontend")):
             if p not in sys.path:
                 sys.path.insert(0, p)
-        from environment import Environment
+        kernel = _preflight.load_kernel_environment()[0]
+        Environment = kernel.Environment
         from drone import Drone
         raw = Environment.__dict__.get('_is_carrying')
         _IC = raw.__func__ if isinstance(raw, staticmethod) else raw
         cls.Drone = Drone
+
+    @classmethod
+    def tearDownClass(cls):
+        if cls._prev_cfg is None:
+            os.environ.pop("SWARM_BALANCE_SIM_CONFIG", None)
+        else:
+            os.environ["SWARM_BALANCE_SIM_CONFIG"] = cls._prev_cfg
+        sys.path[:] = cls._prev_path
 
     def _d(self, load, route):
         d = self.Drone(x=0.0, y=0.0, drone_id="c4")

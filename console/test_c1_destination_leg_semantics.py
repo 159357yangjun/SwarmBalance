@@ -29,15 +29,25 @@ import unittest
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 
+# #70-P1 判据②：不在 import 期按名字加载 environment（frontend/environment.py:87/:100/:105
+# 会在首次 import 时把配置常量冻结掉，谁先 import 决定全进程看到什么 ⇒ 顺序敏感）。
+# 改走 console/_preflight.py 的按路径加载器：不进 sys.modules["environment"]、不污染别人。
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+from console import _preflight  # noqa: E402
+
 
 class DestLegSemantics(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
+        # #70-P1 判据③：进门记账、退出还原 —— 本模块会改环境变量与 sys.path。
+        cls._prev_cfg = os.environ.get("SWARM_BALANCE_SIM_CONFIG")
+        cls._prev_path = list(sys.path)
         os.environ["SWARM_BALANCE_SIM_CONFIG"] = str((ROOT / "config" / "simulation.json").resolve())
         for p in (str(ROOT), str(ROOT / "frontend")):
             if p not in sys.path:
                 sys.path.insert(0, p)
-        from environment import Environment
+        Environment = _preflight.load_kernel_environment()[0].Environment
         cls.Environment = Environment
         cls.OSM = str(ROOT / "frontend" / "data" / "map" / "part_of_yangpu.osm")
         env = Environment(cls.OSM, episode_max_steps=2)
@@ -46,6 +56,15 @@ class DestLegSemantics(unittest.TestCase):
         bb = env.global_bounds
         cls.cx = (bb[0] + bb[2]) / 2.0
         cls.cy = (bb[1] + bb[3]) / 2.0
+
+    @classmethod
+    def tearDownClass(cls):
+        # 还原到"本模块 setUpClass 之前"的状态（判据③；由 console/test_p3_no_cross_test_residue.py 守）。
+        if cls._prev_cfg is None:
+            os.environ.pop("SWARM_BALANCE_SIM_CONFIG", None)
+        else:
+            os.environ["SWARM_BALANCE_SIM_CONFIG"] = cls._prev_cfg
+        sys.path[:] = cls._prev_path
 
     def _route_tags(self, start, src, dst):
         class _T:

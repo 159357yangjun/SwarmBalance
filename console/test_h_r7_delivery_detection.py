@@ -12,16 +12,35 @@ import os, pathlib, sys, unittest
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 
+# #70-P1 判据②：内核走 console/_preflight.py 的按路径加载器，不在 import 期/用例体内
+# 按名字 `from environment import ...`（首次 import 会冻结 frontend/environment.py:87/:100/:105
+# 的配置常量 ⇒ 顺序敏感）。
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+from console import _preflight  # noqa: E402
+
 
 class Task44EndToEnd(unittest.TestCase):
     """端到端：seed 102 经生产 worker 入口，task_44 必须有 DESTINATION_REACHED 且无 cleanup_no_svc。"""
+
+    def setUp(self):
+        # #70-P1 判据③：本用例在用例体内改环境变量与 sys.path ⇒ 逐条记账、tearDown 还原。
+        self._prev_cfg = os.environ.get("SWARM_BALANCE_SIM_CONFIG")
+        self._prev_path = list(sys.path)
+
+    def tearDown(self):
+        if self._prev_cfg is None:
+            os.environ.pop("SWARM_BALANCE_SIM_CONFIG", None)
+        else:
+            os.environ["SWARM_BALANCE_SIM_CONFIG"] = self._prev_cfg
+        sys.path[:] = self._prev_path
 
     def test_B_seed102_task44_delivered(self):
         os.environ["SWARM_BALANCE_SIM_CONFIG"] = str((ROOT / "config" / "simulation.json").resolve())
         for p in (str(ROOT), str(ROOT / "frontend")):
             if p not in sys.path:
                 sys.path.insert(0, p)
-        from environment import Environment
+        Environment = _preflight.load_kernel_environment()[0].Environment
         from greedy.scheduler import greedy_action_from_observation
         import consistency_observer as co
         env = Environment(str(ROOT / "frontend" / "data" / "map" / "part_of_yangpu.osm"), episode_max_steps=3600)
