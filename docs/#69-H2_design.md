@@ -41,6 +41,16 @@ passed(p) := dist_point_to_segment(p, S, E) <= TOL
 (c) t=521（多点弹含 waypoint 头）与 t=79（同帧追加）双向分歧样本各归其位。
 三面**先红后绿留档**：先在旧规则(9b1cd15)上跑 (a)(c) 对应夹具，**实测报红**（旧规则 (a) 会误判 k≥1、(c) t=79 会 k=0），存档原始输出；再落 H2 转绿。禁止拿推断当红、禁止改夹具迁就规则。
 
+### 5.1 (b) 基线的一手来源（把"冻结证人"从口头变可复算断言）
+`avg_delay=2.802632` **不是对话里的口头读数**，有仓内一手产物，且已入库、与工作树逐字节一致：
+- **源文件**：`docs/取证输出/c1_paired_replay_f654587_fixed.json`（git 跟踪，引入于 `aa75b5b #69-C1`，HEAD blob=`aecc5e6…` 与盘上 hash-object 相同）。
+- **字段路径**：`metrics.mean_delay.before = metrics.mean_delay.after = 2.802632`，`metrics.mean_delay.delta = 0.0`。同文件另钉 `seed=40907 / steps=1200 / algorithm=greedy`、`timeout_rate=0.052632`、`completed=38`、`cleanup_completion.after=0`。
+- **它记录的是哪一次**：`baseline_before=f654587 → after=working-tree #69-C1` 的配对回放里 mean_delay 保持不变 ⇒ 2.802632 是 **C1 提交态**的读数。
+- **第二证人（独立复算）**：本轮把 environment.py stash 回 HEAD（含 H1′ 9b1cd15 的后缀+服务前缀规则），用生产入口 `experiments/worker.py --algorithm greedy --seed 40907 --episode-steps 1200` 实测 `平均时延=2.8026315789473686`，与 JSON 值在 6 位小数逐字一致 ⇒ 该基线在当前提交态可复现、未随后续 commit 漂移。
+- **可复算门**：`console/test_h_b_baseline_provenance.py` 读上述 JSON 的 `metrics.mean_delay.{before,after}` 并断言二者相等且 =2.802632（六舍五入），同时校验文件 git 跟踪状态——把"冻结证人"钉成断言，而非引用文档正文里的数字。
+
+> ⚠ 由此得出一条必须写清的口径修正：H2 线段谓词实测把 seed40907 avg_delay 变成 2.776316，**不等于**"旧基线是假阳性产物"。相反，2.802632 由 C1 提交态与 HEAD 两个独立时刻复算得到；是 H2 自身在 6 处 `prev==curr`（航点仍留在航线、未弹出）时因"途经即算"提前计账把它推离基线（见本轮具名证据）。**(b) 基线成立**，无需重定；不满足 (b) 的是谓词形状，不是参照数。
+
 ## 6. 风险与自限
 - **单步运动模型已核实（不再是假设）**：`drone.py:355-360` 每步只朝 `scheduled_position[0]` 走一段直线位移（`x += dx/dist*max_distance`），一步内不折线 ⇒ 用线段 [S,E] 判"途经"在几何上成立。若将来 update 改成多段/曲线，passed 需改用真实轨迹采样——届时另议。
 - 若实现后仍有两面不能同时过的样本 → 停下交具名证据，不改夹具。
