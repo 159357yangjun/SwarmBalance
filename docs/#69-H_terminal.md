@@ -55,6 +55,16 @@
 - #69-H3 交付判据、六硬夹具 T1–T6、五门 G-H3-A..E 见下轮正文；(b) 参照数 avg_delay=2.802632 经溯源门 test_h_b_baseline_provenance.py 钉死，**不得 re-freeze 到 2.776316**。
 
 ## H3 复跑收口状态（2026-10-08）—— citation 已闭 / g2teeth 停裁 / 并发假象登记不修
+
+### 聚合分母（一手终行，bacwcsqu5）
+`Ran 330 tests in 749.978s — FAILED (failures=1, skipped=5)` ⇒ 通过 **324/330**、skip **5/330**、fail **1/330**。
+- **failures=1（已定性预存、非 D-iv）**：`test_speed_fallback_gate.test_g2_all_four_algorithms_get_real_fleet_speed`（import-order 污染，见下判别式）。
+- **skipped=5 逐项点名（一手 `-v` skip 行）**：① `test_c1_lifecycle_gate` old 面 — `[OLD_IS_BASELINE_AUDIT_SNAPSHOT]`（#69-G 签字，历史既有）；② `test_c1_lifecycle_gate` mutation 面 — `仅 mutation 面执行`（历史既有）；③ `test_consistency_observer_zero_drift` 归因互核 — `[H_SKIPPED_NOT_FROZEN_BASELINE]`（该基准只对 580c937 有效，历史既有）；④ `test_phase1b1_distance_experiment.test_h0_h1_paired_comparison` — `正式配对实验耗时长，显式 SWARM_1B1_FULL=1 才跑`（历史既有）；⑤ `test_speed_fallback_gate.test_g2teeth…` — `[GATE_CALIBRATION_STALE]`（**本轮 H3 唯一新增 skip**，裁定①显式 skip、带具名状态、非默默绿）。⇒ 前 4 条与 D-iv 无关，第 5 条即 g2teeth。
+
+### 已知干扰条目登记（跨仓挂账，各自独立）
+- **本仓（drone-scheduling）**：`test_g2_all_four` 聚合红＝**import-order 配置污染**（speed_gate import 期 `_install_gate_config()` 冻结机型时 `SWARM_BALANCE_SIM_CONFIG` 被字母序在前、setUpClass setenv 不还原的 test_r2 改指他配置）。判别式三条一手：单跑 OK / r2+speed 配对 FAIL / 同对配 pre-D-iv 文件照样 FAIL。登记 pending-revalidation，修法＝该门配置注入与前置模块解耦；H3 授权外不动。
+- **PicList 仓（会话 7098e13a，不同仓）**：其 `test_g2_*` 族曾有同类"聚合红/standalone 绿"现象。**同族症状 ≠ 同一根因**——两仓测试隔离机制不同，必须各自挂账、各自取证，不得互相顶替结论。此处仅交叉引用，不在本仓为其定性。
+
 全量 console suite（post-remap，330 tests）4 处红逐条定性：
 - **citation 三门随 remap 收口 ✅**：`_citations.py --verify` 曾报 `[REWRITE_MAP_STALE]`（提交改写映射表落后 git，HEAD 上即存在、非 D-iv 引入）。执行 `--rewrite-report --write` 重生成表（旧指针18/悬空32/问题0）后 verify exit=0，`test_coverage_is_printed` standalone OK。environment.py 行号漂移的 12+1 条 path:line 已 remap，citation 门 0 breaks。
 - **并发假象 ×2 登记为已知干扰、不修**：`test_g2_all_four_algorithms_get_real_fleet_speed`、`test_rewrite_map.test_batch_read_matches_per_object_read` 在聚合 discover 里红、standalone 均绿 ⇒ 是 OSM-booting 慢测并发/资源干扰所致，与被测语义无关，遵"偶发红写带分母、不当缺陷"处理，只登记不动代码。
