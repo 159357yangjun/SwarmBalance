@@ -10,7 +10,12 @@
   "R4_aggregate_not_recomputable": 0,
   "r5_nonexact_arrival_count": 12,
   "R5_never_loaded_among_them": 0,
-  "cleanup_completion_without_service": 0
+  "cleanup_completion_without_service": 0,
+  "GD_a_timeout_from_illegal": 0,
+  "GD_b_alignment_ok": 1,
+  "GD_b_missing_dr": 0,
+  "GD_b_orphan_dr": 0,
+  "GD_b_sum_d_completed": 38
  },
  "events": [
   {

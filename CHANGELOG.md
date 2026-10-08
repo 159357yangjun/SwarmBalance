@@ -2,6 +2,25 @@
 
 ## [Unreleased]
 
+### 2026-10-07（第十六笔）：#69-E KPI 疑点门化 G-D-a/G-D-b + D-2 互检（production 零修改）
+
+基线 518b3d9。改动面 = console/test_c1_lifecycle_gate.py + docs/D_KPI定义层盘点.md + README 计数；
+frontend/experiments/backend_si 对 518b3d9 **零 diff**（已 git 核）。
+
+① G-D-a → test_5_GD_a_timeout_only_from_legal_delivery：谓词"任一 d_delay>0 或 d_ontime==0 的完成必须 origin==destination_branch"，
+判据写成结构事实、期望不写常量 2（自然值 GD_a=0）。证人用 origin 不用 has_destination_evidence（后者几何精确相等会把 detour
+容差抵达的合法送达误报）。证牙探针：合成一条 cleanup-origin+d_delay>0 完成喂进 classify ⇒ 必 >0。
+② G-D-b → test_6_GD_b_dr_completion_bidirectional_align：counter==|completion|==Σd_completed 且缺 DR=0、孤儿 DR=0。
+⚠ 自然对齐检查作用在**未注入生产轨迹**（从 c1_face_live_fixed.json 读，counter 由 Σd_completed 现算），不是本面注入后 trace——
+mutate/forced_cleanup 故意注入错位是 R3/R4 的职责，拿注入 trace 断言"必须对齐"会与 mutation 面自相矛盾（本轮实测踩过：先按 self.trace
+跑 mutate 假红 counter38≠comp40、再按注入 counter 比自然事件 forced_cleanup 假红 39≠38，两次都因取错总体）。证牙探针：删一条 DR ⇒ missing_dr≥1 且对齐破。
+③ D-2 互检（按"结论是啥写啥、不建重门"）：avg_energy_per_task(env:966) 分母=total_completed_tasks，与 rate 指标同分母；
+grep metrics_schema/reporting 均 0 命中 ⇒ 未导出、无方向 ⇒ 当前无害，符合原结论。只在 D 文档加一行"若将来导出必须同时登记方向"的互检，不单独建门。
+
+四面终态：fixed/mutate/forced_cleanup 全 OK（含两条新 GD 测试执行通过）、old 仍 [C1_NO_TEETH]（承 C2a 待裁项①，非本轮引入）。
+聚合 suite 复跑 A90+B38+C117+D25=270 全绿、零失败；README 计数 _readme_counts.py --fix → console=39文件/314用例。
+paired replay 读数不变（E 纯审计层，GD 只读事件不改生产；replay 于 C1 已做，本轮不重生成、任何读数变化即视为外溢——实测无变化）。停在 E 汇报，不开 F。
+
 ### 2026-10-07（第十五笔）：#69-D KPI 定义层盘点与自洽审计 —— D 轮零生产改动
 
 基线 22ab9b1。只盘点不改码（frontend/、experiments/ 对 HEAD 零 diff）。产物 docs/D_KPI定义层盘点.md。

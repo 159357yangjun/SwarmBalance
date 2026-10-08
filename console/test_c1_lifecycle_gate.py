@@ -156,6 +156,22 @@ def classify(trace: dict, injected=None) -> dict:
                           if e.get("record_origin") == "is_free_cleanup_branch"
                           and e["task_id"] not in reached]
 
+    # G-D-a（#69-E）：timeout/delay 只能由 legal delivery completion 产生。
+    #   谓词写成不随 seed 变的结构事实，不用常量：任一 d_delay>0 或 d_ontime==0 的完成必须有 DESTINATION_REACHED。
+    #   ⚠ 用 origin==destination_branch 作证人、不用 has_destination_evidence —— 后者是几何精确相等，
+    #     detour 容差抵达下合法送达也会 False（r5_nonexact_arrival_count=12 那批），拿它当证人会误报。
+    gd_a = [e for e in comp
+            if (float(e.get("d_delay", 0.0)) > 0 or int(e.get("d_ontime", 1)) == 0)
+            and e.get("record_origin") != "destination_branch"]
+
+    # G-D-b（#69-E）：DR ↔ completion 双向对齐 + counter 可重算（把 D §2(b) 变成常驻检查而非一次性对账）。
+    #   三个量必须相等：counter == Σd_completed == |completion|；且缺 DR 的完成=0、孤儿 DR=0。
+    sum_d_completed = int(sum(e.get("d_completed", 0) for e in comp))
+    missing_dr = len([e for e in comp if e["task_id"] not in reached])
+    orphan_dr = len(reached - {e["task_id"] for e in comp})
+    gd_b_aligned = (counter == len(comp) == sum_d_completed
+                    and missing_dr == 0 and orphan_dr == 0)
+
     return {
         "completions_recorded": len(comp),
         "counter": counter,
@@ -168,6 +184,11 @@ def classify(trace: dict, injected=None) -> dict:
         "R5_never_loaded_among_them": sum(1 for e in r5
                                           if not e.get("has_load_evidence", False)),
         "cleanup_completion_without_service": len(r_cleanup_semantic),  # 有牙语义门
+        "GD_a_timeout_from_illegal": len(gd_a),               # G-D-a：非法来源的 timeout/delay 数
+        "GD_b_alignment_ok": 1 if gd_b_aligned else 0,        # G-D-b：三量互等 + 双向无缺口
+        "GD_b_missing_dr": missing_dr,
+        "GD_b_orphan_dr": orphan_dr,
+        "GD_b_sum_d_completed": sum_d_completed,
     }
 
 
@@ -265,6 +286,66 @@ class C1LifecycleGate(unittest.TestCase):
         self.assertGreaterEqual(base["R3_duplicate_completion"], 0)
         dup = base["R3_duplicate_completion"]
         self.assertGreater(dup, 0, "[C1_MUTATE_R3_NOT_CAUGHT] 注入的重复未被抓到")
+
+    # ------------------------------------------------------------------
+    # #69-E：把 D §2(a)/(b) 两条对账升级成常驻门（自然面绿 + 合成注入证牙）
+    # ------------------------------------------------------------------
+    def test_5_GD_a_timeout_only_from_legal_delivery(self):
+        """(a) timeout/delay 只由 legal delivery completion 产生 —— 结构判据，非常量。
+
+        自然面（old/fixed/mutate/forced_cleanup 的真实生产轨迹部分）：GD_a 必须=0。
+        ⚠ forced_cleanup/mutate 会往 trace 里注入事件，但注入的是"无 delay 的完成"或"合法重复"，
+          不制造非法 delay 贡献 ⇒ GD_a 在四面都应=0；若某面 >0 说明该面的注入本身引入了非法来源时延，需查。
+        """
+        r = self.res
+        self.assertEqual(r["GD_a_timeout_from_illegal"], 0,
+                         f"[GDA_TIMEOUT_FROM_ILLEGAL] {r['GD_a_timeout_from_illegal']} 条 timeout/delay "
+                         f"来自非 destination_branch 的完成 ⇒ 见 {json.dumps(r, ensure_ascii=False)}")
+        # 证牙：合成一条 d_delay>0 且 origin=is_free_cleanup_branch 的完成，谓词必须抓到它。
+        synth = list(self.trace["events"]) + [{
+            "kind": "TASK_COMPLETION_RECORDED", "seq": 10 ** 9, "task_id": "__gda_probe__",
+            "drone_index": 0, "record_origin": "is_free_cleanup_branch",
+            "has_destination_evidence": False, "has_load_evidence": True,
+            "d_completed": 1, "d_ontime": 0, "d_delay": 5.0, "sim_time": 0.0,
+        }]
+        got = classify({"events": synth, "total_completed_tasks": r["counter"]})["GD_a_timeout_from_illegal"]
+        self.assertGreaterEqual(got, 1,
+                                "[GDA_NO_TEETH] 注入了非法 delay 贡献而谓词没抓到 ⇒ 门无牙")
+
+    def test_6_GD_b_dr_completion_bidirectional_align(self):
+        """(b) DR ↔ completion 双向对齐 + counter 可重算：三量互等、缺项=0、孤儿=0。
+
+        ⚠ 判据作用在**自然生产轨迹**上，不是本面的注入后 trace —— mutate/forced_cleanup 会故意
+          注入错位（那是 R3/R4 的职责），拿注入 trace 断言"必须对齐"会与 mutation 面自相矛盾。
+          self.trace["events"] 在这两面已被 _collect 换成注入后的列表 ⇒ 读不到未注入基线，
+          故自然轨迹从 old/fixed 面写出的 c1_face_live_fixed.json 取（同 seed/算法/步数的生产真值）。
+        """
+        r = self.res
+        nat_file = OUT_DIR / "c1_face_live_fixed.json"
+        if not nat_file.is_file():
+            self.skipTest("[GDB_NO_NATURAL_BASELINE] 缺 c1_face_live_fixed.json ⇒ 无法核对自然轨迹对齐")
+        nat_events = json.loads(nat_file.read_text(encoding="utf-8"))["events"]
+        # 自然轨迹的 counter：Σd_completed（不是本面注入后的 r["counter"]，否则 mutate/forced_cleanup
+        #   会拿"注入后计数"去比"未注入事件数"，制造假错位）。
+        nat_counter = int(sum(e.get("d_completed", 0) for e in nat_events
+                              if e["kind"] == "TASK_COMPLETION_RECORDED"))
+        natural = classify({"events": nat_events, "total_completed_tasks": nat_counter})
+        self.assertTrue(natural["GD_b_alignment_ok"],
+                        f"[GDB_MISALIGNED] counter={natural['counter']} "
+                        f"completions={natural['completions_recorded']} "
+                        f"Σd_completed={natural['GD_b_sum_d_completed']} "
+                        f"missing_dr={natural['GD_b_missing_dr']} orphan_dr={natural['GD_b_orphan_dr']}")
+        # 证牙：删掉一条 DESTINATION_REACHED ⇒ 出现"缺 DR 的完成"，对齐必须破。
+        ev = list(nat_events)
+        first_reach = next((i for i, e in enumerate(ev) if e["kind"] == "DESTINATION_REACHED"), None)
+        if first_reach is None:
+            self.skipTest("[GDB_NO_DR_TO_REMOVE] 自然轨迹里没有 DESTINATION_REACHED 可删")
+        synth = ev[:first_reach] + ev[first_reach + 1:]
+        got = classify({"events": synth, "total_completed_tasks": natural["counter"]})
+        self.assertFalse(got["GD_b_alignment_ok"],
+                         "[GDB_NO_TEETH] 删掉一条证人 DR 后对齐仍成立 ⇒ 门无牙")
+        self.assertGreaterEqual(got["GD_b_missing_dr"], 1,
+                                "[GDB_MISSING_NOT_COUNTED] 缺 DR 的完成没被计入 missing_dr")
 
 
 def _force_cleanup(events):

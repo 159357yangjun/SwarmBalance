@@ -71,4 +71,14 @@ C1 前该分母含 12 条非法 completion ⇒ 每任务能耗被虚低；C1 后
 
 两条都是审计层，不碰生产码。等你裁定是否建门、以及 D-1 措辞要不要写进 metrics 口径文档。
 
+> **#69-E 落地状态**：G-D-a / G-D-b 已实现为 `test_5_GD_a_timeout_only_from_legal_delivery` /
+> `test_6_GD_b_dr_completion_bidirectional_align`（console/test_c1_lifecycle_gate.py）。判据用结构谓词
+> （origin==destination_branch 作证；GD_b 作用在自然轨迹 c1_face_live_fixed.json，非注入后 trace），
+> 期望值不写常量 2。各带合成证牙探针（注入非法 delay / 删一条 DR ⇒ 必红）。四面 fixed/mutate/forced_cleanup 绿、old 仍 [C1_NO_TEETH] 红。
+>
+> **D-2 互检（③，按"结论是啥写啥、不建重门"）**：`avg_energy_per_task`(environment.py:966) 分母 = total_completed_tasks，
+> 与 on_time_rate/avg_delay 同分母——已核它**不在 METRIC_COLUMNS、不在 HIGHER/LOWER_IS_BETTER/DIRECTION_AMBIGUOUS**
+> （grep frontend/metrics_schema.py + experiments/reporting.py 均 0 命中）⇒ 未导出、无方向 ⇒ 当前无害，符合 D 文档原结论。
+> 一行互检：若将来把它导出，必须同时在 reporting 登记方向，否则会被算法对比静默当作中性列。不为此单独建门。
+
 相关：docs/当前状态真源图.md §6-L、CHANGELOG 2026-10-07 第十五笔。
