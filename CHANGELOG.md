@@ -20,8 +20,13 @@
 
 **套件分母（本轮定稿实跑）**：全量 `python -m unittest discover -s console -p "test_*.py"` ⇒ **`Ran 364 tests in 1568.637s` / `OK (skipped=4)`，退码 0**；与 `python console/_readme_counts.py --verify` 现算一致（console **50 文件 / 364 用例**、experiments 3 / 32；README:441 由该脚本改写，非手抄）。聚合日志里 g2teeth 那格印出 `[G2TEETH_L1] 标定门实跑 OK：Ran 8 tests` ⇒ **L1 证人在聚合内也真的跑了**，不只是单跑时跑。`citation --verify` exit=0。三扇 P 门复跑 `Ran 13 tests ... OK`（P2 扫描数随新文件变为 50）。
 
-**本轮被自己的门抓到的一次漂移**：改完 README 顶部进度段后 `_citations.py --verify` 当场报 **2 条 ANCHOR_MISS**（登记表 :495 引 `README.md:29#产品规格`、:497 引 `README.md:28#四类算法统一评测`，插 3 行后真值变为 32 / 31 ⇒ 行号在范围内却指向别处，正是纯行号判据看不见的那一类）。按门的指示**只改引用、不改判据**，改后 exit=0（checked 183→184）。这已是同一处第二次因"README 顶部插段"漂移（上一次登记为 24→29）⇒ 登记一条待办性质的口径：**正文类文档的引用应按节描述、不该按深行号**（该原则登记簿 :497 自己已经写过，本轮是它第三次被同一件事证明）。
+**本轮被自己的门抓到的一次漂移**：改完 README 顶部进度段后 `_citations.py --verify` 当场报 **2 条 ANCHOR_MISS**（登记表 :495 引 `README.md:29#产品规格`、:497 引 `README.md:28#四类算法统一评测`，插 3 行后真值变为 32 / 31 ⇒ 行号在范围内却指向别处，正是纯行号判据看不见的那一类）。按门的指示**只改引用、不改判据**，改后 exit=0（checked 183→184）。这已是同一处第二次因"README 顶部插段"漂移（上一次登记为 24→29）。
 
+**这条不是新约定，是既有约定又被证明一次（更正）**：我第一版把它写成"登记一条待办性质的口径"，查了实现后发现它**早就是强制的**——`_citations.py` 对带 `#锚点` 的引用会核该行内容是否含该锚点（`:273 [ANCHOR_MISS]`），且这条判定由常驻门 `console/test_gate_ascii_diagnostics.py::test_citation_failures_survive_a_console_that_cannot_print_chinese` 用样本喂进 discover（要求样本覆盖 ≥6 种码且在 GBK 控制台可读）⇒ **文档正文一律按锚点/节描述引用、不按深行号**是已生效约定。真正的残余是另一件事：**未带锚点的行号引用只判越界、不判内容**（本轮这两条恰好都带锚点才会红）。⇒ 本轮新增的引用全部带锚点；是否给"无锚点行号引用"补一条覆盖率上限门属新范围，未动手，登记在此待裁。
+
+**终态读数（本轮真跑，非引用上一轮）**：全量 `Ran 364 tests in 1897.973s / OK (skipped=4)`，退码 0；四条 skip 逐个点名（含用例 ID 与 reason 原文）归档在 `docs/取证输出/p70_p2_g2teeth/E_terminal_readout.md`。第 4 条 `test_phase1b1_distance_experiment.FullPairedExperiment.test_h0_h1_paired_comparison`（类级 `skipUnless(SWARM_1B1_FULL=="1")`）对外只能表述为**未执行**、不得计入通过。**旧 skip 消失的证人**：同一轮聚合日志里 `grep -c GATE_CALIBRATION_STALE` = 0 ⇒ 名单从 5 降 4 是实测不是叙述。
+
+**本笔之后又自查出并改掉的两处"注释替代码作保"**：① 标定门 docstring 写"（见 test_L2_*）"，而该文件里**没有任何 L2 用例**（8 条全是 L1），L2 的真实形状是另一扇常驻门里的一条 print 行 ⇒ 已改为具名指到文件 + 那一行 + plan §8；② plan §5(a) 的重开规则原写"哈希对不上 §4.3"，而实现**不锁哈希**（锁了会每次无关改动都红、逼人放宽），执行形状是"承重语句找不到即 `[CAL_FROZEN_DRIFT]` 红" ⇒ **规则文本就地改成实现的形状**，不保留"历史原文 + 别处注明差异"那种写法（规则与代码不一致时，下一个人会照规则去查一件不存在的事）。另补 plan **§8**：L2 升为判据的三个结构前置条件（阈值推导入库 / 场景契约固定 / 变异两面各配证人），不给百分比。
 **残余边界（写清没做到什么）**：(i) K7 消融面（`eager_idle_dispatch=False` 跑现有 G2 工况，回答"真实工况要多大积压才摸得到 15"）**未做**——它只产 L2 解释性读数、不进判据，需要时单独放行；(ii) 本门证的是"触发口代码逻辑正确"，**不证**"真实工况会积压到 15"，后者若进论文只能作 measured-not-guaranteed 报出；(iii) 挂账 (ii)（全套件顺序无关常驻门）的触发条件之一"开始阶段② 重标定前"**本轮已到**，按裁定只登记不动手，交回主控定夺；(iv) **P3 的源码谓词看不见新标定门**——该文件用 `sys.path[:0] = [...]` 赋值式引导永久仓库目录，而 `PATH_INSERT` 只吃 `sys.path.insert|append(` 调用式。这是既有口径（"指向仓库永久目录的 import 引导不入选"）的一致结果、不是新漏检，且运行时面已由 test_A/test_F 兜住；本轮**未扩谓词**（扩它会牵动 covered/matching 基线数，属另一类授权），在此具名登记。
 
 

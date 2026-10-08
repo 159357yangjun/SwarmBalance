@@ -11,8 +11,12 @@ D-iv 修好 completion 计时后，同一工况 `flush_size=0 / buffer_peak=10` 
   L1 机制层（=本门，常驻、进退码）：**手工构造 buffer 长度已知的场景**，断言 size 触发口
      在阈值 ±1 两侧行为正确，并证明 emergency / timeout 两个口不冒充 size。
      ⇒ 标签来自**我们自己写死的输入 + 配置常数本身**，零依赖任何正式实验。
-  L2 观测层（真实工况读数）：只作信息报出，**不进退码**（见 test_L2_*），
+  L2 观测层（真实工况读数）：住在常驻门
+     console/test_speed_fallback_gate.py::test_g2teeth_mutation_turns_the_denominator_off
+     里，形状是**一条 print 行 `[G2TEETH_L2_OBSERVED]`，不是用例**；只作信息报出、不进退码——
      因为"当前计时下真实工况积压不到 15"是 scheduler 行为事实，不是实现缺陷（#69-H3 裁定②）。
+     它升为判据的三个前置条件（阈值推导入库 / 场景契约固定 / 变异两面各配证人）写在
+     docs/P70_g2teeth_calibration_plan.md §8。本文件 8 条全是 L1。
 
 ## 硬约束（主控原话）
   · **不得拿 phase1b1 正式配对实验的结果当标定依据**（那是待验对象不是标尺）⇒
