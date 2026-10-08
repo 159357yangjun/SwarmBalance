@@ -2,6 +2,22 @@
 
 ## [Unreleased]
 
+### 2026-10-07（第十五笔）：#69-D KPI 定义层盘点与自洽审计 —— D 轮零生产改动
+
+基线 22ab9b1。只盘点不改码（frontend/、experiments/ 对 HEAD 零 diff）。产物 docs/D_KPI定义层盘点.md。
+
+① 清单：completed/completion_rate/on_time_rate/timeout_rate/avg_delay/energy/swap/action-distance + DR↔completion，
+逐个给定义行、分子分母、吃哪些字段、C1 后是否自洽（真源链 _record_task_completion:422-490 → get_statistics:903-1007
+→ step info:1255-1287 → metrics_schema._STAT_KEY_MAP:104-129 → reporting 方向标注）。
+② 两条指定疑点实测（提交态 c1_face_live_fixed.json）：(a) timeout/delay 全部来自 legal completion
+（d_ontime==0 计 2、d_delay>0 计 2，非 delivery-leg 贡献=0；total_completed=Σd_completed=38=len(comp)）——修复前 C0 报的
+"timeout 2 例中 1 例非法"现不成立，断言应门化；(b) |DR Δ completion|=0 双向（无缺 DR 的完成、无孤儿 DR），§6-L 族无第二个未对齐定义。
+③ 具名不自洽两项（交回裁定，未改）：D-1 on_time/timeout 语义="相对 deadline 迟到"(env:441)而非"经 dest service leg 送达"，
+两正交维度当前 seed 恰好同批⇒数值一致但叙述不得混同（口径澄清非改码）；D-2 avg_energy_per_task(:966)与 rate 指标共享旧污染分母、
+未导出未登记方向⇒前瞻无害。排除项：unfinished 非独立导出列（replay 里按 generated−completed 现算）、timeout_rate=1−on_time_rate 仅冗余表达值正确。
+
+自查结论=**D 轮零生产改动**（指令②：盘点即有效交付）。建议两条审计层门 G-D-a/G-D-b（待放行才写夹具，本轮不动）。硬边界全程遵守。停在盘点汇报，不开 #69-E。
+
 ### 2026-10-07（第十四笔）：#69-C2b drone.py:335-336 载重归零语义审计 + mutate 夹具目标重挂
 
 基线 674a3c2。**只审计不改生产码**：drone.py / environment.py 本轮零 diff；改动仅 console/test_c1_lifecycle_gate.py 的 `_inject` + 新增 docs/C2b_drone载重归零审计.md。
