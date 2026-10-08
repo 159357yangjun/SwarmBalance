@@ -2,6 +2,16 @@
 
 ## [Unreleased]
 
+### 2026-10-08（第二十笔）：#69-H R7 修复 —— env 弹出检测改前缀比对（不碰 drone.py）
+
+基线 f1e3a5b。按主控裁定"修在 env 检测层、H1 批文作废"落地。改动面 = frontend/environment.py + console/test_h_r7_delivery_detection.py + 登记表 path:line 重指 + README；drone.py/route_planner/metrics_schema/runner 未动。
+
+根因（二次取证已证，见 #69-H_R7_forensics.md）：environment.py:1190 用 `len(prev)>len(curr)` 判航点弹出，在同一 step「弹掉 dest 服务点 + 追加换电/仓库点」时净长度不变 ⇒ 漏检送达 ⇒ assignment 残留被 is_free_cleanup 兜底计成完成（task_44 seed102）。实测此类转移 10 次。
+修法 `_consumed_prefix_len`：(a) curr 是 prev 去前 k 个的后缀⇒正常弹出 k 个；(b) 非后缀但队首是已从 curr 消失的服务航点⇒计消费；(c) 整体 re-route⇒k=0 不入账。消费块遍历 prev[:k]。
+
+验收四条：(a) seed102 reached 59→60、cleanup_no_svc 1→0、task_44 origin=destination_branch t=1458 ✅；(b) seed40907 配对回放 completed/DR/cleanup=38/38/0、timeout/delay、first_divergence index=852 seq=853 task_11 全不变 ✅；(c) completion 全 1.0 不变、timeout/delay 7/8 格不变，**唯 greedy-s102 timeout 0.0667→0.05/delay 4.85→3.225**——这是把"从未妥投却兜底计时"的 task_44 正确改判为按时送达的直接后果，非外溢；(d) 两面夹具 pre-fix RED([R7_STILL_PRESENT])/post-fix GREEN(6 OK) ✅。聚合 A90+B44+C117+D25=276 0 failures。
+⚠ (c) 与 (a) 在受影响格上互斥，交回主控定夺是否认可该格 timeout 变化属预期修正（详见 docs/#69-H_terminal.md），执行会话未自行改论文数字口径。未 publish、未 push。停在 H 终态汇报。
+
 ### 2026-10-08（第十九笔）：#65 四算法重跑轮 —— delta 表 + 旧数字作废清单 + opt-in observer
 
 基线 f2bcdf5。锁 seeds 101–105 / [greedy,ga,pso,ortools] / fleet light5-std3-heavy2 / episode 3600，走生产入口 experiments.worker.run_one。改动面 = experiments/worker.py（新增**默认关**的 --with-observer，产 lifecycle 两读数；runner 不传⇒现有链路与 latest 逐字不变，smoke 证 metrics 零漂移）+ docs/#65_rerun_delta.md + docs/取证输出/rerun65_cells.json。临时驱动同轮删。

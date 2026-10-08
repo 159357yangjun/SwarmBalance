@@ -1,0 +1,98 @@
+[
+ {
+  "alg": "greedy",
+  "seed": 101,
+  "cleanup_no_svc_new": 0,
+  "cleanup_no_svc_old": 0,
+  "completion_new": 1.0,
+  "completion_old": 1.0,
+  "timeout_new": 0.066667,
+  "timeout_old": 0.066667,
+  "delay_new": 2.583333,
+  "delay_old": 2.583333
+ },
+ {
+  "alg": "greedy",
+  "seed": 102,
+  "cleanup_no_svc_new": 0,
+  "cleanup_no_svc_old": 1,
+  "completion_new": 1.0,
+  "completion_old": 1.0,
+  "timeout_new": 0.05,
+  "timeout_old": 0.066667,
+  "delay_new": 3.225,
+  "delay_old": 4.85
+ },
+ {
+  "alg": "ga",
+  "seed": 101,
+  "cleanup_no_svc_new": 0,
+  "cleanup_no_svc_old": 1,
+  "completion_new": 1.0,
+  "completion_old": 1.0,
+  "timeout_new": 0.083333,
+  "timeout_old": 0.083333,
+  "delay_new": 2.958333,
+  "delay_old": 2.958333
+ },
+ {
+  "alg": "ga",
+  "seed": 102,
+  "cleanup_no_svc_new": 0,
+  "cleanup_no_svc_old": 0,
+  "completion_new": 1.0,
+  "completion_old": 1.0,
+  "timeout_new": 0.116667,
+  "timeout_old": 0.116667,
+  "delay_new": 13.633333,
+  "delay_old": 13.633333
+ },
+ {
+  "alg": "pso",
+  "seed": 101,
+  "cleanup_no_svc_new": 0,
+  "cleanup_no_svc_old": 1,
+  "completion_new": 1.0,
+  "completion_old": 1.0,
+  "timeout_new": 0.083333,
+  "timeout_old": 0.083333,
+  "delay_new": 2.958333,
+  "delay_old": 2.958333
+ },
+ {
+  "alg": "pso",
+  "seed": 102,
+  "cleanup_no_svc_new": 0,
+  "cleanup_no_svc_old": 0,
+  "completion_new": 1.0,
+  "completion_old": 1.0,
+  "timeout_new": 0.116667,
+  "timeout_old": 0.116667,
+  "delay_new": 13.633333,
+  "delay_old": 13.633333
+ },
+ {
+  "alg": "ortools",
+  "seed": 101,
+  "cleanup_no_svc_new": 0,
+  "cleanup_no_svc_old": 1,
+  "completion_new": 1.0,
+  "completion_old": 1.0,
+  "timeout_new": 0.083333,
+  "timeout_old": 0.083333,
+  "delay_new": 2.958333,
+  "delay_old": 2.958333
+ },
+ {
+  "alg": "ortools",
+  "seed": 102,
+  "cleanup_no_svc_new": 0,
+  "cleanup_no_svc_old": 0,
+  "completion_new": 1.0,
+  "completion_old": 1.0,
+  "timeout_new": 0.116667,
+  "timeout_old": 0.116667,
+  "delay_new": 13.633333,
+  "delay_old": 13.633333
+ }
+]

@@ -419,6 +419,34 @@ class Environment:
         print(f"  状态: {status}")
         print(f"{'='*70}")
     
+    @staticmethod
+    def _consumed_prefix_len(prev, curr) -> int:
+        """返回本步从队首被弹出消费的航点数 k（0 = 没有"弹出式前进"）。
+
+        #69-H R7：旧送达检测用 len(prev)>len(curr)，在同一步"弹掉 dest 服务点 + 追加换电/仓库点"
+        时净长度不变 ⇒ 漏检（seed 102 task_44，实测此类转移 10 次）。分两种情形正确计数：
+          (a) 纯后缀（正常前进）：curr == prev[k:] 的最小 k≥1 —— 就是被弹出的前 k 个；
+          (b) 弹出+追加（换电改道同帧）：curr 不是任何后缀。此时只认【队首连续的服务航点】为已消费，
+              且该服务点的坐标不得仍出现在 curr 里（防止把"其实还在飞"的点误判成送达）。遇到第一个
+              非服务点、或仍在 curr 中出现的点即停。
+        整体 re-route（队首是非服务点或被整段替换）→ (a) 不成立、(b) 队首非服务 → k=0，不入送达账。
+        """
+        n = len(prev)
+        if n == 0:
+            return 0
+        # (a) 正常：curr 是 prev 去掉前 k 个的后缀
+        for k in range(1, n + 1):
+            if list(prev[k:]) == list(curr):
+                return k
+        # (b) 弹出+追加：数队首连续的、且已从 curr 消失的服务航点
+        curr_coords = {(round(float(p[0]), 6), round(float(p[1]), 6)) for p in curr}
+        k = 0
+        while k < n and len(prev[k]) >= 3 and prev[k][2] in ('source', 'dest'):
+            if (round(float(prev[k][0]), 6), round(float(prev[k][1]), 6)) in curr_coords:
+                break
+            k += 1
+        return k
+
     def _record_task_completion(self, drone_idx, assignment):
         """记录单个任务完成的统计数据"""
         completed_task = assignment['task']
@@ -1186,9 +1214,14 @@ class Environment:
             prev = prev_scheduled[i]
             curr = drone.scheduled_position
 
-            # 航点弹出检测
-            if len(prev) > len(curr) and len(prev) > 0:
-                popped = prev[0]
+            # 航点弹出检测（#69-H R7：从"长度差"改为"前缀比对"）
+            # 旧判据 len(prev)>len(curr) 在"同一 step 内弹掉 dest 服务航点 + 又追加换电/仓库点"时
+            # 净长度不变 ⇒ 漏检送达 ⇒ assignment 残留被 is_free_cleanup 兜底计成完成（从未妥投）。
+            # 新判据：只有当 curr 是 prev 去掉前 k(k>=1) 个元素后的【后缀】时，才认定 prev[:k] 这批
+            # 航点在本步被逐个弹出消费；若 curr 不是 prev 的任何后缀 ⇒ 判为整体 re-route（非弹出式
+            # 替换），不计入取货/送达账。这样既补上同步步的漏检，又不误伤"改道换航线"。
+            popped_count = self._consumed_prefix_len(prev, curr)
+            for popped in prev[:popped_count]:
                 if len(popped) >= 3 and popped[2] == 'source':
                     source_pos = (popped[0], popped[1])
                     if i in self.drone_assignments:

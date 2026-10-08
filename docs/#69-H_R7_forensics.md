@@ -47,6 +47,17 @@ t=1458  ['?']           load=0   exec=None       ← 同一步内 dest 被弹出
 ## 验收预期（批准后执行，不变）
 四格 rerun `cleanup_completion_without_service` 归 0；r5_nonexact_arrival_count 允许变；**completion / timeout 不得变**；seed 40907 旧配对回放（c1_paired_replay…fixed.json）first_divergence 与九项读数不得变。任一变化即外溢，停下汇报。
 
+---
+
+## ✅ 主控裁定（本轮）：修在 env 检测层，不修 drone.py；H1 批文作废
+理由：① schedule_route/return_to_base 钩子全部未捕获覆盖写 ⇒ drone 侧无错可修；② H1 目标点已被自证伪。
+
+**最终修法（H1′，落在 environment.py:1190）**：弹出检测从"长度差 `len(prev)>len(curr)`"改为**逐位前缀比对**——被消费的事件＝prev 头部被移除的那个元素。判别式：仅当 `curr == prev[k:]`（curr 是 prev 去掉前 k 个的后缀，k≥1）时，认定 prev[:k] 这批航点在同步被逐个弹出 ⇒ 其中标签为 source/dest 的服务航点计入取货/送达；否则（curr 不是 prev 的任何后缀）判为 **re-route（整体换航线）**，不入送达账。这样 task_44 的"同 step 弹 dest + 追加 nest"能看见 dest 被消费（prev=['dest'] 且 curr=[]? 否——curr=['?']），需按"prev[0] 是否仍是 curr[0]"精确定位弹出数，见实现。
+
+**两面夹具**：构造/复现"同一 env.step 内 pop dest + append 非 service 点"⇒ 修前 cleanup_no_svc=1 红、修后 DESTINATION_REACHED 补上该例且 cleanup_no_svc=0 绿；并加一条 re-route 阴性对照（整体换航线不得计送达），防误伤。
+
+**验收四条（全须通过）**：(a) task_44 格 cleanup_no_svc→0 且补一条 DESTINATION_REACHED；(b) seed 40907 配对回放 first_divergence index=852 seq=853 task_11 与九项读数逐字不变；(c) 四格 rerun completion/timeout 逐格不变；(d) 新机制两面夹具先红后绿留档。
+
 ## 为什么这是缺陷而非"合法保险"
 completion_rate 把它算作已完成、但货物从未送达、current_load 被静默清零（:240/:336）⇒ 对外"完成率 1.0"在这一格上名不副实。它满足 latent-defect 定义：有真实正例（seed 101/102），不是纯注入面。
 
