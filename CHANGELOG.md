@@ -2,17 +2,19 @@
 
 ## [Unreleased]
 
-### 2026-10-08（第二十一笔）：#69-H3 D-iv —— 消费证人改为"执行器真 pop 离散事件"，废除一切反推
+### 2026-10-08（第二十三笔）：#69-C2 latent cleanup —— 判定不可达，零代码改动，出论证 + 更正过期口径
 
-基线 483fc6c。主控/ChatGPT 裁定不选 D-i/D-ii/D-iii，走第四方向 **D-iv**；上位原则冻结：
-"到达不是几何观察值，而是执行器完成某服务航点的离散事件；几何只决定航点能否被执行器接受，业务只消费执行事件。"
+基线 c5ea8b0。窄敕三件走裁定③（不可达 ⇒ 不改码）。一手结论：**当前提交态下"dest 未 pop 却走 cleanup"结构上开不了火**。
 
-① 回退 #69-H2 未提交的线段谓词（environment.py 那 71 行工作树改动丢弃，原 diff 存档 docs/取证输出/h2_segment_predicate_discarded.diff）。9b1cd15 后缀启发式降为历史中间对照、不作最终 lifecycle-correct baseline（见 #69-H_terminal.md「裁定更新 D-iv」）。
-② 实现真实事件机制：`Drone.update()` 在 `scheduled_position.pop(0)`（drone.py:328）处 append 进单步有序缓冲 `consumed_waypoints_this_step`；Environment 每步读出即清空、只消费这些事实。**删除** `_consumed_prefix_len` 反推函数与 step() 里的 `prev_scheduled` 快照——长度差/前后缀/线段穿越一律不再用于判弹出。
-③ 六硬夹具 console/test_h3_real_pop_events.py（T1 direct pop / T2 detour pop / T3 同帧弹+追加净长不变仍计 / T4 途经无弹出必不计 / T5 mid-flight re-route 无弹出必不计·杀 9 例 / T6 多 pop 保序 + 幽灵事件不变量），含变异面 M1/M2 证牙。
-④ 五把门 console/test_h3_lifecycle_gates.py G-H3-A..E（A seed40907 avg_delay 恢复 2.802632 / B seed102 cleanup=0+task_44 送达 / C 执行器 pop 处确发事件 / D 那 9 例不再提前 completion / E 反推符号彻底移除），全 live 复算不读归档。摘掉 append 行→C+B 双双实测报红（有牙）。
-⑤ 回放判据实测：seed40907 avg_delay=2.8026315789473686（=冻结证人，task_3 真 pop 在 t=172，非回归）；seed102 cleanup_no_svc=0、task_44∈DESTINATION_REACHED；旧 9 例假阳性时刻无一再计送达。**未 re-freeze 到 2.776316**。C1 门/Observer 零漂移/GateA 全绿；citation 门随 environment.py 行号上移重指 12+1 条后归 0 breaks。
-⚠ **一处 D-iv 行为外溢停在待裁（本笔不含其修复）**：`test_speed_fallback_gate.test_g2teeth` 红——一手对照见 #65_rerun_delta.md §7：D-iv 树 gate 工况 flush_size=**0**/buffer_peak=**10**（HEAD 是 1/15）。旧后缀规则的 9 例提前 completion 虚增了 PSO pending_buffer、把 size 触发口顶到阈值；D-iv 修好计时后峰值真实回落 ⇒ 该门的牙是在替 R7 缺陷负载标定。按主控裁定①"重定后仍红则停下交具名证据"停此：**不删牙、不降阈、不改判据**（flush_size>0＝永红夹具、optimize_calls>0＝无牙 mutate=6≠0），等下一轮方向。论文侧旧 buffer_peak=15/flush_size=1 作废、不得当 PSO 特性证据（裁定②已入 #65_rerun_delta.md §7）。并发假象 ×2（g2_all_four / rewrite_map.batch_read）standalone 均绿，登记为已知干扰不修（裁定③）。citation 三门随 remap+rewrite-report 收口 ✅。自纠入档：上一轮误读 unittest 缓冲进度点为"无 FAIL"，本轮以一手 failures=4 纠正。
+入口条件表（现读行号）：environment.py:1233 `not self._prev_free_status.get(i,True) and drone.is_free` ∧ :1234 `i in self.drone_assignments` ⇒ 记 :1238 兜底完成。is_free=True 全仓仅 4 处来源（drone.py:88 初值 / :281 换电完成且无挂起 / :342 航线跑空即 dest-pop 同帧 / environment.py:545 故障注入复位），四条都不能造出"is_free 且 assignment 仍在"——:342 变空闲的前提正是最后一个航点被 pop，而 dest-pop 已在 :1212 记账、:1221/:1230 移除 assignment。
+
+运行时证人（非静态推断）：① 逐步不变量探针 seeds 101/102/40907 合计 ~6131 步，free_with_assignment_count=**0**；② 生产入口 run_one(with_observer=True) 默认 fleet 与 rerun65 锁定 fleet(5/3/2,10机)/3600 两格，cleanup_no_svc=**0**，且 completions==destination_reached==counter==legal_unique==60、unattributed_completions=0（正例对照证明读数 0 属"现场没有"而非"量具瞎了"）。
+
+矛盾消解（两边不是各自成立，是不同代码态）：历史 greedy-102 cleanup_no_svc=1 出自 **f2bcdf5**，本轮逐变量对齐复算——f2bcdf5=1(dr=59) / 9b1cd15=0(dr=60) / 483fc6c=0 / c5ea8b0=0 ⇒ 差异由代码态造成、不由 fleet/episode 造成；**关闭这条火口的是 H1′(9b1cd15) 把弹出检测从长度差改为前缀比对**，C1 只修 dest-leg 装配缺失、不足以关掉它。⚠ 更正：我此前把"seed101/102 R7 非零"当现状引用属**过期口径**，已被 H1′ 闭合。
+
+处置：cleanup 分支保留原样（为无 dest 航点的充电自动航线兜底），**不新增变异两面**——给开不了火的分支造红面只会得到"期望值为 0 的夹具给不了牙"的坏门；已有牙（C1 门 cleanup_completion_without_service + G-H3-B）继续监该火口。current_load/is_free 状态语义审计移交 **#69-C3**。全文 docs/C2_cleanup_unreachable.md。
+
+硬边界遵守：未 push、未打 tag、paper/ 未碰、未用绝对坐标回退；drone.py 三段（:328-331 pop / :342-343 is_free+current_load / :362-366 单段直线位移）零修改。citation --verify exit=0；README 计数 43/330 一致。停在 C2 终态汇报。
 
 ### 2026-10-08（第二十二笔）：#69-H3 g2teeth 处置落地 —— 显式 skip + 校准前提已死具名状态
 
@@ -33,6 +35,18 @@
 
 验收四条：(a) seed102 reached 59→60、cleanup_no_svc 1→0、task_44 origin=destination_branch t=1458 ✅；(b) seed40907 配对回放 completed/DR/cleanup=38/38/0、timeout/delay、first_divergence index=852 seq=853 task_11 全不变 ✅；(c) completion 全 1.0 不变、timeout/delay 7/8 格不变，**唯 greedy-s102 timeout 0.0667→0.05/delay 4.85→3.225**——这是把"从未妥投却兜底计时"的 task_44 正确改判为按时送达的直接后果，非外溢；(d) 两面夹具 pre-fix RED([R7_STILL_PRESENT])/post-fix GREEN(6 OK) ✅。聚合 A90+B44+C117+D25=276 0 failures。
 ⚠ (c) 与 (a) 在受影响格上互斥，交回主控定夺是否认可该格 timeout 变化属预期修正（详见 docs/#69-H_terminal.md），执行会话未自行改论文数字口径。未 publish、未 push。停在 H 终态汇报。
+
+### 2026-10-08（第二十一笔）：#69-H3 D-iv —— 消费证人改为"执行器真 pop 离散事件"，废除一切反推
+
+基线 483fc6c。主控/ChatGPT 裁定不选 D-i/D-ii/D-iii，走第四方向 **D-iv**；上位原则冻结：
+"到达不是几何观察值，而是执行器完成某服务航点的离散事件；几何只决定航点能否被执行器接受，业务只消费执行事件。"
+
+① 回退 #69-H2 未提交的线段谓词（environment.py 那 71 行工作树改动丢弃，原 diff 存档 docs/取证输出/h2_segment_predicate_discarded.diff）。9b1cd15 后缀启发式降为历史中间对照、不作最终 lifecycle-correct baseline（见 #69-H_terminal.md「裁定更新 D-iv」）。
+② 实现真实事件机制：`Drone.update()` 在 `scheduled_position.pop(0)`（drone.py:328）处 append 进单步有序缓冲 `consumed_waypoints_this_step`；Environment 每步读出即清空、只消费这些事实。**删除** `_consumed_prefix_len` 反推函数与 step() 里的 `prev_scheduled` 快照——长度差/前后缀/线段穿越一律不再用于判弹出。
+③ 六硬夹具 console/test_h3_real_pop_events.py（T1 direct pop / T2 detour pop / T3 同帧弹+追加净长不变仍计 / T4 途经无弹出必不计 / T5 mid-flight re-route 无弹出必不计·杀 9 例 / T6 多 pop 保序 + 幽灵事件不变量），含变异面 M1/M2 证牙。
+④ 五把门 console/test_h3_lifecycle_gates.py G-H3-A..E（A seed40907 avg_delay 恢复 2.802632 / B seed102 cleanup=0+task_44 送达 / C 执行器 pop 处确发事件 / D 那 9 例不再提前 completion / E 反推符号彻底移除），全 live 复算不读归档。摘掉 append 行→C+B 双双实测报红（有牙）。
+⑤ 回放判据实测：seed40907 avg_delay=2.8026315789473686（=冻结证人，task_3 真 pop 在 t=172，非回归）；seed102 cleanup_no_svc=0、task_44∈DESTINATION_REACHED；旧 9 例假阳性时刻无一再计送达。**未 re-freeze 到 2.776316**。C1 门/Observer 零漂移/GateA 全绿；citation 门随 environment.py 行号上移重指 12+1 条后归 0 breaks。
+⚠ **一处 D-iv 行为外溢停在待裁（本笔不含其修复）**：`test_speed_fallback_gate.test_g2teeth` 红——一手对照见 #65_rerun_delta.md §7：D-iv 树 gate 工况 flush_size=**0**/buffer_peak=**10**（HEAD 是 1/15）。旧后缀规则的 9 例提前 completion 虚增了 PSO pending_buffer、把 size 触发口顶到阈值；D-iv 修好计时后峰值真实回落 ⇒ 该门的牙是在替 R7 缺陷负载标定。按主控裁定①"重定后仍红则停下交具名证据"停此：**不删牙、不降阈、不改判据**（flush_size>0＝永红夹具、optimize_calls>0＝无牙 mutate=6≠0），等下一轮方向。论文侧旧 buffer_peak=15/flush_size=1 作废、不得当 PSO 特性证据（裁定②已入 #65_rerun_delta.md §7）。并发假象 ×2（g2_all_four / rewrite_map.batch_read）standalone 均绿，登记为已知干扰不修（裁定③）。citation 三门随 remap+rewrite-report 收口 ✅。自纠入档：上一轮误读 unittest 缓冲进度点为"无 FAIL"，本轮以一手 failures=4 纠正。
 
 ### 2026-10-08（第十九笔）：#65 四算法重跑轮 —— delta 表 + 旧数字作废清单 + opt-in observer
 
