@@ -69,3 +69,72 @@ PY
 python -m unittest console.test_p3_no_cross_test_residue.NoCrossTestResidue.test_A_clean_modules_leave_no_residue             # FAILED [P3_RESIDUE]
 # 两处变异均已 git checkout 还原；收尾 git status --short 为空
 ```
+
+---
+
+## 5. (ii) 已于 2026-10-08 落地为 `console/test_p4_suite_order_independence.py`（含一处**判据被实测改写**）
+
+基线 b3f4451。主控批准实施、范围收窄为一次，并加两条：子集清单由我列主控裁、**每轮成本印在自己那行**。
+
+### ⚠ §3(ii) 那条拟判据的形状被实测否掉了，这是本节最重要的一段
+
+拟判据写的是："各在 fresh process 跑一遍子集（按两种顺序），逐用例比状态集合"。
+第一版照做 = **一个进程内按指定顺序 `loadTestsFromNames(整批)` 再 run**。实测驳回：
+
+```
+before load: []
+after load (NOTHING RUN): ['console.test_swap_time_gate', 'console.test_sla_consumption_gate']
+```
+⇒ `loadTestsFromNames` 在**构建 suite 阶段就把全部成员 import 完**。而 #70-P1 那笔污染冻结全局态的
+时刻恰恰是 **import 期**（`frontend/environment.py:87/:100/:105`）。于是"谁先 import"在用例体内
+**永远观察不到** —— 连做四次注入（抢先 setenv+按名字 import / 往 sys.modules 塞共享态 /
+断言"我是第一个" / 断言"前驱是否已加载"）**全部 `STATE_DIFF={}`**，两侧 rc 相同。
+⇒ 那种形状是一条**永不为红的比较**，正是"半坏自检比没有更坏"的具体样子。
+
+定稿形状：**每个成员单独起一个进程**（`_SINGLE` 只 import 该成员），两个方向各跑一整批；
+并用 `sys.modules` 反查"单加载进程里有没有把别的成员也带进来"（`[P4_BLIND]`）——
+前提破了就红，不靠叙述。
+
+### 牙（两面正例证人 + 判别式，全实测）
+
+探针 `_p4_teeth_probe_tmp.py`（**刻意不带 `test_` 前缀**：P2 :180 与 P3 普查都按 `test_*.py` glob，
+临时注入品若落在扫描范围内会被别的门扫到）读一个"前驱指纹"环境变量：
+- 无前驱 ⇒ 必须绿（否则是恒红夹具）；有前驱 ⇒ 必须红（否则它对顺序效应无感）。两条都做成了断言。
+- 判别式走本门真实通道：批次首 `probe_at_head=pass`、批次尾 `probe_at_tail=fail` ⇒
+  `[P4_TEETH_VERDICT] exit_criterion=(head_state != tail_state)` 成立，比较分支被真实触发过。
+- 探针用后 `finally` 删除并断言盘上无残留（`[P4_TEAR_DOWN]`）。
+
+### 成本：静态估算被实测驳回一次，改成两行并排对账
+
+| 行 | 内容 |
+|---|---|
+| `[P4_COST]` | 静态表 est_side_s=28.5 est_gate_s=57.0（表里的数取自**本门真实形状**的单成员进程实测，不是合跑时的模块耗时） |
+| `[P4_COST_REAL]` | 本轮真跑 this_run_ab_s / this_run_ba_s / test_A_two_sides_s / **whole_gate_wall_s** / est_vs_measured / overhead_outside_two_sides_s；判据 `whole_gate_wall_s<=180` |
+
+⚠ 第一版只印估算那一行，喊 49.8s 而实跑 103.4s ⇒ **成本行替自己撒了谎**。现在两行并排，
+比值（≈1.9）与差额（≈52s，= 牙 + 自检的开销）都印出来，漂了能当场看见。
+
+### 子集清单（8 个成员 / 40 用例，供主控裁）
+
+c1_destination_leg_semantics(4) / c4_is_carrying_discriminator(5) / h3_real_pop_events(7) /
+h_r7_delivery_detection(1) / r2_destination_without_load(4) / route_planner_equivalence(5) /
+sla_consumption_gate(9) / swap_time_gate(5)。恒等式 `sum(per_module)==ran` 且任一成员不得为 0
+（`[P4_EMPTY_MODULE]`——否则"两向一致"会被"两边都空"满足）。
+
+**排除项与理由也印出来**（防下一个人以为"忘了加"）：`test_p1_order_independence_gate` ≈146.7s、
+`test_speed_fallback_gate` ≈190s —— 两者内部已各自做 fresh-process A/B，套进来是平方成本。
+⚠ 诚实边界：**被排除的恰是消费路径最复杂的两个，本门没覆盖它们。**
+
+### 结果与残余盲区（明写）
+
+本轮真跑：`Ran 3 tests ... OK`，退码 0；`ran_ab=40 ran_ba=40 state_diff=0`，两侧 8 个成员 rc 全 0。
+⇒ **子集内确实顺序无关**，按主控说法这就是第一条常驻门的正例。
+
+但必须并列写出这条正例**为什么便宜**：#70-P1 已经把 11 处主进程按名字 import 内核迁走了，
+所以"抢先 import 改变后任成员读数"这一类在子集内**已无可观察对象**（我的四次注入之所以全平，
+根因在此）。⇒ 本门当前守的是"新代码重新引入这类依赖时会不会被看见"，其可见性来自
+**单成员进程**这个构造（新成员若依赖前驱留下的全局态，它在自己那一格里就会红），
+而不是来自"两次整批跑的差异"。后者在本仓现状下是空的。这一点不要包装成"门很强"。
+
+另：`test_p4_*` 自身不写 `SWARM_BALANCE_SIM_CONFIG`、不用 `sys.path.insert(`（只用赋值式引导永久目录），
+故 P2 files=51 violations=0、P3 covered=10/matching=10 均不受本笔影响（本轮实测复跑过）。

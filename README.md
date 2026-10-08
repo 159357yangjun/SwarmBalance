@@ -14,6 +14,10 @@
 
 **当前进度（2026-10-08）**：Phase 0（真实性审计与算法有效性）+ Phase 1A（RoutePlanner 抽离）+
 Phase 1B-0/1B-1/1B-2 已闭合；#69 生命周期一致性、#70-P1 测试隔离、#70 阶段② g2teeth 重标定亦已闭合。
+防"重新引入全局污染 / 结果依赖发现顺序"的常驻门共四扇：P1（G2 消费路径两向对撞）、
+P2（源码结构：测试不许按名字 import 内核）、P3（运行时残留 diff + 覆盖集恒等式）、
+P4（子集逐用例状态集合两向对撞，单成员进程构造）。判据与残余边界见
+`docs/P70_which_gate_is_the_resident_one.md`、`docs/P70_import_order_pollution.md`。
 套件真值以 `python console/_readme_counts.py --verify` **现算**为准：console **50 文件 / 364 用例**、
 experiments 3 文件 / 32 用例。（下面那句"286 例"是 2026-10-05 的旧快照，留着是为了不假装它没写过；
 从 #70-P1 起一律按 `_readme_counts.py` 报数，别手抄。）
@@ -442,7 +446,7 @@ swarm-balance/
 │  ├─ static/spec.html           # 「规范」页正文，由 /spec 路由渲染进 iframe
 │  ├─ static/vendor/             # 内置 vue.global.prod.js / echarts.min.js /
 │  │                             #   three.min.js + README（版本、来源、SHA-256）
-│  └─ test_*.py                  # 50 个文件 / 364 个用例（标准库 unittest）
+│  └─ test_*.py                  # 51 个文件 / 367 个用例（标准库 unittest）
 │
 ├─ frontend/                     # 仿真内核与可视化
 │  ├─ environment.py             # 世界状态、障碍判定、统计口径
