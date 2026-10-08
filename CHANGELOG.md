@@ -48,17 +48,20 @@ C2 有两条承重前提：(i) 赋值点集合有限已知（6-A 守这条）；
 | 3 | 无未还原的全局态残留 | `[P3_CLEAN] 5 个模块全程跑完后残留=0`（env/sys.path 两面，逐模块点名亦空） | `python -m unittest console.test_p3_no_cross_test_residue` |
 | 4 | g2_all_four 不依赖前序模块初始化 | 该用例现在只在子进程里跑，父进程常量不参与；两向顺序皆绿（见 #2） | 同 #2 |
 | 5 | 除具名 skip 外无顺序相关红项 | 本笔定稿后全量 `Ran 352 tests in 1092.777s` / `OK (skipped=5)`，退码 0；五条 skip 全部具名（见下） | 见下"套件分母" |
+| 6 | 有新的顺序无关回归门 | P1（运行时两向对撞）+ P2（源码结构扫描）+ P3（残留 diff）三扇常驻门，各自两面/正例证人齐 | 三门各自单跑 |
 
 `citation --verify` exit=0（183 条 path:line，74 条带锚点，problems=0）。
-| 6 | 有新的顺序无关回归门 | P1（运行时两向对撞）+ P2（源码结构扫描）+ P3（残留 diff）三扇常驻门，各自两面/正例证人齐 | 三门各自单跑 |
 
 **套件分母（口径要分开）**：定稿后那一轮全量 = console **`Ran 352 tests ... OK (skipped=5)`，退码 0**，与 `_readme_counts.py --verify` 现算的总数一致（console 49 文件 / 352 用例、experiments 3 文件 / 32 用例）。本笔过程中另有一轮是 `Ran 349 ... OK` —— 差的 3 条是当时刚建、尚未计入那一轮的 P3 门。**引用哪个数都要说清是哪一轮、哪一棵树**。复算命令：`python -m unittest discover -s console -p "test_*.py"`（实跑）与 `python console/_readme_counts.py --verify`（总数）。
 五条具名 skip 原文：`[OLD_IS_BASELINE_AUDIT_SNAPSHOT]`（old 面不作通过/失败判据）、`仅 mutation 面执行`、`[H_SKIPPED_NOT_FROZEN_BASELINE] 该基准只对 580c937 有效`、`正式配对实验耗时长，显式 SWARM_1B1_FULL=1 才跑`、`[GATE_CALIBRATION_STALE]`（g2teeth，#69-H3 裁定①留的显式 skip，既非通过也非失败）。
-具名 skip 五条原文见 /tmp 那轮日志尾，分别是：`[OLD_IS_BASELINE_AUDIT_SNAPSHOT]`、`仅 mutation 面执行`、`[H_SKIPPED_NOT_FROZEN_BASELINE]`、`SWARM_1B1_FULL=1 才跑`、`[GATE_CALIBRATION_STALE]`（g2teeth，#69-H3 裁定①留的显式 skip，既非通过也非失败）。
+
+**提交后的复算门**（两笔 commit 落地后原样再跑一遍，防"提交后才坏"）：`python -m unittest console.test_p1_order_independence_gate console.test_p2_no_name_based_kernel_import console.test_p3_no_cross_test_residue` ⇒ `Ran 9 tests ... OK`，六条读数行齐（P1_AGREE/P1_TEETH、P2 命中 0/豁免 0、P3_CLEAN/P3_TEETH/P3_WITNESS）。注意 P2 那行现在印 **扫描 49 个测试文件**（新三门自身已入库并被扫到），与上面"清洁树 OK（扫描 48 文件）"那条是**不同时刻的两棵树**，不是同一个数漂了。工作树收尾 `git status --short` 为空、`git stash list` 为空。
 
 **残余边界（写清楚没做到什么）**：(i) 生产侧 `console/sim_session.py:43` 的名字绑定仍在——它是 reload 语义所需，改它属另一类授权；(ii) P3 只测 env/sys.path 两面，随机状态与注册表单例未测（本轮没实测到"改了不还原"的样本）；(iii) G1 的采样次数随配置注入时序漂移，已明写不作判据。
 
-选项③（补一条覆盖顺序的门）判据本轮不写死、不动手，待主控另行放行。硬边界照旧：未 push、未打 tag、paper/ 未碰。
+**#69 尾项（6-A 是否守住 C2）不在本笔范围**：那个实测问题已由先前两笔（42919a5 / 5fc4471）闭合 —— §6-E 以两种变异证明 6-A 对前提 (ii) 两向皆盲、§6-D 那句"升为 [G]"就地作废，C2 仍属 [P]/[D]；选项③（补一条覆盖顺序的门）判据仍未写死、未动手，待另行放行。#70-P1 没有顺带改动它。
+
+硬边界照旧：未 push、未打 tag、paper/ 未碰。
 
 ### 2026-10-08（第二十八笔）：#69-C6 收尾批 —— 6-A 白名单结构门落地（is_free=True 赋值点集合，两面注入有牙）
 
