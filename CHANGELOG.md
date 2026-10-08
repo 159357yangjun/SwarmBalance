@@ -2,6 +2,31 @@
 
 ## [Unreleased]
 
+### 2026-10-08（第三十一笔）：#70-P1 定性更正 —— 第 6 条的常驻门是 P2+P3，P1 不在其职责上；明写还欠两条（只给判据，不动手）
+
+基线 f75f423。主控指出我把两问答成了一问：他补的是"门没跑起来时报红还是静默"，上位裁定第 6 条要的是**一条常驻 order-independence 回归门（后人重新引入全局污染时会红）**。我上一轮那句"三扇门都报非零退码"容易被读成"六条判据齐了"⇒ **就地收回一半：三门 ≠ 第 6 条已满足**。
+
+一句答：**P2 是那条常驻门的主体**，但按裁定原话的范围量，**还欠两条**（§3，先判据待批，本轮未动一行实现）。
+
+判别式实测（两种形状各注入一次，跑完即 `git checkout` 还原，收尾工作树为空）：
+- **形状 A = 重新引入 P1 那笔污染**（把 r2 的 loader 换回 `from environment import Environment`）⇒
+  **P2 FAILED** `[P2_NAME_IMPORT] test_r2_destination_without_load.py:setUpClass … （不在册）` ✅会拦；
+  **P1 却 OK** `[P1_VERDICT] order_ab_rc=0 order_ba_rc=0 optimize_ab=11454 optimize_ba=11454` ❌看不见。
+  ⇒ 关键事实：**P1 对这笔污染本身已经无感**——被污染的 G2 已子进程化、不再吃主进程常量。所以第 6 条不能指望 P1；它守的是"G2 这条消费路径仍与顺序无关"。这正是我上轮说错的地方。
+- **形状 B = 只改环境变量不还原**（把 r2 的 `tearDownClass` 改名使其失效）⇒
+  **P3 FAILED** `[P3_RESIDUE] 跑完 5 个模块后仍有未还原的全局态：[{"kind": "env", …}]` ✅会拦；
+  P2 也红，但**成因不对**（是 P3 在被污染树上跑时自己漏了 env 被它附带捕获），不是 P2 认得了这种形状 ⇒ P2 作为源码结构扫描**天然看不见**这一类。
+⇒ 定性：第 6 条目前由 **P2 + P3 两扇合起来**覆盖两类形状，各有实测正例；P1 不在这条职责上。
+
+还欠的两条（只写判据，等裁再做）：
+(i) **覆盖集是手写名单**：P3 的 `CLEAN_MODULES` 只有 5 个具名模块，新写测试改了 env/sys.path 不还原就**根本不进它视野**。拟判据=清单从盘上现算：凡含 `os.environ["SWARM_BALANCE_SIM_CONFIG"] = …` 或 `sys.path.insert(…)` 的 `console/test_*.py` 必须在普查集内，命中而不在集内 ⇒ `[P3_COVERAGE_GAP]` 红（判据=缺口 0，不是"名单里都绿"），并印 `modules_covered / modules_matching_predicate` 两个本轮真数对账。代价：单轮耗时上升（现 5 模块≈8 s，谓词命中约 11 个）。
+(ii) **没有一条门断言"套件整体与发现顺序无关"**：现有 P1 只测一对顺序、只盯一个读数。拟判据=discover 字母序 vs 逆序各在 fresh process 跑一个**有界子集**（不含 OSM-booting 慢测，免得把并发假象请回来），逐用例比对状态集合与关键读数，差集非空 ⇒ `[P1_ORDER_DEPENDENT]` 红；两侧各自印 `Ran N tests` 分母。代价与局限明写：最贵的一条，且子集是我选的 ⇒ 只证"该子集顺序无关"，不外推全仓。
+不一上来做 (ii) 的理由：(i) 便宜且直接堵真缺口；(ii) 的子集范围与每轮成本要先由主控定，我不替他扩范围。
+
+具名定性文档：docs/P70_which_gate_is_the_resident_one.md（含两次注入的原始读数与复算命令）。
+登记接受：g2teeth 仍 skip（属阶段②）；#69-C6 的 C2 前提(ii) 两向皆盲已入档、不复活。
+硬边界照旧：未 push、未打 tag、paper/ 未碰；本笔只加一份文档 + CHANGELOG，**代码零改动**（`git diff --numstat` 见提交）。
+
 ### 2026-10-08（第三十笔）：#70-P1 测试隔离 —— 污染源定位到行 + 消除"谁先 import"这件事 + 两扇顺序门（生产零改动）
 
 基线 5fc4471。上位裁定把"阶段通过"定义成六条**结构事实**（不是"这次聚合刚好绿"），本轮按 #70-P1 授权范围做①②③三件。硬边界照旧：未 push、未打 tag、paper/ 未碰；**生产代码零改动**（`git status --short frontend/ experiments/ console/server.py console/sim_session.py` 输出为空 ⇒ drone.py 三段、environment.py 皆未动，本笔只改测试与文档）。
