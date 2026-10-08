@@ -2,6 +2,24 @@
 
 ## [Unreleased]
 
+### 2026-10-08（第二十五笔）：#69-C4 加固两条 —— _is_carrying 判别式夹具 + current_load 载货真值扫描门
+
+基线 b211302。主控批准 #69-C3 建议的最小加固两条，实施轮、范围就这两件。**未动 environment.py / drone.py**（git status 只有 README + 2 个新测试文件 ⇒ 证明加固不需要碰禁改边界）。
+
+① console/test_c4_is_carrying_discriminator.py（5 tests OK）：F1 已 add_load 但下一航点是 source→False；F2 dest 在航线且 load 未扣→True；F3 只剩 waypoint→False（防"route 里有 dest 才判"这种错写法蒙对前两面）；加一条承重变量判别式（同航线形状仅改 current_load 不得翻转）。变异面把 _is_carrying 换成被禁止的 `current_load > 0` ⇒ 实测具名报出 **F1,F3 被抓、F1 先咬**。两面齐全，非只会绿的门。
+
+② console/test_c4_cargo_truth_scan_gate.py（4 tests OK）：扫全仓"拿 current_load 与裸零阈值比较"当载货真值。
+   **基线读数如实报：hits=2 / exempt=2 / violations=0 ⇒ 本轮零违规，此门是预防性的**（未为计数归零发明判据）。
+   两处命中逐条带理由豁免：environment.py:1751（_is_carrying 内部把 load<=1e-9 当下界短路，随后仍按航线标签定夺，非载货真值）、test_c4_is_carrying_discriminator.py:82（变异面故意构造的退化 lambda，扫它等于自杀）。无理由即算违规。
+   三面夹具：clean(真仓库绿) / dirty(临时违规样本→红并具名行号) / shape-specificity(检测器自身两面：getattr 包裹式与点号式必须命中，env:1065 容量算术与 env:1797 比值必须不命中)。另有 exempt-stale 面防豁免表过期。
+
+量具自我纠错（两次都是"工具瞎"不是"现场没有"）：第一版行级正则造 7 条假违规（6 条是 docstring/文案散文）；第二版整串丢 STRING token 又让 env:1751 与 lambda 消失（属性名藏在字符串里）⇒ 改用 tokenize 保留"恰为 current_load 的字面量"参与判定，并把 `_NUMCMP` 拆成正向/反向两条以覆盖 `0 == current_load` 写法。shape-specificity 面就是为防这类失明常驻。
+
+README 计数 console 43→45 文件 / 330→339 用例；citation --verify exit=0；porcelain 仅剩本笔三文件。
+硬边界：未 push、未打 tag、paper/ 未碰、无绝对坐标回退；drone.py 三段(:328-331/:342-343/:362-366)与 environment.py 全程零修改。约条件重评三条登记在档未动。停在加固终态汇报。
+
+
+
 ### 2026-10-08（第二十四笔）：#69-C3 current_load / is_free 状态职责审计 —— 判「不需要拆」，零代码改动
 
 基线 d493b6f。纯审计轮，environment/drone 无任何改动。全文 docs/C3_state_field_audit.md。
