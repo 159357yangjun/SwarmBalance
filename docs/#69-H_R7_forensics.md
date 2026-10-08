@@ -16,10 +16,36 @@ t=1666  (NO HOLDER，cleanup 计完成 origin=is_free_cleanup_branch has_dst_ev=
 ```
 最后弹出的坐标 (357600.0, 3462308.0) ≈ config `task.warehouse_pos`(357600.57, 3462308.77)，kind='?'（无标签 2-tuple）⇒ 是"改道去机巢/仓库"的单点，不是 task_44 的目的地。
 
-## 根因（代码级，具名行号）
+## 根因（代码级，具名行号）—— ⚠ 本节结论已在本轮后续取证中被**修正**，见文末"根因修正"
 `t=1415→1458` 之间，无人机背负**尚未消费的 dest 服务航点**时，被一条低电/改道逻辑用 `schedule_route([nest_pos])`（drone.py:221-222，**整体覆盖** scheduled_position，且 task_id=None ⇒ :223 清 executing_task_id）**替换掉**了剩下的 dest 航点；随后到站 `is_charging=True`。换电结束恢复分支（drone.py:271-273 `if self._suspended_route`）因 `_suspended_route` 为空（改道没走"挂起"路径 :285，而是直接覆盖）而无货可恢复 ⇒ dest 服务航点永久丢失 ⇒ 观察层永远等不到该任务的 DESTINATION_REACHED。之后 assignment 残留在 cleanup 分支被计成完成。
 
 对照：预判式换电的**正规**路径是 :282-285「把剩余航线存入 _suspended_route 再清空」，换满后 :271-274 恢复——这条不丢妥投。**R7 触发的是绕过挂起、直接覆盖航线的那条改道**（load 同时被清零，指向 return_to_base:239-240 或等价覆盖点）。
+
+---
+
+## ⚠ 根因修正（本轮二次取证推翻上节，一手证据为准）—— 批准 H1 前必须重读
+
+上节"schedule_route 覆盖 + _suspended_route 空"是**错的**。插桩逐跳证实真实机制在 **environment.py 的航点弹出检测**，不在 drone.py：
+
+task_44 持机 drone_0 的 scheduled_position 演变（kind 标签）：
+```
+t=1415  ['dest']        load=2.0 exec=task_44   ← 只剩 dest 服务航点
+t=1458  ['?']           load=0   exec=None       ← 同一步内 dest 被弹出、并追加了仓库/机巢单点
+```
+关键一步 `[STEP-WITNESS] t=1458 prev=['dest'](len1) curr=['?'](len1)`：
+- drone.update() 里 dest 航点被 :324 `pop(0)`（route 1→0），随即 :335-337 判"任务完成"置 is_free/清载/clear exec，再 :350-353 因低电 `schedule_route([nearest])` 追加一个仓库点（route 0→1）。
+- 回到 environment.step 的送达检测（env.py:1190）：判据是 `len(prev) > len(curr)`。此处 prev=len1、curr=len1 ⇒ **长度未减 ⇒ 弹出检测整段跳过 ⇒ DESTINATION_REACHED 从未记录**。
+- assignment 未被 :1205 消费块移除 ⇒ 残留 ⇒ 下一轮命中 is_free_cleanup 兜底(:1238)被 `_record_task_completion` 计成完成（has_dst_ev=False）。
+
+⇒ **根因＝"送达事实靠航线长度差来推断"这一契约，在"同一仿真步内既弹出终点又追加换电航点"时失效**。这与 C1/C2b 同源（跨层用间接量猜业务事件），但落点在 environment.py 的检测谓词，不是 drone.py 的改道。
+
+## 修正后的候选修法（原 H1 打错文件，作废；待重批）
+- **H1′（推荐，落在真正机制）**：environment.py 的弹出检测不再只看 `len(prev)>len(curr)`，改为**按 prev 首元素身份判定**：若 `prev[0]` 是某 service 航点（source/dest 标签）而 `curr` 不再是同一个对象/坐标，即视为"本步消费了它"，无论长度是否变化。（仍只读 scheduled_position，不新建状态真源。）
+- **H1″（更小但更脆）**：在 drone.update() 弹完 dest 触发完成的那一步，禁止同帧再 schedule_route 追加换电点（先完成、下一步再改道）。会把"完成"与"改道"拆到两步，改变时序，风险高于 H1′。
+- 两者都**不碰 completion 口径定义**（区别于 H2）。倾向 H1′：修的是那条"用长度差当送达证人"的错误契约本身。
+
+## 验收预期（批准后执行，不变）
+四格 rerun `cleanup_completion_without_service` 归 0；r5_nonexact_arrival_count 允许变；**completion / timeout 不得变**；seed 40907 旧配对回放（c1_paired_replay…fixed.json）first_divergence 与九项读数不得变。任一变化即外溢，停下汇报。
 
 ## 为什么这是缺陷而非"合法保险"
 completion_rate 把它算作已完成、但货物从未送达、current_load 被静默清零（:240/:336）⇒ 对外"完成率 1.0"在这一格上名不副实。它满足 latent-defect 定义：有真实正例（seed 101/102），不是纯注入面。
