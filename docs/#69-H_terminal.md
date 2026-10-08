@@ -32,3 +32,17 @@
 
 ## 状态
 未 publish、未 push。drone.py / route_planner.py / metrics_schema / runner 均未改（worker 的 --with-observer 仍是默认关、runner 不传）。停在 #69-H 修复终态汇报，等你对 (c) 冲突的裁定。
+
+---
+
+## 挂账表（#69-H 交付物 9b1cd15 的已知残余 —— 主控裁定①要求同时登此，不得只存 faceoff 文档）
+
+| 编号 | 残余 | 一手证据 | 影响面 | 处置 |
+|---|---|---|---|---|
+| **H-R1** | 已提交规则（后缀+服务前缀）对 **9 例 mid-flight re-route 判为假阳性消费**：无人机停在离 dest/source 85~961 m 处、未经过该点却被记送达 ⇒ 这些任务的单条 completion 时刻可能偏早（后续会真送达，净 cleanup_no_svc 仍 0） | docs/#69-H_predicate_faceoff.md §1（seed102 全扫 9 例，列 t=436/479/511/983/1580/1619/1634/1745/1774 + dist_after） | 个别 completion 的 delay 计时偏早；不改 completed/DR/cleanup 计数 | **批准 #69-H2 行进线段谓词修**（见下）；在此之前引用 seed102 系 delay 时须带此注 |
+| **H-R2** | 纯几何谓词（`dist(end,prev[0])≤1m`）虽修掉 H-R1，但把 seed40907 avg_delay 从 2.802632→2.776316（动冻结证人），且与旧规则在 seed40907 双向发散 11 处 ⇒ 两谓词都是错的子集 | docs/#69-H_predicate_faceoff.md §2–3 | 说明"第三个猜测直接替规则"不可行 | 转 #69-H2 纸面设计先行，禁未审落码 |
+
+**结项判定不受影响**：#69 主链十笔仍成立；H-R1/H-R2 是 R7 修复的精度残余，非新缺陷类别。论文若引 seed102 greedy 的 delay/timeout 具体值，须待 H2 定标后刷新，或按"±1 步计时不确定"标注。
+
+## #69-H2 计划（待纸面设计审批，本轮未动码）
+谓词方向：prev 前缀逐点判是否落在本步位移线段 [start,end] 可信容差内 + curr 与剩余一致。容差真源拟引用 route_planner.py:160 `euclidean(current,goal)<1`（同一 <1m "close enough" 定义）。验收三件：(a) seed102 九例判回 k=0；(b) seed40907 含 avg_delay 逐字不变；(c) t=521/t=79 双向分歧各归其位；三面先红后绿留档（旧规则在 (a)(c) 实测报红）。
