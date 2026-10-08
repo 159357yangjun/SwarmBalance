@@ -2,6 +2,20 @@
 
 ## [Unreleased]
 
+### 2026-10-08（第二十四笔）：#69-C3 current_load / is_free 状态职责审计 —— 判「不需要拆」，零代码改动
+
+基线 d493b6f。纯审计轮，environment/drone 无任何改动。全文 docs/C3_state_field_audit.md。
+
+① 清单：current_load 写 8 读 12、is_free 写 14 读 20+，逐处标注语义（Q1 机上有货 / Q2 可接单 / Q3 服务已终结）。is_free 全部落在 Q2，需要问航线阶段的地方(env:1044/:1584/_is_carrying:1752)一律现读 scheduled_position，不从 is_free 猜 ⇒ 单语义无风险。current_load 一名两义：add_load 于**派单时刻**调用(env:1109/1121/1818)，故它表示"已指派重量"(Q2 容量算术 env:1065 用它是正确的)，但被当 Q1 用就会错。
+
+② 判别式（落到行号 + 实测）：分叉发生在"飞往取货点"段。seed102/3600 逐步采样 busy_leg_samples=12414、load>0&航线判空载=6906、航线判载货&load==0=**0** ⇒ 分叉真实且量大但危险方向为 0。消费者核查（不为立项发明危害）：KPI empty_load_ratio 唯一消费点是 env:1168 `_is_carrying(drone)`，走航线形状不吃 current_load；observer payload_at_reach 独立复算 **0/60 非零**（record@:1212 早于扣减@:1215，同帧⇒无区分力），observer 已注释拒绝用它下结论、改用 load_at_consumption(10583/10611 非零)；能耗侧分叉段 109497.5m/7847.1Wh 占加载能耗 48.7%，属 E1 假设层口径且在禁改边界内。
+
+③ 结论：**不需要拆**。is_free 实测 free_with_load/route/service_waypoint 三项 ~4100 步全 0；current_load 唯一误用方向已被 _is_carrying 挡掉，且该口径早被本仓 M4(docs/数据来源与可追溯性登记表.md:331)专查并证伪过一次("98.53% 空载其实带货"已撤回，判"代码不要动")。本轮 route-pop 独立复算与 M4 在关键方向一致(carrying_but_counted_EMPTY=0.0m)，反方向数值差异(我 51.53% vs M4 3.40%)如实并列、不取其一。拆字段要横跨调度/UI/能耗/observer 六处写入点，为已证伪的风险付此代价不成立。登记三条重新评估触发条件；建议的最小加固(_is_carrying 判别式断言 + "禁用 current_load>0 当载货真值"扫描门)不在本轮实施、等裁。
+
+硬边界：未 push、未打 tag、paper/ 未碰、无绝对坐标回退；drone.py 三段(:328-331/:342-343/:362-366)零修改。5 个临时探针同轮删除。citation --verify exit=0、README 计数不变、porcelain=0。停在 C3 终态汇报等裁。
+
+
+
 ### 2026-10-08（第二十三笔）：#69-C2 latent cleanup —— 判定不可达，零代码改动，出论证 + 更正过期口径
 
 基线 c5ea8b0。窄敕三件走裁定③（不可达 ⇒ 不改码）。一手结论：**当前提交态下"dest 未 pop 却走 cleanup"结构上开不了火**。
