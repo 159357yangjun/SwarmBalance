@@ -2,6 +2,19 @@
 
 ## [Unreleased]
 
+### 2026-10-07（第十七笔）：#69-F 收口确认轮 —— 全量门禁总表 + replay 终态对账（零代码改动）
+
+HEAD 7d36b99。纯确认轮：不改任何码，只把 C1–E 的门禁在本轮重跑一遍并逐字段核对 replay。产物 docs/F_收口门禁总表.md。
+
+① 全量门禁一次性总表（**全部 F 轮现测、非引旧档**）：C1 四面（fixed/mutate/forced_cleanup OK；old 刻意 [C1_NO_TEETH]）、
+Gate A 35 例逐点等价、source A/B/C/D、destination A/B/C/D、Observer 零漂移 8、compare_gate 27 / height_binary 4 /
+loader_baseline 9 / README counts 5、聚合 suite batch A90+B38+C117+D25=**270 tests 0 failures**。
+② paired replay f654587→HEAD 逐字段对账：AFTER 侧从本轮重生成 c1_face_live_fixed.json(mtime 20:25) 现算
+completed/DR/cleanup=38/38/0 与 C1 提交产物一致；first_divergence index=852 seq=853 task_11 DESTINATION_REACHED 仍在 ⇒ E 后读数逐字不变。
+③ #69 剩余开项（只列不修）：待裁①teeth 极性(old 面红，唯一让默认-face runner 不绿者)、待裁②drone.py:336 保留vs合并、
+待裁③D-1 措辞入 metrics 文档；预存干扰本轮批次切法下 0 复现（诚实标注≠并发时序永不再现）。结项判断：三项均为判据/措辞/前瞻动作、
+非未闭合缺陷 ⇒ 裁定落定即可结 #69，无需 G；其中①优先级最高（影响"suite 全绿"对外表述）。停在收口汇报。
+
 ### 2026-10-07（第十六笔）：#69-E KPI 疑点门化 G-D-a/G-D-b + D-2 互检（production 零修改）
 
 基线 518b3d9。改动面 = console/test_c1_lifecycle_gate.py + docs/D_KPI定义层盘点.md + README 计数；
