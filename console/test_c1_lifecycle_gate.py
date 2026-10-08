@@ -293,18 +293,22 @@ def _force_cleanup(events):
 
 
 def _inject(events):
-    """mutation：把一条无送达证据的 completion 复制并伪造成有送达，且同任务重复一次。
+    """mutation（R3 牙）：把一条**合法 dest-branch 完成**复制一次 ⇒ 同任务重复计入 completed。
 
-    ⚠ 字段名必须跟 Observer 当前 schema 一致。本函数曾长期读**已废弃的 ``reason`` 键**，
-    导致 ``cand is None`` → 原样返回、mutate 面与 old 面读数完全相同（＝没有变异的"变异测试"）。
-    ⇒ 现在末尾有一条硬断言：**注入必须真的改变事件数**，否则当场报错而不是静默通过。
+    ⚠ #69-C2b 重挂目标 + 改名理由：#69-C1 后生产里所有 completion 都是 origin==destination_branch 的
+      合法送达，旧写法按 `not has_destination_evidence`（几何非精确）选靶——那挑中的仍是真实总体
+      （dest-branch 中 A* <1m 容差抵达的那批），但叙事写的是"伪造无送达→有送达"，那是 #69-A/C0 时代
+      cleanup 冒充 delivery 的场景，**生产上已不再发生**。本注入实际证明的只是更窄的一条事实：
+      **同一任务的第二次完成会被 R3 抓到**（dup-with-DESTINATION_REACHED ⇒ legal_unique 计数翻倍）。
+      故改挂到"任意 dest-branch 完成被重复计入"这一诚实命名，不再谎称在造无送达样本。
+    ⚠ 字段名必须跟 Observer 当前 schema 一致；曾因读废弃 ``reason`` 键导致 cand is None → 原样返回
+      （＝没有变异的"变异测试"）。⇒ 末尾硬断言：注入必须真的改变事件数，否则报错而非静默通过。
     """
     ev = list(events)
     cand = next((e for e in ev if e["kind"] == "TASK_COMPLETION_RECORDED"
-                 and not e.get("has_destination_evidence", True)), None)
+                 and e.get("record_origin") == "destination_branch"), None)
     if cand is None:
-        raise AssertionError("[MUTATE_NO_TARGET] 轨迹里没有『无送达证据』的 completion，"
-                             "无法构造伪造样本 ⇒ mutate 面无意义")
+        raise AssertionError("[MUTATE_NO_TARGET] 轨迹里没有 dest-branch 完成可作重复样本 ⇒ mutate 面无意义")
     forged = dict(cand)
     forged["has_destination_evidence"] = True
     forged["record_origin"] = "destination_branch"

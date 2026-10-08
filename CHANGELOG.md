@@ -2,6 +2,19 @@
 
 ## [Unreleased]
 
+### 2026-10-07（第十四笔）：#69-C2b drone.py:335-336 载重归零语义审计 + mutate 夹具目标重挂
+
+基线 674a3c2。**只审计不改生产码**：drone.py / environment.py 本轮零 diff；改动仅 console/test_c1_lifecycle_gate.py 的 `_inject` + 新增 docs/C2b_drone载重归零审计.md。
+
+① 契约对账结论：**语义重叠（冗余双写/防御性 backstop），建议合并待裁**。一手证据（提交态 c1_face_live_fixed.json + 真实 planner 出口）：
+- 路由交错实测：两任务 kinds=['source','dest','source','dest']（plan_route_for_tasks :1848-1879 每任务追加一整腿），故每腿送达+扣减(:1218/:1227)都发生在下一腿取货前 ⇒ 无"分组装载中途空车"。
+- per-drone 栈式对账：TASK_LOADED 压入、COMPLETION 弹出，在每次 DRONE_BECAME_FREE（触发 :336）时残留未完成载货数 = **0**（38 次转空闲现场，SANITY loaded=40/completion=38/free=38）。⇒ :336 触发时 current_load 恒已为 0，是环境侧逐腿扣减之外的第二处载重写＝冗余双写，非幽灵清零。
+- 三态取"语义重叠"：不删的理由写成前瞻风险（将来若出现"清空但仍有未送达 assignment"的新场景，:336 会从无害兜底变成掩盖上游记账缺失的静默清零——同"两套到达定义"族），当前不可达、不作缺陷量化。建议两处加互相指向的注释锚或按裁定合并；本轮不动。
+
+③ mutate 注入器 `_inject` 目标从旧几何判据 `not has_destination_evidence`（叙事="伪造无送达→有送达"，属 #69-A/C0 cleanup 冒充 delivery 场景，C1 后生产不再发生）改挂到 `record_origin=="destination_branch"` 的一条合法 dest 完成，诚实命名其证明的窄事实："任意完成被重复计入 ⇒ R3 抓到"。四面复跑：fixed ✅ / mutate(R3=1) ✅RED / forced_cleanup(新门=1,R1=1,R4=1) ✅RED / old(live)[C1_NO_TEETH] ✅RED。
+
+停在审计汇报，不开 #69-D。
+
 ### 2026-10-07（第十三笔）：#69-C2a R5 降级为信息读数 + 新建有牙的 cleanup→completion 语义门
 
 基线 aa75b5b。**纯审计层改动**：只动 console/test_c1_lifecycle_gate.py，生产代码（environment/consistency_observer/route_planner/drone）对 aa75b5b **零 diff**（已 git diff 核）。
