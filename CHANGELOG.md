@@ -2,6 +2,25 @@
 
 ## [Unreleased]
 
+### 2026-10-08（第二十六笔）：#69-C5 收口与结项 —— 聚合带分母复跑 + 门禁总表三分证人类型 + 对外口径五行
+
+基线 d66f236。不加新机制，只收尾。全文 docs/C5_收口与结项.md（F_收口门禁总表.md 的增补，F 表 270-test 历史快照不动）。
+
+① 聚合单次 discover 实测：`Ran 339 tests in 868.317s / FAILED (failures=1, skipped=5)` ⇒ 通过 333/失败 1/skip 5（339=上轮 330+C4 新增 9）。
+   唯一红 = `test_g2_all_four_algorithms_get_real_fleet_speed`，断言原文逐字同前轮（:251 `[pso][NO_DENOMINATOR]`），且**本轮同文件单跑 OK(92.061s/EXIT 0)** ⇒ standalone 绿+聚合红 = **同一因（import-order 配置污染），非新因、非 D-iv**。
+   诚实标注：F 表 §③ 当年以"批次切法 A/B/C/D=270 全绿"记为未见复现并预告"改回单次 discover 需重验"——本轮正是单次 discover，**按预告复现**，说明那是批次切法的观察盲区而非问题消失。
+   skip 5 条逐项点名（old 面审计快照 / c1 mutation 面 / observer 冻结基线 / phase1b1 正式配对实验 / g2teeth GATE_CALIBRATION_STALE），其中仅第 5 条由 H3 引入；第 4 条须对外表述为"未执行"不得计入通过。
+
+② 门禁总表按证人类型三档分列：**[G]** 常驻可执行门 / **[P]** 一次性探针（已删不可复算）/ **[D]** 仅文档声明，**只有 [G] 进门禁计数**。
+   净增 [G] = 5 文件 24 用例（h_b_baseline_provenance 3 / h3_real_pop_events 7 / h3_lifecycle_gates 5 / c4_is_carrying_discriminator 5 / c4_cargo_truth_scan_gate 4），各写守什么火口＋残余盲区。
+   ⚠ 本轮最重要的一条如实交代：**C2「cleanup 结构不可达」与 C3「is_free 单语义」没有任何常驻门**（探针同轮删了，属 [P]/[D]）——若将来新增 is_free=True 赋值点使该路径重新可达，当前无门会红，只能靠 G-H3-B/C1 的 cleanup_no_svc 间接触发。已单列在 §2-B，不混进门禁数。
+
+③ 对外结项口径五行（≤5 行，未验不写成已验）：关掉的两条（生命周期一致性改执行器事件作证+三类反推移除且有源码级门；KPI 内部自洽闭合+载货口径双门）；开着的三条（外部有效性 #65/#67 欠账且 phase1b1 配对实验是 skip 未执行；C2/C3 无门可守；g2_all_four 已知干扰与 g2teeth 待重标定）。⇒ 对外只能说"339 中 333 通过、1 已知干扰、5 具名 skip"，**不能说 suite 全绿**。
+
+citation --verify exit=0；README 计数 console 45/339 一致；本笔仅新增 1 个 doc（未动生产代码）。硬边界：未 push、未打 tag、paper/ 未碰、无绝对坐标回退；drone.py 三段零修改。停在 C5 终态汇报等裁。
+
+
+
 ### 2026-10-08（第二十五笔）：#69-C4 加固两条 —— _is_carrying 判别式夹具 + current_load 载货真值扫描门
 
 基线 b211302。主控批准 #69-C3 建议的最小加固两条，实施轮、范围就这两件。**未动 environment.py / drone.py**（git status 只有 README + 2 个新测试文件 ⇒ 证明加固不需要碰禁改边界）。
