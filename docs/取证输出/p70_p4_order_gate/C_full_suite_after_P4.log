@@ -1,0 +1,236 @@
+.....s...s................................................Generated 12 tasks:
+地图建筑 2876 栋：其中 397 栋有可用高度、108 栋 >20 m 进入避障碰撞集
+[B_INFO] dest 服务航点是否精确等于 destination: False（False 才真正覆盖到容差抵达这条路径）
+Warning: Could not find obstacle-free path from (358648.09524972824, 3462804.7143637063) to (358948.09524972824, 3462804.7143637063)
+WARNING: Route segment (358648.09524972824, 3462804.7143637063) -> (358948.09524972824, 3462804.7143637063) intersects with building!
+[C1 VERDICT face=old] {"completions_recorded": 38, "counter": 38, "legal_unique": 38, "R1_missing_destination_evidence": 0, "R2_pickup_not_before_delivery": 0, "R3_duplicate_completion": 0, "R4_aggregate_not_recomputable": 0, "r5_nonexact_arrival_count": 12, "R5_never_loaded_among_them": 0, "cleanup_completion_without_service": 0, "GD_a_timeout_from_illegal": 0, "GD_b_alignment_ok": 1, "GD_b_missing_dr": 0, "GD_b_orphan_dr": 0, "GD_b_sum_d_completed": 38}
+[C4_SCAN_BASELINE] hits=2 exempt=2 violations=0（本轮判：预防性门，零违规）
+  [C4_DIRTY_WITNESS] 抓到并具名：C:\Users\yyyy\AppData\Local\Temp\c4dirty_hsxkf28f\offender.py:4 | return self.current_load > 0   # BAD: 派单即置重，不是机上货物
+[C4_EXEMPT_LIVE] 在册豁免=2 条，全部解析得到：[('console/test_c4_is_carrying_discriminator.py', 101), ('frontend/environment.py', 1751)]
+[C4_MUTATION] 退化写法 current_load>0 被这些面抓到：F1,F3（F1 先咬）
+[C6_SITE] frontend/drone.py        __init__                     line=88
+[C6_SITE] frontend/drone.py        update                       line=281
+[C6_SITE] frontend/drone.py        update#2                     line=342
+[C6_SITE] frontend/environment.py  set_drone_out_of_service     line=545
+[C6_TEETH] ADD 新增键=[('frontend/drone.py', '_c6_probe')] | DEL 失去键=[('frontend/environment.py', 'set_drone_out_of_service')]
+[CAP_CONFIG] 小数载重机型={"light_express": 2.4}
+[CAP_RUNTIME] light_express=2.4 default=10.0 hetero=True
+[CSV_CENSUS_GAP] schemas=2 pairs=1 第一对差 5 列，独立重算相符
+[CSV_CENSUS_CODES] 表里 5 条全部被驱动过：['CSV_CENSUS_MISSING', 'CSV_CENSUS_PARSE', 'CSV_CENSUS_PROBLEM', 'CSV_CENSUS_RANGE', 'CSV_CENSUS_STALE']
+[CSV_CENSUS_XRECOUNT] files=7 widths=13,20,25 bom=7/7 独立重数全部相符
+........................................s.................................................................................C:\Users\yyyy\AppData\Roaming\TRAE SOLO CN\ModularData\ai-agent\work-mode-projects\6a91893e4cc261f69a0a52a0\drone-scheduling\console\_paired_readout.py:150: ResourceWarning: unclosed file <_io.TextIOWrapper name='C:\\Users\\yyyy\\AppData\\Local\\Temp\\pr-test2-dxqmjiuc\\raw_runs.csv' mode='r' encoding='utf-8-sig'>
+  seen = sorted({r.get("实验") for r in csv.DictReader(io.open(raw, encoding="utf-8-sig"))})
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+..............s..............................................................................[CITE_SUMMARY] checked=184 anchored=74 | 文档引用核对：184 条 path:line，其中 74 条带 #锚点（其余只判路径与越界）
+[ROWSET_SUMMARY] void_refs=3 declared=3 | 作废产物引用：3 处，其中 3 处已声明行集合（core4 / all10）
+[PAPER_LIST_MATCH] byte_equal=yes purge_touched_paper=0 figures_total=10 figures_before_purge=10 | 论文侧撤除未达清单.md 与代码重算逐字节一致；paper/ 撤除未达=0 个文件被改过
+[REWRITE_MAP_MATCH] objects=285 reachable=234 unreachable=51 pairs=18 pending=0 problems=0 cost_ms=2221 | 表与对象库现算逐字节一致
+[CSV_CENSUS] files=7 declared=6 both=5 disk_only=2 declared_only=1 widths=13,20,25 no_bom=0 seed_cols=0 gap_schemas=2 gap_only_in_wide=5 cost_ms=66 | 产物与盘上现算逐字节一致
+[DEAD_FIELD] name=total_charging_energy defs=1 writers=0 readers=0 exports=0 定义处=['frontend/environment.py:291'] (扫到 139 个 .py)
+[DEAD_FIELD] name=total_charging_sessions defs=1 writers=0 readers=0 exports=0 定义处=['frontend/environment.py:292'] (扫到 139 个 .py)
+[CAL_TEETH] 变异面生效：阈值 +1（≡`>=`→`>`）使 N==15 从 flush_size=1 变 0；K1 不受影响
+[CAL_FROZEN] version=threshold@backend_si/config.yaml:dual_channel.{buffer_size_threshold,emergency_ttl,buffer_timeout} fixtures=K1_below,K2_at,K3_above_once,K4_emergency_not_size,K5_timeout_not_size,K6_mutation_ge_to_gt hashes=pso_scheduler.py=0ecfb9632995;drone.py=84bd484d1836;environment.py=8a6efb782b55
+[CAL_ISOLATION] AST 扫描：文件访问型违规=0，import 型违规=0；唯一外部依赖=backend_si\config.yaml
+Generated 12 tasks:
+地图建筑 2876 栋：其中 397 栋有可用高度、108 栋 >20 m 进入避障碰撞集
+Generated 12 tasks:
+地图建筑 2876 栋：其中 397 栋有可用高度、108 栋 >20 m 进入避障碰撞集
+[H1] 同几何 25m=>blocked  15m=>clear ⇒ 阈值 environment.py 的 HIGH_BUILDING_MIN_HEIGHT_M(=20) 承重
+[H2] 25 / 250 / 2.5e7 m 判定完全相同 (False) ⇒ 高度值被丢弃
+[H3] 21 m 与 1e9 m 均 blocked ⇒ 过阈值即无限高二维棱柱
+[H4] 真实地图进入障碍集合的楼=1 栋（另有未过阈值者不计）⇒ 分母存在
+[P1_VERDICT] order_ab_rc=0 order_ba_rc=0 optimize_ab=11454 optimize_ba=11454 exit_criterion=(rc==0 both) and (optimize_ab==optimize_ba) and (optimize_ab>0)
+[P1_AGREE] 两种顺序均通过且 pso optimize=11454 一致（单跑与聚合走同一子进程路径）
+[P1_TEETH_VERDICT] polluted_fleet=10 expected_factory=10 exit_criterion=polluted_fleet==10
+[P1_TEETH] 注入生效：抢先 setenv+import 会把 DEFAULT_NUM_DRONES 冻成 10（出厂值）
+[P2_VERDICT] files=51 violations=0 whitelist_live=0 whitelist_stale=0 plain_string_pending=4 exit_criterion=violations==0_and_stale==0
+[P2] 扫描 51 个测试文件：主进程内按名字 import 内核 命中=0（判据=0）/在册豁免=0（须逐条有理由）/豁免中已消失=0（判据=0）；普通字符串语句内的同类文本=4（均为拼接后喂 `python -c` 的子进程脚本，已逐条确认宿主 ⇒ 不判红、留名备查）
+[P2_TEETH_VERDICT] negative_line=5 raw_string_hits=0 plain_string_line=4 exit_criterion=all_three_shapes_as_expected
+[P2_TEETH] 三种形状分别处理：主进程语句抓到(第5行)/raw-string 不误伤/普通字符串单列待确认(第4行) ⇒ 判据有牙且不过宽
+[P2_WL_COUNT] 在册豁免=0 条，全部带理由
+[P2_STUB] 装桩模块=['test_command_console.py']，全部在册且都有复原路径
+[P3_VERDICT] modules_covered=10 residue_items=0 census_rows=9 waivers=0 exit_criterion=residue_items==0_and_run_errors==0
+[P3_CLEAN] 10 个模块全程跑完后残留=0（判据两面：env / sys.path 皆空，逐模块点名亦全空）
+[P3_TEETH_VERDICT] env_residue_seen=True items=1 exit_criterion=at_least_one_kind_env
+[P3_TEETH] 注入生效：读到残留 [{"kind": "env", "key": "SWARM_BALANCE_SIM_CONFIG", "before": null, "after": "/tmp/p3_injected_not_restored.json"}]
+[P3_COVERAGE] modules_covered=10 modules_matching_predicate=10 excluded_bootstrap=0 exit_criterion=(matching - covered)==0
+[P3_COVERED] test_c1_destination_leg_semantics          env_writes=2 temp_path_writes=0
+[P3_COVERED] test_c4_is_carrying_discriminator          env_writes=2 temp_path_writes=0
+[P3_COVERED] test_h3_real_pop_events                    env_writes=2 temp_path_writes=0
+[P3_COVERED] test_h_r7_delivery_detection               env_writes=2 temp_path_writes=0
+[P3_COVERED] test_p1_order_independence_gate            env_writes=1 temp_path_writes=0
+[P3_COVERED] test_p3_no_cross_test_residue              env_writes=4 temp_path_writes=0
+[P3_COVERED] test_r2_destination_without_load           env_writes=2 temp_path_writes=0
+[P3_COVERED] test_sla_consumption_gate                  env_writes=2 temp_path_writes=0
+[P3_COVERED] test_speed_fallback_gate                   env_writes=2 temp_path_writes=0
+[P3_COVERED] test_swap_time_gate                        env_writes=2 temp_path_writes=0
+[P3_WITNESS_VERDICT] marker_seen=True exit_criterion=marker_line_present_and_True
+[P3_WITNESS] 正例证人通过：注入模块确实在子进程里跑起来了
+[P3_WL_COUNT] 在册豁免=0 条（基线=0），全部带理由
+[P3_PREDICATE_FACES] scope=setenv(2/2)+temp-path-leak(1) 均入范围; permanent-bootstrap hits=0 不入范围; 是否违规改由运行时 diff 判
+[P3_SELF_VERDICT] env_left=0 path_added=0 tests_run_in_self=2 exit_criterion=env_left==0_and_path_added==0
+[P4_VERDICT] ran_ab=40 ran_ba=40 rc_ab=[0, 0, 0, 0, 0, 0, 0, 0] rc_ba=[0, 0, 0, 0, 0, 0, 0, 0] state_diff=0 members=8 cost_ab_s=21.7 cost_ba_s=21.8 exit_criterion=(state_diff==0) and (no member rc!=0 on either side)
+[P4_PER_MODULE] side=ab per_module_cases=c1_destination_leg_semantics:4,c4_is_carrying_discriminator:5,h3_real_pop_events:7,h_r7_delivery_detection:1,r2_destination_without_load:4,route_planner_equivalence:5,sla_consumption_gate:9,swap_time_gate:5 sum=40 exit_criterion=(sum==Ran of that side)
+[P4_PER_MODULE] side=ba per_module_cases=c1_destination_leg_semantics:4,c4_is_carrying_discriminator:5,h3_real_pop_events:7,h_r7_delivery_detection:1,r2_destination_without_load:4,route_planner_equivalence:5,sla_consumption_gate:9,swap_time_gate:5 sum=40 exit_criterion=(sum==Ran of that side)
+[P4_AGREE] 40 个用例 × 8 成员，两种顺序逐用例状态一致；两侧各 Ran=40/40
+[P4_TEETH_VERDICT] probe_at_head=pass probe_at_tail=fail exit_criterion=(head_state != tail_state)
+[P4_COST] subset_modules=8 est_side_s=28.5 est_gate_s=57.0 excluded_expensive=2 exit_criterion=(est_gate_s<=180) —— 超过就该分层跑而不是删成员
+[P4_COST_REAL] this_run_ab_s=21.7 this_run_ba_s=21.8 test_A_two_sides_s=43.5 whole_gate_wall_s=813.6 est_vs_measured=14.26 overhead_outside_two_sides_s=770.1 exit_criterion=(per_member_timeout_respected) and (members==8) —— 墙钟只报数不吃退码，见下
+[P4_EXCLUDED] console.test_p1_order_independence_gate 单跑≈146.7s（自身已含 fresh-process A/B）⇒ 未入子集，本门**没覆盖**它
+[P4_EXCLUDED] console.test_speed_fallback_gate 单跑≈190.0s（四算法子进程×3 面(由 10 模块合跑 359.62s 反推)）⇒ 未入子集，本门**没覆盖**它
+[PR_DIRS] higher=2 lower=6 ambiguous=2
+[PAIRED_NO_DATA] 实验块 'algorithm_comparison' 里没有 greedy/ga 两侧；这份 raw 里的块=['algorithm_comparison']
+[PR_MINP] n=5 smallest_p=0.0625 alpha=0.05 首个可判的 n=6
+[PAIRED_UNJUDGEABLE] dir=- n=5 seeds=101,102,103,104,105 only_base=0 only_cand=0 perms=32
+[PAIRED_METRIC] 超时率 base=greedy cand=ga
+  [SEED] 101 base=0.066700 cand=0.100000 signed_delta=-0.033300
+  [SEED] 102 base=0.066700 cand=0.133300 signed_delta=-0.066600
+  [SEED] 103 base=0.066700 cand=0.066700 signed_delta=-0.000000
+  [SEED] 104 base=0.016700 cand=0.016700 signed_delta=-0.000000
+  [SEED] 105 base=0.050000 cand=0.050000 signed_delta=-0.000000
+[PAIRED_COUNTS] win=0 tie=3 loss=2
+[PAIRED_EFFECT] mean_signed_delta=-0.019980 sd=0.029784 cv=1.49
+[PAIRED_P] exact_two_sided=0.5000 smallest_possible=0.0625 alpha=0.05 同号=False
+..............................................................................................
+----------------------------------------------------------------------
+Ran 367 tests in 1945.426s
+
+OK (skipped=4)
+[PAIRED_READ] 若 超时率 的最小可得 p 已 > 0.05，则此重复次数在设计上不可能显著 —— 要的是加 seed，不是换说法
+Generated 12 tasks:
+地图建筑 2876 栋：其中 397 栋有可用高度、108 栋 >20 m 进入避障碰撞集
+Generated 12 tasks:
+地图建筑 2876 栋：其中 397 栋有可用高度、108 栋 >20 m 进入避障碰撞集
+Generated 12 tasks:
+地图建筑 2876 栋：其中 397 栋有可用高度、108 栋 >20 m 进入避障碰撞集
+Generated 12 tasks:
+地图建筑 2876 栋：其中 397 栋有可用高度、108 栋 >20 m 进入避障碰撞集
+Generated 12 tasks:
+地图建筑 2876 栋：其中 397 栋有可用高度、108 栋 >20 m 进入避障碰撞集
+Generated 12 tasks:
+地图建筑 2876 栋：其中 397 栋有可用高度、108 栋 >20 m 进入避障碰撞集
+[G9] 本轮现算 witness：[('C1', 40901, 44, 0, 69), ('C1', 40902, 44, 1, 74), ('C1', 40903, 37, 0, 67), ('C2', 40901, 59, 1, 152), ('C2', 40902, 55, 1, 102), ('C2', 40903, 58, 0, 139)]
+     [BLIND] C1/40901 Δ=-1：witness 0 翻转，但该格有 69 条绕障候选腿 ⇒ 走的是连续通路（score 幅度/tie-break/续航分量），属已知盲点
+     [BLIND] C1/40903 Δ=+4：witness 0 翻转，但该格有 67 条绕障候选腿 ⇒ 走的是连续通路（score 幅度/tie-break/续航分量），属已知盲点
+     [BLIND] C2/40903 Δ=-3：witness 0 翻转，但该格有 139 条绕障候选腿 ⇒ 走的是连续通路（score 幅度/tie-break/续航分量），属已知盲点
+Generated 12 tasks:
+地图建筑 2876 栋：其中 397 栋有可用高度、108 栋 >20 m 进入避障碰撞集
+Generated 12 tasks:
+地图建筑 2876 栋：其中 397 栋有可用高度、108 栋 >20 m 进入避障碰撞集
+[G7] flip_witness C1/C2 seed=40901：组=103 翻转=1 率=0.9709%
+Generated 12 tasks:
+地图建筑 2876 栋：其中 397 栋有可用高度、108 栋 >20 m 进入避障碰撞集
+Generated 12 tasks:
+地图建筑 2876 栋：其中 397 栋有可用高度、108 栋 >20 m 进入避障碰撞集
+Generated 12 tasks:
+地图建筑 2876 栋：其中 397 栋有可用高度、108 栋 >20 m 进入避障碰撞集
+Generated 12 tasks:
+地图建筑 2876 栋：其中 397 栋有可用高度、108 栋 >20 m 进入避障碰撞集
+Generated 12 tasks:
+地图建筑 2876 栋：其中 397 栋有可用高度、108 栋 >20 m 进入避障碰撞集
+Warning: Could not find obstacle-free path from (358444.73757517216, 3463943.7406157325) to (358444.73757517216, 3464347.5531174387)
+Warning: Could not find obstacle-free path from (358197.0878062926, 3463658.249841266) to (358197.0878062926, 3464171.11430704)
+Warning: Could not find obstacle-free path from (358433.7631413916, 3463788.72779421) to (358433.7631413916, 3464123.5533664147)
+[G8] 判别式 OD=40 两面相同=3 两面不同=37
+Generated 12 tasks:
+地图建筑 2876 栋：其中 397 栋有可用高度、108 栋 >20 m 进入避障碰撞集
+Generated 12 tasks:
+地图建筑 2876 栋：其中 397 栋有可用高度、108 栋 >20 m 进入避障碰撞集
+Generated 12 tasks:
+地图建筑 2876 栋：其中 397 栋有可用高度、108 栋 >20 m 进入避障碰撞集
+Generated 12 tasks:
+地图建筑 2876 栋：其中 397 栋有可用高度、108 栋 >20 m 进入避障碰撞集
+Generated 12 tasks:
+地图建筑 2876 栋：其中 397 栋有可用高度、108 栋 >20 m 进入避障碰撞集
+[G13] 样本=81 未饱和(<1.0)=25 (30.9%) min=0.1569 max=1.0000 不同值数=7
+Generated 12 tasks:
+地图建筑 2876 栋：其中 397 栋有可用高度、108 栋 >20 m 进入避障碰撞集
+Generated 12 tasks:
+地图建筑 2876 栋：其中 397 栋有可用高度、108 栋 >20 m 进入避障碰撞集
+Generated 12 tasks:
+地图建筑 2876 栋：其中 397 栋有可用高度、108 栋 >20 m 进入避障碰撞集
+Generated 12 tasks:
+地图建筑 2876 栋：其中 397 栋有可用高度、108 栋 >20 m 进入避障碰撞集
+[G13e] 候选=81 被扣分=0 最小贡献=0.000000 | 全部零贡献(slack>=0)=81
+[G13f] slack_full 近=24.0 远=-25.0
+[G11] W=0 逐位对照 96 个候选腿 × 两面，不一致=0
+[PLOT_VOID_CENSUS] csv=3 png=12 withdrawn=6 all_named=10 —— 件数只在运行行上印，纸面不许再抄它
+[PLOT_VOID_ARTIFACTS] 逐件问祖先：15 件（csv=3 png=12）
+[FAIL] C:\Users\yyyy\AppData\Roaming\TRAE SOLO CN\ModularData\ai-agent\work-mode-projects\6a91893e4cc261f69a0a52a0\drone-scheduling\results\compare\plots\ROW_SETS.md 与代码重算结果不一致（数字被手改过，或表内容变了没重生成）
+  第 36 行不同：
+    盘上: | `weighted_overall_score.csv` | Weighted Overall Score | 4 | 10 | 0.833769 | 0.588907 | -0.244861 | **不同** |
+    重算: | `weighted_overall_score.csv` | Weighted Overall Score | 4 | 10 | 0.833768 | 0.588907 | -0.244861 | **不同** |
+[OK] ROW_SETS.md 与代码重算逐字节一致
+[PLOT_VOID_GA_CALIBER] archived_ga_steps=2000.0 current_ga_steps=400.0 —— 通知里不再抄这两个数
+[PF_WARN_CENSUS] warnings=ResourceWarning:1 带出处=1 全文提及=2
+[PF_WARN_CHANNEL] ResourceWarning 到达 detail=True
+[PF_WARN_SELFTEST] warnings=ResourceWarning:2 带出处=2 全文提及=6
+Generated 12 tasks:
+地图建筑 2876 栋：其中 397 栋有可用高度、108 栋 >20 m 进入避障碰撞集
+[C_INFO] 服务航点是否精确等于 source: False（False 才是真正覆盖到容差抵达这条路径）
+[CLAIM_GATE] 引用配对表 3 处，全部带限定语
+[aggregate] 已跳过写入共享的 results/compare/one_click_latest.csv（该文件已入库且是答辩「算法对比」页的数据源；确认要用本次实验覆盖它，请加 --publish-latest）
+[OK] README 测试计数与实测一致（console=51文件/367用例；experiments=3文件/32用例）
+[BATCH_EQUIV] 比对=74（不可达 51 + 可达 20，全部走批读）+ 边界标题 3，不一致=0
+[DOC_SHA_CENSUS] commit_sha_引用=480 不可达且未列入映射表=0 | 活文档里引用的 sha 480 处，其中 0 处既不可达也不在映射表里
+已写 docs/提交改写映射表.md（旧指针 1 条 / 无关悬空 0 / 仍欠残文 0 / 问题 0）
+[REWRITE_MAP_MATCH] objects=4 reachable=3 unreachable=1 pairs=1 pending=0 problems=0 cost_ms=270 | 表与对象库现算逐字节一致
+[FAIL][REWRITE_MAP_STALE] docs/提交改写映射表.md differs from what git says now | fix: python console/_citations.py --rewrite-report --write —— 表被手改过，或又做过一轮改写没重生
+[REWRITE_MAP_MATCH] objects=4 reachable=3 unreachable=1 pairs=1 pending=0 problems=0 cost_ms=266 | 表与对象库现算逐字节一致
+[FAIL][REWRITE_MAP_MISSING] docs/提交改写映射表.md | fix: python console/_citations.py --rewrite-report --write
+[FAIL][REWRITE_MAP_MISSING] docs/提交改写映射表.md | fix: python console/_citations.py --rewrite-report --write
+Generated 12 tasks:
+地图建筑 2876 栋：其中 397 栋有可用高度、108 栋 >20 m 进入避障碰撞集
+Warning: Could not find obstacle-free path from (358948.09524972824, 3462804.7143637063) to (358953.09524972824, 3462804.7143637063)
+Warning: Could not find obstacle-free path from (358094.665990033, 3464152.88139779) to (358099.665990033, 3464152.88139779)
+Warning: Could not find obstacle-free path from (358138.20157185313, 3464058.2971189544) to (358143.20157185313, 3464058.2971189544)
+Warning: Could not find obstacle-free path from (358204.07524029864, 3464119.4848277513) to (358209.07524029864, 3464119.4848277513)
+Warning: Could not find obstacle-free path from (358140.198890127, 3464267.740577209) to (358145.198890127, 3464267.740577209)
+Warning: Could not find obstacle-free path from (358317.02833015105, 3464217.572095425) to (358322.02833015105, 3464217.572095425)
+Warning: Could not find obstacle-free path from (358444.73757517216, 3464145.6468665856) to (358449.73757517216, 3464145.6468665856)
+Warning: Could not find obstacle-free path from (358045.3059498061, 3464257.0620188583) to (358050.3059498061, 3464257.0620188583)
+Warning: Could not find obstacle-free path from (358622.5051164705, 3464212.2912866827) to (358627.5051164705, 3464212.2912866827)
+Warning: Could not find obstacle-free path from (358197.0878062926, 3463914.682074153) to (358202.0878062926, 3463914.682074153)
+Warning: Could not find obstacle-free path from (356817.86994238134, 3461980.4649367128) to (356822.86994238134, 3461980.4649367128)
+Warning: Could not find obstacle-free path from (357445.5755074988, 3462308.7733642906) to (357450.5755074988, 3462308.7733642906)
+
+[GATE_A] cases=35 direct=8 astar=15 fallback=12 detour=5 —— 全部逐点等价
+Generated 12 tasks:
+地图建筑 2876 栋：其中 397 栋有可用高度、108 栋 >20 m 进入避障碰撞集
+Generated 12 tasks:
+地图建筑 2876 栋：其中 397 栋有可用高度、108 栋 >20 m 进入避障碰撞集
+Generated 12 tasks:
+地图建筑 2876 栋：其中 397 栋有可用高度、108 栋 >20 m 进入避障碰撞集
+Generated 12 tasks:
+地图建筑 2876 栋：其中 397 栋有可用高度、108 栋 >20 m 进入避障碰撞集
+[ESCAPE_CENSUS] py_files=139 hits=0 floor=80 broken=0 | 扫描=139 个 .py，非法转义命中=0 处，编不过=0 个
+[ESCAPE_MECHANISM] import=[1, 0] compile=[1, 1, 1] pyc=1 | import 路：[1, 0] -> compile 路：[1, 1, 1] -> 缓存文件 1 个
+Generated 12 tasks:
+地图建筑 2876 栋：其中 397 栋有可用高度、108 栋 >20 m 进入避障碰撞集
+[G1] greedy 采样 29472 次 speed，取值集合=[14.0, 20.0]
+[G2/greedy ] (subprocess) observation 2 次 speed=[14.0, 20.0]；无批量优化器调用
+[G2/pso    ] (subprocess) observation 2 次 speed=[14.0, 20.0] | optimize 11454 台机×批次 speed=[14.0, 20.0]
+[G2/ga     ] (subprocess) observation 2 次 speed=[14.0, 20.0] | optimize 114 台机×批次 speed=[14.0, 20.0]
+[G2/ortools] (subprocess) observation 2 次 speed=[14.0, 20.0] | optimize 120 台机×批次 speed=[14.0, 20.0]
+[G2] 配置兜底 drone.speed=17.0（非 200）；四算法均在干净子进程内过门 ⇒ 与发现顺序无关
+[G2TEETH_L1] 标定门实跑 OK：Ran 8 tests，含 K1–K6 与冻结三元组
+[G2TEETH_L2_OBSERVED] gate(opt=1909 flush_size=0 peak=10) | noDenom(opt=0 peak=2) | mutate(opt=6 flush_size=0 peak=3) —— 此行为**信息读数**，不进退码；size 触发口在真实工况下是否打开由 L1 合成夹具裁决
+[G2TEETH] 阈值 15 与被测源码全程未改 ⇒ 变红的只能是 fixture
+[G2TEETH] 负面对照已实测：阈值 15→2 时 gate 面 peak 降为 5、本门退码非 0
+[G3] 配置 speed 取值=[20.0, 14.0, 20.0, 17.0]（全部落在机型区间）
+[RUN_A] rc=1 out=3 err=17 | [RUN_B] rc=0 out=4 err=4
+[SA_REAL] only_before=0 only_after=2 common=17 dots=6/6 tests=6
+[T] refused=[AB_RANGE] b'[AB_RANGE] ???? A=28 B=3????? 20 ?? ???????????? only_before=0 ???'
+[T] only_before=1 only_after=1 common=27 units=28/28 raw=29/29 dots=25/25 runs=1/1 tests=25/25 identity=True
+  [ONLY_BEFORE] x1 b'A ?'
+  [ONLY_AFTER] x1 b'B ?'
+[SA_M1] only_before=3 kinds=3
+[SA_RULES] pairs=4 only_before_on_deleted_line=1
+Generated 12 tasks:
+地图建筑 2876 栋：其中 397 栋有可用高度、108 栋 >20 m 进入避障碰撞集
+Generated 12 tasks:
+地图建筑 2876 栋：其中 397 栋有可用高度、108 栋 >20 m 进入避障碰撞集
+Generated 12 tasks:
+地图建筑 2876 栋：其中 397 栋有可用高度、108 栋 >20 m 进入避障碰撞集
+EXIT=0
+end=18:36:38

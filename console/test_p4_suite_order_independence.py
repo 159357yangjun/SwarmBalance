@@ -144,9 +144,15 @@ def _single(name, others, timeout=900, prelude=None):
 
 
 #: 本轮 test_A 真跑的两侧耗时；test_C 用它把静态估算与实测并排对账。
-_LAST_RUN = {"cost_ab": None, "cost_ba": None}
+_LAST_RUN = {"cost_ab": None, "cost_ba": None, "max_single_cost": 0.0}
 
-def _run_batch(order, timeout_each=900, fingerprint=None):
+#: 单个成员子进程的超时上限：这是**结构性护栏**（跑不完就红），不是墙钟预算（慢就红）。
+#: 为什么不许拿秒数当退出码，见 test_C 里那段被实测驳回的记录（聚合里 wall=845s、单跑 105s，
+#: 差的 801s 是同一台机器上并发的别的常驻门在抢 CPU，与本门的工作量无关）。
+SINGLE_TIMEOUT_S = 900
+
+
+def _run_batch(order, timeout_each=SINGLE_TIMEOUT_S, fingerprint=None):
     """按给定顺序逐成员各起一个进程；返回 (合并状态表, 每成员读数, 总耗时)。
 
     fingerprint=None ⇒ 真实批次语义（每个成员都在干净进程里单加载，无人为前驱痕迹）。
@@ -179,6 +185,7 @@ class SuiteOrderIndependence(unittest.TestCase):
         sa, pa, ca = _run_batch(asc)
         sd, pd, cd = _run_batch(desc)
         _LAST_RUN["cost_ab"], _LAST_RUN["cost_ba"] = ca, cd
+        _LAST_RUN["max_single_cost"] = max([v["cost_s"] for v in list(pa.values()) + list(pd.values())])
 
         diff_cases = {k: (sa[k], sd.get(k)) for k in sa if sa[k] != sd.get(k)}
         diff_cases.update({k: ("<缺>", sd[k]) for k in sd if k not in sa})
@@ -206,6 +213,16 @@ class SuiteOrderIndependence(unittest.TestCase):
             self.assertEqual(eager, {},
                              "[P4_BLIND] %s 侧这些成员在**单加载进程**里把别的成员也带进了 "
                              "sys.modules：%s ⇒ 本门的'每次只 import 一个'前提破了" % (side, eager))
+        # ⚠ 逐模块用例数必须**印出来**，不能只在断言里比：第一版就是只 assert 不 print，
+        #   于是 [P4_AGREE] 那行看着像"覆盖了 8 个模块"，实际拿不到每格贡献了几例。
+        #   （沿用 P3 的做法：`[P3_COVERED]` 逐行点名。）恒等式 sum==ran 也在这一行自证。
+        per_side = {"ab": pa, "ba": pd}
+        for side, per in per_side.items():
+            counts = ",".join("%s:%d" % (k.replace("console.test_", ""), v["ran"])
+                              for k, v in sorted(per.items()))
+            total = sum(v["ran"] for v in per.values())
+            print("[P4_PER_MODULE] side=%s per_module_cases=%s sum=%d exit_criterion=(sum==Ran of that side)" % (
+                side, counts, total))
         print("[P4_AGREE] %d 个用例 × %d 成员，两种顺序逐用例状态一致；两侧各 Ran=%d/%d" % (
             ran_a, n_members, ran_a, sum(v["ran"] for v in pd.values())))
 
@@ -287,11 +304,23 @@ class SuiteOrderIndependence(unittest.TestCase):
             whole = time.time() - _RUN_T0[0]          # **整条门**的墙钟，含牙与自检
             print("[P4_COST_REAL] this_run_ab_s=%.1f this_run_ba_s=%.1f test_A_two_sides_s=%.1f "
                   "whole_gate_wall_s=%.1f est_vs_measured=%.2f overhead_outside_two_sides_s=%.1f "
-                  "exit_criterion=(whole_gate_wall_s<=180)" % (
+                  "exit_criterion=(per_member_timeout_respected) and (members==8) —— 墙钟只报数不吃退码，见下" % (
                       _LAST_RUN["cost_ab"], _LAST_RUN["cost_ba"], real, whole,
                       (whole / (est * 2)) if est else float("inf"), whole - real))
-            self.assertLessEqual(whole, 180,
-                                 "[P4_TOO_EXPENSIVE] 本轮整条门真跑 %.0fs > 180s ⇒ 改 opt-in 分层并登记欠账" % whole)
+
+        # ⚠⚠ 判据形状被实测驳回过一次（这次是**我自己那把门**）：本轮聚合里本门真红了一次
+        #   `[P4_TOO_EXPENSIVE] 整条门真跑 845s > 180s`。一手对照（同一次聚合日志内部）：
+        #       [P4_VERDICT] cost_ab_s=22.0 cost_ba_s=22.0        ← 两侧子进程跑得很快
+        #       [P4_COST_REAL] whole_gate_wall_s=845.1            ← 但模块 import→用例开跑之间等了 801s
+        #   ⇒ 那 801s 不是本门的工作量，是**同一台机器上并发的别的常驻门在抢 CPU**；
+        #     单跑本门时 wall≈105s、聚合时 wall≈845s，差 8 倍，而 state_diff 两次都是 0。
+        #   ⇒ 拿墙钟秒数当退出码 = 偶发红（本项目已把"偶发红必须带分母/负载相关读数不得进退码"
+        #     写进纪律）。所以这里**只印不判**，改吃两条结构性判据：成员数 + 超时护栏是否被尊重。
+        self.assertEqual(len(ORDER_SUBSET), 8,
+                         "[P4_EMPTY_CENSUS] 成员数不是 8 ⇒ 名单被动过（要改范围请连同排除项一起改）")
+        self.assertLessEqual(_LAST_RUN["max_single_cost"], SINGLE_TIMEOUT_S,
+                             "[P4_CHILD_HUNG] 有成员的子进程耗时 >= 单次超时上限 ⇒ 它可能是被超时打断的，"
+                             "此时'顺序无关'的结论无效（读不到 ≠ 读到一致）")
 
         for name, cost, why in EXCLUDED_SELF_EXPENSIVE:
             print("[P4_EXCLUDED] %s 单跑≈%.1fs（%s）⇒ 未入子集，本门**没覆盖**它" % (name, cost, why))

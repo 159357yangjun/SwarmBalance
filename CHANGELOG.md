@@ -2,6 +2,21 @@
 
 ## [Unreleased]
 
+### 2026-10-08（第三十五笔）：P4 落地后第一次真咬咬到自己（墙钟判据被驳回）+ 四扇门盲区入档 + E1 范围核查发现一条长期无人跑的具名红
+
+基线 ad47e44。生产代码零改动；硬边界照旧（未 push、未打 tag、paper/ 未碰、`drone.py` 三段未动）。
+
+**① P4 的成本判据被实测驳回（这次是它自己）**：聚合本轮 `Ran 367 / FAILED (failures=1, skipped=4)`，唯一那条红是 P4 的 `test_C`：同一次日志内部 `cost_ab_s=22.0 cost_ba_s=22.0` 但 `whole_gate_wall_s=845.1`（`overhead_outside_two_sides_s=801.1`）⇒ **那 801s 不是本门的工作量，是同机并发的别的常驻门（P1 146.7s / P3 ≈250s / speed_fallback ≈190s）在抢 CPU**；单跑同一把门 wall≈88–105s、`state_diff=0`、判据绿。⇒ 拿墙钟秒数当退出码 = 偶发红（把"机器忙"报成"回归"），违反本仓既有纪律"负载相关读数不得进退码"。处置：**墙钟只印不判**，退出码改吃两条结构性判据 —— 成员数恒等于 8、以及 `max_single_cost < SINGLE_TIMEOUT_S`（超时护栏被尊重；某成员挂死时那是"读不到"而不是"读到一致"，必须红）。单次超时从裸参数升为具名常量并注释"这是护栏不是预算"。原始两面入库：`docs/取证输出/p70_p4_order_gate/D_full_suite_P4_cost_red_raw.log`（改前的红）与 `C_full_suite_after_P4.log`（改后 `Ran 367 tests in 1945.426s / OK (skipped=4)` EXIT=0）。另补 `[P4_PER_MODULE] side=ab/ba per_module_cases=… sum=40`：第一版只在断言里比逐模块计数、不 print ⇒ `[P4_AGREE]` 那行看着像覆盖了 8 个模块却拿不到每格几例（沿用 `[P3_COVERED]` 的做法）。顺手删掉我刚加的一条恒真断言（`total == sum(同样表达式)`）。
+
+**② 四扇门的盲区单独入档**：新增 `docs/P70_four_resident_gates_and_their_blind_spots.md` —— 每扇门一句职责 + **守不住什么**（不许只写能守什么）。要点：P1 对原污染已无感且只有一对一个具名读数；P2 只认 `environment` 这一个模块名（换个内核名即可绕过）、普通字符串命中只登记不判红、raw-string 全豁免；P3 只测 env/sys.path 两面、随机状态与注册表单例没测、`sys.modules` 已撤判据、赋值式引导不入普查；P4 只覆盖 8/51 文件且被排除的两个恰是消费路径最复杂的两个、关键数值读数当前不吃进判据。共同盲区：都不看随机状态/全局单例，都不看生产代码内部的顺序敏感（作用域都是 `console/test_*.py`），四扇全绿 ≠ 产品没问题。
+
+**③ ⑤ E1 能耗语义冻结的范围核查**：新增 `docs/P70_E1_energy_semantics_freeze_scope.md`。答主控那一问：**可执行部分不在禁改区内** —— E1 全部住在 `frontend/drone.py:29-37`（三个 K 与上下界常量）与 `:152-196`（`consume_battery` / `_wind_factor`），与三段禁改区（`:328-331` pop 点、`:342-343` is_free+current_load、`:362-366` 单段直线位移）行号不重叠；三段 sha256[:12]=`66e2a96d4b5b`/`208403fbf942`/`a406c3daf053` 供复算。所以"只能做口径入档、不能实现"这句在本轮边界下**不成立**。但"能改"≠"该动数值"：两条硬前置未满足 —— (a) 标定数据入口未通（CMU KiltHub 下载页 403，文件未取到，属未验），现在把 K 从 assumption 改成标定值＝无源冒充有源；(b) 机型不同 ⇒ 绝对 Wh/km 不可套用（`docs/#65_parameter_provenance.md:78` 红线）。⇒ E1 能冻结的是语义与结构（公式形状／符号约定／开关语义／wind=0 逐字退 E0），不含系数标定。
+
+**④ ⚠ 核查中发现一条一直红着、且不在任何常驻套件里的门（新欠账，非我这两笔造成）**：
+`python -m unittest discover -s frontend -p "test_wind*.py"` ⇒ `Ran 19 tests … FAILED (failures=1)`（17.7s）：
+`FAIL: test_every_run_reproduces_e0_bit_for_bit (test_wind_injection.WindInjectionEquivalenceTests)` —
+"E1+静风未逐字复现 E0（12 处）"，漂移集中在 `从分配到实际装载上机等待时间`（E0 冻结基线该列 n=6 mean=50.689 sd=4.844，某格得 76.9 vs 46.7）⇒ 是同 seed 行为漂移，不是解析失败。三点定性：(i) `git diff b3f4451..HEAD --name-only -- frontend/ results/` 为空、该文件最后改动是 `1fdd589` 且其后已推进 96 笔 ⇒ 不是我造成的；(ii) `console/_readme_counts.py TARGETS` 只含 console 与 experiments ⇒ `frontend/test_*.py` 不参与 discover、也不在 51/367 分母里，**这条门长期无人跑**；(iii) 最可能窗口是 #69-H3 D-iv（`3c54c37` 改 completion/assignment 时序），但**未做受控消融、此处只登记"未解释"、不归因**。建议下一步（等裁）：两棵树各跑同一预设做受控消融 → 若确由 D-iv 引起，按 #69-H3 先例登记"E0 冻结基线已被正确修复作废"并**重生成基线**，而不是放宽等价门。
+
 ### 2026-10-08（第三十四笔）：#70-P1 挂账 (ii) 落地为第四扇常驻门 P4 —— 拟判据的**形状被实测驳回**后重造；另按裁定把"无锚点行号引用"登记为挂账
 
 基线 b3f4451。主控批准 (ii) 实施、范围收窄为一次，并加两条：子集清单由我列主控裁、每轮成本印在自己那行。硬边界照旧：未 push、未打 tag、paper/ 未碰、`drone.py` 三段未动。生产代码零改动。
