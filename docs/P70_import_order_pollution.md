@@ -90,7 +90,24 @@ charging_station / config.config_loder …` 正常导进来（第一版读数就
 
 
 
+## 门自己没跑起来时，报红还是静默？（补条：半坏自检实验）
+问题不是"门会不会漏检"，而是"量具崩了的时候它给的是哪种信号"。实测做法：把三扇门在**缺依赖的解释器**
+（`Python310/python.exe`，实测无 shapely/fastapi）下各跑一次，与清洁树+venv 那轮并列，原始输出全部落盘在
+`docs/取证输出/p70_p1/`（A_* = 坏解释器，B_* = 清洁面，`C_gate_did_not_boot_answer.md` = 对照表与结论）。
+
+**答：三扇都报非零退码，没有一扇静默。** 但两条红是误导性的，本轮据此改了门的形状：
+1. **P2 的红起初是自我误伤**：门自己的 `print("…⇒…")` 在 GBK 控制台抛 `UnicodeEncodeError`，
+   把 test_A/test_B 双双炸成 ERROR —— 而违规其实是 0。既不是抓到污染也不是通过 ⇒ 典型半坏自检。
+   ⇒ 每条门**先**印一行纯 ASCII 证人 `[P*_VERDICT] k=v … exit_criterion=…`，再印中文说明行；
+   顺序承重（证人必须在可能被编码异常打断的那条 print 之前）。现在坏解释器的日志里也留有
+   `[P2_VERDICT] violations=0` ⇒ 人能分清"量具崩了但判定值是 X"与"根本没到判定这步"。
+2. **P3 在坏解释器下的那条红成因不对**：残留项是被测模块 import 失败、setUpClass 半途而废留下的
+   env 改动，不是本门要守的"改了全局态不还原"。⇒ 判据写成 `residue_items==0 AND run_errors==0`，
+   `run_errors` 非空即 `[P3_BLIND]` 整轮作废；读不到 `RESIDUE_JSON` 同样退 1。
+   **共同点：读不到读数 = 红，不是绿。**
+
 ## 修复（本笔实施，五条）
+
 1. **让 speed_gate 不再依赖 import 竞速**：`test_g2_all_four` 改为**每个算法各起一个干净子进程**跑完整真路径（子进程自己写重载配置、在 import environment **之前** setenv），主进程常量从此不参与该门的判定。判别式由**子进程自报** `num_drones==6` + `config.drone.speed != 200` 承担（短码 `[GATE_FROZEN_BY_FOREIGN_IMPORT]`）。
    ⚠ 先前写的"在主进程内校验机队规模、不符就具名 bail"这条方案已被后续两轮实测**整体驳回**（见上面 §第二个污染源 与 §第三次实测驳回），不要再照这段实施。
 2. **消除"谁先 import / 谁后改 env"这件事本身**：把主进程内按名字加载内核的测试模块统一改成走 `console/_preflight.py:load_kernel_environment()`（按文件路径 exec、不进 `sys.modules["environment"]`、用完还原 sys.path）。本轮迁移 9 个模块（清单见 §残留普查门 与 CHANGELOG 第三十笔）；需要重载配置的 `test_speed_fallback_gate._pf_kernel()` 则把「装配置 → 按路径加载 → 核对该内核常量」绑成一个动作。

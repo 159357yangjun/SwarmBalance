@@ -203,6 +203,13 @@ class NoNameBasedKernelImport(unittest.TestCase):
                          "[P2_WHITELIST_STALE] 这些豁免条目在本轮扫描里已经不存在，说明它们守的"
                          "代码变了或被悄悄替换了 —— 要么恢复原状，要么删掉条目（不许留着当万能钥匙）：\n  "
                          + "\n  ".join(stale))
+        # ⚠ 顺序承重：**先**印纯 ASCII 证人，再印带 ⇒/中文的说明行。
+        #   实测：系统 python + 未设 PYTHONIOENCODING（GBK 控制台）下，那行中文 print 会抛
+        #   UnicodeEncodeError 把**这条门自己**炸成 ERROR —— 既不是红也不是绿（半坏自检比没有更坏）。
+        #   证人放前面 ⇒ 判定值一定先落进日志，人一眼能分清"门跑完了并给出判定"与"门没跑起来"。
+        print("[P2_VERDICT] files=%d violations=%d whitelist_live=%d whitelist_stale=%d "
+              "plain_string_pending=%d exit_criterion=violations==0_and_stale==0" % (
+                  len(files), len(violations), len(present_keys), len(stale), len(pending_confirm)))
         print("[P2] 扫描 %d 个测试文件：主进程内按名字 import 内核 命中=%d（判据=0）/"
               "在册豁免=%d（须逐条有理由）/豁免中已消失=%d（判据=0）；"
               "普通字符串语句内的同类文本=%d（均为拼接后喂 `python -c` 的子进程脚本，"
@@ -291,6 +298,8 @@ class NoNameBasedKernelImport(unittest.TestCase):
         self.assertEqual([h[0] for h in hits3], [4],
                          "[P2] 普通字符串内的内核 import 没被单独标出：%s" % ([h for h in hits3],))
         self.assertTrue(hits3[0][2], "[P2] 该命中未标记为『须人工确认是否 exec 进主进程』")
+        print("[P2_TEETH_VERDICT] negative_line=5 raw_string_hits=0 plain_string_line=4 "
+              "exit_criterion=all_three_shapes_as_expected")
         print("[P2_TEETH] 三种形状分别处理：主进程语句抓到(第5行)/raw-string 不误伤/"
               "普通字符串单列待确认(第4行) ⇒ 判据有牙且不过宽")
 

@@ -1,0 +1,31 @@
+F..
+======================================================================
+FAIL: test_A_clean_modules_leave_no_residue (console.test_p3_no_cross_test_residue.NoCrossTestResidue)
+判据③：这批模块跑完全程后，环境变量 / sys.path / sys.modules 应回到原样。
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\Users\yyyy\AppData\Roaming\TRAE SOLO CN\ModularData\ai-agent\work-mode-projects\6a91893e4cc261f69a0a52a0\drone-scheduling\console\test_p3_no_cross_test_residue.py", line 129, in test_A_clean_modules_leave_no_residue
+    self.assertEqual(residue, [],
+AssertionError: Lists differ: [{'kind': 'env', 'key': 'SWARM_BALANCE_SIM[193 chars]on'}] != []
+
+First list contains 1 additional elements.
+First extra element 0:
+{'kind': 'env', 'key': 'SWARM_BALANCE_SIM_CONFIG', 'before': None, 'after': 'C:\\Users\\yyyy\\AppData\\Roaming\\TRAE SOLO CN\\ModularData\\ai-agent\\work-mode-projects\\6a91893e4cc261f69a0a52a0\\drone-scheduling\\config\\simulation.json'}
+
++ []
+- [{'after': 'C:\\Users\\yyyy\\AppData\\Roaming\\TRAE SOLO '
+-            'CN\\ModularData\\ai-agent\\work-mode-projects\\6a91893e4cc261f69a0a52a0\\drone-scheduling\\config\\simulation.json',
+-   'before': None,
+-   'key': 'SWARM_BALANCE_SIM_CONFIG',
+-   'kind': 'env'}] : [P3_RESIDUE] 跑完 5 个模块后仍有未还原的全局态：
+  {"kind": "env", "key": "SWARM_BALANCE_SIM_CONFIG", "before": null, "after": "C:\\Users\\yyyy\\AppData\\Roaming\\TRAE SOLO CN\\ModularData\\ai-agent\\work-mode-projects\\6a91893e4cc261f69a0a52a0\\drone-scheduling\\config\\simulation.json"}
+
+----------------------------------------------------------------------
+Ran 3 tests in 0.626s
+
+FAILED (failures=1)
+[P3_TEETH_VERDICT] env_residue_seen=True items=1 exit_criterion=at_least_one_kind_env
+[P3_TEETH] 注入生效：读到残留 [{"kind": "env", "key": "SWARM_BALANCE_SIM_CONFIG", "before": null, "after": "/tmp/p3_injected_not_restored.json"}]
+[P3_WITNESS_VERDICT] marker_seen=True exit_criterion=marker_line_present_and_True
+[P3_WITNESS] 正例证人通过：注入模块确实在子进程里跑起来了
+EXIT=1

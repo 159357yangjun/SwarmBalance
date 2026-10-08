@@ -1,0 +1,12 @@
+....
+----------------------------------------------------------------------
+Ran 4 tests in 0.384s
+
+OK
+[P2_VERDICT] files=49 violations=0 whitelist_live=0 whitelist_stale=0 plain_string_pending=4 exit_criterion=violations==0_and_stale==0
+[P2] 扫描 49 个测试文件：主进程内按名字 import 内核 命中=0（判据=0）/在册豁免=0（须逐条有理由）/豁免中已消失=0（判据=0）；普通字符串语句内的同类文本=4（均为拼接后喂 `python -c` 的子进程脚本，已逐条确认宿主 ⇒ 不判红、留名备查）
+[P2_TEETH_VERDICT] negative_line=5 raw_string_hits=0 plain_string_line=4 exit_criterion=all_three_shapes_as_expected
+[P2_TEETH] 三种形状分别处理：主进程语句抓到(第5行)/raw-string 不误伤/普通字符串单列待确认(第4行) ⇒ 判据有牙且不过宽
+[P2_WL_COUNT] 在册豁免=0 条，全部带理由
+[P2_STUB] 装桩模块=['test_command_console.py']，全部在册且都有复原路径
+EXIT=0

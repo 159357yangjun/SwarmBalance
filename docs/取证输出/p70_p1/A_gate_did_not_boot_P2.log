@@ -1,0 +1,28 @@
+EE..
+======================================================================
+ERROR: test_A_no_main_process_name_import (console.test_p2_no_name_based_kernel_import.NoNameBasedKernelImport)
+主进程内的按名字 import 内核 \u21d2 逐个点名并红；在册豁免须同时核"还在/已消失"。
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\Users\yyyy\AppData\Roaming\TRAE SOLO CN\ModularData\ai-agent\work-mode-projects\6a91893e4cc261f69a0a52a0\drone-scheduling\console\test_p2_no_name_based_kernel_import.py", line 213, in test_A_no_main_process_name_import
+    print("[P2] 扫描 %d 个测试文件：主进程内按名字 import 内核 命中=%d（判据=0）/"
+UnicodeEncodeError: 'gbk' codec can't encode character '\u21d2' in position 126: illegal multibyte sequence
+
+======================================================================
+ERROR: test_B_gate_reads_the_real_files (console.test_p2_no_name_based_kernel_import.NoNameBasedKernelImport)
+阴性对照：本门必须能在"违规样本"上变红，否则 test_A 的绿只是没看见东西。
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\Users\yyyy\AppData\Roaming\TRAE SOLO CN\ModularData\ai-agent\work-mode-projects\6a91893e4cc261f69a0a52a0\drone-scheduling\console\test_p2_no_name_based_kernel_import.py", line 303, in test_B_gate_reads_the_real_files
+    print("[P2_TEETH] 三种形状分别处理：主进程语句抓到(第5行)/raw-string 不误伤/"
+UnicodeEncodeError: 'gbk' codec can't encode character '\u21d2' in position 64: illegal multibyte sequence
+
+----------------------------------------------------------------------
+Ran 4 tests in 0.395s
+
+FAILED (errors=2)
+[P2_VERDICT] files=49 violations=0 whitelist_live=0 whitelist_stale=0 plain_string_pending=4 exit_criterion=violations==0_and_stale==0
+[P2_TEETH_VERDICT] negative_line=5 raw_string_hits=0 plain_string_line=4 exit_criterion=all_three_shapes_as_expected
+[P2_WL_COUNT] 在册豁免=0 条，全部带理由
+[P2_STUB] 装桩模块=['test_command_console.py']，全部在册且都有复原路径
+EXIT=1

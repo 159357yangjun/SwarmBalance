@@ -60,6 +60,11 @@ class OrderIndependenceGate(unittest.TestCase):
         self.assertGreater(n_ab, 0, "[P1_TARGET_RED] pso 分母为 0 ⇒ 又回到 NO_DENOMINATOR")
         self.assertEqual(n_ab, n_ba,
                          "[P1_ORDER_DEPENDENT] pso optimize 读数随顺序变化：%s(先r2) vs %s(后r2)" % (n_ab, n_ba))
+        # 纯 ASCII 证人行必须**先**印：GBK 控制台下那条中文 print 会 UnicodeEncodeError 把门自己
+        # 炸成 ERROR（本轮实测过）⇒ 既不是红也不是绿；判定值要先落进日志。
+        print("[P1_VERDICT] order_ab_rc=%d order_ba_rc=%d optimize_ab=%d optimize_ba=%d "
+              "exit_criterion=(rc==0 both) and (optimize_ab==optimize_ba) and (optimize_ab>0)" % (
+                  rc_ab, rc_ba, n_ab, n_ba))
         print("[P1_AGREE] 两种顺序均通过且 pso optimize=%d 一致（单跑与聚合走同一子进程路径）" % n_ab)
 
     def test_B_injected_pollution_is_detected(self):
@@ -109,6 +114,8 @@ class OrderIndependenceGate(unittest.TestCase):
             self.assertEqual(got, 10,
                              "[P1_INJECT_NO_EFFECT] 抢先 import 后冻结到的机队是 %s 而非出厂 10 ⇒ "
                              "这条全局态通道已不存在，本门的红面失效，须重判是否还需要它" % got)
+            print("[P1_TEETH_VERDICT] polluted_fleet=%d expected_factory=10 "
+                  "exit_criterion=polluted_fleet==10" % got)
             print("[P1_TEETH] 注入生效：抢先 setenv+import 会把 DEFAULT_NUM_DRONES 冻成 %s（出厂值）" % got)
         finally:
             shutil.rmtree(tmp, ignore_errors=True)   # 子进程会在 tmp 里落 __pycache__，rmdir 必炸

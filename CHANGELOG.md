@@ -61,6 +61,14 @@ C2 有两条承重前提：(i) 赋值点集合有限已知（6-A 守这条）；
 
 **#69 尾项（6-A 是否守住 C2）不在本笔范围**：那个实测问题已由先前两笔（42919a5 / 5fc4471）闭合 —— §6-E 以两种变异证明 6-A 对前提 (ii) 两向皆盲、§6-D 那句"升为 [G]"就地作废，C2 仍属 [P]/[D]；选项③（补一条覆盖顺序的门）判据仍未写死、未动手，待另行放行。#70-P1 没有顺带改动它。
 
+**⑥ 补条实测：门自己没跑起来时报红还是静默（原始输出落盘 docs/取证输出/p70_p1/）**
+把三扇门在缺依赖的解释器（`Python310/python.exe`，实测无 shapely/fastapi）下各跑一次，与清洁树+venv 并列：
+P1 `FAILED (failures=1, errors=1)` / P2 `FAILED (errors=2)` / P3 `FAILED (failures=1)` ⇒ **退码全为 1，无一静默**。
+但两条红的成因是量具自己的问题，本轮据此改了门的形状：
+(a) **P2 起初被自己的 print 炸掉**——中文行里的 U+21D2 在 GBK 控制台抛 UnicodeEncodeError，test_A/test_B 双双 ERROR，而违规其实是 0（半坏自检比没有更坏）。⇒ 每条门**先**印纯 ASCII 证人 `[P*_VERDICT] k=v … exit_criterion=…`，再印中文说明行；顺序承重。现在坏解释器的日志里也留有 `[P2_VERDICT] violations=0`，人能分清"量具崩了但判定值是 X"与"根本没到判定这步"。
+(b) **P3 那条红的成因不对**——残留是被测模块 import 失败、setUpClass 半途而废留下的 env 改动，不是本门要守的"改了不还原"。⇒ 判据写成 `residue_items==0 AND run_errors==0`，run_errors 非空即 [P3_BLIND] 整轮作废；读不到 RESIDUE_JSON 同样退 1。**共同点：读不到读数 = 红，不是绿。**
+复算两面：`Ran 7 tests OK`（P2+P3，五道 VERDICT 行齐）、P1 见 B_clean_tree_green_P1.log（`optimize_ab=11454 optimize_ba=11454`）。
+
 硬边界照旧：未 push、未打 tag、paper/ 未碰。
 
 ### 2026-10-08（第二十八笔）：#69-C6 收尾批 —— 6-A 白名单结构门落地（is_free=True 赋值点集合，两面注入有牙）

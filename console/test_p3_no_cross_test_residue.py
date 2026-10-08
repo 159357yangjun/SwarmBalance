@@ -136,6 +136,11 @@ class NoCrossTestResidue(unittest.TestCase):
                              "[P3_RESIDUE] %s 自己改了 SWARM_BALANCE_SIM_CONFIG 却没还原" % row["module"])
             self.assertEqual(row["path_added"], [],
                              "[P3_RESIDUE] %s 往 sys.path 里留了条目：%s" % (row["module"], row["path_added"]))
+        # 纯 ASCII 证人行**先**印：GBK 控制台下中文 print 会 UnicodeEncodeError 把门自己炸成
+        # ERROR（本轮实测）⇒ 既非红也非绿；判定值要先落进日志。
+        print("[P3_VERDICT] modules=%d residue_items=%d census_rows=%d "
+              "exit_criterion=residue_items==0_and_run_errors==0" % (
+                  len(CLEAN_MODULES), len(residue), len(census)))
         print("[P3_CLEAN] %d 个模块全程跑完后残留=0（判据两面：env / sys.path 皆空，逐模块点名亦全空）"
               % len(CLEAN_MODULES))
 
@@ -167,6 +172,8 @@ class NoCrossTestResidue(unittest.TestCase):
             self.assertTrue(any(x.get("kind") == "env" for x in residue),
                             "[P3_INJECT_NO_EFFECT] 注入了未还原的 setenv，门却读不到残留：%s "
                             "⇒ 判据是摆设" % residue)
+            print("[P3_TEETH_VERDICT] env_residue_seen=True items=%d "
+                  "exit_criterion=at_least_one_kind_env" % len(residue))
             print("[P3_TEETH] 注入生效：读到残留 %s" % json.dumps(residue, ensure_ascii=False)[:200])
         finally:
             shutil.rmtree(tmp, ignore_errors=True)
@@ -201,6 +208,7 @@ class NoCrossTestResidue(unittest.TestCase):
             self.assertTrue(line, "[P3_BLIND] 正例证人没有输出：\n%s" % out[-400:])
             self.assertEqual(line[0][len("MARKER_SEEN "):], "True",
                              "[P3_BLIND] 注入样本没被执行 ⇒ 任何'读不到残留'都不能算证据")
+            print("[P3_WITNESS_VERDICT] marker_seen=True exit_criterion=marker_line_present_and_True")
             print("[P3_WITNESS] 正例证人通过：注入模块确实在子进程里跑起来了")
         finally:
             shutil.rmtree(tmp, ignore_errors=True)

@@ -1,0 +1,49 @@
+FF
+======================================================================
+FAIL: test_A_two_opposite_orders_agree (console.test_p1_order_independence_gate.OrderIndependenceGate)
+判据①②④：两种显式相反顺序下各跑一次，结果必须都是通过、且关键读数一致。
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\Users\yyyy\AppData\Roaming\TRAE SOLO CN\ModularData\ai-agent\work-mode-projects\6a91893e4cc261f69a0a52a0\drone-scheduling\console\test_p1_order_independence_gate.py", line 50, in test_A_two_opposite_orders_agree
+    self.assertEqual(rc_ab, 0, "[P1_TARGET_RED] 顺序[r2→G2] 未通过：\n%s" % out_ab[-900:])
+AssertionError: 1 != 0 : [P1_TARGET_RED] 顺序[r2→G2] 未通过：
+t_g2_all_four_algorithms_get_real_fleet_speed
+    r = self._run_g2_in_subprocess(algorithm)
+  File "C:\Users\yyyy\AppData\Roaming\TRAE SOLO CN\ModularData\ai-agent\work-mode-projects\6a91893e4cc261f69a0a52a0\drone-scheduling\console\test_speed_fallback_gate.py", line 451, in _run_g2_in_subprocess
+    raise AssertionError("[G2_SUBPROCESS_EMPTY] %s 无输出；stderr 前 300 字：%s" % (algorithm, (r.stderr or "")[:300]))
+AssertionError: [G2_SUBPROCESS_EMPTY] greedy 无输出；stderr 前 300 字：Traceback (most recent call last):
+  File "<string>", line 15, in <module>
+  File "C:\Users\yyyy\AppData\Roaming\TRAE SOLO CN\ModularData\ai-agent\work-mode-projects\6a91893e4cc261f69a0a52a0\drone-scheduling\frontend\environment.py", line 12, in <module>
+    from shapely.geometry import Point, LineS
+
+----------------------------------------------------------------------
+Ran 1 test in 0.442s
+
+FAILED (failures=1, errors=1)
+
+
+======================================================================
+FAIL: test_B_injected_pollution_is_detected (console.test_p1_order_independence_gate.OrderIndependenceGate)
+判据⑥的红面：造一个已知全局污染样本，门必须能看见它——否则这扇门是摆设。
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\Users\yyyy\AppData\Roaming\TRAE SOLO CN\ModularData\ai-agent\work-mode-projects\6a91893e4cc261f69a0a52a0\drone-scheduling\console\test_p1_order_independence_gate.py", line 112, in test_B_injected_pollution_is_detected
+    self.assertTrue(line, "[P1_INJECT_NO_EFFECT] 污染模块没打印读数，注入无从判定：\n%s" % out[-500:])
+AssertionError: [] is not true : [P1_INJECT_NO_EFFECT] 污染模块没打印读数，注入无从判定：
+\Local\Temp\p1inj_8p84wx7s\zz_p1_polluter.py", line 9, in setUpClass
+    from environment import Environment
+  File "C:\Users\yyyy\AppData\Roaming\TRAE SOLO CN\ModularData\ai-agent\work-mode-projects\6a91893e4cc261f69a0a52a0\drone-scheduling\frontend\environment.py", line 12, in <module>
+    from shapely.geometry import Point, LineString
+ModuleNotFoundError: No module named 'shapely'
+
+----------------------------------------------------------------------
+Ran 0 tests in 0.124s
+
+FAILED (errors=1)
+
+
+----------------------------------------------------------------------
+Ran 2 tests in 1.465s
+
+FAILED (failures=2)
+EXIT=1

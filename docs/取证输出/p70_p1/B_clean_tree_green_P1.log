@@ -1,0 +1,10 @@
+..
+----------------------------------------------------------------------
+Ran 2 tests in 194.660s
+
+OK
+[P1_VERDICT] order_ab_rc=0 order_ba_rc=0 optimize_ab=11454 optimize_ba=11454 exit_criterion=(rc==0 both) and (optimize_ab==optimize_ba) and (optimize_ab>0)
+[P1_AGREE] 两种顺序均通过且 pso optimize=11454 一致（单跑与聚合走同一子进程路径）
+[P1_TEETH_VERDICT] polluted_fleet=10 expected_factory=10 exit_criterion=polluted_fleet==10
+[P1_TEETH] 注入生效：抢先 setenv+import 会把 DEFAULT_NUM_DRONES 冻成 10（出厂值）
+EXIT=0

@@ -1,0 +1,12 @@
+...
+----------------------------------------------------------------------
+Ran 3 tests in 9.328s
+
+OK
+[P3_VERDICT] modules=5 residue_items=0 census_rows=5 exit_criterion=residue_items==0_and_run_errors==0
+[P3_CLEAN] 5 个模块全程跑完后残留=0（判据两面：env / sys.path 皆空，逐模块点名亦全空）
+[P3_TEETH_VERDICT] env_residue_seen=True items=1 exit_criterion=at_least_one_kind_env
+[P3_TEETH] 注入生效：读到残留 [{"kind": "env", "key": "SWARM_BALANCE_SIM_CONFIG", "before": null, "after": "/tmp/p3_injected_not_restored.json"}]
+[P3_WITNESS_VERDICT] marker_seen=True exit_criterion=marker_line_present_and_True
+[P3_WITNESS] 正例证人通过：注入模块确实在子进程里跑起来了
+EXIT=0
