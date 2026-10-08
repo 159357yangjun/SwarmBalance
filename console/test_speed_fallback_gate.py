@@ -22,6 +22,8 @@ from __future__ import annotations
 import math
 import os
 import pathlib
+import re
+import subprocess
 import sys
 import unittest
 
@@ -494,14 +496,44 @@ print(json.dumps({"ok": True, "algorithm": ALGO, "obs_speeds": sorted(set(obs_se
             raise AssertionError("[%s] 读数 %s=%r 不是整数 ⇒ 量具坏了，不许当通过" % (
                 row.get("face", "?"), key, row.get(key)))
 
+    def _assert_calibration_gate_is_live(self):
+        """L1 证人：跑一遍 console/test_g2teeth_calibration.py，要求它**跑到且全绿**。
+
+        为什么这条必须存在：g2teeth 把 size 触发口的判据外包给合成夹具门之后，如果那扇门
+        根本没跑（改名/报错/被 skip），本用例就成了"没人守着的通过"—— 那是最贵的假绿灯。
+        ⇒ 在这里以子进程真跑一次，并核对它报出的 K 面数量与牙线读数；退码非 0 或分母为 0 都算红。
+        """
+        r = subprocess.run([sys.executable, "-m", "unittest", "-v",
+                            "console.test_g2teeth_calibration"],
+                           cwd=str(ROOT), capture_output=True, text=True,
+                           encoding="utf-8", errors="replace", timeout=900,
+                           env=dict(os.environ, PYTHONIOENCODING="utf-8"))
+        out = (r.stdout or "") + (r.stderr or "")
+        m = re.search(r"^Ran (\d+) tests", out, re.M)
+        self.assertIsNotNone(m, "[CAL_BLIND] 标定门没产出 Ran N tests 行 ⇒ 它没跑起来，"
+                                "g2teeth 的 L1 判据无人守着；输出尾=%s" % out[-400:])
+        ran = int(m.group(1))
+        self.assertGreaterEqual(ran, 7,
+                                 "[CAL_BLIND] 标定门只跑了 %d 条（应 ≥7：K1-K6 + 冻结三元组）⇒ "
+                                 "有夹具被删或被 skip" % ran)
+        self.assertEqual(r.returncode, 0,
+                         "[CAL_GATE_RED] 标定门退码=%s ⇒ L1 机制层不成立，g2teeth 不得自称已通过；"
+                         "输出尾=%s" % (r.returncode, out[-600:]))
+        self.assertIn("[CAL_TEETH]", out,
+                      "[CAL_NO_TEETH] 标定门没印出变异面读数 [CAL_TEETH] ⇒ 它的牙未被证明")
+        print("[G2TEETH_L1] 标定门实跑 OK：Ran %d tests，含 K1–K6 与冻结三元组" % ran)
+
     def test_g2teeth_mutation_turns_the_denominator_off(self):
         """G2TEETH：门的牙由"切承重变量后分母消失"来证，不是由门自己绿来证。
 
-        三面对照（seed=40901、episode=3600、阈值 15 全程未动）：
-            gate     tasks=240 mix合计= 6 ⇒ optimize=1477  flush_size=1  buffer_peak=15
-            noDenom  tasks= 60 mix合计=10 ⇒ optimize=   0  flush_size=0  buffer_peak= 2
-            mutate   tasks=240 mix合计=10 ⇒ optimize=   3  flush_size=0  buffer_peak= 3
+        三面对照（seed=40901、episode=3600、阈值 15 全程未动）。下面这行是**本轮 D-iv 树上
+        的实跑读数**（`[G2TEETH_L2_OBSERVED]` 会每轮重印，注释只作历史对照，不作判据）：
+            gate     tasks=240 mix合计= 6 ⇒ optimize=1909 flush_size=0 buffer_peak=10
+            noDenom  tasks= 60 mix合计=10 ⇒ optimize=   0 flush_size=0 buffer_peak= 2
+            mutate   tasks=240 mix合计=10 ⇒ optimize=   6 flush_size=0 buffer_peak= 3
         ⇒ 承重变量是【机队规模】（fleet_mix），不是任务量：noDenom 就是原红门所在格。
+        （pre-D-iv 的同三格曾是 1477/1/15、0/0/2、3/0/3 —— size 触发口当时确实开过一次；
+          那组数已被 #69-H3 判为旧 completion 计时的产物，不再引用它作任何边界。）
 
         ⚠ "只切 num_drones" 不是单变量，别再这么干：`environment.py:144
         build_fleet_drone_types()` 先按 fleet_mix 展开机型序列、再截断/补齐到 num_drones，
@@ -509,49 +541,58 @@ print(json.dumps({"ok": True, "algorithm": ALGO, "obs_speeds": sorted(set(obs_se
         变出 17.0 就是这个原因）。机队规模的唯一真源是 fleet_mix。
 
         为什么牙挂在 flush_size 而不是 optimize_calls：optimize() 有三个触发口
-        （size / emergency / timeout，`pso_scheduler.py:1438`），变异后仍有 3 次 timeout 兜底。
-        拿"optimize_calls>0"当牙会被这 3 次糊过去 —— 本轮就是这么被骗了一轮。
+        （size / emergency / timeout，`pso_scheduler.py:1438`），变异后仍有 timeout 兜底。
+        拿"optimize_calls>0"当牙会被这几次糊过去 —— pre-D-iv 那轮就是这么被骗了一轮。
+        ⇒ size 触发口的语义由 L1 合成夹具（K1–K6）裁决；这里只断言"切机队后它必须关死"。
         """
         gate = self._probe("gate")
         nod = self._probe("noDenom")
         mut = self._probe("mutate")
 
-        # 校准前提已死门（#69-H3 D-iv，主控裁定①）：本门的牙（size 触发口曾打开 / peak≥15）
-        # 是在**旧后缀规则的 completion 计时**上标定的——那 9 例提前妥投虚增了 pending_buffer。
-        # D-iv 修好计时后同一工况 flush_size=0、peak=10 ⇒ "size 触发口曾打开"为假。
-        # 重定到 flush_size>0＝永红夹具；重定到 optimize_calls>0＝无牙(mutate=6≠0)。两条都不签。
-        # ⇒ 显式 skip（既非通过也非失败），报告行印出具名状态，聚合里不许默默红或绿。
-        if int(gate["flush_size"]) == 0:
-            print("[GATE_CALIBRATION_STALE] gate face flush_size=%s buffer_peak=%s "
-                  "(D-iv tree) ⇒ size-trigger calibration was made under pre-D-iv completion "
-                  "timing; needs re-calibration decision, see docs/#69-H_terminal.md §g2 / "
-                  "docs/#65_rerun_delta.md §7" % (gate["flush_size"], gate["buffer_peak"]))
-            self.skipTest("[GATE_CALIBRATION_STALE] size-trigger calibration made under "
-                          "pre-D-iv completion timing; D-iv tree shows flush_size=0 — "
-                          "needs re-calibration decision (#69-H3)")
+        # ---- 阶段② 重标定（#70-P1，主控批准实施）：skip 已转成真实判定，两层分开走 ----
+        # 旧形状（保留在下面这段注释里，防有人再把它合回去）：
+        #   if int(gate["flush_size"]) == 0: self.skipTest("[GATE_CALIBRATION_STALE] …")
+        # 为什么它必须死：把"真实工况下 size 触发口会打开"当**门的牙**，等于拿一次特定运行的读数
+        # 当结构判据 —— D-iv 修好 completion 计时后该读数从 1/15 变成 0/10，判据立刻不可满足，
+        # 于是只能 skip。skip 挂着不动 = 这扇门从此不产出任何判定，聚合里既不算红也不算绿。
+        #
+        # 新形状（裁定要求的"已知标签夹具"）：
+        #   L1 机制层 → 移到 console/test_g2teeth_calibration.py（常驻、进退码、秒级、合成输入）。
+        #      本用例先断言那扇门**确实在跑且确实有牙**，否则这里的"通过"是空的。
+        #   L2 观测层 → 下面这些真实工况读数只作信息印出，不进退码（它们不是实现缺陷）。
+        # 承重变量仍是【机队规模】：见上面 2×2 消融表；任务量不是承重项。
+        self._assert_calibration_gate_is_live()
 
         # ① 门工况：pso/ga/ortools 三条有分母线都必须为真（与 G2 同一判据）
         self.assertGreater(self._i(gate, "optimize_calls"), 0,
                            "[gate][NO_DENOMINATOR] 门的工况本身就没有 optimize 调用 ⇒ fixture 失效")
         self.assertEqual(int(gate["drones_in_env"]), 6, "[gate] 机队规模应为 6")
-        self.assertGreaterEqual(self._i(gate, "buffer_peak"), 15,
-                                "[gate] buffer 峰值没到过阈值 15 ⇒ size 触发口从未打开，"
-                                "门是在靠别的触发口蒙混")
 
-        # ② 原红门复现：出厂轻载下 optimize 必须为 0 —— 这行证明"当初为什么 NO_DENOMINATOR"
+        # ③ 牙线（因果面）：只把机队从 6 切到 10，size 触发口必须关死、optimize 必须塌下来。
+        #    ⚠ 这条的**数值边界原先也是旧计时上标定的**（原写法 `optimize_calls <= 3`，
+        #      来自 mutate 面当时实测的 3）。D-iv 换 completion 计时后同一格实测为 6 ⇒
+        #      若照抄 3，本门会以"我自己的过期校准值"为由红掉——正是 #69-H3 那条教训的复现，
+        #      也正是本次重标定要消灭的形状。⇒ 现在按**结构关系**写判据，不写魔法数：
+        #        · gate/mutate 任务量同为 240（唯一变量是机队），所以 mutate 的 optimize
+        #          必须**跌到 gate 的一个很小比例**才算承重变量被切到；
+        #        · 分母用本轮真值（gate 面读数），不是上一轮抄下来的数。
+        g_opt, m_opt = self._i(gate, "optimize_calls"), self._i(mut, "optimize_calls")
+        self.assertEqual(self._i(mut, "flush_size"), 0,
+                         "[mutate] 变异后 flush_size 仍 >0 ⇒ 承重变量没被切到，门的牙是假的")
+        self.assertLess(m_opt * 100, g_opt,     # <1% ：切机队后 optimize 调用量级必须崩塌
+                        "[mutate] 机队 6→10 后 optimize 从 %s 只降到 %s ⇒ 比值 %.3f 未跌破 1%%，"
+                        "fixture 对机队规模不够敏感，门无牙" % (
+                            g_opt, m_opt, (m_opt / g_opt if g_opt else float("inf"))))
+        # noDenom 面（出厂轻载）继续断言 0：它是"当初为什么 NO_DENOMINATOR"的成因证人，
+        # 与计时无关（60 任务/10 机下 buffer 峰仅 2，任何计时都到不了触发口）。
         self.assertEqual(self._i(nod, "optimize_calls"), 0,
                          "[noDenom] 出厂工况本应有分母？⇒ 归因错了，门的成因不是机队规模")
 
-        # ③ 牙线：只把机队从 6 切到 10，size 触发口必须关死
-        self.assertEqual(self._i(mut, "flush_size"), 0,
-                         "[mutate] 变异后 flush_size 仍 >0 ⇒ 承重变量没被切到，门的牙是假的")
-        self.assertLessEqual(self._i(mut, "optimize_calls"), 3,
-                             "[mutate] 变异后 optimize 仍成规模 ⇒ fixture 不依赖机队规模，门无牙")
-        self.assertLess(self._i(mut, "buffer_peak"), 15,
-                        "[mutate] 变异后 buffer 峰值仍达阈值 ⇒ 同上")
-
-        print("[G2TEETH] gate(opt=%s flush_size=%s peak=%s) | noDenom(opt=%s peak=%s) | "
-              "mutate(opt=%s flush_size=%s peak=%s)" % (
+        # ④ L2 观测层：**只报数、不断言**。旧断言 `buffer_peak >= 15` 与 `flush_size > 0` 属这一类，
+        #    它们是"scheduler 在当前计时下的行为事实"，不是实现缺陷（#69-H3 裁定②：不为好看调低触发口）。
+        print("[G2TEETH_L2_OBSERVED] gate(opt=%s flush_size=%s peak=%s) | noDenom(opt=%s peak=%s) | "
+              "mutate(opt=%s flush_size=%s peak=%s) —— 此行为**信息读数**，不进退码；"
+              "size 触发口在真实工况下是否打开由 L1 合成夹具裁决" % (
                   gate["optimize_calls"], gate["flush_size"], gate["buffer_peak"],
                   nod["optimize_calls"], nod["buffer_peak"],
                   mut["optimize_calls"], mut["flush_size"], mut["buffer_peak"]))

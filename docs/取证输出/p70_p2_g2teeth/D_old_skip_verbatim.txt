@@ -1,0 +1,64 @@
+# g2teeth 旧 skip 原文（本笔删除，留档以备复算）
+
+## 它原来长什么样
+
+`console/test_speed_fallback_gate.py`（HEAD `b8fdaee` 版本，:524-531）：
+
+```python
+        if int(gate["flush_size"]) == 0:
+            print("[GATE_CALIBRATION_STALE] gate face flush_size=%s buffer_peak=%s "
+                  "(D-iv tree) ⇒ size-trigger calibration was made under pre-D-iv completion "
+                  "timing; needs re-calibration decision, see docs/#69-H_terminal.md §g2 / "
+                  "docs/#65_rerun_delta.md §7" % (gate["flush_size"], gate["buffer_peak"]))
+            self.skipTest("[GATE_CALIBRATION_STALE] size-trigger calibration made under "
+                          "pre-D-iv completion timing; D-iv tree shows flush_size=0 — "
+                          "needs re-calibration decision (#69-H3)")
+```
+
+配套的两条断言（同文件，原样）：
+
+```python
+        self.assertGreaterEqual(self._i(gate, "buffer_peak"), 15,
+                                "[gate] buffer 峰值没到过阈值 15 ⇒ size 触发口从未打开，"
+                                "门是在靠别的触发口蒙混")
+        ...
+        self.assertLessEqual(self._i(mut, "optimize_calls"), 3, ...)   # mutate 面
+        self.assertLess(self._i(mut, "buffer_peak"), 15, ...)          # mutate 面
+```
+
+## 为什么它必须死
+
+它的牙挂在**"真实工况会把 pending_buffer 堆到 15"**这一观测事实上。#69-H3 的 D-iv
+修好到达计时后，同一工况实测 `flush_size=0 / buffer_peak=10` ⇒ 该前提为假。
+当时给的三条出路里两条被当场否掉：
+- 重定到 `flush_size>0` = **永红夹具**（不可满足的判据）；
+- 重定到 `optimize_calls>0` = **无牙**（mutate 面实测 6≠0，切了承重变量也不红）。
+所以留下显式 skip——既非通过也非失败。skip 不是坏东西，坏的是**永远停在 skip**。
+
+## 本轮怎么把它变成真实判定（而不是把阈值调低让它好看）
+
+标定层拆开：
+- **L1 机制层**（进退出码）：size 触发口的语义用合成输入标定，标签来自阈值 ±1
+  与比较式定义本身，不来自任何当前读数 ⇒ `console/test_g2teeth_calibration.py` K1–K6。
+- **L2 观测层**（不进退出码）：真实工况的 `buffer_peak` / `flush_size` 只印读数。
+  "当前时序下真实工况堆不到 15"是**调度器行为事实**，不是实现缺陷。
+
+同时删掉了 mutate 面的魔法数 `optimize_calls <= 3`——它是 pre-D-iv 时序留下的同一个病
+（本轮实测 gate=1909 / mutate=6），换成结构关系 `m_opt * 100 < g_opt`（跌破 1%），
+分母用本轮自己的 gate 读数。
+
+## 转换后的实跑结果（清洁树，退码 0，无 skipped）
+
+```
+test_g2teeth_mutation_turns_the_denominator_off (console.test_speed_fallback_gate.SpeedFallbackGateTests)
+G2TEETH：门的牙由"切承重变量后分母消失"来证，不是由门自己绿来证。 ... ok
+
+----------------------------------------------------------------------
+Ran 1 test in 41.768s
+
+OK
+[G2TEETH_L1] 标定门实跑 OK：Ran 8 tests，含 K1–K6 与冻结三元组
+[G2TEETH_L2_OBSERVED] gate(opt=1909 flush_size=0 peak=10) | noDenom(opt=0 peak=2) | mutate(opt=6 flush_size=0 peak=3) —— 此行为**信息读数**，不进退码；size 触发口在真实工况下是否打开由 L1 合成夹具裁决
+[G2TEETH] 阈值 15 与被测源码全程未改 ⇒ 变红的只能是 fixture
+[G2TEETH] 负面对照已实测：阈值 15→2 时 gate 面 peak 降为 5、本门退码非 0
+```
