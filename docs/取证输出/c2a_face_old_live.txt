@@ -1,0 +1,15 @@
+.F...s
+======================================================================
+FAIL: test_1_rules_are_enforced (console.test_c1_lifecycle_gate.C1LifecycleGate)
+判据范围 = 本轮修复面。#69-C2a：R5 降为信息读数、新语义门 cleanup_completion_without_service 承担牙。
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\Users\yyyy\AppData\Roaming\TRAE SOLO CN\ModularData\ai-agent\work-mode-projects\6a91893e4cc261f69a0a52a0\drone-scheduling\console\test_c1_lifecycle_gate.py", line 227, in test_1_rules_are_enforced
+    self.assertTrue(teeth,
+AssertionError: False is not true : [C1_NO_TEETH] 该面无任何违规读数（语义门/R3/R4 全 0）：{"completions_recorded": 38, "counter": 38, "legal_unique": 38, "R1_missing_destination_evidence": 0, "R2_pickup_not_before_delivery": 0, "R3_duplicate_completion": 0, "R4_aggregate_not_recomputable": 0, "r5_nonexact_arrival_count": 12, "R5_never_loaded_among_them": 0, "cleanup_completion_without_service": 0}
+
+----------------------------------------------------------------------
+Ran 6 tests in 1.914s
+
+FAILED (failures=1, skipped=1)
+[C1 VERDICT face=old] {"completions_recorded": 38, "counter": 38, "legal_unique": 38, "R1_missing_destination_evidence": 0, "R2_pickup_not_before_delivery": 0, "R3_duplicate_completion": 0, "R4_aggregate_not_recomputable": 0, "r5_nonexact_arrival_count": 12, "R5_never_loaded_among_them": 0, "cleanup_completion_without_service": 0}

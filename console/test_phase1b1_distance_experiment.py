@@ -125,7 +125,11 @@ class ProviderChannel(unittest.TestCase):
     @staticmethod
     def _subprocess(cmd, env):
         import subprocess
-        return subprocess.run(cmd, cwd=str(REPO), env=env, text=True,
+        # encoding="utf-8"：父侧 text=True 默认用 locale codec（GBK）解子进程 UTF-8 输出，
+        # 子进程地图加载那行中文会让 reader thread 抛 UnicodeDecodeError ⇒ proc.stdout=None
+        # （本轮实测 g1 面即栽在此）。与 test_c1_lifecycle_gate / observer 零漂移两处同族修复。
+        return subprocess.run(cmd, cwd=str(REPO), env={**env, "PYTHONIOENCODING": "utf-8"},
+                              text=True, encoding="utf-8", errors="replace",
                               capture_output=True, timeout=600)
 
     def test_g2_provider_reaches_observation_and_is_called(self):

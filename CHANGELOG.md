@@ -2,6 +2,27 @@
 
 ## [Unreleased]
 
+### 2026-10-07（第十三笔）：#69-C2a R5 降级为信息读数 + 新建有牙的 cleanup→completion 语义门
+
+基线 aa75b5b。**纯审计层改动**：只动 console/test_c1_lifecycle_gate.py，生产代码（environment/consistency_observer/route_planner/drone）对 aa75b5b **零 diff**（已 git diff 核）。
+
+起因（主控裁定）：#69-C1 后 fixed 面 R5（旧判据 `not has_destination_evidence`）仍=12。本轮消融证明它对 cleanup accounting **零敏感**——把 cleanup 分支整条禁用（`if False:`）后该读数仍=12、逐字不变 ⇒ 它实际度量的是 A* <1m 容差抵达率（dest-branch 合法送达中坐标非精确抵达的条数），不是"cleanup 冒充 delivery"。以"cleanup 牙"的名义保留它是错的。
+
+改动：
+- R5 → 信息量读数 `r5_nonexact_arrival_count`（当前=12；不进退码、不作通过/失败判据，只要求是非负整数）。
+- 新增有牙语义门 `cleanup_completion_without_service`：谓词 = completion 的 record_origin==is_free_cleanup_branch 且该任务无 DESTINATION_REACHED 证人。生产 seed 上 cleanup 不可达 ⇒ fixed=0；其牙由 forced_cleanup 注入面证明（注入 origin=cleanup+无 DR ⇒ =1）。
+- test_1 判据随之改写：fixed 断言新门=0（>0 即缺陷复发或越界修了 cleanup）；old/mutate/forced_cleanup 三面改为"必须有违规读数才过"（teeth = 新门>0 或 R3>0 或 R4>0）。
+
+先红后绿演示（三段原始输出留档 docs/取证输出/c2a_face_*.txt）：
+① old live 面 rc=1 `[C1_NO_TEETH]`（当前代码不再自带 cleanup 违规，刻意红）；
+② 把新门谓词改成恒真 → fixed rc=1 `[C1_CLEANUP_GATE_RED_ON_FIXED] got=38`（证门承重）；
+③ 还原 → fixed rc=0 OK（新门=0、r5_nonexact_arrival_count=12）。
+
+四面终态：fixed(R1/R2/R3/R4=0, 新门=0, r5=12) ✅ / mutate(R3=1) ✅RED / forced_cleanup(新门=1,R1=1,R4=1) ✅RED / old(live)[C1_NO_TEETH] ✅RED（历史违规数见冻结 c1_face_old.json: R1=12/R4=1/R5=12）。
+验收③ paired replay 不变：事件派生 AFTER 指标 completed/DESTINATION_REACHED/cleanup=38/38/0 与已提交 c1_paired_replay_f654587_fixed.json 逐字相同，first_divergence index=852 seq=853 task_11 不变。
+
+未做（留待主控/C2b）：mutate 注入器 `_inject` 的目标选择仍挂在旧几何判据 `not has_destination_evidence` 上——它在 C2a 下仍能造出 R3 违规（因被改写的本已合法 dest 完成造成 dup-with-DR），但选靶语义已过时；是否随 #69-C2b/C3 一并清理待定，本轮不扩大范围。docs/当前状态真源图.md 里那处 "R5_cleanup_counted_as_delivery":12 是 580c937 基线的历史记录，键名对当时快照正确，不改写历史。
+
 ### 2026-10-07（第十二笔）：#69-C1 destination service 契约修复（选 P1，仅改 dest leg）
 
 基线 f654587。裁定：P1 落地；P2 淘汰；P3 拆为 #69-C2/#69-C3 后续做。本轮**只**修 destination service 契约，

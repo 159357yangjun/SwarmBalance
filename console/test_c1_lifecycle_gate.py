@@ -143,10 +143,18 @@ def classify(trace: dict, injected=None) -> dict:
     legal_unique = len({e["task_id"] for e in comp if e["task_id"] in reached})
     r4 = (counter != legal_unique)
 
-    # R5 cleanup 不得冒充 delivery：**走了 is_free_cleanup 分支、却没有送达几何证据**却计入 completed。
-    # ⚠ 判据不能写成「record_origin != destination_branch」—— 那会把 26 条合法 dest 完成也判违规
-    #   （本轮实测踩过：R5 一度=38）。origin 只说明代码走了哪条分支，是否算送达由几何证据定。
+    # R5（#69-C2a 起降级为**信息量读数**，不再进退码）：dest-branch 送达中坐标非精确抵达的条数。
+    # ⚠ 消融实测（本轮）：把 cleanup accounting 整条禁用（if False:）后本读数仍=12、逐字不变
+    #   ⇒ 它对 cleanup 代码零敏感，测的是 A* <1m 容差抵达率（Planner 语义），不是"cleanup 冒充 delivery"。
+    #   真正的 cleanup→completion 语义门见下面的 r_cleanup_semantic；R5 只作可复核的信息计数。
     r5 = [e for e in comp if not e["has_destination_evidence"]]
+
+    # 新语义门（有牙）：走了 is_free_cleanup 分支、却无合法 destination service 消费证人 ⇒ 必红。
+    #   "合法 destination service 消费"= 该任务发过 DESTINATION_REACHED（origin==destination_branch 时观察层必发）。
+    #   生产 seed 上 cleanup 分支不可达 ⇒ 本门=0；其牙由 forced_cleanup 注入面证明（注入即 >0）。
+    r_cleanup_semantic = [e for e in comp
+                          if e.get("record_origin") == "is_free_cleanup_branch"
+                          and e["task_id"] not in reached]
 
     return {
         "completions_recorded": len(comp),
@@ -156,9 +164,10 @@ def classify(trace: dict, injected=None) -> dict:
         "R2_pickup_not_before_delivery": len(r2),
         "R3_duplicate_completion": len(r3),
         "R4_aggregate_not_recomputable": 1 if r4 else 0,
-        "R5_cleanup_counted_as_delivery": len(r5),
+        "r5_nonexact_arrival_count": len(r5),                 # 信息量读数，不进退码
         "R5_never_loaded_among_them": sum(1 for e in r5
                                           if not e.get("has_load_evidence", False)),
+        "cleanup_completion_without_service": len(r_cleanup_semantic),  # 有牙语义门
     }
 
 
@@ -187,12 +196,12 @@ class C1LifecycleGate(unittest.TestCase):
         self.assertIn("DESTINATION_REACHED", kinds, "[C1_NO_DELIVERY_WITNESS]")
 
     def test_1_rules_are_enforced(self):
-        """五条规则逐条断言。判据范围 = 本轮修复范围（#69-C1 只修 dest 契约，cleanup accounting 未动）。"""
+        """判据范围 = 本轮修复面。#69-C2a：R5 降为信息读数、新语义门 cleanup_completion_without_service 承担牙。"""
         r = self.res
         print(f"[C1 VERDICT face={FACE}] {json.dumps(r, ensure_ascii=False)}")
         if FACE == "fixed":
-            # #69-C1 后：dest service 契约已修 ⇒ R1（送达证人）应全部到位、聚合可重算；
-            #   但 cleanup accounting 明确未修 ⇒ R5 必须仍 >0（否则就是把未修缺陷当已修，或为变绿偷改 cleanup）。
+            # dest service 契约已修 ⇒ R1/R2/R3/R4 全 0；cleanup accounting 仍未修但生产 seed 不可达
+            #   ⇒ 新语义门必须=0（若 >0 说明有真实 completion 走了兜底却没送达证人，那才是缺陷复发）。
             self.assertEqual(r["R1_missing_destination_evidence"], 0,
                              f"[C1_R1_NOT_FIXED] got={r['R1_missing_destination_evidence']}")
             self.assertEqual(r["R2_pickup_not_before_delivery"], 0,
@@ -200,21 +209,24 @@ class C1LifecycleGate(unittest.TestCase):
             self.assertEqual(r["R3_duplicate_completion"], 0, "[C1_R3]")
             self.assertEqual(r["R4_aggregate_not_recomputable"], 0,
                              f"[C1_R4] counter={r['counter']} != legal_unique={r['legal_unique']}")
-            self.assertGreater(r["R5_cleanup_counted_as_delivery"], 0,
-                               "[C1_FIXTURE_STALE] fixed 面却测不到 cleanup 无送达证据的 completion"
-                               " ⇒ 要么 cleanup 被越界修了，要么 R5 几何证人失效")
+            self.assertEqual(r["cleanup_completion_without_service"], 0,
+                             f"[C1_CLEANUP_GATE_RED_ON_FIXED] got={r['cleanup_completion_without_service']}"
+                             " ⇒ fixed 代码上竟有 completion 走兜底却无送达证人")
+            # R5 是信息量：只要求它是个非负整数读数，不进退码、不作通过/失败判据。
+            self.assertGreaterEqual(r["r5_nonexact_arrival_count"], 0)
         else:
-            # old / mutate / forced_cleanup：**期望红**。
-            # ⚠ #69-C1 后 old==当前代码 ⇒ R1 已修（=0），不能再拿它当牙；
-            #   本门对当前唯一未修缺陷（cleanup accounting）的侦测力由 **R5>0** 承担。
-            #   mutate/forced_cleanup 各自再注入 R3/R4 违规（见其专属断言）。
-            self.assertGreater(r["R5_cleanup_counted_as_delivery"], 0,
-                               "[C1_NO_TEETH] cleanup 未修却测不到无送达证据的 completion")
-            # R3：合法 completion 必须唯一
-            self.assertEqual(r["R3_duplicate_completion"], 0, f"[C1_R3] {r['R3_duplicate_completion']} 个任务重复完成")
-            # R4：聚合计数器必须能由无截断轨迹里的**合法** completion 重算
-            self.assertEqual(r["R4_aggregate_not_recomputable"], 0,
-                             f"[C1_R4] counter={r['counter']} != legal_unique={r['legal_unique']}")
+            # old / mutate / forced_cleanup：期望"有牙才通过"。
+            #   · forced_cleanup 注入 origin=cleanup+无 DESTINATION_REACHED ⇒ 语义门=1（本门的用途）
+            #   · mutate 注入重复 completion ⇒ R3=1
+            #   · old==当前代码：三者全 0 ⇒ teeth=False ⇒ test_1 **红**，这是刻意的：
+            #     C2a 判据下当前代码不再自带 cleanup 违规（缺陷已被 C1 修 + 新门只认 origin），
+            #     其历史违规数见冻结 c1_face_old.json；old 面在此红＝"用注入面而非生产轨迹证明牙"的代价。
+            teeth = (r["cleanup_completion_without_service"] > 0
+                     or r["R3_duplicate_completion"] > 0
+                     or r["R4_aggregate_not_recomputable"] > 0)
+            self.assertTrue(teeth,
+                            f"[C1_NO_TEETH] 该面无任何违规读数（语义门/R3/R4 全 0）："
+                            f"{json.dumps(r, ensure_ascii=False)}")
 
     def test_2_pickup_precedes_delivery(self):
         """R2 取货前置：TASK_LOADED 时间必须早于 DESTINATION_REACHED。"""

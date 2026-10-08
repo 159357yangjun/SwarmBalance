@@ -8,8 +8,9 @@
   "R2_pickup_not_before_delivery": 0,
   "R3_duplicate_completion": 0,
   "R4_aggregate_not_recomputable": 0,
-  "R5_cleanup_counted_as_delivery": 12,
-  "R5_never_loaded_among_them": 0
+  "r5_nonexact_arrival_count": 12,
+  "R5_never_loaded_among_them": 0,
+  "cleanup_completion_without_service": 0
  },
  "events": [
   {
