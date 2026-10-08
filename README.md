@@ -12,8 +12,11 @@
 面向城市低空物流配送场景，构建**任务生成 → 调度决策 → 飞行仿真 → 指标评估 → 可视化**的完整闭环，
 在同一物理口径下横向对比四类调度方法。
 
-**当前进度（2026-10-05）**：Phase 0（真实性审计与算法有效性）+ Phase 1A（RoutePlanner 抽离）+
-Phase 1B-0/1B-1/1B-2 已闭合；常驻门 console **286 例 / experiments 32 例**全绿。
+**当前进度（2026-10-08）**：Phase 0（真实性审计与算法有效性）+ Phase 1A（RoutePlanner 抽离）+
+Phase 1B-0/1B-1/1B-2 已闭合；#69 生命周期一致性、#70-P1 测试隔离、#70 阶段② g2teeth 重标定亦已闭合。
+套件真值以 `python console/_readme_counts.py --verify` **现算**为准：console **50 文件 / 364 用例**、
+experiments 3 文件 / 32 用例。（下面那句"286 例"是 2026-10-05 的旧快照，留着是为了不假装它没写过；
+从 #70-P1 起一律按 `_readme_counts.py` 报数，别手抄。）
 调度层两项增强**默认全部关闭** ⇒ 生产行为与基线一致。下一步是 1B-3（续航可行性）与 1C（状态机单一真源）。
 诚实边界见 [§已知局限](#️-已知局限) 与总纲 §3、§17。
 
@@ -320,7 +323,8 @@ Web 控制台不是“只跑一次结果”的算法跑分页面，而是自由�
 > 该格实测 `optimize_calls = 0`、`flush_size = 0` ⇒ 三者跑的其实是共用的即时贪心通道。
 > 因此：**不能用默认轻载工况的数据声称"四种算法性能有差异"**；在压力工况（如 C-1/C-2/S）下
 > 优化器确实被调用并产生不同结果，那时比较成立。这条由常驻门
-> `console/test_speed_fallback_gate.py::test_g2teeth_*` 的三面对照守着，复算：
+> `console/test_speed_fallback_gate.py::test_g2teeth_*` 的三面对照守着（size 触发口本身的语义
+> 另由 `console/test_g2teeth_calibration.py` K1–K6 守着，见 §Phase 0 收尾），复算：
 > `python console/phase0_speed_gate_teeth_probe.py gate|noDenom|mutate`。
 > 换句话说，本项目对外的可比结论是**「同一环境下 Greedy 与各优化器的差」而非「四个算法天然不同」**，
 > 且必须写明该环境是否触发了批量优化。
@@ -438,7 +442,7 @@ swarm-balance/
 │  ├─ static/spec.html           # 「规范」页正文，由 /spec 路由渲染进 iframe
 │  ├─ static/vendor/             # 内置 vue.global.prod.js / echarts.min.js /
 │  │                             #   three.min.js + README（版本、来源、SHA-256）
-│  └─ test_*.py                  # 49 个文件 / 356 个用例（标准库 unittest）
+│  └─ test_*.py                  # 50 个文件 / 364 个用例（标准库 unittest）
 │
 ├─ frontend/                     # 仿真内核与可视化
 │  ├─ environment.py             # 世界状态、障碍判定、统计口径
@@ -596,9 +600,14 @@ python scripts/reproduce_phase1b2.py --quick
 
 | 工况 | tasks | fleet_mix 合计 | `optimize()` 调用 | `flush_size` | buffer 峰值 | 门状态 |
 |---|---|---|---|---|---|---|
-| gate（重载，门的真实工况） | 240 | 6 (3,2,1) | 1477 | 1 | 15 | 有分母 ✓ |
+| gate（重载，门的真实工况） | 240 | 6 (3,2,1) | 1477 → **1909** | 1 → **0** | 15 → **10** | 有分母 ✓ |
 | noDenom（出厂轻载，原红门所在格） | 60 | 10 (5,3,2) | **0** | 0 | 2 | 无分母 ✗ |
-| mutate（只把机队 6→10） | 240 | 10 (5,3,2) | 3 | **0** | 3 | 牙线生效 ✓ |
+| mutate（只把机队 6→10） | 240 | 10 (5,3,2) | 3 → **6** | **0** | 3 | 牙线生效 ✓ |
+
+> ⚠ **上表"→"右侧是 #69-H3 D-iv 树上的本轮实测**（左侧是 pre-D-iv 旧标定）。两列都要读：
+> D-iv 把 completion 计时从"后缀规则"改成"执行器真 pop"后，同一工况的 buffer 峰值从 15 降到 10、
+> size 触发口从开 1 次变成开 0 次 ⇒ **"真实工况会打开 size 口"不再是可用的判据**（详见
+> `docs/#65_rerun_delta.md` §7、§8）。承重变量仍是**机队规模**，这一点两棵树一致。
 
 ```bash
 # 复算（仓库根目录，逐面打印一行 TEETH 读数）
@@ -607,14 +616,28 @@ python console/phase0_speed_gate_teeth_probe.py noDenom
 python console/phase0_speed_gate_teeth_probe.py mutate
 ```
 
+**g2teeth 现在守什么（阶段② 重标定后，2026-10-08）**：原先那条 `[GATE_CALIBRATION_STALE]`
+显式 skip 已解除，改为两层各走各的通道——
+- **L1 机制层**（常驻、进退出码）：`console/test_g2teeth_calibration.py`，K1–K6 合成夹具。
+  size 触发口的语义由"N=阈值−1 / 阈值 / 阈值+1 三格的行为"裁决，标签来自比较式
+  `len(pending_buffer) >= buffer_size_threshold`（`backend_si/pso_scheduler.py:1444`）的定义本身，
+  **不来自任何正式实验产物**。K6 是整套的牙：把 `>=` 变异成 `>` 后 K2 必须变红。
+- **L2 观测层**（只印读数、不进退码）：真实工况的 `buffer_peak` / `flush_size`。
+  "当前计时下积压不到 15"是 scheduler 行为事实，不是实现缺陷。
+
+⇒ 所以「四算法对比只在重载才成立」这条口径限制的证人变了：**机队规模是承重变量**仍由三面对照守着；
+**size 触发口是否正常工作**改由 L1 合成夹具守着（它不再依赖一次特定运行的峰值刚好摸到 15）。
+复算：`python -m unittest -v console.test_g2teeth_calibration`（秒级）。
+
 两条必须说出来的教训：
 
 1. **「切 `num_drones`」不是单变量。** `frontend/environment.py:144 build_fleet_drone_types()`
    先按 `fleet_mix` 展开机型序列、再截断/补齐到 `num_drones`，所以 `num_drones=10` + mix 合计 6
    拿到的仍是那 6 架机。我最初把变异打在 `num_drones` 上，门照样绿，差点误判成"门无牙"。
-2. **牙不能挂在 `optimize_calls > 0` 上。** 变异后仍有 3 次 timeout 兜底触发，足以糊过这条线；
-   真正会归零的是 `flush_size`。负面对照已实测：把阈值从 15 降到 2，gate 面 buffer 峰值只剩 5，
-   门当场红（退码非 0）⇒ 这些断言吃的是真实读数，不是恒真式。
+2. **牙不能挂在 `optimize_calls > 0` 上。** 变异后仍有 timeout 兜底触发（pre-D-iv 是 3 次、
+   D-iv 树是 6 次），足以糊过这条线；真正会归零的是 `flush_size`。负面对照已实测：把阈值从 15 降到 2，
+   gate 面 buffer 峰值只剩 5 ⇒ 该判据吃的是真实读数，不是恒真式。
+   （阶段② 起这条只做**一次性演示**、不再作常驻断言——size 口的语义已由上面的 L1 合成夹具守。）
 
 > ⚠ 由此登记一条口径限制（已写入总纲 §17）：**轻载（机多单少）下 PSO / GA 与 Greedy 行为等价**
 > —— 批量优化器根本不介入。任何"四算法性能对比"必须在重载场景做，否则比的是同一个算法。

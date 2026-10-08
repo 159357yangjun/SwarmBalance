@@ -82,3 +82,57 @@
   "L1 交给新门；本用例只印 L2 读数并断言 `optimize_calls>0 or 明确标注无分母`"，同时保留具名状态行。
 - `docs/#65_rerun_delta.md` 追加一行登记"15→10 的旧读数改列为 L2 观测事实"。
 - README 门禁计数与 CHANGELOG 一笔；**不动 `backend_si/config.yaml`、不动 `pso_scheduler.py`**。
+
+---
+
+## 7. 实施轮终态（2026-10-08，基线 b8fdaee 之后）
+
+纸面方案获批进入实施。逐条对照 §6 的预告：
+
+| 预告 | 实际落地 | 差异 |
+|---|---|---|
+| 新增 `console/test_g2teeth_calibration.py`（K1–K6 常驻门） | ✅ 同名文件，**8 条用例 / 0.238s**（K1–K6 + 冻结三元组自证 + 硬约束自证） | K7 消融面**未做**：它只产 L2 解释性读数、不进判据，本轮不为它起 OSM 子进程；需要时单独放行 |
+| skip 换成"L1 交新门 + 本用例只印 L2" | ✅ `[GATE_CALIBRATION_STALE]` 整块删除（原文留档 `docs/取证输出/p70_p2_g2teeth/D_old_skip_verbatim.txt`），改为真实判定：**退码 0、无 skipped** |
+| README 门禁计数 + CHANGELOG 一笔 | ✅ console 49→**50 文件 / 364 用例**（由 `_readme_counts.py --fix` 写，非手抄） |
+| 不动 `config.yaml` / `pso_scheduler.py` | ✅ `git diff --numstat -- backend_si/ frontend/ experiments/ config/` 为空；变异只在一次性注入后**逐字节还原** |
+
+### 实施中比纸面多出来的两件事（都是纸面没预见的）
+
+1. **L1 证人必须挂在 g2teeth 里面**（`_assert_calibration_gate_is_live()`）。把 size 口的判据外包给新门之后，
+   如果那扇门因改名/报错/被 skip 而**根本没跑**，g2teeth 就成了"没人守着的通过"——那是最贵的假绿灯。
+   ⇒ 断言四件事同时成立：`Ran N tests` 行存在、`N ≥ 7`、`returncode == 0`、输出含 `[CAL_TEETH]`；
+   任一不成立 ⇒ `[CAL_BLIND]` / `[CAL_GATE_RED]` / `[CAL_NO_TEETH]` 红。**读不到读数 = 红，不是绿。**
+
+2. **mutate 面的魔法数 `optimize_calls <= 3` 自己也是旧标定**。它是 pre-D-iv 时序留下的实测值，
+   D-iv 树上同一格实测为 **6** ⇒ 照抄 3 会让本门以"我自己的过期校准值"为由红掉，正是 #69-H3 那条教训的复现，
+   也正是本次重标定要消灭的形状。⇒ 换成结构关系 `m_opt * 100 < g_opt`（切机队后 optimize 必须跌破 gate 面的百分之一），
+   **分母用本轮自己的 gate 读数**，不抄上一轮。
+
+### 冻结三元组 v1（实跑读数，可复算）
+
+```
+[CAL_FROZEN] version=threshold@backend_si/config.yaml:dual_channel.{buffer_size_threshold,emergency_ttl,buffer_timeout}
+            fixtures=K1_below,K2_at,K3_above_once,K4_emergency_not_size,K5_timeout_not_size,K6_mutation_ge_to_gt
+            hashes=pso_scheduler.py=0ecfb9632995;drone.py=84bd484d1836;environment.py=8a6efb782b55
+```
+复算：`../.venv310/Scripts/python.exe -m unittest -v console.test_g2teeth_calibration`
+
+注：`test_freeze_triple` **故意不把哈希写死成断言**（否则每次无关改动都要来改测试，门会被人关掉）。
+它断言的是两件更硬的事：① 三个生产文件的哈希当场算出并印出（漂移可见）；
+② 两条承重语句（`:1444` 的比较式、`:1618` 的单次计数点）仍在原位存在，找不到即 `[CAL_FROZEN_DRIFT]` 红。
+⇒ §5 的重开规则 (a) 的实际执行方式是"**承重语句消失/漂移即红**"，而不是"哈希不同即红"。
+(b) 那三个常数由 `setUpClass` 逐条核对"调度器读到的 == config.yaml 里解析出的"，不符即 `[CAL_LABEL_SOURCE_LEAK]`。
+
+### 先红后绿的实测两面（§5(c) 的一次真实演练）
+
+对生产 `:1444` 施加 `>=` → `>` 后，标定门**两条具名红**：
+`[CAL_K2] N=15 == 阈值 15 应恰好开一次 size 口，实得 flush_size=0`、
+`[CAL_FROZEN_DRIFT] 找不到 size 触发口的比较式（原 :1444）`；逐字节还原后复绿。
+原始输出与复算命令：`docs/取证输出/p70_p2_g2teeth/A_red_then_green_archive.md`。
+
+### 实施中自伤两次（登记，防下一个人重踩）
+
+`test_no_experiment_artifacts_are_read` 连着误伤自己两回：第一版按全文 grep，打中了自己的 docstring
+（docstring 里写着"不读 results/"）；第二版改按字符串字面量扫，仍打中 docstring。
+定稿形状 = **只看真的会打开文件的调用与真的会导入模块的语句**的字面量参数。
+教训与 P2 那四次同一条：**判据必须认得自己扫的是什么。**

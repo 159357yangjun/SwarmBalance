@@ -2,6 +2,29 @@
 
 ## [Unreleased]
 
+### 2026-10-08（第三十三笔）：#70 阶段② g2teeth 重标定落地 —— skip 转真实判定，L1 合成夹具常驻门 + L2 观测层分离；阈值与生产源码未动
+
+基线 b8fdaee。主控批准纸面方案进入实施，范围三件：① 标定夹具集落地（每项写明标签从何而来）；② 阈值推导路径写成可复算的一段；③ 冻结三元组入档 + 明写重开条件。硬约束原话：**不得拿 phase1b1 正式配对实验的结果当标定依据**；g2teeth 从 skip 转真实判定前必须先红后绿两面归档。硬边界照旧：未 push、未打 tag、paper/ 未碰、`drone.py` 三段未动。
+
+**① 夹具集**：新增 `console/test_g2teeth_calibration.py`（K1–K6 + 冻结自证 + 硬约束自证 = **8 条用例 / 0.238s**，参与 discover）。两层分离：**L1 机制层**用合成输入断言 size 触发口在阈值 ±1 两侧的行为，**进退出码**；**L2 观测层**（真实工况的 `buffer_peak` / `flush_size`）**只印读数、不进退码**——"当前计时下真实工况积压不到 15"是 scheduler 行为事实，不是实现缺陷（#69-H3 裁定②）。每条标签的来源都写在 docstring 的 LABELS 表里，来源一律是**比较式定义本身 + 配置常数**（`pso_scheduler.py:1444` 的 `>=`、`config.yaml:dual_channel`），没有一个数字来自当前读数或正式实验产物。K4/K5 另钉住归因互斥（emergency / timeout 不冒充 size）。
+
+**② 阈值推导路径**：诚实结论不变——**15 是无文档依据的历史常数**（`fcc7c5f` 起就在，仓内无注释说明它怎么定的），本轮**不动它**。标定只做一件事：把判据从"真实工况会打开 size 口"换成"size 口在阈值 ±1 两侧行为正确"。可复算段落在 `docs/P70_g2teeth_calibration_plan.md` §3 + §7。
+
+**③ 冻结三元组 v1**（实跑印出）：阈值来源 `backend_si/config.yaml:dual_channel.{buffer_size_threshold,emergency_ttl,buffer_timeout}` ＋ 夹具集合 `K1_below,K2_at,K3_above_once,K4_emergency_not_size,K5_timeout_not_size,K6_mutation_ge_to_gt` ＋ 版本 `pso_scheduler.py=0ecfb9632995; drone.py=84bd484d1836; environment.py=8a6efb782b55`。**哈希故意不写死成断言**（否则每次无关改动都要来改测试，门会被人关掉）；实际执行的是"两条承重语句（`:1444` 比较式、`:1618` 单次计数点）仍在原位存在，找不到即 `[CAL_FROZEN_DRIFT]` 红"。重开规则四条 (a)–(d) 与三条禁止项见 plan §5。
+
+**先红后绿两面（实测，非推演）**：对生产 `:1444` 施加 `>=`→`>` ⇒ 标定门**两条具名红**（`[CAL_K2] N=15 == 阈值 15 应恰好开一次 size 口，实得 flush_size=0`、`[CAL_FROZEN_DRIFT] 找不到 size 触发口的比较式（原 :1444）`）；逐字节还原后复绿。原始输出入库 `docs/取证输出/p70_p2_g2teeth/A_red_then_green_archive.md`。另补一面纸面没预见的：**外包证人自己的牙**——把 `_assert_calibration_gate_is_live()` 强行抛错，g2teeth 实测 **FAILED (errors=1) / RC=1**（栈顶指向 `:565` 承重调用点），随后按 sha256 逐字节还原（两侧同为 `c37b6e125fe9`）。⇒ "标定门没跑起来"判**红**，不会留下"没人守着的通过"。
+
+**实施中发现的第二处旧标定**：mutate 面的魔法数 `optimize_calls <= 3` 同样是 pre-D-iv 时序的实测值（D-iv 树同一格 = **6**）。照抄会让本门以"我自己的过期校准值"为由红掉——正是本次要消灭的形状 ⇒ 换成结构关系 `m_opt * 100 < g_opt`（切机队后 optimize 必须跌破 gate 面的百分之一），**分母用本轮真值**。同时删掉了从未被真正验证过的 `peak>=15` / `peak<15` 两条 L2 断言。
+
+**skip 名单变化（必须同步口径）**：`[GATE_CALIBRATION_STALE]` 整块删除 ⇒ **具名 skip 从 5 条降为 4 条**（余：`[OLD_IS_BASELINE_AUDIT_SNAPSHOT]`、`仅 mutation 面执行`、`[H_SKIPPED_NOT_FROZEN_BASELINE]`、`SWARM_1B1_FULL=1 才跑`）。原文留档 `docs/取证输出/p70_p2_g2teeth/D_old_skip_verbatim.txt`，不装作它没存在过。
+
+**套件分母（本轮定稿实跑）**：全量 `python -m unittest discover -s console -p "test_*.py"` ⇒ **`Ran 364 tests in 1568.637s` / `OK (skipped=4)`，退码 0**；与 `python console/_readme_counts.py --verify` 现算一致（console **50 文件 / 364 用例**、experiments 3 / 32；README:441 由该脚本改写，非手抄）。聚合日志里 g2teeth 那格印出 `[G2TEETH_L1] 标定门实跑 OK：Ran 8 tests` ⇒ **L1 证人在聚合内也真的跑了**，不只是单跑时跑。`citation --verify` exit=0。三扇 P 门复跑 `Ran 13 tests ... OK`（P2 扫描数随新文件变为 50）。
+
+**本轮被自己的门抓到的一次漂移**：改完 README 顶部进度段后 `_citations.py --verify` 当场报 **2 条 ANCHOR_MISS**（登记表 :495 引 `README.md:29#产品规格`、:497 引 `README.md:28#四类算法统一评测`，插 3 行后真值变为 32 / 31 ⇒ 行号在范围内却指向别处，正是纯行号判据看不见的那一类）。按门的指示**只改引用、不改判据**，改后 exit=0（checked 183→184）。这已是同一处第二次因"README 顶部插段"漂移（上一次登记为 24→29）⇒ 登记一条待办性质的口径：**正文类文档的引用应按节描述、不该按深行号**（该原则登记簿 :497 自己已经写过，本轮是它第三次被同一件事证明）。
+
+**残余边界（写清没做到什么）**：(i) K7 消融面（`eager_idle_dispatch=False` 跑现有 G2 工况，回答"真实工况要多大积压才摸得到 15"）**未做**——它只产 L2 解释性读数、不进判据，需要时单独放行；(ii) 本门证的是"触发口代码逻辑正确"，**不证**"真实工况会积压到 15"，后者若进论文只能作 measured-not-guaranteed 报出；(iii) 挂账 (ii)（全套件顺序无关常驻门）的触发条件之一"开始阶段② 重标定前"**本轮已到**，按裁定只登记不动手，交回主控定夺；(iv) **P3 的源码谓词看不见新标定门**——该文件用 `sys.path[:0] = [...]` 赋值式引导永久仓库目录，而 `PATH_INSERT` 只吃 `sys.path.insert|append(` 调用式。这是既有口径（"指向仓库永久目录的 import 引导不入选"）的一致结果、不是新漏检，且运行时面已由 test_A/test_F 兜住；本轮**未扩谓词**（扩它会牵动 covered/matching 基线数，属另一类授权），在此具名登记。
+
+
 ### 2026-10-08（第三十二笔）：#70-P1 裁定 (i) 落地 —— P3 普查集改为按谓词从盘上现算，谓词两面各配证人；另交阶段② g2teeth 纸面标定方案
 
 基线 b25634c。主控批 (i) 不批 (ii)，并补两条要求：① 该门要先红后绿归档；② **谓词本身要两面**——写了但不还原才违规，正确还原的不得被拉进名单当违规。硬边界照旧：未 push、未打 tag、paper/ 未碰、生产代码零改动。
@@ -108,6 +131,7 @@ C2 有两条承重前提：(i) 赋值点集合有限已知（6-A 守这条）；
 
 **套件分母（口径要分开）**：定稿后那一轮全量 = console **`Ran 352 tests ... OK (skipped=5)`，退码 0**，与 `_readme_counts.py --verify` 现算的总数一致（console 49 文件 / 352 用例、experiments 3 文件 / 32 用例）。本笔过程中另有一轮是 `Ran 349 ... OK` —— 差的 3 条是当时刚建、尚未计入那一轮的 P3 门。**引用哪个数都要说清是哪一轮、哪一棵树**。复算命令：`python -m unittest discover -s console -p "test_*.py"`（实跑）与 `python console/_readme_counts.py --verify`（总数）。
 五条具名 skip 原文：`[OLD_IS_BASELINE_AUDIT_SNAPSHOT]`（old 面不作通过/失败判据）、`仅 mutation 面执行`、`[H_SKIPPED_NOT_FROZEN_BASELINE] 该基准只对 580c937 有效`、`正式配对实验耗时长，显式 SWARM_1B1_FULL=1 才跑`、`[GATE_CALIBRATION_STALE]`（g2teeth，#69-H3 裁定①留的显式 skip，既非通过也非失败）。
+**⚠ 上述第 5 条已在第三十三笔（阶段② 重标定）解除** ⇒ 从那一笔起具名 skip 为 **4 条**；本段是第三十笔当时那棵树的真值，保留不改写，别拿它当现状引用。
 
 **提交后的复算门**（两笔 commit 落地后原样再跑一遍，防"提交后才坏"）：`python -m unittest console.test_p1_order_independence_gate console.test_p2_no_name_based_kernel_import console.test_p3_no_cross_test_residue` ⇒ `Ran 9 tests ... OK`，六条读数行齐（P1_AGREE/P1_TEETH、P2 命中 0/豁免 0、P3_CLEAN/P3_TEETH/P3_WITNESS）。注意 P2 那行现在印 **扫描 49 个测试文件**（新三门自身已入库并被扫到），与上面"清洁树 OK（扫描 48 文件）"那条是**不同时刻的两棵树**，不是同一个数漂了。工作树收尾 `git status --short` 为空、`git stash list` 为空。
 

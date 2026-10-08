@@ -94,3 +94,27 @@ D-iv 上 flush_size=0，改判 `flush_size>0`＝永红夹具；改判 `optimize_
 **是否为让 size 触发口再打开而重标阈值？——不要。** 为好看调低 `buffer_size_threshold` 会改变调度器语义，
 属 scheduler 硬边界外（route_planner/scheduler 不动是贯穿约束）。g2teeth 现按裁定①改显式 skip
 （`[GATE_CALIBRATION_STALE]`，聚合里既不默默红也不默默绿），等独立 re-calibration 决策，本轮不动它。
+
+## 8. §7 那条 skip 的后续：阶段② 重标定已落地（2026-10-08，#70-P1 阶段②）
+
+§7 结尾"本轮不动它、等独立 re-calibration 决策"那句已被兑现——**不是**把阈值调低，也不是放宽判据。
+逐条对照 §7 当时给出的两个"都不签"的选项：
+
+| §7 的说法 | 阶段② 的实际处置 |
+|---|---|
+| "改判 `flush_size>0` ＝永红夹具" | 仍然成立——所以**没有**在真实工况上改判它。size 触发口的语义改由 **L1 合成夹具**（N=TH−1 / TH / TH+1，标签来自比较式 `>=` 的定义本身）裁决，那里 flush_size 是可满足的。 |
+| "改判 `optimize_calls>0` ＝无牙（mutate 面=6≠0）" | 仍然成立——所以 L1 也没用它当唯一判据；K6 变异面（`:1444` 的 `>=`→`>`）证明这套夹具会咬。 |
+| "g2teeth 现按裁定①改显式 skip" | **已撤**：`[GATE_CALIBRATION_STALE]` 整块删除（原文留档 `docs/取证输出/p70_p2_g2teeth/D_old_skip_verbatim.txt`），转为真实判定，实跑退码 0、无 skipped。 |
+| "为好看调低 buffer_size_threshold？——不要" | 阈值 **15 未动**；`backend_si/config.yaml` 与 `pso_scheduler.py` 的 diff 为空。 |
+
+**本表 §7 的五个 D-iv 读数全部重新实测为同值**（gate 面 opt=1909 / flush_size=0 / peak=10），
+它们现在被明确归类为 **L2 观测事实**：只印读数、不进退码。
+"PSO 在修正计时下 size 触发口开 0 次"这条论文口径**不变**，且比之前更硬——
+因为现在有一条常驻门守着"这个 0 是行为事实而非实现缺陷"（K4/K5 证明 emergency/timeout 不冒充 size）。
+
+复算：
+```
+../.venv310/Scripts/python.exe -m unittest -v console.test_g2teeth_calibration       # L1，秒级
+../.venv310/Scripts/python.exe -m unittest console.test_speed_fallback_gate.SpeedFallbackGateTests.test_g2teeth_mutation_turns_the_denominator_off   # 含 L1 证人 + L2 读数
+```
+方案与实施差异见 `docs/P70_g2teeth_calibration_plan.md` §7。
