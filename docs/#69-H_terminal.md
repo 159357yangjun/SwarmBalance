@@ -58,7 +58,8 @@
 全量 console suite（post-remap，330 tests）4 处红逐条定性：
 - **citation 三门随 remap 收口 ✅**：`_citations.py --verify` 曾报 `[REWRITE_MAP_STALE]`（提交改写映射表落后 git，HEAD 上即存在、非 D-iv 引入）。执行 `--rewrite-report --write` 重生成表（旧指针18/悬空32/问题0）后 verify exit=0，`test_coverage_is_printed` standalone OK。environment.py 行号漂移的 12+1 条 path:line 已 remap，citation 门 0 breaks。
 - **并发假象 ×2 登记为已知干扰、不修**：`test_g2_all_four_algorithms_get_real_fleet_speed`、`test_rewrite_map.test_batch_read_matches_per_object_read` 在聚合 discover 里红、standalone 均绿 ⇒ 是 OSM-booting 慢测并发/资源干扰所致，与被测语义无关，遵"偶发红写带分母、不当缺陷"处理，只登记不动代码。
-- **g2teeth 停在待裁 ⛔**：一手证据见 docs/#65_rerun_delta.md §7 —— D-iv 树 gate 工况 flush_size=**0**、buffer_peak=**10**（HEAD 是 1/15）。size 触发口在修正计时后从未打开 ⇒ "重定为结构事实 flush_size>0"＝永红夹具、"optimize_calls>0"＝无牙(mutate=6≠0)。按主控裁定①"若重定后 D-iv 树仍红，停下交具名证据"停此，未删牙未降阈。论文侧：旧 buffer_peak=15/flush_size=1 作废，不得当 PSO 特性证据（裁定②）。
+- **g2teeth 停在待裁 ⛔**：一手证据见 docs/#65_rerun_delta.md §7 —— D-iv 树 gate 工况 flush_size=**0**、buffer_peak=**10**（HEAD 是 1/15）。size 触发口在修正计时后从未打开 ⇒ "重定为结构事实 flush_size>0"＝永红夹具、"optimize_calls>0"＝无牙(mutate=6≠0)。按主控裁定①"重定后仍红则停下交具名证据"停此，未删牙未降阈。论文侧：旧 buffer_peak=15/flush_size=1 作废，不得当 PSO 特性证据（裁定②）。
+- **g2teeth 处置已定（主控裁定①）**：不重定义/不降级/不删——改为**显式 skip + 具名理由** `[GATE_CALIBRATION_STALE]`（test_speed_fallback_gate.py:329 前置 guard：probe 实测 flush_size==0 时打印状态并 skipTest）。skip ≠ 通过 ≠ 失败，聚合报告行印出该状态，不许默默红或绿。等独立 re-calibration 决策；不为让触发口再开而调低 `buffer_size_threshold`（改 scheduler 语义，硬边界外，裁定②）。
 - **自纠入档**：上一轮我误把 unittest 缓冲的进度点读成"无 FAIL/ERROR"，本轮以一手文件读数（FAILED failures=4 + 具名清单）纠正。
 
 ## #69-H2 计划（待纸面设计审批，本轮未动码）

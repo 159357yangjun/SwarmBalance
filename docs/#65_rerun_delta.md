@@ -85,3 +85,12 @@ pending_buffer 被虚增到刚好触到 size 阈值(15)、size 触发口开了 1
 ⚠ 由此得出具名结论：**g2teeth 的牙（原挂 flush_size≥1 / peak≥15）无法在不失牙的前提下迁到 D-iv 树**——
 D-iv 上 flush_size=0，改判 `flush_size>0`＝永红夹具；改判 `optimize_calls>0`＝无牙（mutate 面=6≠0）。
 该门整体是在旧缺陷负载下标定的。停此交主控定夺（见 #69-H_terminal.md 挂账 + H3 终态汇报），未自行放宽或删牙。
+
+**论文口径约束（新增，主控裁定②）**：
+> **PSO 的 size-flush 机制在修正后的计时模型下从未触发——这是关于 PSO 调度器行为的事实，不是实现缺陷。**
+> 论文若描述 PSO 缓冲/攒批机制，必须用 D-iv 后数据重述：批量优化实际由 emergency(1453)+timeout(456) 驱动，
+> size 触发口在 6 机工况开 0 次。不得沿用"靠 size 阈值攒批"这类基于旧 buffer_peak=15 的表述。
+
+**是否为让 size 触发口再打开而重标阈值？——不要。** 为好看调低 `buffer_size_threshold` 会改变调度器语义，
+属 scheduler 硬边界外（route_planner/scheduler 不动是贯穿约束）。g2teeth 现按裁定①改显式 skip
+（`[GATE_CALIBRATION_STALE]`，聚合里既不默默红也不默默绿），等独立 re-calibration 决策，本轮不动它。

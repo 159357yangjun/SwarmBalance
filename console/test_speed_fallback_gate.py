@@ -330,6 +330,20 @@ class SpeedFallbackGateTests(unittest.TestCase):
         nod = self._probe("noDenom")
         mut = self._probe("mutate")
 
+        # 校准前提已死门（#69-H3 D-iv，主控裁定①）：本门的牙（size 触发口曾打开 / peak≥15）
+        # 是在**旧后缀规则的 completion 计时**上标定的——那 9 例提前妥投虚增了 pending_buffer。
+        # D-iv 修好计时后同一工况 flush_size=0、peak=10 ⇒ "size 触发口曾打开"为假。
+        # 重定到 flush_size>0＝永红夹具；重定到 optimize_calls>0＝无牙(mutate=6≠0)。两条都不签。
+        # ⇒ 显式 skip（既非通过也非失败），报告行印出具名状态，聚合里不许默默红或绿。
+        if int(gate["flush_size"]) == 0:
+            print("[GATE_CALIBRATION_STALE] gate face flush_size=%s buffer_peak=%s "
+                  "(D-iv tree) ⇒ size-trigger calibration was made under pre-D-iv completion "
+                  "timing; needs re-calibration decision, see docs/#69-H_terminal.md §g2 / "
+                  "docs/#65_rerun_delta.md §7" % (gate["flush_size"], gate["buffer_peak"]))
+            self.skipTest("[GATE_CALIBRATION_STALE] size-trigger calibration made under "
+                          "pre-D-iv completion timing; D-iv tree shows flush_size=0 — "
+                          "needs re-calibration decision (#69-H3)")
+
         # ① 门工况：pso/ga/ortools 三条有分母线都必须为真（与 G2 同一判据）
         self.assertGreater(self._i(gate, "optimize_calls"), 0,
                            "[gate][NO_DENOMINATOR] 门的工况本身就没有 optimize 调用 ⇒ fixture 失效")
