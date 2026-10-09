@@ -32,6 +32,9 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          # test_gate_ascii_diagnostics.py retrieves historical _citations.py revisions.
+          fetch-depth: 0
 
       - name: Python 3.10
         uses: actions/setup-python@v5
