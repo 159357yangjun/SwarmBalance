@@ -42,3 +42,11 @@
 ## 后续取证需求
 
 若要对外证明原工作区的改写过程，必须单独保存经可追溯方式采集的原对象包、旧新两端 SHA/树指纹、当时 refs/reflog 快照与获取环境。GitHub 克隆后验不出这些事实，CI 再绿也不能替代。
+
+## console/test_rewrite_map.py 双模式执行（9 条用例不增减、不无条件 skip）
+
+- `SWARM_REWRITE_TEST_MODE=portable`：默认值，用于 GitHub **depth=1 浅克隆**和 **depth=0 完整历史**。9 条用例全部真实执行：原仓归档结构与可见 SHA 检查、可见提交 message、按可见仓内样本校验批读，以及临时 Git 仓库中的消息改写、tree 不等、残文、确定性、故意改坏产物等正反例。
+- `SWARM_REWRITE_TEST_MODE=local`：必须显式指定，仅适用于仍保存旧 commit 对象与 reflog 的**原开发仓库**。对原对象库重新运行原有 `RW.report(ROOT)`、分桶基线与文档 SHA 的严格验证；若证据缺失就**报错**而非退化为 portable。
+- 可移植用例的 `DOC_SHA_PORTABLE` 日志分为 `reachable_refs`（实际可取得对象）、`archived_only`（仅归档文本提及）及 `unresolved_not_verified`（无法判断是不是 commit）。后一类不冒充“已验证”；浅克隆不会因为取不到原始提交而被判历史造假。
+- 可移植批读门在浅克隆至少取到 HEAD、在完整克隆最多取 20 个可达提交，另强制验证 3 个临时构造的极端标题；原开发仓库的 local 门继续要求大样本（≥40）。
+- GitHub Actions 两个 checkout 各运行 `python -m unittest -v console.test_rewrite_map`，均要显示 `Ran 9 tests` 且失败/错误/跳过为 0，不能用仅静态计数代替执行。原开发仓库严格模式暂不能由 GitHub Actions 证明。
