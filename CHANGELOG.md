@@ -2,6 +2,72 @@
 
 ## [Unreleased]
 
+### 2026-10-08（第四十笔）：#70 阶段⑤c E0 基线重生成（批文三条件）—— 等价门**先红后绿**，并测出"zero-wind ≠ 旧 E0"是生产差异不是夹具失效
+
+基线 d19d647。未 push、未打 tag、paper/ 未碰、VERSION 未改。**本轮零生产代码改动**（`frontend/drone.py`、
+`environment.py`、`experiments/*` 全部只读；唯一被改的门侧文件是 `frontend/test_wind_injection.py:22` 的参照目录名）。
+
+**先记录一个被实测推翻的说法**：上一轮我把 E1 等价门的红定性为「[夹具失效] ⇒ 参照物无效 ⇒ 当前不可判定」。
+本轮重生成基线后发现**那句不完整**：新基线与旧 E0 在门比较的列区间 `[10:]` 上有 **12 格不同**（见下面那张表），
+也就是说除了"参照物过期"之外，**当前树在静风下确实产出了与 2026-10-02 那批不同的等待时间指标**。
+所以正确表述是两件事同时成立：① 参照物当时确实已过期（pin 4/16 漂移）；② 过期不是红的唯一成因。
+
+**（一）批文三条件逐条兑现**
+
+| 条件 | 兑现方式 | 一手证人 |
+|---|---|---|
+| 新基线入库 `git_commit` + `core_source_sha256` + 生成命令原文 | `git_commit=d19d647…`（就是上一笔提交）、`core_source_sha256` 16 个文件、命令原文写进本段下方 | `match_now=16/16`（复算命令见下） |
+| 重生成的那一笔不改任何生产代码 | 生成时 HEAD = d19d647，工作树只有本文档与测试侧改动 | `git diff --numstat` 里无 `frontend/*.py`（除 test 的 EXP_DIR 一行）、无 `backend_si/`、无 `experiments/*.py` |
+| 旧基线产物不删 | **原样保留原名** `e0_baseline_20261002-235335`（曾尝试改名带 `_deprecated-20261008`，实测会把常驻门从"红/绿"变成 `skipped=1` ⇒ 静默摘掉一把守着的门，遂回退；废弃登记走本段 + 一条待裁问题） | 旧目录 `raw_runs.csv` 6 行、C1/rep1 第 15 列仍是 `46.72641509433962` |
+
+生成命令原文（**逐字**，输出根用临时目录，验证后才装入）：
+```
+python -m experiments.runner --preset experiments/presets/e0_baseline.yaml --output-root <TMP>
+→ e0_baseline_20261008-210053（plan_count=6，seed 40901/40902/40903 × C1/C2，算法 greedy）
+```
+
+**（二）等价门先红后绿**（同一棵树、同一命令，只换参照物）
+
+| 时刻 | 参照 | 结果 |
+|---|---|---|
+| 先红 | 旧 `e0_baseline_20261002-235335` | `FAILED` —「E1+静风未逐字复现 E0（**12 处**）」，首格 `C1/rep1/从分配到实际装载上机等待时间: E0=46.72641509433962 E1zero=76.90566037735849` |
+| 后绿 | 新 `e0_baseline_20261008-210053` | `Ran 9 tests OK`（frontend 全套件，含符号门与非零风行为门） |
+
+**（三）三方对照（这是本轮真正的发现）**
+
+| 对照 | 比较区间 `[10:]` 内的差异格数 | 差异列 |
+|---|---|---|
+| 新基线 vs 旧 E0（2026-10-02） | **12 / 144** | `从分配到实际装载上机等待时间`(6)、`从上机到送达平均时间`(6) |
+| 新基线 vs 已入库的 2026-10-03 重跑 | **12 / 144**（同上两列） | 同上 |
+| 旧 E0 vs 2026-10-03 重跑 | **0** | （只有 `耗时秒` 6 格漂，它不进比较） |
+| 新基线 vs 新基线第二遍（同命令重跑） | **0** | （只有 `耗时秒` 6 格漂：2.2043↔2.105 等） |
+
+⇒ 读数方向明确：**当前树自己是一致的**（重跑逐字复现），但它与 10-02/10-03 两批在这两个等待时间列上系统性不同，
+且 10-02 与 10-03 两批彼此一致。这排除了"新基线跑坏了"，指向"d19d647 之前的某次生产改动改变了这两个指标"。
+**本轮不追这个归因**（不在授权范围内），只把它作为具名待裁问题登记在下面。
+
+**（四）声明通道第一次被真的摘掉**：`e0_baseline_20261002-235335` 那行 pending revalidation 已删除 ⇒
+FP 门读数从 `referenced=5 … ok=0` 变为 **`referenced=6 with_pin=6 drifted=5 declared=5 ok=1 undeclared=0`**
+（新产物判 `state=OK`，旧产物随引用消失一起退出分母）。如果声明通道只会加不会减，它就等于永久豁免 —— 现在有了一次减法记录。
+
+**（五）数字 → 来源 → 复算命令**
+
+| 数字 | 来源 | 复算 |
+|---|---|---|
+| pin 16/16 相符 | `results/experiments/e0_baseline_20261008-210053/reproducibility.json` | `python -c "import json,io,hashlib,pathlib;d=json.load(io.open('results/experiments/e0_baseline_20261008-210053/reproducibility.json',encoding='utf-8'));p=d['core_source_sha256'];print(sum(1 for k,v in p.items() if pathlib.Path(k).is_file() and hashlib.sha256(pathlib.Path(k).read_bytes()).hexdigest()==v),'/',len(p))"` |
+| 12 格差异 | 两份 `raw_runs.csv` 逐格比 | 比较范围 = `list(header)[10:]`，即门自己的取列方式（`frontend/test_wind_injection.py:71`） |
+| 门绿 | frontend 全套件 | `python -m unittest discover -s frontend -t frontend -p "test_*.py"` ⇒ `Ran 9 tests OK` |
+
+**残余边界 / 待裁（明写，不自行处置）**：
+(i) **新旧基线同名并存**，而 FP 门的 `DIR_RE` 会同时匹配两者 ⇒ 若有人把已删除的声明又写回来，会出现"同一个产物名两条声明"的形状。
+    更实质的问题是：**旧 E0 现在没有任何门守着**（引用它的门已改指新基线）。要不要给它一把"历史读数可回溯"的门，属新范围，待裁。
+(ii) `docs/模型真实结构修订.md:20` 那句仍写"不可判定"（第三十八笔按消融结果改的）。本轮实测已给出更完整的结论
+    （新基线下 zero-wind 逐 run == E0 成立；但与旧 E0 有 12 格系统差），**改写它需要作者口径裁定**，本轮不动。
+(iii) 那 12 格差异的**归因**未做（哪个 commit、哪条改动改了这两个等待时间列）—— 不在"重生成基线"授权内。
+(iv) 新基线的 `generated_at_utc=2026-10-09T01:00:53+00:00` 与本仓惯用的本地日期命名相差 8 小时（GMT+8），
+    目录名 `20261008-210053` 用的是 runner 的本地 `strftime`。两套时钟并存这件事先前已登记，此处只是再次出现，不算新问题。
+
+
 ### 2026-10-08（第三十九笔）：#70 阶段⑤c 两件 —— 冻结产物源码指纹对账入门（三态 + 具名声明通道）+ 仓库根交付物门接进分母（窄模式）
 
 基线 cf7efdd。未 push、未打 tag、paper/ 未碰、VERSION 未改。**本轮零生产语义改动**（新增的只有测试与工具）。
@@ -91,7 +157,15 @@ test_C 用内存里的两行样本 vs 同行样本对撞 ⇒ `[FP_DECL_TWO_LINE]
 | `arrival_pressure_20261002-230513` | 16 | 5 | 上述 + `frontend/drone.py`、`frontend/greedy/scheduler.py` | 14/16 @`1c790a0` | pending revalidation |
 | `conclusion_20261001-234945` | 22 | 5 | 同上形状 | 21/22 @`7ce517b` | pending revalidation |
 | `formal_baseline_n10_20261003-010435` | 16 | 4 | `experiments/worker.py`、`frontend/drone.py`、`frontend/environment.py`、`frontend/greedy/scheduler.py` | — | pending revalidation |
-| `e0_baseline_20261002-235335` | 16 | 4 | 同 `formal_baseline` 那四个 | — | pending revalidation（等价门红的真因，见第三十八笔） |
+| `e0_baseline_20261003-230126` | 16 | 4 | 同 `formal_baseline` 那四个（与 20261002 那批逐格一致） | 12/16 @`a298d6d` | pending revalidation —— **本行由第四十笔自己触红触出来**：写三方对照文档时引用了这个先前无人登记的产物，门当场判 `[FP_DRIFT_UNDECLARED]` ⇒ 引用范围是盘上现算的，新引用会立刻进分母 |
+| `e0_baseline_20261002-235335` | 16 | 4 | 同上 | 12/16 | pending revalidation（**旧基线本体**；等价门参照已改指 20261008，但它仍被两份文档引用着，故保留声明） |
+
+~~| `e0_baseline_20261002-235335` | 16 | 4 | 同 `formal_baseline` 那四个 | — | pending revalidation（等价门红的真因，见第三十八笔） |~~
+**本行已于同日第四十笔删除**：E0 基线重生成完成（新产物 `e0_baseline_20261008-210053`，pin 16/16 与盘上一致），
+门的 test_A 现在对**新产物**判 `state=OK`（`ok=1`）⇒ 新基线不需要声明。旧产物的声明在同笔内一度被删，
+结果第四十笔写对照文档时引用了 `e0_baseline_20261003-230126`（一个此前没人登记的产物），**门当场把它判成 UNDECLARED 并红**
+⇒ 于是补回两行具名声明。这一来一回同时证了三件事：声明通道会减（不是永久豁免）、引用范围真从盘上现算（新引用自动进分母）、
+以及**红是在改代码之前先出现的**（不是为了让它绿而放宽）。
 
 ⚠ 一行里必须带产物目录名才算覆盖到那个产物 —— 门的 test_C 专门断言这件事（裸标记词不算，否则是万能通行证）。
 ⚠ "在它自己 commit 上 8/8 自洽"这一列是有意义的：它说明**这些产物的 pin 当初没写错**，漂移全部来自后续改动 ⇒

@@ -1,0 +1,19 @@
+test_distance_is_unchanged_by_wind (frontend.test_wind_injection.NonZeroWindBehaviorTests)
+E1 不许改变运动学：同样步数下位移必须与静风一致（这是②而非③的证据）。 ... ok
+test_headwind_costs_more_than_calm_in_a_real_flight (frontend.test_wind_injection.NonZeroWindBehaviorTests) ... ok
+test_every_run_reproduces_e0_bit_for_bit (frontend.test_wind_injection.WindInjectionEquivalenceTests)
+逐 run、逐指标比对。任何一格不同都算失败并点名是哪一格。 ... ok
+test_same_run_count_and_keys (frontend.test_wind_injection.WindInjectionEquivalenceTests) ... ok
+test_shipped_config_has_no_wind_key (frontend.test_wind_injection.WindInjectionEquivalenceTests)
+默认配置里不该出现 wind 键 —— 出现了就等于把风塞进了正式参数。 ... ok
+test_crosswind_is_zero_component (frontend.test_wind_injection.WindSignConventionTests) ... ok
+test_dot_positive_is_tailwind_not_headwind (frontend.test_wind_injection.WindSignConventionTests)
+空气吹向方向与航向点积为正 ⇒ **顺风**；内部 wind_along 必须因此为负。 ... ok
+test_environment_default_is_calm (frontend.test_wind_injection.WindSignConventionTests)
+Environment 未配风时 wind_u/v 必须是 0 ⇒ 注入后每架机都是静风。 ... ok
+test_headwind_case_is_negative_dot (frontend.test_wind_injection.WindSignConventionTests) ... ok
+
+----------------------------------------------------------------------
+Ran 9 tests in 17.940s
+
+OK

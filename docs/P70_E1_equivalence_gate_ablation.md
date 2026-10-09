@@ -83,3 +83,25 @@ python -m unittest discover -s frontend -t frontend -p "test_wind*.py"
 # 基线指纹对账（§3 的 4/16）
 python -c "import json,io,hashlib,pathlib;d=json.load(io.open('results/experiments/e0_baseline_20261002-235335/reproducibility.json',encoding='utf-8'));print(sum(1 for k,v in d['core_source_sha256'].items() if pathlib.Path(k).is_file() and hashlib.sha256(pathlib.Path(k).read_bytes()).hexdigest()==v),'/',len(d['core_source_sha256']),'match')"
 ```
+
+---
+
+## 7. 同日后续：本报告 §3 那句定性**不完整**（重生成后测出来的）
+
+本报告把红判为「[夹具失效] ⇒ 参照物无效 ⇒ 不可判定」。授权重生成 E0 之后实测发现，这个说法**只说对了一半**：
+
+| 事实 | 本轮读数 |
+|---|---|
+| 参照物当时确实过期 | ✓ 成立（pin 4/16 漂移，撤掉 D-iv 后差异一格不少 —— 本报告的消融仍然有效） |
+| 过期是红的**唯一**成因 | ✗ **不成立**。新基线 `e0_baseline_20261008-210053`（pin 16/16 自洽）与旧 E0 在门比较的列区间上有 **12 格系统差**（`从分配到实际装载上机等待时间`、`从上机到送达平均时间` 各 6 格） |
+| 新基线是否可信 | ✓ 同命令重跑第二遍，比较范围内 **0 格差**（只有 `耗时秒` 漂）⇒ 当前树自一致 |
+| 旧两批之间 | 已入库的第二批 `e0_baseline_20261003-230126`（10-03，commit `a298d6d`）与旧 E0 在这两列上**完全一致** ⇒ 差异发生在 `a298d6d` 之后、`d19d647` 之前 |
+
+⇒ 所以"不可判定"应改写为：**门的红 = 参照物过期 + 一次未归因的生产侧指标变动，两者叠加**。
+指向 NEW 时 zero-wind 逐 run == E0 **成立**（门绿）；但这不等于它相对 10-02 那批没变过。
+
+那次变动的**归因没有做**（不在"重生成基线"的授权范围内），登记为待裁 (iii)。
+完整三方对照读数与复算命令：`docs/取证输出/p70_p5_e0_regen/D_three_way_comparison.md`。
+
+⚠ 本报告 §4 那条「不得为了让它绿而放宽判据或改基线」仍然有效且已被遵守：
+重生成走的是**单独授权**，且生成那一笔零生产代码改动；判据（逐 run 逐指标、`keys[10:]`）一字未动。

@@ -19,7 +19,7 @@ import sys
 import unittest
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
-EXP_DIR = ROOT / "results" / "experiments" / "e0_baseline_20261002-235335"
+EXP_DIR = ROOT / "results" / "experiments" / "e0_baseline_20261008-210053"  # 重生成基线（见 CHANGELOG 第四十笔；旧基线同名保留待裁）
 PRESET = ROOT / "experiments" / "presets" / "e0_baseline.yaml"
 
 
