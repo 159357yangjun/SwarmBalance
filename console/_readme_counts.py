@@ -27,30 +27,38 @@ import os as _bc_os, tempfile as _bc_tf, uuid as _bc_ud
 sys.pycache_prefix = _bc_os.path.join(_bc_tf.gettempdir(), "swarmbalance-pyc", _bc_ud.uuid4().hex)
 README = ROOT / "README.md"
 
-# (README 里的目录标签, 发现起点, 顶层目录)
+# (README 里的目录标签, 发现起点, 顶层目录, 文件名模式)
 #: ⚠ 第三项是 top_level_dir，不是"显示用的名字"——它决定 discover 能不能进得去那个目录：
 #:   `frontend/` **没有 __init__.py** ⇒ 以仓库根为顶层时 `discover('frontend', top_level_dir='.')`
 #:   会直接抛 `ImportError: Start directory is not importable`（本轮实测），所以它的顶层只能是它自己。
 #:   这一条的来历见 docs/P70_invisible_gate_census.md：frontend 的两把 E1 门长期红却从没被跑到，
 #:   根因就是本表历史上只列 console/experiments。
+#: ⚠ 第四项 pattern 是**根条目逼出来的**：仓库根有 `__init__.py` 的 console/ 与 experiments/ 两个包，
+#:   以 root='.' 为顶层做 `discover('.', pattern='test_*.py')` 会把它们递归吃进来 —— 本轮实测
+#:   根 + test_*.py = **1 个文件 / 408 个用例**（373+32+3 的双计），而根 + test_build*.py = **1 / 3**。
+#:   所以根条目只能吃窄模式；宽模式那条 408 的数字不许出现在任何分母里。
 TARGETS = (
-    ("test_*.py", "console", "console"),
-    ("test_*.py", "experiments", "experiments"),
-    ("test_*.py", "frontend", "frontend"),
+    ("test_*.py", "console", "console", "test_*.py"),
+    ("test_*.py", "experiments", "experiments", "test_*.py"),
+    ("test_*.py", "frontend", "frontend", "test_*.py"),
+    ("test_build*.py", ".", ".", "test_build*.py"),
 )
 
-LINE_RE = "|".join(re.escape(t[0]) for t in TARGETS)
+LINE_RE = "|".join(re.escape(t[3]) for t in TARGETS)
 
 
 _CHILD = r'''
 import sys, unittest
 from pathlib import Path
 top = Path(sys.argv[1]); sub = sys.argv[2]; tld = sys.argv[3] if len(sys.argv) > 3 else sub
-files = sorted(p.name for p in (top / sub).glob("test_*.py"))
+# pattern 显式入 argv：根条目只能吃窄模式（理由见 TARGETS 上方第二条实测），
+# 在这里写死 test_*.py 会让"加了根条目"变成"把 console+experiments 数了两遍"。
+pat = sys.argv[4] if len(sys.argv) > 4 else "test_*.py"
+files = sorted(p.name for p in (top / sub).glob(pat))
 # ⚠ top_level_dir 必须能显式给：`frontend/` 没有 __init__.py，以仓库根为顶层时 discover 直接抛
 #   `ImportError: Start directory is not importable`（本轮实测）。历史上这里写死 str(top)，
 #   所以即便往 TARGETS 加了 frontend 也只会让本工具自己红 —— 接线要连这里一起改。
-suite = unittest.TestLoader().discover(str(top / sub), top_level_dir=str(top / tld), pattern="test_*.py")
+suite = unittest.TestLoader().discover(str(top / sub), top_level_dir=str(top / tld), pattern=pat)
 def count(s):
     n = 0
     for item in s:
@@ -60,7 +68,7 @@ print("%d,%d" % (len(files), count(suite)))
 '''
 
 
-def measure(subdir: str, tld: str = None):
+def measure(subdir: str, tld: str = None, pattern: str = "test_*.py"):
     """返回 (测试文件数, 用例数) —— **必须在项目 venv 解释器下量**。
 
     为什么不能就地量：缺依赖的解释器（如系统 Anaconda）里，那些测试模块在导入期就
@@ -79,7 +87,7 @@ def measure(subdir: str, tld: str = None):
     import sys as _sys
     _sys.path.insert(0, str(Path(__file__).resolve().parent))
     from _preflight import isolated_env
-    proc = subprocess.run([str(vp), "-c", _CHILD, str(ROOT), subdir, tld or subdir],
+    proc = subprocess.run([str(vp), "-c", _CHILD, str(ROOT), subdir, tld or subdir, pattern],
                           cwd=str(ROOT), capture_output=True, text=True,
                           encoding="utf-8", errors="replace", env=isolated_env())
     if proc.returncode != 0:
@@ -105,10 +113,14 @@ def _venv_python():
 
 
 def render_lines():
+    #: 行形状 = TARGETS 的字段 + 实测值。加一个 TARGETS 字段就要在这里多带一位 ——
+    #:   main() 与 fix() 各自解包，历史上这类"改了配置忘了改解包"是当场 ValueError（本轮实测），
+    #:   比静默错位好；但更糟的是它只在使用 --fix/main 时炸，所以 test_readme_counts 走 render_lines
+    #:    本身才算真证人。
     out = []
-    for label, subdir, tld in TARGETS:
-        nf, nt = measure(subdir, tld)
-        out.append((label, subdir, nf, nt, "%s 个文件 / %d 个用例" % (nf, nt)))
+    for label, subdir, tld, pattern in TARGETS:
+        nf, nt = measure(subdir, tld, pattern)
+        out.append((label, subdir, tld, pattern, nf, nt, "%s 个文件 / %d 个用例" % (nf, nt)))
     return out
 
 
@@ -118,8 +130,9 @@ def render_lines():
 #:   而它长得太像真漂移，很容易被下一个人当成"README 数字过期了"直接用 --fix 覆盖掉。
 #:   （同一条教训在文档引用上已经付过四次代价：见 docs/P70_invisible_gate_census.md 与登记表 :495。）
 #:   ⇒ 现在声明行必须自带目录名，形如 `# console: 51 个文件 / 367 个用例`。
+#: ⚠ 目录名捕获放宽到含 `.`：仓库根那一条的标签就是 `.`（README 里写成 `# .: 1 个文件 / 3 个用例`）。
 CLAIM_PAT = re.compile(
-    r"(?P<prefix>test_\*\.py\s+#\s*(?P<dir>[a-z_]+): )"
+    r"(?P<prefix>(?P<pat>test_[a-z*]+\.py)\s+#\s*(?P<dir>[a-z_.]+): )"
     r"(?P<nf>\d+)(?P<mid> 个文件 / )(?P<nt>\d+)(?P<tail> 个用例)")
 
 
@@ -151,7 +164,9 @@ def verify() -> int:
 
     rows = render_lines()
     problems = []
-    measured = {r[1]: (r[2], r[3]) for r in rows}
+    # 索引写死三处（r[4]/r[5]）：行形状由 TARGETS 字段数决定，改字段必须同时改这里、
+    # measured/OK 行与 fix() 的解包 —— test_readme_counts 走 render_lines，错位会当场炸。
+    measured = {r[1]: (r[4], r[5]) for r in rows}
     missing = sorted(set(measured) - set(claims))
     extra = sorted(set(claims) - set(measured))
     if missing:
@@ -170,7 +185,7 @@ def verify() -> int:
         print("修复：python console/_readme_counts.py --fix 之后复核 diff")
         return 1
     print("[OK] README 测试计数与实测一致（%s）"
-          % "；".join("%s=%d文件/%d用例" % (r[1], r[2], r[3]) for r in rows))
+          % "；".join("%s=%d文件/%d用例" % (r[1], r[4], r[5]) for r in rows))
     return 0
 
 
@@ -178,7 +193,7 @@ def fix() -> int:
     """按**目录标签**把每个计数字位换成实测值（不靠出现顺序，理由见 CLAIM_PAT 上方注释）。"""
     rows = render_lines()
     before = line_ending_stats(README)
-    for _label, subdir, nf, nt, _txt in rows:
+    for _label, subdir, _tld, _pattern, nf, nt, _txt in rows:
         text = read_text_lossy(README)
         hit = [m for m in CLAIM_PAT.finditer(text) if m.group("dir") == subdir]
         if len(hit) != 1:
@@ -204,7 +219,7 @@ def main(argv=None) -> int:
         return fix()
     if args.verify:
         return verify()
-    for label, subdir, nf, nt, txt in render_lines():
+    for label, subdir, _tld, _pattern, nf, nt, txt in render_lines():
         print("%-14s %s" % (subdir + "/", txt))
     return 0
 

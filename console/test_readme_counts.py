@@ -53,10 +53,18 @@ class ReadmeCountTests(unittest.TestCase):
         self.assertGreaterEqual(len(rows), 3,
                                 "接线后至少应覆盖 console/experiments/frontend 三处；只剩两处说明有人把 "
                                 "frontend 又摘掉了（见 docs/P70_invisible_gate_census.md）")
-        for _label, subdir, nfiles, ntests, _txt in rows:
+        for _label, subdir, _tld, _pattern, nfiles, ntests, _txt in rows:
             self.assertGreater(nfiles, 0, "%s/ 一个测试文件都没数到，测量失效" % subdir)
-            self.assertGreater(ntests, 10,
-                               "%s/ 只数到 %d 个用例，discovery 可能没生效" % (subdir, ntests))
+            #: ⚠ 分母下限按**声明的模式**分档，不能对所有条目一律要求 >10：
+            #:   仓库根那条只吃窄模式 `test_build*.py`（实测 1 文件 / 3 用例），
+            #:   而它在根下用宽模式会得到 **408**（把 console+experiments 递归双计）。
+            #:   所以这里要守的是两件不同的事：窄条目"绝不能是 0"，宽条目"少于 10 就是 discovery 坏了"。
+            if _pattern == "test_*.py":
+                self.assertGreater(ntests, 10,
+                                   "%s/ 只数到 %d 个用例，discovery 可能没生效" % (subdir, ntests))
+            else:
+                self.assertGreater(ntests, 0,
+                                   "%s/（模式 %s）数到 0 个用例 ⇒ 接线没生效" % (subdir, _pattern))
 
     def test_measure_is_interpreter_independent(self):
         """用哪个解释器跑本用例，都必须量到同一个数。
@@ -91,7 +99,7 @@ class ReadmeCountTests(unittest.TestCase):
         #:   但它长得太像真漂移，很容易被下一个人当"数字过期"直接 --fix 覆盖掉。
         claims = {m.group("dir"): (int(m.group("nf")), int(m.group("nt")))
                   for m in rc.CLAIM_PAT.finditer(text)}
-        measured = {r[1]: (r[2], r[3]) for r in rows}
+        measured = {r[1]: (r[4], r[5]) for r in rows}
         self.assertEqual(sorted(claims), sorted(measured),
                          "README 的计数字位目录集与 TARGETS 测到的目录集不等：README=%s TARGETS=%s"
                          % (sorted(claims), sorted(measured)))
@@ -140,11 +148,18 @@ class ReadmeCountTests(unittest.TestCase):
         original = readme.read_bytes()
         try:
             text = original.decode("utf-8")
-            m = rc.CLAIM_PAT.search(text)
-            self.assertIsNotNone(m, "README 里找不到计数字位，本用例的判据是空转")
-            stale = rc.CLAIM_PAT.sub(lambda x: "%s%d%s%d%s" % (
-                x.group("prefix"), int(x.group("nf")) + 7, x.group("mid"),
-                int(x.group("nt")) + 7, x.group("tail")), text, count=1)
+            #: 扰动对象**不能是根条目**：它的值是 `1 个文件 / 3 个用例`，而 README 里紧跟着的
+            #:   解释行写着"实测 **1 个文件 / 408 个用例**（373+32+3 双计）"。把数字抹形对比
+            #:   （skel）会把那句解说也算进来 ⇒ +7 之后两处形状不同，红的其实是"注释里有数字"，
+            #:   不是计数判据。（本轮实测：第一版只加了 `if dir=='.' : return x.group(0)` 的跳过分支，
+            #:   于是 count=1 用在了那条不产生的位上、stale==text，被下一条断言当场抓住。）
+            #:   ⇒ 现在显式选出**第一条非根的位**并只改它。
+            hits = [mm for mm in rc.CLAIM_PAT.finditer(text) if mm.group("dir") != "."]
+            self.assertTrue(hits, "README 里找不到非根计数字位，本用例的判据是空转")
+            m = hits[0]
+            stale = text[:m.start()] + "%s%d%s%d%s" % (
+                m.group("prefix"), int(m.group("nf")) + 7, m.group("mid"),
+                int(m.group("nt")) + 7, m.group("tail")) + text[m.end():]
             self.assertNotEqual(stale, text, "扰动没改动任何字节，判据是空转")
             # 只该有数字变：把数字抹成 # 后两份文本必须同形 —— 这比"长度差多少"稳，
             # 因为 +7 跨不进位（14→21、131→138）是巧合，95→102 就会变长。

@@ -2,6 +2,103 @@
 
 ## [Unreleased]
 
+### 2026-10-08（第三十九笔）：#70 阶段⑤c 两件 —— 冻结产物源码指纹对账入门（三态 + 具名声明通道）+ 仓库根交付物门接进分母（窄模式）
+
+基线 cf7efdd。未 push、未打 tag、paper/ 未碰、VERSION 未改。**本轮零生产语义改动**（新增的只有测试与工具）。
+
+**（一）通用不变量落地为常驻门** `console/test_frozen_artifact_source_pins.py`（批文：「凡引用冻结实验产物的门都应核对
+`core_source_sha256` 与盘上一致，不一致则必须在 CHANGELOG 找到"已声明过期"条目否则红」）。三态按批文配齐：
+
+| 面 | 条件 | 判定 | 证人 |
+|---|---|---|---|
+| ① | 指纹相符 | **绿**（`state=OK`） | test_B 正面证人（临时目录里造 `X = 1` 的 payload） |
+| ② | 指纹不符且无声明 | **红** `[FP_DRIFT_UNDECLARED]`，列出引用位置 | 本轮删掉一条标记后实测：`declared=4 … undeclared=1` + `FAILED (failures=1)` |
+| ③ | 指纹不符但有**带目录名**的声明 | 降级为信息，印出是哪条（`CHANGELOG:N` + 原文） | `[FP_DECLARATION]` 行；test_C 断言裸标记词不算覆盖 |
+| ④ | 产物读不到（缺 json / json 坏） | **红** `[FP_BLIND]` | 读不到不等于通过，判红 |
+
+范围**不写死名单**：`referenced_artifacts()` 从盘上 + 引用文本现算（`REF_GLOBS` 覆盖 console/frontend/experiments/根 py/docs/README/CHANGELOG），
+所以"新加一个引用"会自动进入分母，不需要有人记得改这张表 —— 这正是隐身门普查那轮的根因形状。
+
+真值读数（本轮）：`[FP_VERDICT] referenced=5 with_pin=5 drifted=5 declared=5 ok=0 undeclared=0` ⇒ 当前全绿，但**绿的成因是 5 条都已具名登记**，
+不是"没有漂移"。逐产物测量与"在它自己的 commit 上是否自洽"见本节上方那张表。
+
+两处夹具缺陷被实测逼出（都是"半坏自检比没有更坏"的形状）：
+1. 夹具最初建在 `console/` 下，而 `pin_state` 只读 `results/experiments/` ⇒ 加了 `art_root` 形参；
+2. `base = root.parent` 使假产物永远 MISSING、MISSING 又判 drifted ⇒ 正面证人"相符应判 ok"当场不过，改为 `base = ROOT if not art_root else root`。
+
+**（二）仓库根 `test_build_conclusion_package.py`（3 例，守对外交付物完整性）接进分母**，接线方式被实测限定为**窄模式**：
+
+| 目标 | 模式 | 实测 | 说明 |
+|---|---|---|---|
+| console/ | `test_*.py` | 53 文件 / **373** 用例 | 含本笔新增的门（+1 文件 / +3 用例） |
+| experiments/ | `test_*.py` | 3 / 32 | 未变 |
+| frontend/ | `test_*.py` | 2 / **19** | 未变（无 `__init__.py`，顶层只能给它自己） |
+| 仓库根 | **`test_build*.py`** | 1 / **3** | 唯一可用形状 |
+| 仓库根 | `test_*.py` | 1 / **408** | ✗ 把 console+experiments 两个包递归双计（373+32+3） |
+
+⇒ `TARGETS` 因此加第 4 个字段（pattern），并同步改了 `_CHILD`（pattern 入 argv）、`measure()`、`render_lines()` 的行形状、
+`LINE_RE`（改取 `t[3]`）、`CLAIM_PAT`（模式组 + 目录名允许 `.`）、`fix()`/`main()`/`verify()` 的解包与索引。
+**行形状一改就炸了三处消费者**（`ValueError: too many values to unpack`、`%d format: a real number is required, not str`、
+以及 `test_readme_counts` 的两条 FAIL）—— 全部当场暴露、没有静默错位，这是"配置加字段"该有的失败形状。
+
+`test_readme_counts` 里两条判据随接线修正：
+- `test_measure_is_not_vacuous` 原先对所有条目要求 `用例数 > 10`，根条目只有 3 例 ⇒ 改成**按模式分档**：
+  宽模式仍要求 >10（discovery 没生效就会红），窄模式要求 >0（接线没生效就会红）。
+- `test_verify_goes_red_when_readme_is_stale` 第一版只加了"跳过根条目"的分支，于是 `count=1` 用在了那条**不产生替换**的位上
+  ⇒ `stale == text`，被它自己的"扰动没改动任何字节"断言抓住。改为显式选出第一条非根的位再改。
+
+**（三）复算命令与读数**（全部本轮真跑）：
+
+| 命令 | 结果 |
+|---|---|
+| `python console/_readme_counts.py --verify` | RC=0，`[OK] … console=53文件/373用例；experiments=3文件/32用例；frontend=2文件/19用例；.=1文件/3用例` |
+| `python -m unittest console.test_frozen_artifact_source_pins` | `Ran 3 tests OK` |
+| `python -m unittest console.test_readme_counts` | `Ran 5 tests OK`（23.8s） |
+| `python -m unittest console.test_p4_suite_order_independence` | `Ran 3 tests OK`，`[P4_VERDICT] ran_ab=40 ran_ba=40 state_diff=0 members=8` |
+| `python -m unittest console.test_p3_no_cross_test_residue` | RC=0，`[P3_SELF_VERDICT] env_left=0 path_added=0` |
+| `python -m unittest console.test_gate_ascii_diagnostics console.test_drone_boundary_segments console.test_stale_bytecode` | `Ran 16 tests OK` |
+| `python -m unittest test_build_conclusion_package`（根，3 例） | `Ran 3 tests OK` |
+| `python console/_citations.py --verify` | RC=0，`checked=184 anchored=74`，ANCHOR_MISS=0 |
+
+**（四）改引用不改判据（同一处第五次）**：本笔在 README 顶部插段后，`_citations --verify` 当场报 2 条 `ANCHOR_MISS`
+（登记表 :495 引 `README.md:36#产品规格`、:497 引 `README.md:35#四类算法统一评测`）。处置 = 只把行号搬到锚点真正所在的
+**40 / 39**，并在漂移史里续记这一跳（36→40、35→39）。判据一字未动。
+
+**（五）行尾事故与自证**：编辑工具在 README/_readme_counts/CHANGELOG/test_readme_counts 四个文件里注入了 CRLF，
+而 `.gitattributes` 钉 `*.md/*.py text eol=lf` ⇒ `git ls-files --eol` 报 `w/mixed`。逐文件按字节 `replace(b"\r\n", b"\n")` 归一，
+并验证内容等于索引（README 归一后 `git diff --numstat` = 16/3，即真实改动行数，不含整份翻行尾）。
+
+**残余边界（不在本轮授权内，明写）**：
+(i) 门的引用扫描用正则 `([a-z0-9][a-z0-9_]*_\d{8}-\d{6})`，**只认得这种命名形状**；将来若有冻结产物换命名（如带 `v2`、大写），
+它会当成"没被引用"而不报 —— 那是漏检，不是红。
+(ii) `pin_state` 只核 `core_source_sha256` 里**列出的**文件；产物目录里的 CSV/JSON 数据本身没有逐文件哈希，门看不见它们被改。
+(iii) ~~声明通道要求"目录名与标记词同行"，跨行书写会失效 —— test_C 只测了"裸标记词不算"，没测"标记在上一行、目录名在下一行"。~~
+**本条已在同轮内实测闭合**（登记为盲区后当场把它改成测过的）：`_declarations()` 拆出纯函数 `_declarations_from(lines)`，
+test_C 用内存里的两行样本 vs 同行样本对撞 ⇒ `[FP_DECL_TWO_LINE] split_declared=0 same_line_declared=1`。
+之所以要抽成吃行列表的函数：否则测这条判据就得改盘上 CHANGELOG（那是已入库证据）。
+(iv) E0 基线重生成（批文三条约束）**尚未执行**，仍挂在下一次；在那之前 `docs/模型真实结构修订.md` 那句保持"不可判定"。
+
+
+### 冻结产物源码指纹对账 —— `console/test_frozen_artifact_source_pins.py` 首次运行的具名过期登记（4 个产物，pending revalidation）
+
+新常驻门上线时对 4 个**被引用**的冻结产物报出 `[FP_DRIFT_UNDECLARED]`（其 `core_source_sha256` 与盘上不符）。
+本段就是裁定的"具名过期声明"通道 ⇒ 这 4 个自此降级为信息读数、不再进退码；重生成后应删除对应行。
+一手测量（本轮真跑，非推算）：
+
+| 产物 | pin 文件数 | 已漂移 | 漂的是哪些 | **在它自己的 commit 上是否自洽** | 状态 |
+|---|---|---|---|---|---|
+| `conclusion_20260911-043701` | 8 | 3 | `experiments/runner.py`、`experiments/worker.py`、`frontend/environment.py` | **8/8 匹配** @`fcc7c5f` | pending revalidation |
+| `arrival_pressure_20261002-230513` | 16 | 5 | 上述 + `frontend/drone.py`、`frontend/greedy/scheduler.py` | 14/16 @`1c790a0` | pending revalidation |
+| `conclusion_20261001-234945` | 22 | 5 | 同上形状 | 21/22 @`7ce517b` | pending revalidation |
+| `formal_baseline_n10_20261003-010435` | 16 | 4 | `experiments/worker.py`、`frontend/drone.py`、`frontend/environment.py`、`frontend/greedy/scheduler.py` | — | pending revalidation |
+| `e0_baseline_20261002-235335` | 16 | 4 | 同 `formal_baseline` 那四个 | — | pending revalidation（等价门红的真因，见第三十八笔） |
+
+⚠ 一行里必须带产物目录名才算覆盖到那个产物 —— 门的 test_C 专门断言这件事（裸标记词不算，否则是万能通行证）。
+⚠ "在它自己 commit 上 8/8 自洽"这一列是有意义的：它说明**这些产物的 pin 当初没写错**，漂移全部来自后续改动 ⇒
+不能反过来怀疑"是不是生成器有 bug"。另两个产物在自身 commit 上有 1–2 格不匹配（`arrival_pressure` 14/16、
+`conclusion_20261001` 21/22），那属于"生成时会话工作树已有未提交改动"，本轮只登记、不追查（不在授权范围）。
+
+
 ### 2026-10-08（第三十八笔）：#70 阶段⑤ 收尾三件 —— 三段边界改用符号锚（裁定一）+ E1 等价门红的受控消融**否证了 D-iv 假设**（真因是基线过期）+ 隐身用例逐个入台账
 
 基线 36b64cd。未 push、未打 tag、paper/ 未碰。**本轮零生产语义改动**：`frontend/drone.py` / `environment.py` 在消融期间被临时回退，事后 `git checkout HEAD --` 复原并逐字节核验 `identical-to-HEAD=True`；工作树只剩新增测试与文档。

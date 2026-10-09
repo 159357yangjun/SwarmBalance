@@ -18,8 +18,12 @@ Phase 1B-0/1B-1/1B-2 已闭合；#69 生命周期一致性、#70-P1 测试隔离
 P2（源码结构：测试不许按名字 import 内核）、P3（运行时残留 diff + 覆盖集恒等式）、
 P4（子集逐用例状态集合两向对撞，单成员进程构造）。判据与残余边界见
 `docs/P70_which_gate_is_the_resident_one.md`、`docs/P70_import_order_pollution.md`。
-套件真值以 `python console/_readme_counts.py --verify` **现算**为准：console **50 文件 / 364 用例**、
-experiments 3 文件 / 32 用例。（下面那句"286 例"是 2026-10-05 的旧快照，留着是为了不假装它没写过；
+另有一扇守**冻结实验产物溯源**的门 `console/test_frozen_artifact_source_pins.py`：凡被代码/文档引用到的
+`results/experiments/<目录>` 都要核对 `core_source_sha256` 与盘上是否一致 —— 不一致且 CHANGELOG 里没有
+**带该目录名**的过期声明就红；有声明则降级为信息并印出是哪一条（本轮把"字段一直在、只是没人比"的侥幸变成常驻）。
+套件真值以 `python console/_readme_counts.py --verify` **现算**为准：console **53 文件 / 373 用例**、
+experiments 3 文件 / 32 用例、frontend 2 文件 / 19 用例、仓库根窄模式 `test_build*.py` 1 文件 / 3 用例。
+（下面那句"286 例"是 2026-10-05 的旧快照，留着是为了不假装它没写过；
 从 #70-P1 起一律按 `_readme_counts.py` 报数，别手抄。）
 调度层两项增强**默认全部关闭** ⇒ 生产行为与基线一致。下一步是 1B-3（续航可行性）与 1C（状态机单一真源）。
 诚实边界见 [§已知局限](#️-已知局限) 与总纲 §3、§17。
@@ -256,6 +260,11 @@ python -m unittest console.test_config_keys_coverage -v   # 或单独跑这一�
 #   以仓库根为顶层时 discover 直接抛 "Start directory is not importable"（本轮实测）。必须显式给顶层：
 python -m unittest discover -s frontend -t frontend -p "test_*.py"   # E1 风能耗两把门；其中等价门当前为红
 
+# ⚠ 仓库根还有 1 个文件 / 3 个用例（守对外交付物完整性），复算只能用**窄模式**：
+python -m unittest discover -s . -t . -p "test_build*.py"
+#   根下若用宽模式 `test_*.py`，console/ 与 experiments/ 两个包会被递归吃进来 ⇒ 实测 1 文件 / 408 用例
+#   （373+32+3 双计）。这个 408 不许出现在任何分母里。
+
 # 数据来源可追溯性 + 环境基线漂移门禁（默认阻断，退出码非零）：
 python verify_data_provenance.py
 python verify_data_provenance.py --mapfile       # 只核输入地图的内容哈希是否就是被钉住那份
@@ -433,6 +442,10 @@ swarm-balance/
 ├─ build_conclusion_package.py   # 结项证据包；DOCS/CONFIGS 白名单缺文件即抛错
 ├─ release_check.py / selfcheck  # 交付前静态检查（含内联 JS 语法）
 ├─ verify_data_provenance.py     # 数据来源可追溯性自检（登记表的可执行版；结项实验/加载路径两段）
+├─ test_build*.py                # .: 1 个文件 / 3 个用例 —— 守对外交付物完整性（白名单缺文件即红）
+│                              #   ⚠ 复算只能用窄模式：`discover -s . -t . -p "test_build*.py"`。
+│                              #     根下用宽模式 `test_*.py` 会把 console/ 与 experiments/ 两个包
+│                              #     递归吃进来 ⇒ 实测 **1 个文件 / 408 个用例**（373+32+3 双计）。
 ├─ README.md / CHANGELOG.md / CONTRIBUTING.md / CITATION.cff / LICENSE / VERSION
 ├─ requirements.txt              # 完整实验环境（Python 3.10）
 │
@@ -450,7 +463,7 @@ swarm-balance/
 │  ├─ static/spec.html           # 「规范」页正文，由 /spec 路由渲染进 iframe
 │  ├─ static/vendor/             # 内置 vue.global.prod.js / echarts.min.js /
 │  │                             #   three.min.js + README（版本、来源、SHA-256）
-│  └─ test_*.py                  # console: 52 个文件 / 370 个用例（标准库 unittest）
+│  └─ test_*.py                  # console: 53 个文件 / 373 个用例（标准库 unittest）
 │
 ├─ frontend/                     # 仿真内核与可视化
 │  ├─ environment.py             # 世界状态、障碍判定、统计口径
