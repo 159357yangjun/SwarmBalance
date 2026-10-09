@@ -71,6 +71,27 @@ delivery_time           = max(0, completion_time - load_time)   # 「从上机�
 ⇒ **没有任何任务因此变好或变坏**，只是延迟在两个桶之间重新归类。总账不变：
 `generation_to_completion = generation_to_assignment + assignment_to_load + load_to_delivery` 仍然闭合。
 
+守恒律的直接算术证人（两列平均时间 × 完成数 = 该格的总时长份额）：
+
+```
+C1/rep1  OLD 46.7264 + 152.5660 = 199.2925
+         NEW 76.9057 + 122.3868 = 199.2925      ← 逐位相等
+[CONSERVATION] 「装载等待 + 送达」之和不一致的格数 = 0 / 6
+```
+
+⇒ 不是"我推断它守恒"，而是六个格子里两列之和**逐个复算相同**。
+
+## 3-bis. "预期行为变更 vs 回归"的判据（三条，均可复算）
+
+| # | 判据 | 一手读数 |
+|---|---|---|
+| ① | 改动方向有独立缺陷证人，不是顺手改 | `d6b6c0b` 同笔带 `console/test_r2_destination_without_load.py`（本轮复跑 `Ran 4 OK`）与 C1 门；旧判据的后果是具体可指的：**detour 容差抵达时 `load_time` 永不赋值 ⇒ 无取货却算送达** |
+| ② | 变化是**重新归类**而非结果劣化 | 超时率/完成数/生成数三列六格逐字相等；两列之和逐格守恒（上节） |
+| ③ | 生命周期不变量在新语义下仍成立 | `C1_FACE=old` 与 `C1_FACE=fixed` 两面读数**完全一致**：`completions_recorded=38 counter=38 legal_unique=38 R1..R4=0 cleanup_completion_without_service=0 GD_a=0 GD_b_missing_dr=0 GD_b_orphan_dr=0 sum_d_completed=38`；`r5_nonexact_arrival_count=12` 两面同值（它是信息读数、不进退码，正是那 12 格对应的容差抵达任务） |
+
+⇒ 三条都指向上轮批文里的第一个候选：**这是修正口径的正确后果**。
+⚠ 判据 ③ 只能证明"没有引入生命周期违规"，**不能**证明新数值更贴近真实世界——那是外部有效性问题，仍需 §5 之外的实测（本仓至今没有真飞数据，见 [[no-fabricated-data]] 口径）。
+
 ## 4. 磁盘缓存为什么**不是**成因（先取证再改期望，没有按原计划删缓存）
 
 裁定要求"先冻结 OSM 磁盘缓存这个混淆源再做下一步消融"。查下来分两层：
