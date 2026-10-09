@@ -99,6 +99,22 @@ def selftest():
     assert skip_policy_errors({"existing": "different"}, expected)
     assert skip_policy_errors({"existing": "approved", "new": "new skip"}, expected)
     assert skip_policy_errors({}, expected)
+    from console import _rewrites
+    snapshot = (ROOT / _rewrites.OUT_REL).read_text(encoding="utf-8")
+    rows, errors, claims = _rewrites.audit_portable_snapshot(snapshot)
+    assert len(rows) == 18 and not errors, "archival baseline has a structural problem: %s" % errors
+    damaged_count = snapshot.replace(
+        "| 不可达（旧指针 + 无关悬空对象） | 51 |",
+        "| 不可达（旧指针 + 无关悬空对象） | 52 |", 1)
+    assert damaged_count != snapshot
+    assert any("REWRITE_PORTABLE_COUNT" in err for err in
+               _rewrites.audit_portable_snapshot(damaged_count)[1]), "count mutation did not fail"
+    damaged_overlap = snapshot.replace(
+        "| 消息改写 | `06eb5a2` |", "| 已改写 | `06eb5a2` |", 1)
+    assert damaged_overlap != snapshot
+    assert any("REWRITE_PORTABLE_OVERLAP" in err for err in
+               _rewrites.audit_portable_snapshot(damaged_overlap)[1]), "overlap mutation did not fail"
+    print("[CI_SELFTEST] archive count/overlap mutations rejected", flush=True)
     print("[CI_SELFTEST] skip changes rejected; known skip accepted", flush=True)
     return 0
 
