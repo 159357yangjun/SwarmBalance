@@ -63,7 +63,12 @@ jobs:
         run: .\.venv310\Scripts\python.exe scripts/ci_unittest.py selftest
 
       - name: Verify README test discovery census
+        id: readme_census
         run: .\.venv310\Scripts\python.exe console/_readme_counts.py --verify
+
+      - name: Diagnose README discovery mismatch
+        if: ${{ failure() && steps.readme_census.outcome == 'failure' }}
+        run: .\.venv310\Scripts\python.exe scripts/ci_unittest.py diagnose
 
       - name: Verify documentation citation anchors
         run: .\.venv310\Scripts\python.exe console/_citations.py --verify
