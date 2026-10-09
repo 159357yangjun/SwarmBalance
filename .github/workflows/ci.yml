@@ -74,7 +74,7 @@ jobs:
         run: .\.venv310\Scripts\python.exe scripts/ci_unittest.py diagnose
 
       - name: Verify documentation citation anchors
-        run: .\.venv310\Scripts\python.exe console/_citations.py --verify
+        run: .\.venv310\Scripts\python.exe console/_citations.py --verify --portable-rewrite
 
       - name: Quick invariant checks (P2, P3, G2 calibration)
         run: .\.venv310\Scripts\python.exe scripts/ci_unittest.py quick
