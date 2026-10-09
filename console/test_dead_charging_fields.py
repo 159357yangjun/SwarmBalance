@@ -57,7 +57,13 @@ def classify(name, files):
         for ln, line in enumerate(text.split("\n"), 1):
             if not pat.search(line):
                 continue
-            # Windows runner may place TEMP on C: while checkout lives on D:.\n            # Only in-repo files have a meaningful repo-relative path.\n            src = Path(p).resolve()\n            try:\n                rel = src.relative_to(ROOT.resolve()).as_posix()\n            except ValueError:\n                rel = src.as_posix()
+            # Windows runner may place TEMP on C: while checkout lives on D:.
+            # Only in-repo files have a meaningful repo-relative path.
+            src = Path(p).resolve()
+            try:
+                rel = src.relative_to(ROOT.resolve()).as_posix()
+            except ValueError:
+                rel = src.as_posix()
             if re.search(r"self\.%s\s*=\s*(0\.0|0)\b" % re.escape(name), line):
                 d["def_"].append("%s:%d" % (rel, ln))
             elif re.search(r"self\.%s\s*(\+=|-=|=)" % re.escape(name), line):
