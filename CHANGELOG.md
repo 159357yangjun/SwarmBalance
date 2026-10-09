@@ -2,6 +2,76 @@
 
 ## [Unreleased]
 
+### 2026-10-08（第四十一笔）：#70 阶段⑥ 两件 —— (二) 反静默摘门结构断言落地；(一) 归因二分**否证了"生产行为变更"假设**
+
+基线 7d18393。未 push、未打 tag、paper/ 未碰、VERSION 未改。**本轮零生产语义改动**。
+
+**（二）常驻门不得因参照物目录改名而变 skip** —— 在 `frontend/test_wind_injection.py` 内加两例结构断言
+（`FrozenReferenceGuardTests`，套件 19→**21** 例）：
+
+| 面 | 条件 | 判定 |
+|---|---|---|
+| 默认 | 基线目录/raw_runs/预设缺失 | **红** `[E0_REF_MISSING]` + 具名缺哪个目录 |
+| opt-in | 同上且 `SWARM_BALANCE_ALLOW_MISSING_E0_BASELINE=1` | skip（唯一允许的 SkipTest） |
+| 结构 | 可执行 `SkipTest` 数量 ≠ 1 | 红 `[WIND_SKIP_SHAPES]` |
+| 结构 | 那处 SkipTest 的直接父 `If` 里解析不到 `environ.get(SKIP_OPT_IN)` 或没有 `"1"` | 红 `[WIND_NO_OPT_IN_GATE]` |
+
+变异实测（五个，全部留原始输出）：
+- A 把默认红分支改成 `SkipTest`（复刻本轮摘门动作）⇒ `2 != 1 @行[74,73]` FAILED ✓
+- B 把 opt-in 判据换成 `if True:` ⇒ `guarded 0 != 1` FAILED ✓
+- D 常量定义行加注释 ⇒ 仍绿（不该红）✓
+- E 把 `get(SKIP_OPT_IN)` 内联成字面字符串 ⇒ 仍绿（谓词认得两种写法）✓
+- **反噬记录**：测完 E 我用 `git checkout HEAD -- <file>` 收摊，**把这轮未提交的 155 行守卫整个抹掉**
+  （`grep -c FrozenReferenceGuardTests` = 0）。靠事先留在 `/tmp/wind_f2.py` 的副本恢复，
+  恢复后逐字核验 `Ran 11 tests OK` + 无 MUTATED 残留。教训：**清理变异只能用备份文件回写，不能接 `checkout` 在未提交改动之后**
+  （这条规矩我记忆里早写过一次，本轮又差点犯，代价是差一点整段重做）。
+
+判据形状被逼了三次才对（同一类错误，值得记进方法论）：
+① `assertIn(SKIP_OPT_IN, src)` —— 变异成 `if True:` 时定义行仍在 ⇒ **半坏自检比没有更坏**；
+② `{n.id for n in walk(test) if isinstance(n, Name)}` —— `os.environ.get(X)` 里的 Name 只有 `os`，X 是 Call 参数 ⇒ 正常树 guarded=0、门红在自己身上；
+③ 拿到参数名后跟环境变量**字面值**比 —— 比的是变量名不是值 ⇒ 还是 0。
+最终形态：AST 找 raise → 沿父链取直接 `If` → 从 `*.environ.get(<Name|Constant>)` 解出实参并把模块级常量**解析成值** → 要求比较常量含 `"1"`。
+
+**（一）归因 (iii) 的二分结果：假设被否证**
+
+分母先收窄（89 个区间提交 → 13 个碰过钉住文件的提交），再用 git worktree 逐点生成基线（工作树全程未碰）：
+
+| 生成的 commit | vs OLD(20261002) 比较区间差异 | vs NEW(20261008) 差异 |
+|---|---|---|
+| `c0af7c7` | **0** | **12** |
+| `3f80a17` | **0** | **12** |
+| `f1e3a5b` | 12 | **0** |
+| `9b1cd15` | 12 | **0** |
+
+⇒ 翻转点在 `c0af7c7 → 3f80a17` 之间。**但那一笔对四个钉住文件只改了 docstring**
+（`git show 3f80a17 -- frontend/environment.py` = 9 增 6 删，全在 `a_star_pathfinding` / `heuristic` 的文档串里；
+其余两个文件该笔未触碰），且 `route_planner.py` 在两笔间哈希相同（`e13274b96b71`）。
+
+所以批文里那句候选结论「若定位结果是 D-iv 之后的合理行为变化，就把等价门结论改写为"新旧不等价是正确后果"」
+**当前不成立**：没有任何证据支持"这是预期行为变更"。诚实读数只能写成：
+**存在一个只改注释的提交，其前后两版产物在两个等待时间指标上系统性不同（12 格）**，机制未定。
+
+三条待验候选（本轮一律不动实现、不改判据、不重生成基线）：
+(i) **钉住清单不完整**：`experiments/reproducibility.py:35 SHARED_SOURCES` 里没有 `frontend/route_planner.py`
+    ——Phase 1A 抽出去的正是路径规划本体，它不在 `core_source_sha256` 的 16 个键里（三产物均 `has_route_planner=False`）。
+    于是"pin 没变"根本不能证明行为没变，这正好解释了为什么只改注释也能翻。
+(ii) **OSM 磁盘缓存**：`frontend/data/.osm_cache/`（已 gitignore、跨会话累积）会改变通行判定结果；
+     四个 worktree 共用同一份仓内缓存，生成时刻不同 ⇒ 读到的缓存可能不同。
+(iii) **环境侧漂移**：`config/simulation.json` 与依赖包版本在这几天里是否动过（尚未核）。
+
+消融设计已想好但**本轮没做**（要占一整轮且必须先冻结缓存这一混淆源，否则抽一个源会被另一个源冒充）：
+同一 worktree 跑两遍、第二遍前清空 `.osm_cache` ⇒ 若差异消失则 (ii) 承重；再固定缓存、只在 `c0af7c7`/`3f80a17`
+两个 worktree 各跑一遍 ⇒ 若仍有差异才轮到 (i)/(iii)。登记在下，等裁后才动。
+
+**OCT3 存废（裁定三）**：并入上面的机制结论一起定，本轮不动 —— 现在连"OLD/OCT3 那批是不是有效参照"都还没定，
+先删或先退役都会把不确定性固化。**保持原样入库、原样声明**（`declared=6` 里包含它）。
+
+**复算读数**：`_readme_counts --verify` RC=0（console 53/373、experiments 3/32、frontend 2/**21**、根 1/3）；
+`_citations --verify` RC=0（本笔 README 顶部插段又造成两处 ANCHOR_MISS，按老口径只改引用：登记表 :495→`README.md:43`、
+:497→`README.md:42`，**同一处第六、七次**；我在本笔内先写 42/41 又被这把门纠回一次）；
+FP 门 `referenced=7 drifted=6 declared=6 ok=1 undeclared=0`；frontend 全套件 `Ran 21 OK`。
+
+
 ### 2026-10-08（第四十笔）：#70 阶段⑤c E0 基线重生成（批文三条件）—— 等价门**先红后绿**，并测出"zero-wind ≠ 旧 E0"是生产差异不是夹具失效
 
 基线 d19d647。未 push、未打 tag、paper/ 未碰、VERSION 未改。**本轮零生产代码改动**（`frontend/drone.py`、

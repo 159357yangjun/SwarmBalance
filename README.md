@@ -21,6 +21,9 @@ P4（子集逐用例状态集合两向对撞，单成员进程构造）。判据
 另有一扇守**冻结实验产物溯源**的门 `console/test_frozen_artifact_source_pins.py`：凡被代码/文档引用到的
 `results/experiments/<目录>` 都要核对 `core_source_sha256` 与盘上是否一致 —— 不一致且 CHANGELOG 里没有
 **带该目录名**的过期声明就红；有声明则降级为信息并印出是哪一条（本轮把"字段一直在、只是没人比"的侥幸变成常驻）。
+配套一条**反静默摘门**的结构断言（`frontend/test_wind_injection.py::FrozenReferenceGuardTests`）：参照物缺失时默认判红，
+只有显式 `SWARM_BALANCE_ALLOW_MISSING_E0_BASELINE=1` 才降级为 skip —— 因为实测把基线目录改名一次，
+那扇等价门就从 `FAILED` 变成 `OK (skipped=1)`，聚合读数照样绿而门已经不咬了。
 套件真值以 `python console/_readme_counts.py --verify` **现算**为准：console **53 文件 / 373 用例**、
 experiments 3 文件 / 32 用例、frontend 2 文件 / 19 用例、仓库根窄模式 `test_build*.py` 1 文件 / 3 用例。
 （下面那句"286 例"是 2026-10-05 的旧快照，留着是为了不假装它没写过；
@@ -476,7 +479,7 @@ swarm-balance/
 │  ├─ tools/osm.py               # OSM 解析 + 结果落盘缓存（frontend/data/.osm_cache/）
 │  ├─ data/                      # map/part_of_yangpu.osm（约 10.6 MB，唯一内置地图）
 │  │                             #   + .osm_cache/（OSM 解析与通行判定缓存，已 gitignore）
-│  └─ test_*.py                  # frontend: 2 个文件 / 19 个用例
+│  └─ test_*.py                  # frontend: 2 个文件 / 21 个用例
 │                                #   ⚠ 这 19 例**不在** `discover -s console` 里：frontend/ 没有
 │                                #     __init__.py，以仓库根为顶层时 discover 直接抛
 │                                #     "Start directory is not importable"（本轮实测）。
