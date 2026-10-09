@@ -1,0 +1,77 @@
+name: SwarmBalance verification
+
+on:
+  pull_request:
+    branches: [master]
+  workflow_dispatch:
+    inputs:
+      full_suite:
+        description: "Run all discovered unittest suites (slow; strict skip audit)"
+        type: boolean
+        required: false
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: verification-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verification:
+    runs-on: windows-2022
+    timeout-minutes: 90
+    env:
+      PYTHONIOENCODING: utf-8
+      PYTHONDONTWRITEBYTECODE: "1"
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Python 3.10
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+          cache: pip
+          cache-dependency-path: requirements.txt
+
+      # Match the Windows .venv310 interpreter used by _readme_counts.
+      - name: Create project interpreter and pin pip
+        run: |
+          python -m venv .venv310
+          .\.venv310\Scripts\python.exe -m pip install "pip==23.3.2"
+
+      - name: Install NumPy before other dependencies
+        run: .\.venv310\Scripts\python.exe -m pip install numpy==1.26.4
+
+      - name: Install complete project requirements
+        run: .\.venv310\Scripts\python.exe -m pip install -r requirements.txt
+
+      - name: Verify interpreter and import dependencies
+        run: |
+          .\.venv310\Scripts\python.exe -c "import sys, numpy, osmnx, shapely, geopandas, fiona, pyproj, networkx, pandas, yaml, ortools, fastapi; assert sys.version_info[:2] == (3, 10); assert numpy.__version__ == '1.26.4'; print('[CI_DEPS] Python', sys.version.split()[0], 'NumPy', numpy.__version__)"
+
+      - name: Compile Python sources
+        run: .\.venv310\Scripts\python.exe -m compileall -q backend_si console experiments frontend scripts
+
+      - name: Validate skip-guard negative controls
+        run: .\.venv310\Scripts\python.exe scripts/ci_unittest.py selftest
+
+      - name: Verify README test discovery census
+        run: .\.venv310\Scripts\python.exe console/_readme_counts.py --verify
+
+      - name: Verify documentation citation anchors
+        run: .\.venv310\Scripts\python.exe console/_citations.py --verify
+
+      - name: Quick invariant checks (P2, P3, G2 calibration)
+        run: .\.venv310\Scripts\python.exe scripts/ci_unittest.py quick
+
+      # Deliberately opt-in: archived console aggregate took ~27 minutes.
+      # Fresh processes per group + fail on any unlisted/changed skip.
+      - name: Full suite (explicit opt-in only)
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.full_suite == true }}
+        run: .\.venv310\Scripts\python.exe scripts/ci_unittest.py full
