@@ -418,7 +418,167 @@ def report(root=ROOT):
     return "\n".join(lines) + "\n", counts
 
 
+
+def audit_portable_snapshot(source):
+    """Structure-only audit. Never claim old unreachable objects exist in this clone.
+
+    Returns (mapping_rows, errors, counts). Local-only numbers are checked for
+    *internal accounting*, not attested against this machine's object database.
+    """
+    errors = []
+    if source.count("## 旧指针 -> 活 sha") != 1 or source.count(
+            "### 与改写无关的不可达对象") != 1 or source.count(
+            "## 还欠的残文") != 1:
+        return [], ["[REWRITE_PORTABLE_SHAPE] missing or repeated section"], {}
+    mapping_src = source.split("## 旧指针 -> 活 sha", 1)[1].split(
+        "### 与改写无关的不可达对象", 1)[0]
+    dangling_src = source.split("### 与改写无关的不可达对象", 1)[1].split(
+        "## 还欠的残文", 1)[0]
+    mapping = []
+    for line in mapping_src.splitlines():
+        if not re.match(r"^\| (?:已改写|从未上头|树不等|消息改写) \|", line):
+            continue
+        hit = re.fullmatch(
+            r"\| (已改写|从未上头|树不等|消息改写) \| "
+            r"\`([0-9a-f]{7,40})\` \| \`([0-9a-f]{7,40})\` \| "
+            r"(在|不在) \| (.*) \|", line)
+        if hit is None:
+            errors.append("[REWRITE_PORTABLE_SHAPE] malformed mapping: " + line[:100])
+        else:
+            mapping.append(hit.groups())
+    dangling = []
+    for line in dangling_src.splitlines():
+        if not re.match(r"^\| \`[0-9a-f]{7,40}\` \|", line):
+            continue
+        hit = re.fullmatch(r"\| \`([0-9a-f]{7,40})\` \| (.+) \| (.*) \|", line)
+        if hit is None:
+            errors.append("[REWRITE_PORTABLE_SHAPE] malformed dangling: " + line[:100])
+        else:
+            dangling.append(hit.groups())
+
+    def declared(label):
+        rows = [line for line in source.splitlines()
+                if line.startswith("| " + label + " |")]
+        if len(rows) != 1:
+            errors.append("[REWRITE_PORTABLE_SHAPE] claim not unique: " + label)
+            return None
+        hit = re.match(r"^\| .*? \| (\d+) \|", rows[0])
+        if hit is None:
+            errors.append("[REWRITE_PORTABLE_SHAPE] claim not integer: " + label)
+            return None
+        return int(hit.group(1))
+
+    counts = {
+        "unreachable": declared("不可达（旧指针 + 无关悬空对象）"),
+        "mapped": declared("├ 改写配对出来的旧指针"),
+        "tips": declared("│  ├ 曾当过 \`main\` 的头"),
+        "dry": declared("│  ├ 从未当过头（dry-run 或被替换的中间父）"),
+        "bad_tree": declared("│  └ 标题/作者同而 tree 不同（改写动了内容）"),
+        "dangling": declared("└ 与改写无关的悬空对象"),
+        "pending": declared("活分支上 message 仍含 \`^MSG;\` 的条数（欠账）"),
+    }
+    old_m = [row[1] for row in mapping]
+    old_d = [row[0] for row in dangling]
+    if len(set(old_m)) != len(old_m) or len(set(old_d)) != len(old_d):
+        errors.append("[REWRITE_PORTABLE_DUPLICATE] duplicate old SHA within table")
+    overlap = set(old_m) & set(old_d)
+    amend = {row[1] for row in mapping if row[0] == "消息改写"}
+    annotated = {row[0] for row in dangling if "amend 掉的旧 tip" in row[1]}
+    if overlap != amend or overlap != annotated:
+        errors.append("[REWRITE_PORTABLE_OVERLAP] only annotated amend can be in both tables")
+    expected = {
+        "unreachable": len(set(old_m) | set(old_d)),
+        "mapped": len(mapping),
+        "tips": sum(row[0] == "已改写" for row in mapping),
+        "dry": sum(row[0] == "从未上头" for row in mapping),
+        "bad_tree": sum(row[0] == "树不等" for row in mapping),
+        "dangling": len(dangling),
+    }
+    for key, actual in expected.items():
+        if counts[key] is not None and counts[key] != actual:
+            errors.append("[REWRITE_PORTABLE_COUNT] %s declared=%d actual=%d" %
+                          (key, counts[key], actual))
+    if counts["pending"] is not None and counts["pending"] != 0:
+        # Local snapshot's pending count is a claim about its original HEAD;
+        # a nonzero count needs a separate annotated backlog, not a green gate.
+        errors.append("[REWRITE_PORTABLE_PENDING] snapshot claims unresolved MSG residues")
+    if "| 恒等式（配对 + 悬空 = 不可达） | 成立 |" not in source:
+        errors.append("[REWRITE_PORTABLE_IDENTITY] local identity label changed")
+    if len(mapping) == 0 or len(dangling) == 0:
+        errors.append("[REWRITE_PORTABLE_EMPTY] historical rows missing")
+    return mapping, errors, counts
+
+
+def verify_portable(root=ROOT):
+    """CI: verify what survives clone transport; name all non-verifiable facts."""
+    root = Path(root)
+    archive = root / OUT_REL
+    if not archive.is_file():
+        print("[FAIL][REWRITE_PORTABLE_MISSING] " + OUT_REL)
+        return 1
+    mapping, errors, claims = audit_portable_snapshot(archive.read_text(encoding="utf-8"))
+    # A shallow clone has incomplete reachability. Never equate 'not fetched'
+    # with 'deleted', nor infer that a local reflog existed remotely.
+    rc, shallow_text = _git(root, "rev-parse", "--is-shallow-repository")
+    if rc:
+        errors.append("[REWRITE_PORTABLE_GIT] cannot determine clone depth")
+    shallow = shallow_text.strip() == "true"
+    rc, reachable_text = _git(root, "rev-list", "HEAD")
+    if rc or not reachable_text.strip():
+        errors.append("[REWRITE_PORTABLE_GIT] rev-list HEAD unavailable")
+    reachable = reachable_text.splitlines() if rc == 0 else []
+    # Only commits *reachable from this checkout's HEAD* can attest a live peer.
+    prefixes = {}
+    for sha in reachable:
+        prefixes.setdefault(sha[:7], []).append(sha)
+    verified = 0
+    unavailable = 0
+    for kind, old_sha, live_sha, tip, subject in mapping:
+        matches = [s for s in reachable if s.startswith(live_sha)]
+        if len(matches) != 1:
+            if shallow and not matches:
+                unavailable += 1
+                continue
+            errors.append("[REWRITE_PORTABLE_LIVE_SHA] %s => %s reachable=%d" %
+                          (old_sha, live_sha, len(matches)))
+            continue
+        rc, actual_title = _git(root, "show", "-s", "--format=%s", matches[0])
+        if rc or actual_title.strip()[:58] != subject:
+            errors.append("[REWRITE_PORTABLE_LIVE_TITLE] %s => %s title mismatch" %
+                          (old_sha, live_sha))
+            continue
+        verified += 1
+
+    rc, messages = _git(root, "log", "--format=%B%x00", "HEAD")
+    if rc or not messages.strip():
+        errors.append("[REWRITE_PORTABLE_MESSAGES] cannot inspect available history")
+    elif RESIDUE.search(messages):
+        errors.append("[REWRITE_PORTABLE_RESIDUE] ^MSG; found in current reachable history")
+
+    print("[REWRITE_PORTABLE_SCOPE] clone_shallow=%s mapped_rows=%d "
+          "live_verified=%d live_unavailable=%d old_objects_verified=0 "
+          "old_reflog_verified=0 dangling_verified=0" %
+          (shallow, len(mapping), verified, unavailable))
+    print("[REWRITE_LOCAL_ONLY] original orphan/old-tip counts and old->new tree "
+          "equivalence are ARCHIVE_ONLY, not CI-pass claims")
+    if shallow:
+        print("[REWRITE_HISTORY_PARTIAL] HEAD history truncated; unfetched live SHA "
+              "and earlier commit messages NOT VERIFIED")
+    for issue in errors:
+        print("[FAIL]" + issue)
+    if errors:
+        return 1
+    print("[REWRITE_PORTABLE_OK] archive structure + available live SHAs/titles "
+          "+ available commit-message residues verified")
+    return 0
+
+
 def main(argv, root=ROOT):
+    if "--portable" in argv:
+        if "--write" in argv:
+            print("[FAIL][REWRITE_PORTABLE_READ_ONLY] --portable cannot rewrite local history")
+            return 2
+        return verify_portable(root)
     t0 = time.time()
     text, counts = report(root)
     # 门自己也要报成本：一道没人跑得动的门，最后就变成注释里的说法。
