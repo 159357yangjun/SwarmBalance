@@ -76,6 +76,11 @@ jobs:
       - name: Verify documentation citation anchors
         run: .\.venv310\Scripts\python.exe console/_citations.py --verify --portable-rewrite
 
+      - name: Verify rewrite-map tests (complete Git history)
+        env:
+          SWARM_REWRITE_TEST_MODE: portable
+        run: .\.venv310\Scripts\python.exe -m unittest -v console.test_rewrite_map
+
       - name: Quick invariant checks (P2, P3, G2 calibration)
         run: .\.venv310\Scripts\python.exe scripts/ci_unittest.py quick
 
@@ -102,3 +107,7 @@ jobs:
         run: test "$(git rev-parse --is-shallow-repository)" = "true"
       - name: Verify archive with explicit partial-history scope
         run: python console/_citations.py --rewrite-report --verify --portable
+      - name: Verify rewrite-map tests (shallow Git history)
+        env:
+          SWARM_REWRITE_TEST_MODE: portable
+        run: python -m unittest -v console.test_rewrite_map
