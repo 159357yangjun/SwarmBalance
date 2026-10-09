@@ -108,7 +108,6 @@ def diagnose_child():
     """Independent discovery census matching _readme_counts._CHILD in one process."""
     import ast
     import collections
-    import re
 
     loader = unittest.TestLoader()
     suite = loader.discover(str(ROOT / "console"), top_level_dir=str(ROOT),
@@ -126,9 +125,9 @@ def diagnose_child():
     runtime = collections.defaultdict(set)
     for case in cases:
         tid = case.id()
-        match = re.match(r"^(console\\.test_[A-Za-z0-9_]+)(?:\\.|$)", tid)
-        if match:
-            runtime[match.group(1)].add(tid)
+        parts = tid.split(".")
+        if len(parts) >= 2 and parts[0] == "console" and parts[1].startswith("test_"):
+            runtime[".".join(parts[:2])].add(tid)
 
     static = {}
     for path in sorted((ROOT / "console").glob("test_*.py")):
