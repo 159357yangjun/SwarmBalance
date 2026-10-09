@@ -440,7 +440,7 @@ def audit_portable_snapshot(source):
             continue
         hit = re.fullmatch(
             r"\| (已改写|从未上头|树不等|消息改写) \| "
-            r"\`([0-9a-f]{7,40})\` \| \`([0-9a-f]{7,40})\` \| "
+            r"`([0-9a-f]{7,40})` \| `([0-9a-f]{7,40})` \| "
             r"(在|不在) \| (.*) \|", line)
         if hit is None:
             errors.append("[REWRITE_PORTABLE_SHAPE] malformed mapping: " + line[:100])
@@ -448,9 +448,9 @@ def audit_portable_snapshot(source):
             mapping.append(hit.groups())
     dangling = []
     for line in dangling_src.splitlines():
-        if not re.match(r"^\| \`[0-9a-f]{7,40}\` \|", line):
+        if not re.match(r"^\| `[0-9a-f]{7,40}` \|", line):
             continue
-        hit = re.fullmatch(r"\| \`([0-9a-f]{7,40})\` \| (.+) \| (.*) \|", line)
+        hit = re.fullmatch(r"\| `([0-9a-f]{7,40})` \| (.+) \| (.*) \|", line)
         if hit is None:
             errors.append("[REWRITE_PORTABLE_SHAPE] malformed dangling: " + line[:100])
         else:
@@ -471,11 +471,11 @@ def audit_portable_snapshot(source):
     counts = {
         "unreachable": declared("不可达（旧指针 + 无关悬空对象）"),
         "mapped": declared("├ 改写配对出来的旧指针"),
-        "tips": declared("│  ├ 曾当过 \`main\` 的头"),
+        "tips": declared("│  ├ 曾当过 `main` 的头"),
         "dry": declared("│  ├ 从未当过头（dry-run 或被替换的中间父）"),
         "bad_tree": declared("│  └ 标题/作者同而 tree 不同（改写动了内容）"),
         "dangling": declared("└ 与改写无关的悬空对象"),
-        "pending": declared("活分支上 message 仍含 \`^MSG;\` 的条数（欠账）"),
+        "pending": declared("活分支上 message 仍含 `^MSG;` 的条数（欠账）"),
     }
     old_m = [row[1] for row in mapping]
     old_d = [row[0] for row in dangling]
