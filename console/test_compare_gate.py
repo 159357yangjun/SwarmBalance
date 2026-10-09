@@ -449,7 +449,9 @@ class CitationIntegrityTests(unittest.TestCase):
             text.encode("gbk")
         except UnicodeEncodeError as exc:
             self.fail("引用汇总含 GBK 打不出的字符：%s" % exc)
-        self.assertEqual(self.CJ.main(["--verify"]), 1 if bad else 0,
+        # This test covers citation diagnostics, not local-only reflog /
+        # unreachable commit snapshots. GitHub clones require portable rewrite.
+        self.assertEqual(self.CJ.main(["--verify", "--portable-rewrite"]), 1 if bad else 0,
                          "--verify 的退出码没有跟随失效条数")
 
     def test_obsolete_marker_is_bound_to_its_own_citation(self):

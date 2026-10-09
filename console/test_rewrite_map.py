@@ -26,6 +26,17 @@ if str(ROOT) not in sys.path:
 
 from console import _rewrites as RW        # noqa: E402
 
+# GitHub 不能复制原工作区的 reflog、stash、已改写旧对象。portable 在
+# 浅/完整克隆上都必须实际执行，绝不以 skip 代替；local 必须显式授权。
+MODE = os.environ.get("SWARM_REWRITE_TEST_MODE", "portable").lower()
+if MODE not in {"portable", "local"}:
+    raise RuntimeError("SWARM_REWRITE_TEST_MODE 只接受 portable 或 local，实际：" + MODE)
+
+
+def archived_text():
+    return (ROOT / RW.OUT_REL).read_text(encoding="utf-8")
+
+
 ENV = dict(os.environ,
            GIT_AUTHOR_NAME="t", GIT_AUTHOR_EMAIL="t@e",
            GIT_COMMITTER_NAME="t", GIT_COMMITTER_EMAIL="t@e",
@@ -84,7 +95,13 @@ def make_repo(case):
 class RewriteMapTests(unittest.TestCase):
 
     def test_live_repo_table_is_self_consistent(self):
-        """真仓这一面：恒等式成立、问题数为 0、每个配对两端树相同。"""
+        """portable: 可移植归档硬门；local: 原对象库和 reflog 的严格门。"""
+        print("[REWRITE_TEST_MODE] %s" % MODE, flush=True)
+        if MODE == "portable":
+            self.assertEqual(RW.verify_portable(ROOT), 0,
+                             "可访问提交/归档不一致；未下载的历史只允许具名 NOT VERIFIED")
+            return
+        # 显式 local：沿用原开发仓库的对象库全量检查；不自动降级为绿。
         text, c = RW.report(ROOT)
         self.assertEqual(c["problems"], 0, "现况有问题条目：%s" % text.split("## 问题")[-1][:300])
         self.assertTrue(c["identity_ok"],
@@ -102,7 +119,7 @@ class RewriteMapTests(unittest.TestCase):
         我提交完再跑一次 --write，两个数各自 +1，`--verify` 立刻红 ——
         一份永远"刚交付就过期"的产物，等于给下一个人留了个假故障。
         """
-        text, _c = RW.report(ROOT)
+        text = archived_text() if MODE == "portable" else RW.report(ROOT)[0]
         for banned in ("对象库里的 commit 总数", "从 HEAD 可达"):
             self.assertNotIn(banned, text,
                              "产物里出现了每笔提交都会变的量 %r；它只能出现在运行时读数行上"
@@ -116,9 +133,14 @@ class RewriteMapTests(unittest.TestCase):
 
     def test_table_is_deterministic_across_hash_seeds(self):
         """同一份仓、不同 PYTHONHASHSEED，必须产出逐字节相同的表。"""
-        code = ("import sys, hashlib; sys.path.insert(0, %r);"
+        # 真仓旧对象集在两台机器上不相同；在新造的同一临时仓内
+        # 比较四种 PYTHONHASHSEED，才能测到生成器确定性而不依赖原 reflog。
+        fixture, _old, _new = make_repo("message_only")
+        code = ("import sys, hashlib; from pathlib import Path;"
+                "sys.path.insert(0, %r);"
                 "from console import _rewrites as RW;"
-                "print(hashlib.sha256(RW.report()[0].encode('utf-8')).hexdigest())" % str(ROOT))
+                "print(hashlib.sha256(RW.report(Path(%r))[0].encode('utf-8')).hexdigest())"
+                % (str(ROOT), fixture))
         digests = set()
         for seed in ("0", "1", "777", "424242"):
             env = dict(os.environ, PYTHONHASHSEED=seed)
@@ -222,54 +244,71 @@ class RewriteMapTests(unittest.TestCase):
 
 
     def test_docs_cite_only_resolvable_or_listed_shas(self):
-        """活文档里每个 sha：要么从 HEAD 可达，要么出现在自动生成的映射表里。
-
-        这条是给"台账只记 sha"那个坑兜底的：改写让 `007be71` 这类"当时的现 sha"再次变成
-        不可达时，只要映射表（自动生成）里有它，引用就不算断；等 `git gc` 把对象回收掉，
-        这条就会红 —— 那正是"该改用标题复算式"的时刻，而不是等到有人 grep 不到才发现。
-        """
+        """portable 报告可证明/仅归档/未取得对象；local 保留原历史严格审计。"""
         sha_re = re.compile(r"\b[0-9a-f]{7,40}\b")
-        full = set(subprocess.run(
-            ["git", "rev-list", "--all", "--reflog"], cwd=str(ROOT), capture_output=True,
-            text=True).stdout.split())
-        # 文档里引用的是 7 字短号，可达集里是 40 字长号 —— 直接 `tok in full`
-        # 会让每个短号都"看着不可达"（第一版就是这样误报 77 处）。按前缀比，
-        # 并断言这批对象里没有 7 字前缀相撞，否则这个近似本身不成立。
-        pref = set()
-        for x in full:
-            pref.add(x[:7])
-        assert len(pref) == len(full), "7 字前缀有相撞，按前缀判可达不成立"
-        reachable = full | pref
-        commits = set(RW._obj_lines(ROOT, "commit"))
-        commit_pref = {s[:7] for s in commits}
-        assert len(commit_pref) == len(commits), \
-            "commit 的 7 字前缀有相撞，按前缀判类型不成立 —— 该退回逐条 cat-file"
-        table = (ROOT / RW.OUT_REL).read_text(encoding="utf-8")
-        listed = set(sha_re.findall(table))
-        checked = bad = 0
-        where = []
+        reachable_rc, reach_data = RW._git(ROOT, "rev-list", "HEAD")
+        self.assertEqual(reachable_rc, 0, "git rev-list HEAD 执行失败")
+        reachable = set(reach_data.split())
+        self.assertGreater(len(reachable), 0, "当前克隆没有任何可达提交")
+        snapshot = archived_text()
+        rows, problems, _ = RW.audit_portable_snapshot(snapshot)
+        self.assertFalse(problems, "归档结构不符合可移植验证门：%s" % problems)
+        archived_ids = {old for _, old, _, _, _ in rows}
+        archived_ids.update(new for _, _, new, _, _ in rows)
+        # 原表的“与改写无关的不可达对象”也必须纳入归档标识。
+        area = snapshot.split("### 与改写无关的不可达对象", 1)[1].split(
+            "## 还欠的残文", 1)[0]
+        archived_ids.update(re.findall(r"^\| `([0-9a-f]{7,40})` \|", area, re.M))
+        refs = []
         for rel in ["README.md", "CHANGELOG.md"] + [
                 p.relative_to(ROOT).as_posix() for p in (ROOT / "docs").glob("*.md")]:
-            for ln, line in enumerate((ROOT / rel).read_text(
-                    encoding="utf-8", errors="replace").split("\n"), 1):
-                for tok in sha_re.findall(line):
-                    # 一次批读代替 N 次 `git cat-file -t`（实测 172 次 ≈ 4.5 s，
-                    # 占这条用例的九成时间）。语义不变：仍只问"这 token 是不是 commit 对象"。
-                    if tok not in commits and tok not in commit_pref:
-                        continue
-                    checked += 1
-                    if tok not in reachable and tok not in {s[:len(tok)] for s in listed}:
-                        bad += 1
-                        where.append("%s:%d %s" % (rel, ln, tok))
-        print("[DOC_SHA_CENSUS] commit_sha_引用=%d 不可达且未列入映射表=%d"
-              " | 活文档里引用的 sha %d 处，其中 %d 处既不可达也不在映射表里"
-              % (checked, bad, checked, bad))
-        self.assertGreaterEqual(checked, 20,
-                                "只核到 %d 个 sha 引用：扫描范围塌了（README/CHANGELOG/docs 都应在）"
-                                % checked)
-        self.assertEqual(bad, 0, "这些 sha 在活文档里被引用，却既不可达也没进映射表：\n  %s"
-                         % "\n  ".join(where[:10]))
+            content = (ROOT / rel).read_text(encoding="utf-8", errors="replace")
+            refs.extend((rel, line_no, token)
+                        for line_no, line in enumerate(content.splitlines(), 1)
+                        for token in sha_re.findall(line))
+        self.assertGreaterEqual(len(refs), 20, "文档扫描覆盖塌缩（不足 20 个 sha 形状）")
 
+        def matches(token, values):
+            return any(value.startswith(token) or token.startswith(value) for value in values)
+
+        if MODE == "portable":
+            visible = [(p, ln, v) for p, ln, v in refs if matches(v, reachable)]
+            archival = [(p, ln, v) for p, ln, v in refs
+                        if not matches(v, reachable) and matches(v, archived_ids)]
+            unknown = [(p, ln, v) for p, ln, v in refs
+                       if not matches(v, reachable) and not matches(v, archived_ids)]
+            self.assertGreater(len(visible) + len(archival), 0,
+                               "既没有可达引用也没有归档引用，SHA 检查在空转")
+            print("[DOC_SHA_PORTABLE] scanned=%d reachable_refs=%d archived_only=%d "
+                  "unresolved_not_verified=%d mode=%s sample=%s" %
+                  (len(refs), len(visible), len(archival), len(unknown),
+                   MODE, unknown[:3]), flush=True)
+            # 不可访问的任意 sha 不能冒充 commit，尤其是在浅克隆中。
+            # 只有确定可达/明确归档的才称作已识别，其余只称 NOT VERIFIED。
+            return
+
+        # local 严格模式：原工作区所有 commit 对象和 reflog 实际都能枚举。
+        all_refs = set(RW.git(ROOT, "rev-list", "--all", "--reflog").split())
+        full = all_refs | {x[:7] for x in all_refs}
+        commits = set(RW._obj_lines(ROOT, "commit"))
+        commit_pref = {x[:7] for x in commits}
+        self.assertEqual(len(commit_pref), len(commits), "旧对象短 SHA 冲突")
+        self.assertEqual(len({x[:7] for x in all_refs}), len(all_refs),
+                         "reflog 可达对象短 SHA 冲突")
+        listed = set(sha_re.findall(snapshot))
+        verified = 0
+        missing = []
+        for rel, ln, token in refs:
+            if token not in commits and token not in commit_pref:
+                continue
+            verified += 1
+            if token not in full and not matches(token, listed):
+                missing.append("%s:%d %s" % (rel, ln, token))
+        print("[DOC_SHA_LOCAL] commit_refs=%d missing=%d" %
+              (verified, len(missing)), flush=True)
+        self.assertGreaterEqual(verified, 20,
+                                "原始工作区 commit 引用覆盖下降；禁止自动降级为 portable")
+        self.assertFalse(missing, "对象不可达且未列入归档：\n  " + "\n  ".join(missing[:10]))
 
     def test_batch_read_matches_per_object_read(self):
         """批读通道必须与逐条 `git show -s --format=` 给出同样的字段，含三类边界标题。
@@ -301,10 +340,15 @@ class RewriteMapTests(unittest.TestCase):
             batched = RW.fields(ROOT, sha)
             single = read(ROOT, ["show", "-s", "--format=" + RW._FIELDS_FMT, sha])
             return batched, single
-        shas = RW._obj_lines(ROOT, "commit")
         reachable = set(RW.git(ROOT, "rev-list", "HEAD").split())
-        sample = [s for s in shas if s not in reachable] + \
-                 [s for s in shas if s in reachable][:20]
+        self.assertTrue(reachable, "HEAD 不可达，批量读校验无分母")
+        if MODE == "local":
+            shas = RW._obj_lines(ROOT, "commit")
+            sample = [s for s in shas if s not in reachable] + \
+                     sorted(s for s in shas if s in reachable)[:20]
+        else:
+            # 浅克隆可能只有 HEAD。永不以本地不可达对象数量为门槛。
+            sample = sorted(reachable)[:20]
         mism = ["%s\n   批读 %r\n   逐条 %r" % (s[:7], *both(s))
                 for s in sample if both(s)[0] != both(s)[1]]
         # 边界标题：前导空格、尾随空格、首个非空行之前有空行。
@@ -334,10 +378,12 @@ class RewriteMapTests(unittest.TestCase):
                          "   前导空格的标题", "git 不再保留前导空格：这条用例的前提变了")
         self.assertEqual(read(d, ["show", "-s", "--format=%s", made[1][1]])[0],
                          "尾随空格的标题", "git 不再去掉尾随空格：这条用例的前提变了")
-        print("[BATCH_EQUIV] 比对=%d（不可达 %d + 可达 20，全部走批读）+ 边界标题 %d，不一致=%d"
-              % (len(sample) + 3, len(sample) - 20, 3, len(mism)))
-        self.assertGreaterEqual(len(sample), 40,
-                                "只比对了 %d 个对象，样本塌了就等于没核" % len(sample))
+        print("[BATCH_EQUIV] mode=%s real_commits=%d fixture_edges=3 mismatch=%d "
+              "local_only_unreachable=%d" %
+              (MODE, len(sample), len(mism),
+               len([x for x in sample if x not in reachable])), flush=True)
+        self.assertGreaterEqual(len(sample), 40 if MODE == "local" else 1,
+                                "当前模式可访问的 commit 样本数不足：%d" % len(sample))
         self.assertEqual(mism, [], "批读与逐条读不等价：\n  " + "\n  ".join(mism[:4]))
 
 

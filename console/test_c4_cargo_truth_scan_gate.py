@@ -59,6 +59,11 @@ def _is_cargo_truth_test(code):
 #:   c4 断言同时红 —— 一条报"新违规"、一条报"豁免已过期"）。行号键会把文档改动作废成
 #:   "必须回来改门"，而符号+子串只在被豁免的那句话本身被改动时失效（那正是该重新审的时候）。
 EXEMPT = {
+    "frontend/drone.py": {
+        ("consume_battery", "self.current_load < 0 or self.current_load > self.carrying_capacity"):
+            "C 输入校验：这是一对有明确容量上限的非法载荷拒绝条件，不据此判断是否物理在机。"
+            "必须同时包含负值下界和 carrying_capacity 上界，禁止扩大到单独 current_load>0。",
+    },
     "frontend/environment.py": {
         ("_is_carrying", "current_load', 0.0)) <= 1e-9"):
             "_is_carrying 内部把 load<=1e-9 当下界短路，随后仍按航线标签定夺；非载货真值",
@@ -237,6 +242,21 @@ class CargoTruthScanGate(unittest.TestCase):
             # env:1797 的比值：不是与零比较
             "load_ratio = min(1.0, float(drone.current_load) / float(drone.carrying_capacity))",
         ]
+        # Do not globally stop detecting current_load vs zero; the new C
+        # input-range guard is exempted only by its full exact source anchor.
+        # Its invalid-cargo classification must not hide a real cargo-truth
+        # predicate placed elsewhere in the same function.
+        self.assertIn(
+            ("consume_battery",
+             "self.current_load < 0 or self.current_load > self.carrying_capacity"),
+            EXEMPT["frontend/drone.py"],
+            "[C4_EXEMPT_SCOPE] C validation must have a named, bounded exception",
+        )
+        self.assertNotIn(
+            ("consume_battery", "self.current_load > 0"),
+            EXEMPT["frontend/drone.py"],
+            "[C4_SCAN_BLIND] genuine cargo-truth predicate must never be exempted",
+        )
         for s in must_hit:
             self.assertTrue(_is_cargo_truth_test(s), "[C4_SCAN_BLIND] 应命中却漏：%s" % s)
         for s in must_not_hit:

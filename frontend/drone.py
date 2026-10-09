@@ -94,6 +94,13 @@ class Drone:
         # ==================== 电量系统（机巢换电模式） ====================
         self.battery_capacity = battery_capacity  # 电池最大容量 (Wh)
         self.current_battery = battery_capacity  # 当前电量 (Wh)，初始满电
+        # C: distinguish modeled energy requirement, battery debit, and unmet demand.
+        # These are the most recent consume_battery() leg, never inferred from
+        # load state or historical aggregates.
+        self.last_energy_required_wh = 0.0
+        self.last_energy_debited_wh = 0.0
+        self.last_energy_shortfall_wh = 0.0
+        self.energy_insufficient = False
         self.is_charging = False  # 是否正在换电/不可接单（沿用具名，语义=换电）
         self.charging_station_id = None  # 当前所在机巢ID
         self.swap_time_seconds = DRONE_SWAP_TIME  # 换电耗时（秒）
@@ -163,6 +170,27 @@ class Drone:
         因此 E0→E1 的结果差异只能归因于"同一段路更费电"这一条路径。
         默认 None ⇒ 逐字退回 E0 行为（倍率恒 1.0），这是 wind=0 必须与 E0 数值一致的前提。
         """
+        # C: reject invalid inputs BEFORE any battery mutation.
+        # Keep the approved B control formula (assigned current_load) untouched.
+        for name, value in (("distance", distance),
+                            ("carrying_capacity", self.carrying_capacity),
+                            ("current_load", self.current_load),
+                            ("current_battery", self.current_battery),
+                            ("battery_consumption_base", self.battery_consumption_base),
+                            ("battery_load_penalty_factor", self.battery_load_penalty_factor)):
+            if not isinstance(value, (float, int)) or not math.isfinite(value):
+                raise ValueError("[ENERGY_INPUT_NOT_FINITE] %s=%r" % (name, value))
+        if distance < 0:
+            raise ValueError("[ENERGY_DISTANCE_NEGATIVE] distance=%r" % (distance,))
+        if self.carrying_capacity <= 0:
+            raise ValueError("[ENERGY_CAPACITY_INVALID] carrying_capacity=%r" % (self.carrying_capacity,))
+        if self.current_load < 0 or self.current_load > self.carrying_capacity:
+            raise ValueError("[ENERGY_LOAD_INVALID] current_load=%r carrying_capacity=%r" %
+                             (self.current_load, self.carrying_capacity))
+        if self.current_battery < 0:
+            raise ValueError("[ENERGY_BATTERY_NEGATIVE] current_battery=%r" % (self.current_battery,))
+        if self.battery_consumption_base < 0 or self.battery_load_penalty_factor < 0:
+            raise ValueError("[ENERGY_COEFFICIENT_NEGATIVE] invalid energy coefficient")
         # 基础飞行消耗
         base_consumption = distance * self.battery_consumption_base
         
@@ -175,10 +203,20 @@ class Drone:
         load_factor = (self.current_load / self.carrying_capacity) * self.battery_load_penalty_factor
         total_consumption = base_consumption * (1 + load_factor) * self._wind_factor(wind_along)
         
-        # 更新电量（不能低于0）
-        self.current_battery = max(0, self.current_battery - total_consumption)
-        
-        return total_consumption
+        # C: required Wh is the original model demand. The account may only
+        # debit available battery; the rest is explicit energy shortfall.
+        if not math.isfinite(total_consumption) or total_consumption < 0:
+            raise ValueError("[ENERGY_REQUIREMENT_INVALID] required_wh=%r" % total_consumption)
+        available = self.current_battery
+        debited = min(available, total_consumption)
+        self.current_battery = available - debited
+        self.last_energy_required_wh = total_consumption
+        self.last_energy_debited_wh = debited
+        self.last_energy_shortfall_wh = total_consumption - debited
+        self.energy_insufficient = self.last_energy_shortfall_wh > 0.0
+        # Return ACTUALLY debited Wh. The original theoretical Wh remains in
+        # last_energy_required_wh. Movement feasibility is a separate policy.
+        return debited
 
     def _wind_factor(self, wind_along):
         """沿航线风分量（m/s，**正=逆风、负=顺风**）→ 能耗倍率。
