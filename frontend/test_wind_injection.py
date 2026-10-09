@@ -19,7 +19,7 @@ import sys
 import unittest
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
-EXP_DIR = ROOT / "results" / "experiments" / "e0_baseline_20261008-210053"  # 重生成基线（见 CHANGELOG 第四十笔；旧基线同名保留待裁）
+EXP_DIR = ROOT / "results" / "experiments" / "e0_baseline_20261008-221039"  # pin 含 route_planner 的基线（第四十二笔；上一版 210053 钉住清单少一个承重文件）
 PRESET = ROOT / "experiments" / "presets" / "e0_baseline.yaml"
 
 #: 参照物缺失时的行为开关。**默认不存在 ⇒ 门红**，不是 skip。

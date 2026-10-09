@@ -48,6 +48,13 @@ REF_GLOBS = ("console/**/*.py", "frontend/**/*.py", "experiments/**/*.py", "*.py
 #: 具名过期声明的标记词。**必须显式带产物目录名**才算声明覆盖到那个产物（见 _declarations）。
 EXPIRY_MARKS = ("pending revalidation", "已声明过期", "夹具失效", "已过期")
 
+#: 覆盖面判据（test_D）只对**这个日期当天或之后生成**的产物生效。
+#: 依据是 `git log -S` 实测：SHARED_SOURCES 这份清单本身诞生于 **c7d14ea（2026-09-28）**，
+#: 早于它的产物（如 conclusion_20260911-043701，pin 只有 8 个键、无 config/）当时没有"清单该含哪些目录"
+#: 这个概念 ⇒ 拿今天的清单去要求它，报出来的是一条不存在的缺失（本轮第一版就误红过一次）。
+#: ⚠ 这不是白名单，是**可判定性的下限**：新产物一律受此约束；要改这个日期必须给出对应的清单变更提交号。
+COVERAGE_SINCE_DATE = "2026-09-28"
+
 
 def referenced_artifacts():
     """-> {artifact_dir_name: {出现位置}}：从盘上现算"被引用的冻结产物"集合。
@@ -166,6 +173,75 @@ class FrozenArtifactSourcePin(unittest.TestCase):
                          + "\n  处置：要么重生成该产物，要么在 CHANGELOG 加一行**带目录名**的"
                            "`pending revalidation` 声明（不许改本门判据）。")
 
+    def test_D_pin_list_covers_every_pinned_directory(self):
+        """覆盖面（不是漂移面）：产物钉住的清单必须**覆盖到 SHARED_SOURCES 现在钉的每个顶层目录**。
+
+        为什么单开一条：`pin_state` 只比"字段里列了的那些文件"，所以一旦生成器侧漏掉某个承重文件
+        （Phase 1A 把 A* 抽成 `frontend/route_planner.py` 就是这种漏），所有旧产物的 pin 仍然"全数相符"，
+        本门会一路绿，而它守的那个"行为没变"根本没人证过。⇒ 期望值来自定义，不来自当前读数。
+
+        ⚠ 判据是**目录级**、不是逐文件：逐文件会让每次重构都得重录全部历史产物，那逼人放宽判据；
+          目录级只在"整类源码脱离钉住范围"时报警，正是本轮那种缺口。
+        """
+        import importlib.util as _il
+        _spec = _il.spec_from_file_location("rc_for_coverage", ROOT / "console" / "_readme_counts.py")
+        rc = _il.module_from_spec(_spec)
+        _spec.loader.exec_module(rc)      # 同 test_readme_counts 的加载方式：本文件在 discover 下 sys.path[0] 不含 console/
+        want_shared = set(rc.pinned_shared_files())
+
+        refs = referenced_artifacts()
+        missing_all, not_comparable, covered = [], [], 0
+        for name in sorted(refs):
+            p = ART_DIR / name / "reproducibility.json"
+            if not p.is_file():
+                continue
+            with io.open(p, encoding="utf-8") as fh:
+                doc = json.load(fh)
+            pin = doc.get("core_source_sha256") or {}
+            miss = sorted(want_shared - set(pin))
+            if not miss:
+                covered += 1
+                continue
+            # ⚠ 只要求 **SHARED_SOURCES**（与算法无关的共用执行路径），不要求 ALGORITHM_SOURCES：
+            #   后者按产物实际跑过的算法登记（`write_manifest` 里 `for a in algos`），
+            #   greedy-only 的 E0 基线本来就不该有 backend_si/*。把它们算进分母会报出 7 处假阳性 ——
+            #   本轮第一版就这么干了，等于指着一条不存在的缺失喊红。
+            # ⚠ 判据是**逐文件**，不是目录级：目录级会把 route_planner 这种缺口掩盖成
+            #   "frontend 里有几个键就够了"，而它正是本条要抓的东西。
+            # ⚠ 必须按**产物自己的生成日期**分档：这份清单本身是 c7d14ea（2026-09-28）才建立的，
+            #   早于它的产物（conclusion_20260911-043701，pin 只有 8 键）没有"该含哪些文件"的概念。
+            #   这不是白名单，是**可判定性的下限**；改这个日期必须给出对应的清单变更提交号。
+            gen = str(doc.get("generated_at_utc") or "")[:10]
+            if gen and gen < COVERAGE_SINCE_DATE:
+                not_comparable.append("%s(gen=%s 早于 %s ⇒ 当时还没有这份清单，缺 %d 个文件不计)" % (
+                    name, gen, COVERAGE_SINCE_DATE, len(miss)))
+                continue
+            missing_all.append("%s 缺 %d 个承重文件: %s" % (name, len(miss), ", ".join(miss[:4])))
+
+        # 恒等式：受检 = 全覆盖 + 欠覆盖 + 早于清单（不可比）。三个桶必须闭合，
+        # 否则某个桶既不算通过也不算失败。
+        # 欠覆盖再分两档：**具名声明过的**降级为信息（与 test_A 的漂移通道同一套口径），
+        # 没声明的才拦退码 —— 否则"扩一次清单"会把所有历史产物变成永久红，那逼人放宽判据。
+        undeclared_cov = [m for m in missing_all if m.split(" ")[0] not in _declarations()]
+        n_under_decl = len(missing_all) - len(undeclared_cov)
+        print("[FP_COVERAGE] pinned_shared_files=%d since=%s artifacts_checked=%d fully_covered=%d "
+              "under_covered=%d under_declared=%d under_undeclared=%d pre_baseline_exempt=%d "
+              "identity=(checked==covered+under+exempt) exit_criterion=(under_undeclared==0)" % (
+                  len(want_shared), COVERAGE_SINCE_DATE, len(refs), covered,
+                  len(missing_all), n_under_decl, len(undeclared_cov), len(not_comparable)))
+        self.assertEqual(covered + len(missing_all) + len(not_comparable), len(refs),
+                         "[FP_BUCKET_GAP] 三个桶不闭合：%d+%d+%d != %d ⇒ 有产物既没算证过也没算漏检" % (
+                             covered, len(missing_all), len(not_comparable), len(refs)))
+        for m in missing_all[:8]:
+            mark = "已具名声明" if m.split(" ")[0] in _declarations() else "**无声明**"
+            print("[FP_UNDER_COVERED] %s [%s]" % (m, mark))
+        for m in not_comparable[:8]:
+            print("[FP_NOT_COMPARABLE] %s ⇒ 不算漏检、也不算证过" % m)
+        self.assertEqual(undeclared_cov, [],
+                         "[FP_UNDER_COVERED_UNDECLARED] 这些被引用的冻结产物没钉住生成器现在钉的某些源码文件，"
+                         "且 CHANGELOG 里没有带其目录名的具名说明 ⇒ \"pin 相符\"对它们不构成行为不变的证据（%d 处）：\n  "
+                         % len(undeclared_cov) + "\n  ".join(undeclared_cov))
+
     def test_B_gate_has_teeth_both_faces(self):
         """两面夹具（全在临时目录里，**不往 results/experiments/ 下落任何东西**）：
         漂移无声明必须红、指纹相符必须绿、读不到必须判 blind。
@@ -211,11 +287,17 @@ class FrozenArtifactSourcePin(unittest.TestCase):
         ⚠ 本用例原先只在真 CHANGELOG 上测"存在的那几条都带名"，那是**只有阳性面**的判据：
           它证明不了"名字与标记词分在两行时不算声明"（第三十九笔入档时我自己把这条列为残余边界 (iii)）。
           本轮把它从"登记为盲区"改成"实测过"——加一条合成两行文本喂进 _declarations_from。
+        ⚠ `decls` 是**引用型产物集合上的**声明，不是全表：同一行里同时提到多个产物目录名时，
+          那一行会给每个被点名的产物都发一份声明。所以断言只能要求"该行含某个被引用的产物名"，
+          不能要求"该行含我正在循环的那个名字" —— 第四十二笔补覆盖面声明时就这样误红过一次
+          （一行里同时写了 235335 与 221039，被判"没写出 221039"）。
         """
         decls = _declarations()
+        refs = set(referenced_artifacts())
         for name, (ln, txt) in list(decls.items()):
-            self.assertIn(name, txt,
-                          "[FP_BLIND] CHANGELOG:%d 的声明没写出目录名 %s ⇒ 不该算覆盖" % (ln, name))
+            hit = [r for r in refs if r in txt]
+            self.assertTrue(hit,
+                            "[FP_BLIND] CHANGELOG:%d 的声明没写出任何被引用的目录名 ⇒ 不该算覆盖" % ln)
         # 反向证人：光有标记词、不带任何目录名的行，不应产出任何声明
         bare = [l for l in CHANGELOG.read_text(encoding="utf-8").splitlines()
                 if any(m in l for m in EXPIRY_MARKS) and not DIR_RE.search(l)]

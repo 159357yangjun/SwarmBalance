@@ -44,6 +44,10 @@ SHARED_SOURCES = [
     "frontend/metrics_schema.py",
     "frontend/scheduling_interface.py",
     "frontend/matching.py",
+    # Phase 1A 把 A* 从 environment.py 抽到这里，生产路径规划本体从此住在这个文件里；
+    # 它不在清单时，"pin 没变"证明不了"行为没变"（#70 归因轮实测：只改 docstring 的提交
+    # 前后产物在两个等待时间指标上系统性不同，而 16 个键全数相符）。
+    "frontend/route_planner.py",
     "frontend/tools/osm.py",
     "experiments/runner.py",
     "experiments/worker.py",

@@ -47,6 +47,38 @@ TARGETS = (
 LINE_RE = "|".join(re.escape(t[3]) for t in TARGETS)
 
 
+#: 冻结产物的 `core_source_sha256` 应当覆盖哪些**顶层源码目录**：从 SHARED_SOURCES 现算，不抄第二份名单。
+#: 为什么这里要有一份：Phase 1A 把 A* 抽成 `frontend/route_planner.py` 之后，它不在钉住清单里，
+#: 于是"pin 全数相符"证明不了"行为没变"——#70 归因轮实测：只改 docstring 的提交前后，
+#: 产物在两个等待时间指标上系统性不同，而 16 个键全数相符。门若看不见这个缺口，就等于替一个装饰字段作保。
+def pinned_top_dirs():
+    src = (ROOT / "experiments" / "reproducibility.py").read_text(encoding="utf-8")
+    m = re.search(r"SHARED_SOURCES\s*=\s*\[(.*?)\n\]", src, re.S)
+    if not m:
+        raise RuntimeError("[PIN_DIRS_BLIND] reproducibility.py 里找不到 SHARED_SOURCES 列表 ⇒ 无从判定钉住了哪些目录")
+    tops = set()
+    for rel in re.findall(r'"([^"]+\.py)"', m.group(1)):
+        parts = rel.split("/")
+        if len(parts) > 1:
+            tops.add(parts[0])
+    if not tops:
+        raise RuntimeError("[PIN_DIRS_BLIND] SHARED_SOURCES 解析出 0 个目录级条目")
+    return tops
+
+
+#: 钉住的**共用执行路径**文件集合（SHARED_SOURCES，与算法无关）。覆盖面判据用这个口径：
+#: ALGORITHM_SOURCES 是按产物实际跑过的算法登记的，greedy-only 的基线本来就不该有 backend_si/*。
+def pinned_shared_files():
+    src = (ROOT / "experiments" / "reproducibility.py").read_text(encoding="utf-8")
+    m = re.search(r"SHARED_SOURCES\s*=\s*\[(.*?)\n\]", src, re.S)
+    if not m:
+        raise RuntimeError("[PIN_FILES_BLIND] reproducibility.py 里找不到 SHARED_SOURCES 列表")
+    out = sorted({r for r in re.findall(r'"([^"]+\.py)"', m.group(1)) if "/" in r})
+    if not out:
+        raise RuntimeError("[PIN_FILES_BLIND] 解析出 0 个钉住文件")
+    return out
+
+
 _CHILD = r'''
 import sys, unittest
 from pathlib import Path

@@ -2,6 +2,70 @@
 
 ## [Unreleased]
 
+### 2026-10-08（第四十二笔）：#70 阶段⑥c —— `frontend/route_planner.py` 入钉住清单（批准改变全部产物 pin 键集）+ 覆盖面门 + E0 基线第三次生成
+
+基线 5642baa。未 push、未打 tag、paper/ 未碰、VERSION 未改。**生产侧只动了一行清单**（`experiments/reproducibility.py` 的 `SHARED_SOURCES`），零行为代码改动。
+
+**裁定**：「批准上门，且允许它改变所有产物的 pin 键集——一个不覆盖承重文件的指纹字段就是装饰，而我们已经拿它当过证人」。
+
+**（一）机制已定位到一行判据（不是缓存）**：二分给出的翻转点 `3f80a17` 是**我自己造成的假阳性**——
+`git rev-list a298d6d..d19d647` 按拓扑序返回，把时间上更晚的 `f1e3a5b`(#65, 10-05) 排在了 `3f80a17`(10-03) 前面。
+按提交日期重排后真边界是 `3f80a17(10-03, OLD 形) → f1e3a5b(10-05, NEW 形)`，其间唯一的生产改动是 **`d6b6c0b` #69-B**。
+机制一手证据（`frontend/environment.py:425-430` vs `a298d6d` 同处）：
+
+| | 取货时刻 `load_time` 的判据 |
+|---|---|
+| 旧（≤ a298d6d） | `load_time is None and assignment['task'].get_source() == source_pos` ——**标签＋坐标双判据** |
+| 新（≥ d6b6c0b） | 弹出服务航点即置 `load_time`，**判据只有标签一条**（注释原文：旧写法在 detour 下永远失配 ⇒ 无取货却算送达） |
+
+⇒ `assignment_to_load_wait = load_time − assigned_time` 与 `delivery_time = completion_time − load_time` 共用同一个 `load_time`，
+所以两个指标必然**反向等量**。实测六格 Δ 完全镜像：+30.18/−30.18、+35.85/−35.85、+17.63/−17.63、+15.44/−15.44、+21.47/−21.47、+17.25/−17.25；
+超时率、完成数、生成数三列六格全同。⇒ 这是**守恒的重新归类**，不是新增延迟。
+
+**定性（按批文"预期行为变更 vs 回归"的判据）**：`d6b6c0b` 修的是 #69 认定的真实缺陷（双判据在 A* detour 末点非精确 source 时静默漏记取货 ⇒ 无取货却算送达），
+修复方向已被 #69-B/C1 的门与夹具支持 ⇒ **属预期行为变更**，因此等价门的结论改写为
+**「zero-wind 相对 10-02/10-03 两批 E0 不等价，是 #69-B 修正取货时刻口径的正确后果」**，不再当缺陷挂着。
+⚠ 这不等于"产品没问题"：它只说明这 12 格差异有了可核的因果链，E1 载重惩罚归属口径仍未定（对外仍不得声称 Wh/km）。
+
+**（二）OSM/pathclear 磁盘缓存：混淆源确认存在，但本轮被证伪为成因**（先取证再改期望，没有按原计划删缓存）：
+- 结构事实：`_CACHE_DIR`/`_PATH_CLEAR_DIR` 都按 `__file__` 解析 ⇒ **worktree 会落到主仓同一份缓存**（实测打印 `_CACHE_DIR` 指向主仓），跨 commit 共享状态确实存在。
+- 反证一：OLD(10-02 23:53) 与 OCT3(10-04 03:01) 之间隔着 c0af7c7（A* 本体搬家），两批比较区间内**逐格相同** ⇒ 几何判定没变过。
+- 反证二：仿真几何桶 `pathclear-90753a7a442897a4.pkl` **首写于今天 21:23**（我这轮第一次跑之前树里根本没有该文件），
+  而 OLD 那批产于 10-02 ⇒ OLD 不可能读到今天的桶；桶内容对三个 commit 现算指纹同为 `90753a7a…`。
+- 顺带查出一件独立事项：该桶里有 **2 条合成坐标键** `((0,0),(1,0))`、`((0,0),(2,2))`（来自避障探针），与仿真键混在同一持久文件里。
+  值都是 True、无害，但**测试写入污染了仿真缓存命名空间**这个形状本身要登记（见残余边界 iv）。
+
+**（三）覆盖面门**（`test_D_pin_list_covers_every_pinned_directory`，FP 套件 3→**4** 例）：断言每个被引用的冻结产物都钉住了 `SHARED_SOURCES` 现在的**每一个文件**。
+判据形状被逼改两次，都是我自己的错：① 目录级会把 route_planner 这种缺口掩盖掉；② 把 `ALGORITHM_SOURCES` 也算进分母 ⇒ 对 greedy-only 产物报出 7 处不存在的缺失。
+另配**可判定性下限** `COVERAGE_SINCE_DATE=2026-09-28`（依据 `git log -S` 实测：清单本身诞生于 c7d14ea），早于它的产物降级为 `[FP_NOT_COMPARABLE]` 并印出缺几个文件——
+这不是白名单。三桶恒等式 `checked == covered + under + exempt` 有断言。当前读数：`pinned_shared_files=15 artifacts_checked=8 fully_covered=1 under_covered=6 pre_baseline_exempt=1`。
+
+**（四）代价兑现**：6 个历史产物各缺 1 个承重文件，已逐个在 CHANGELOG 具名登记（下表）；E0 参照物第三次生成 `e0_baseline_20261008-221039`
+（pin **17/17** 相符、含 route_planner；数据与上一版 210053 在比较区间内 **0 格差** ⇒ 扩清单不改行为，只补证据）。
+旧的两版 E0 均原样保留。等价门已改指新基线并复跑 `Ran 11 tests OK`。
+
+| 产物 | 生成日 | pin 键数 | 缺的承重文件 | 状态 |
+|---|---|---|---|---|
+| `arrival_pressure_20261002-230513` | 10-03 | 16 | `frontend/route_planner.py` | pending revalidation（覆盖面欠账，非漂移） |
+| `conclusion_20261001-234945` | 10-02 | 22 | `frontend/route_planner.py` | pending revalidation |
+| `e0_baseline_20261002-235335` | 10-03 | 16 | `frontend/route_planner.py` | pending revalidation（已由 221039 取代） |
+| `e0_baseline_20261003-230126` | 10-04 | 16 | `frontend/route_planner.py` | pending revalidation（OCT3，存废随本笔结论：保留作对照） |
+| `e0_baseline_20261008-210053` | 10-09 | 16 | `frontend/route_planner.py` | pending revalidation（第四十笔产物，被 221039 取代） |
+| `formal_baseline_n10_20261003-010435` | 10-03 | 16 | `frontend/route_planner.py` | pending revalidation |
+| `e1_wind_clash_20261003-001730` | 10-03 | 16 | `frontend/route_planner.py` | pending revalidation —— **本笔内由覆盖面门新报出的第 7 处**：它被文档引用着、此前无人登记过。负面控制跑完后才浮现（见下方"读数会随声明变动"注） |
+
+⚠ **读数会随声明变动，所以每次都要现算**：本笔第一次跑覆盖面报 `under_covered=6 / exempt=1`，
+做完"摘一条声明"的负面控制再恢复后变成 `under_covered=7 / exempt=0` —— 因为该桶判据用的是
+`generated_at_utc[:10]`（UTC），`e1_wind_clash` 与 `e0_baseline_20261008-210053` 生成于 UTC 09-28/09-29 而本地日期是 10-03/10-08，
+跨过 `COVERAGE_SINCE_DATE` 这条线时两边给的档位不一致。**这不是把门调松**：多出来的那一处照样被具名登记了。
+⇒ 残余边界 (v)：下限应当按**清单变更的 commit**判定而不是按日期字符串比较（本轮未做，等裁）。
+
+**残余边界**：(i) 覆盖面只在**目录级/清单级**判定，不核"pin 里的哈希当时是否真的对得上盘"（那是 test_A 的职责）；
+(ii) `COVERAGE_SINCE_DATE` 用一个日期换掉了"逐产物核对清单版本"的成本——若将来有人回溯性修改老产物的 manifest，这条会被绕过；
+(iii) 那 6 处欠覆盖**不会因重生成自动消失**，必须逐个重跑实验才能补齐 pin，本轮只登记不重跑（结项类产物重跑成本高，等裁）；
+(iv) 避障探针往仿真几何桶写合成坐标键——本次无害，但没有隔离，将来若探针用相同坐标写不同判定值就会串味，属新范围待裁。
+
+
 ### 2026-10-08（第四十一笔）：#70 阶段⑥ 两件 —— (二) 反静默摘门结构断言落地；(一) 归因二分**否证了"生产行为变更"假设**
 
 基线 7d18393。未 push、未打 tag、paper/ 未碰、VERSION 未改。**本轮零生产语义改动**。
@@ -227,6 +291,11 @@ test_C 用内存里的两行样本 vs 同行样本对撞 ⇒ `[FP_DECL_TWO_LINE]
 | `arrival_pressure_20261002-230513` | 16 | 5 | 上述 + `frontend/drone.py`、`frontend/greedy/scheduler.py` | 14/16 @`1c790a0` | pending revalidation |
 | `conclusion_20261001-234945` | 22 | 5 | 同上形状 | 21/22 @`7ce517b` | pending revalidation |
 | `formal_baseline_n10_20261003-010435` | 16 | 4 | `experiments/worker.py`、`frontend/drone.py`、`frontend/environment.py`、`frontend/greedy/scheduler.py` | — | pending revalidation |
+| `arrival_pressure_20261002-230513` | 16 | 5 | 上述 + `frontend/route_planner.py`（第四十二笔新增承重文件） | 14/16 @`1c790a0` | pending revalidation |
+| `conclusion_20261001-234945` | 22 | 5 | 同上形状 + `frontend/route_planner.py` | 21/22 @`7ce517b` | pending revalidation |
+| `e0_baseline_20261002-235335` | 16 | 4 | 同 `formal_baseline` 那四个 + `frontend/route_planner.py` | — | pending revalidation（等价门参照已由 `e0_baseline_20261008-221039` 取代；本目录原样保留） |
+| `e0_baseline_20261003-230126` | 16 | 4 | 同上 + `frontend/route_planner.py` | 12/16 @`a298d6d` | pending revalidation（OCT3，存废随第四十二笔结论：保留作对照） |
+| `e0_baseline_20261008-210053` | 16 | 0 | 仅缺 `frontend/route_planner.py`（pin 与盘上相符，但清单少一个承重文件） | 16/16 @`d19d647` | pending revalidation（被 `e0_baseline_20261008-221039` 取代） |
 | `e0_baseline_20261003-230126` | 16 | 4 | 同 `formal_baseline` 那四个（与 20261002 那批逐格一致） | 12/16 @`a298d6d` | pending revalidation —— **本行由第四十笔自己触红触出来**：写三方对照文档时引用了这个先前无人登记的产物，门当场判 `[FP_DRIFT_UNDECLARED]` ⇒ 引用范围是盘上现算的，新引用会立刻进分母 |
 | `e0_baseline_20261002-235335` | 16 | 4 | 同上 | 12/16 | pending revalidation（**旧基线本体**；等价门参照已改指 20261008，但它仍被两份文档引用着，故保留声明） |
 
