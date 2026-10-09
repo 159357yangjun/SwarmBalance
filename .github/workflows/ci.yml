@@ -3,13 +3,6 @@ name: SwarmBalance verification
 on:
   pull_request:
     branches: [master]
-  workflow_dispatch:
-    inputs:
-      full_suite:
-        description: "Run all discovered unittest suites (slow; strict skip audit)"
-        type: boolean
-        required: false
-        default: false
 
 permissions:
   contents: read
@@ -84,11 +77,6 @@ jobs:
       - name: Quick invariant checks (P2, P3, G2 calibration)
         run: .\.venv310\Scripts\python.exe scripts/ci_unittest.py quick
 
-      # Deliberately opt-in: archived console aggregate took ~27 minutes.
-      # Fresh processes per group + fail on any unlisted/changed skip.
-      - name: Full suite (explicit opt-in only)
-        if: ${{ (github.event_name == 'workflow_dispatch' && inputs.full_suite == true) || (github.event_name == 'pull_request' && github.head_ref == 'ci-validation') }}
-        run: .\.venv310\Scripts\python.exe scripts/ci_unittest.py full
 
   portable-rewrite-shallow:
     name: Portable rewrite archive (shallow clone)
@@ -111,3 +99,69 @@ jobs:
         env:
           SWARM_REWRITE_TEST_MODE: portable
         run: python -m unittest -v console.test_rewrite_map
+
+  # The latest *PR head commit*, not dispatch inputs or the synthetic PR merge
+  # commit, is the trigger. A normal PR update must NOT launch this slow matrix.
+  full-suite-request:
+    if: ${{ github.event_name == 'pull_request' }}
+    runs-on: ubuntu-24.04
+    outputs:
+      enabled: ${{ steps.detect.outputs.enabled }}
+    steps:
+      - name: Checkout PR history for HEAD commit message
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+      - name: Check exact full-suite commit marker
+        id: detect
+        env:
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          git cat-file -e "$PR_HEAD_SHA^{commit}"
+          if git show -s --format=%B "$PR_HEAD_SHA" | grep -Fq '[full-suite]'; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+            echo "[CI_FULL_TRIGGER] head_sha=$PR_HEAD_SHA marker=true"
+          else
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "[CI_FULL_TRIGGER] head_sha=$PR_HEAD_SHA marker=false"
+          fi
+
+  full-suite:
+    name: Full suite / ${{ matrix.group }}
+    needs: full-suite-request
+    if: ${{ needs.full-suite-request.outputs.enabled == 'true' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        group: [console, experiments, frontend, root]
+    runs-on: windows-2022
+    timeout-minutes: 90
+    env:
+      PYTHONIOENCODING: utf-8
+      PYTHONUTF8: "1"
+      PYTHONDONTWRITEBYTECODE: "1"
+      SWARM_REWRITE_TEST_MODE: portable
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - name: Checkout full Git history for history-based tests
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Python 3.10
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+          cache: pip
+          cache-dependency-path: requirements.txt
+      - name: Create project interpreter and pin pip
+        run: |
+          python -m venv .venv310
+          .\.venv310\Scripts\python.exe -m pip install "pip==23.3.2"
+      - name: Install NumPy before other dependencies
+        run: .\.venv310\Scripts\python.exe -m pip install numpy==1.26.4
+      - name: Install complete project requirements
+        run: .\.venv310\Scripts\python.exe -m pip install -r requirements.txt
+      - name: Execute full unittest group with strict skip policy
+        run: .\.venv310\Scripts\python.exe scripts/ci_unittest.py --group ${{ matrix.group }}
