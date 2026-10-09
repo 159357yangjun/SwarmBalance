@@ -1,0 +1,33 @@
+............F......
+======================================================================
+FAIL: test_every_run_reproduces_e0_bit_for_bit (test_wind_injection.WindInjectionEquivalenceTests)
+逐 run、逐指标比对。任何一格不同都算失败并点名是哪一格。
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\Users\yyyy\AppData\Roaming\TRAE SOLO CN\ModularData\ai-agent\work-mode-projects\6a91893e4cc261f69a0a52a0\drone-scheduling\frontend\test_wind_injection.py", line 79, in test_every_run_reproduces_e0_bit_for_bit
+    self.assertEqual(bad, [], "E1+静风未逐字复现 E0（%d 处）:\n  %s" % (len(bad), "\n  ".join(bad[:12])))
+AssertionError: Lists differ: ['C1/rep1/从分配到实际装载上机等待时间: E0=46.7264150943[799 chars]425'] != []
+
+First list contains 12 additional elements.
+First extra element 0:
+'C1/rep1/从分配到实际装载上机等待时间: E0=46.72641509433962 E1zero=76.90566037735849'
+
+Diff is 887 characters long. Set self.maxDiff to None to see it. : E1+静风未逐字复现 E0（12 处）:
+  C1/rep1/从分配到实际装载上机等待时间: E0=46.72641509433962 E1zero=76.90566037735849
+  C1/rep1/从上机到送达平均时间: E0=152.56603773584905 E1zero=122.38679245283019
+  C2/rep1/从分配到实际装载上机等待时间: E0=42.71621621621622 E1zero=78.56756756756756
+  C2/rep1/从上机到送达平均时间: E0=145.94594594594594 E1zero=110.0945945945946
+  C1/rep2/从分配到实际装载上机等待时间: E0=55.03738317757009 E1zero=72.66355140186916
+  C1/rep2/从上机到送达平均时间: E0=138.18691588785046 E1zero=120.5607476635514
+  C2/rep2/从分配到实际装载上机等待时间: E0=51.57333333333333 E1zero=67.01333333333334
+  C2/rep2/从上机到送达平均时间: E0=136.13333333333333 E1zero=120.69333333333333
+  C1/rep3/从分配到实际装载上机等待时间: E0=50.927927927927925 E1zero=72.3963963963964
+  C1/rep3/从上机到送达平均时间: E0=140.47747747747746 E1zero=119.009009009009
+  C2/rep3/从分配到实际装载上机等待时间: E0=57.15068493150685 E1zero=74.3972602739726
+  C2/rep3/从上机到送达平均时间: E0=136.0 E1zero=118.75342465753425
+
+----------------------------------------------------------------------
+Ran 19 tests in 16.221s
+
+FAILED (failures=1)
+EXIT=1

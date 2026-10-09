@@ -2,6 +2,49 @@
 
 ## [Unreleased]
 
+### 2026-10-08（第三十八笔）：#70 阶段⑤ 收尾三件 —— 三段边界改用符号锚（裁定一）+ E1 等价门红的受控消融**否证了 D-iv 假设**（真因是基线过期）+ 隐身用例逐个入台账
+
+基线 36b64cd。未 push、未打 tag、paper/ 未碰。**本轮零生产语义改动**：`frontend/drone.py` / `environment.py` 在消融期间被临时回退，事后 `git checkout HEAD --` 复原并逐字节核验 `identical-to-HEAD=True`；工作树只剩新增测试与文档。
+
+**裁定 (一)：三段禁改区从"绝对行号"改为"符号锚"，新常驻门 `console/test_drone_boundary_segments.py`（3 例）**
+判据 = 每段一个**完整行序列锚**（在 `update()` 函数体内按序命中、中间只容空行与整行注释）+ 命中数必须恰好 1 + 命中的各行 strip 后逐字相等。**行号只印不判**。
+⚠ 锚的形状是被两次实测逼出来的，不是设计出来的：
+ · 单行锚不行 —— `self.is_free = True` 在 `update()` 内**真有两处**（`:286` 恢复挂起航线、`:347` 任务完成），单行会命中 2 次让门永远红；那不是放宽的理由，是第一版把锚写弱了。
+ · "允许中间夹行"不能写成"一直往后找直到匹配" —— 那样能从 `:286` 跨过 60 行业务代码匹到 `:348`，既造成第二次假命中，又会**把"两行之间被插进新代码"判成通过**（正是硬边界要拦的事）。定稿为只跳空行/整行注释 ⇒ 跨分支不可能匹上、段中插代码即失配。
+**牙（负面对照，实跑）**：把 `current_load = 0` 那行的注释文字改掉一格 ⇒ `[SEG_ANCHOR_LOST] … 命中 0 处` / `FAILED (failures=2)` / RC=1；随后 `git diff --stat -- frontend/drone.py` 为空、sha 复核一致 ⇒ 恢复完全。
+**这条门的价值当场自证了一次**：本笔 `--fix` 往 README 加了一行、盘上文件再次漂移，锚门仍绿且打印出新的真实行号（`pop_point@333-336 / free_and_load_reset@347-349 / single_step_displacement@370-371`）⇒ **锚随内容走、不随行号走**（test_C 就是专门断言这件事的判别式）。
+
+**裁定 (二)①：受控消融否证了我上轮的归因**（`docs/P70_E1_equivalence_gate_ablation.md`）
+上轮我登记"最可能窗口是 #69-H3 D-iv"——**这个猜测是错的，在此撤回**。一手证据：
+```
+HEAD      : Ran 19 tests … FAILED(failures=1) —— E1+静风未逐字复现 E0（12 处）
+pre-D-iv  : （仅 environment.py + drone.py 回退到 3c54c37^，其余全用 HEAD）
+            Ran 19 tests … FAILED(failures=1) —— 同样 12 处
+$ diff <(HEAD 侧格次键 sort) <(pre-D-iv 侧格次键 sort)  →  IDENTICAL_KEY_SETS
+```
+⇒ 撤掉 D-iv 一格不少。**真因**：E0 冻结产物自带 `core_source_sha256`（16 个承重文件），逐文件比对
+⇒ **4/16 已与盘上不符**（`experiments/worker.py`、`frontend/drone.py`、`frontend/environment.py`、
+`frontend/greedy/scheduler.py`），而 **pre-D-iv 那棵树也不等于基线 pin**（两侧 `==pin? False`）
+⇒ 基线生成于 2026-10-03（commit `1c790a0dbf9f`），早在 D-iv 之前就被别的改动越过。
+⇒ 定性 = **[夹具失效] E0 冻结基线已过期，参照物无效 ⇒ 当前不可判定**。
+既不得声称"已验证"，也**不得反过来**声称"等价性不成立"。重生成基线需单独授权（会覆盖已入库产物、且改变该门的历史含义），本轮不做；判据与基线一字未动。
+
+**裁定 (二)②：那句对外结论按实测重写**（`docs/模型真实结构修订.md:20`）
+「zero-wind 逐 run == E0 已验证」→ 改为"**自 2026-10-08 起作废为不可判定**"，并写明理由（消融 + 4/16 指纹漂移）、
+以及两个方向都不许声称。没有提前改成"未验证"，也没有保留原样。
+
+**裁定 (二)③：同批隐身用例逐个定性入台账**（`docs/P70_invisible_gate_census.md §7`，7 行，不改代码）
+仓库根 `test_build_conclusion_package.py` 3 例本轮真跑 `Ran 3 / OK` ⇒ 状态绿但**从未进过任何聚合**；
+其中 `test_package_contains_every_whitelisted_doc_and_config` 守的是**对外交付物完整性** ⇒ 建议优先接线。
+另澄清一处易混点：`test_wind_energy.B1`（单元级"wind=0 逐位退 E0"）**绿**，与端到端那条 run 级等价门
+**不互相背书** —— 前者比公式，后者比 6 次运行的全部指标。
+顺带记一条通用不变量（值得门化、等裁）：**凡引用冻结实验产物的门都应核对 `core_source_sha256` 与盘上一致**，
+不一致则必须在 CHANGELOG 找到该产物的"已声明过期"条目，否则红 —— 本次能一眼看穿全靠这字段已经在产物里、只是没人比。
+
+**分母**：新增 1 文件 / 3 用例 ⇒ console **52 文件 / 370 用例**；experiments 3/32；frontend 2/19 ⇒ 合计 **421**。
+（`_readme_counts --fix` 写、`--verify` exit=0；`citation --verify` exit=0；消融日志 `G_ablation_pre_D_iv_still_12_diff.log` 入库。）
+
+
 ### 2026-10-08（第三十七笔）：#70 阶段⑤ 接线完成 —— frontend 的 19 例进入分母（367→386），那例红**仍是红**；两处现场注释互指相反口径
 
 基线 352e639。裁定①（口径并列入档 + 现场互指注释）、裁定②（放行接线、**不含修复**、"不得为了让那例绿而改判据或改基线"）。裁定③（受控消融）**本轮不做**，等下一次。未 push、未打 tag、paper/ 未碰。

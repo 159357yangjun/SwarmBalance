@@ -161,3 +161,23 @@ FAILED (failures=1)          ← 与接线前同一格、同一个差异清单�
 `ANCHOR_MISS docs/数据来源与可追溯性登记表.md:41 frontend/drone.py:206#不再使用`（真值现为 :211）
 ⇒ 只改引用不改判据。**这已是本仓第 N 次由行号引用漂出来的红**，登记在此是为了说明：
 往生产文件插注释也会触发同一把门，不只是改 README 才会。
+
+## 7. 裁定③：同批其余隐身用例逐个定性（**列入台账，不改代码**）
+
+接线之后仍有一类留在分母外。逐个跑过、逐个给结论，不写"应该没问题"。
+
+| # | 用例 | 当前状态 | 它守什么 | 「绿」能说明什么 / 不能说明什么 | 定性 |
+|---|---|---|---|---|---|
+| 1 | `test_build_conclusion_package.ConclusionPackageTests.test_can_build_structure_only_package` | **绿**（`Ran 3 tests in 0.566s / OK`，本轮真跑） | 结项证据包能在只读结构下构建成功 | 说明"今天这份树能打包"。**不**说明它在 console 聚合里被守过——它从没进过任何一次聚合 | [G]-shaped / 未接线 |
+| 2 | `…ConclusionPackageTests.test_missing_whitelisted_file_fails_loudly` | **绿** | 白名单里缺文件时必须响亮失败（不是静默少一个文档） | 同上：这条是负面对照型断言，绿意味着"缺文件会报"，但**无人复算过它是否还会报** | [G]-shaped / 未接线 |
+| 3 | `…ConclusionPackageTests.test_package_contains_every_whitelisted_doc_and_config` | **绿** | 产物必须含全部白名单文档与配置 | 直接牵涉对外交付物完整性；放在仓库根 ⇒ `_readme_counts.TARGETS`（只列 console/experiments/frontend）够不到 | [G]-shaped / 未接线，**优先级最高**（它守的是对外产物） |
+| 4 | `frontend/test_wind_energy.py` B1–B8（8 例） | **绿**（在 §6 那 19 例之内，已随接线进入可跑状态） | 风能耗的**结构关系**：零风逐字退 E0、逆风严格增、顺风严格减但有下界、极值有界或拒收、手算 golden case、符号约定 | 接线后它们从此会被跑到。⚠ 但注意 B1「wind=0/None ⇒ 与 E0 公式逐位相同」是**单元级**对照，与 §1-§3 那条**端到端 run 级**等价门不是同一件事 —— 前者绿、后者不可判定，二者不互相背书 | 已接线（本笔） |
+| 5 | `frontend/test_wind_injection.py::test_same_run_count_and_keys` | **绿** | 重跑行数与格次集合必须与基线一致 | 它只证"计划没漂移"，**不**证指标一致 ⇒ 别把它当成等价性的一部分成立 | 已接线，判据本身有效 |
+| 6 | `…::test_shipped_config_has_no_wind_key` | **绿** | 出厂配置里不得出现 wind 键（否则把风塞进正式参数） | 有效且便宜 | 已接线 |
+| 7 | `…WindInjectionEquivalenceTests.test_every_run_reproduces_e0_bit_for_bit` | **红 → 定性为不可判定** | E1+静风逐 run 逐指标 == E0 | 见 `docs/P70_E1_equivalence_gate_ablation.md`：受控消融撤掉 D-iv 后 12 处差异一格不少 ⇒ 不是行为回归；E0 基线的 `core_source_sha256` 有 4/16 承重文件早已漂移 ⇒ **参照物无效** | 夹具失效（pending revalidation），**不得放宽、不得据此声称等价性不成立** |
+
+### 台账要点（一句话版）
+
+- 接线的收益不是"多跑了几条测试"，而是**把一个长期无人核对的对外结论（「zero-wind 已验证」）暴露成可定性的对象**。
+- 剩下的 #1–#3（仓库根那个文件）是当前唯一仍在分母外的用例，且 #3 守的是**对外交付物完整性** ⇒ 建议下一步优先接它，成本一条 TARGETS 项。
+- ⚠ 通用不变量（值得门化、等裁）：凡是引用冻结实验产物的门，都应核对产物内 `core_source_sha256` 与盘上一致；不一致就必须能在 CHANGELOG 找到该产物的"已声明过期"条目，否则红。本次能一眼看穿，全靠这个字段**已经在**产物里、只是没人比。
