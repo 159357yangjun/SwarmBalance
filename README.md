@@ -252,6 +252,10 @@ python console/_paired_readout.py --metric 超时率 --metric 无人机利用率
 python -m unittest discover -s console -p "test_*.py"
 python -m unittest console.test_config_keys_coverage -v   # 或单独跑这一项
 
+# ⚠ frontend/ 里另有 2 个文件 / 19 个用例**不在上面那条命令内**：`frontend/` 没有 `__init__.py`，
+#   以仓库根为顶层时 discover 直接抛 "Start directory is not importable"（本轮实测）。必须显式给顶层：
+python -m unittest discover -s frontend -t frontend -p "test_*.py"   # E1 风能耗两把门；其中等价门当前为红
+
 # 数据来源可追溯性 + 环境基线漂移门禁（默认阻断，退出码非零）：
 python verify_data_provenance.py
 python verify_data_provenance.py --mapfile       # 只核输入地图的内容哈希是否就是被钉住那份
@@ -446,7 +450,7 @@ swarm-balance/
 │  ├─ static/spec.html           # 「规范」页正文，由 /spec 路由渲染进 iframe
 │  ├─ static/vendor/             # 内置 vue.global.prod.js / echarts.min.js /
 │  │                             #   three.min.js + README（版本、来源、SHA-256）
-│  └─ test_*.py                  # 51 个文件 / 367 个用例（标准库 unittest）
+│  └─ test_*.py                  # console: 51 个文件 / 367 个用例（标准库 unittest）
 │
 ├─ frontend/                     # 仿真内核与可视化
 │  ├─ environment.py             # 世界状态、障碍判定、统计口径
@@ -459,6 +463,13 @@ swarm-balance/
 │  ├─ tools/osm.py               # OSM 解析 + 结果落盘缓存（frontend/data/.osm_cache/）
 │  ├─ data/                      # map/part_of_yangpu.osm（约 10.6 MB，唯一内置地图）
 │  │                             #   + .osm_cache/（OSM 解析与通行判定缓存，已 gitignore）
+│  └─ test_*.py                  # frontend: 2 个文件 / 19 个用例
+│                                #   ⚠ 这 19 例**不在** `discover -s console` 里：frontend/ 没有
+│                                #     __init__.py，以仓库根为顶层时 discover 直接抛
+│                                #     "Start directory is not importable"（本轮实测）。
+│                                #     复算须用 `python -m unittest discover -s frontend -t frontend`；
+│                                #     其中 E1↔E0 等价门当前为红，接线经过与规模见
+│                                #     docs/P70_invisible_gate_census.md。
 │
 ├─ backend_si/                   # 经典基线算法
 │  ├─ ga_scheduler.py / chain_codec.py / fitness_evaluator.py / matching.py
@@ -479,7 +490,7 @@ swarm-balance/
 │  ├─ reporting.py               # 统计与配对检验
 │  ├─ reproducibility.py         # 复现清单（schema v2：按算法登记源码哈希）
 │  ├─ presets/                   # quick.yaml / conclusion.yaml / paper.yaml
-│  └─ test_*.py                  # 3 个文件 / 32 个用例
+│  └─ test_*.py                  # experiments: 3 个文件 / 32 个用例
 │
 ├─ results/
 │  ├─ compare/                   # 对比 CSV（答辩对比页数据源；两份清单见 console/server.py

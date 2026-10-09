@@ -2,6 +2,34 @@
 
 ## [Unreleased]
 
+### 2026-10-08（第三十七笔）：#70 阶段⑤ 接线完成 —— frontend 的 19 例进入分母（367→386），那例红**仍是红**；两处现场注释互指相反口径
+
+基线 352e639。裁定①（口径并列入档 + 现场互指注释）、裁定②（放行接线、**不含修复**、"不得为了让那例绿而改判据或改基线"）。裁定③（受控消融）**本轮不做**，等下一次。未 push、未打 tag、paper/ 未碰。
+
+**行为零变更的最硬证明（不是"我只加了注释"这种叙述）**：把两文件的 AST 在**剥掉 docstring 之后**与 HEAD 逐字节比对 ⇒ `frontend/drone.py` sha 两侧同为 `45a1f09afb9b`、`frontend/environment.py` 同为 `7b0250686f7b`，identical=True。⇒ 语义层面无任何可变之物。三段禁改区内容 sha 亦逐一复核相同（pop `66e2a96d4b5b` / is_free+load `208403fbf942` / displacement `a406c3daf053`），只是被我的注释整体下推 5 行；`git diff -U0 | grep "^-"` 计数 = **0**（纯新增）。
+
+**裁定①的两处现场注释**：`drone.py:170` 上方标为**口径甲（能耗侧：派单即加惩罚 ⇒ 飞往取货的空驶也吃载重惩罚）**并指向 `environment.py:1741`；`_is_carrying()` docstring 内标为**口径乙（航线标签判法 ⇒ 同一段算空载）**并反向指回 `drone.py:170`，两边都写明"本仓同时在跑、读数不可相加也不可互校、未定口径前不得对外声称 Wh/km"，并各留一条 `docs/P70_E1_load_penalty_attribution_two_readings.md` 指针。另在口径乙那侧补一句最容易被误读的不对称：**扫描门只禁"新代码"用 current_load，`:170` 是它豁免的历史用法 ⇒ "已被认定错误"不等于"已修"**。
+
+**裁定②：接线路径改了——建议的那条实测有副作用**。主控建议加 `frontend/__init__.py`；试探后实测：
+```
+$ touch frontend/__init__.py && python -m unittest discover -s . -p "test_wind*.py" -t .
+Ran 20 tests … FAILED (failures=1, errors=1)        ← 多出一个 error
+ERROR: frontend.greedy (unittest.loader._FailedTest)   File ".../frontend/greedy/scheduler.py", line 6
+```
+⇒ 有了 `__init__.py`，discover 会把 `frontend/greedy/` 当子包导入，而其内部是扁平 import（`environment.py:14-25` 同样如此）⇒ **新造一个坏模块**；且它并不把 frontend 带进 `_readme_counts` 的分母。试探用的 `__init__.py` 已删除并复核不存在。
+实际采用 = **给 `_readme_counts` 加第三个 TARGETS 项 + 让 top_level_dir 可显式传入**（否则光加 TARGETS 会让工具自己红：`discover('frontend', top_level_dir='.')` 实测抛 `ImportError: Start directory is not importable`）。
+
+**顺带修掉一个会被误当成漂移的位置式配对**：旧 `verify()` 是 `zip(claims, rows)`，我插入 frontend 那一位后 experiments 被顶偏，报出「experiments/：README 写 2 个文件 / 19 个用例」——**那是误配不是漂移，但它长得太像真漂移**，很容易被下一个人在生产文件上直接 `--fix` 覆盖掉错数据。⇒ 三处声明改为自带目录名（`# console: 51 个文件 / 367 个用例`），`verify`/`fix` 都按标签定位，命中数≠1 时**拒绝猜位置并返回 1**；`test_measure_is_not_vacuous` 里钉死的 `len(rows)==2` 改为与 `len(TARGETS)` 对账 + 下限 ≥3（这样**有人摘掉 frontend 会当场红**）；再加一条顺序判别式：把三段声明整体倒序后仍须逐目录对上（位置式实现在这一步必然红）。死掉的 `COUNT_PAT` 已删。
+
+**新分母（现算，非推算）**：`[OK] README 测试计数与实测一致（console=51文件/367用例；experiments=3文件/32用例；frontend=2文件/19用例）` ⇒ **367 → 386 例（+19）**、文件 51 → 53。⚠ 口径要说清：386 是三目录合计；`discover -s console` 那一条命令本身仍是 367，frontend 走独立一条 `discover -s frontend -t frontend`（已写进 README 的命令块并注明为什么不能并入）。
+
+**关键不变量：那例红仍然红（遵守"不得为了让它绿而改判据/基线"）**：`discover -s frontend -t frontend -p "test_wind*.py"` ⇒ `Ran 19 tests in 29.843s / FAILED (failures=1)`，与接线前同一格、同一份 12 处差异清单。没动 `test_wind_injection.py`、没动 E0 基线、没动任何断言。接线的作用只是让它**从此会被跑到**。两面日志入库：`E_console_suite_after_wiring.log`（console `Ran 367 tests in 1904.506s / OK (skipped=4) / EXIT=0`）、`F_frontend_suite_after_wiring_still_red.log`。
+
+**又被自己的门咬一次（这次是我给生产文件插注释触发的）**：`_citations --verify` 报 `ANCHOR_MISS docs/数据来源与可追溯性登记表.md:41 frontend/drone.py:206#不再使用`（注释把我文件下推 5 行，真值现为 :211）⇒ 只改引用不改判据。⇒ 登记一条口径补充：**行号引用漂移不只由改 README 引起，往生产文件插注释同样会触发**。
+
+**待裁（下一轮）**：裁定③的受控消融（`3c54c37^` vs HEAD 各跑 e0_baseline 预设）本轮按要求未做；`docs/模型真实结构修订.md:20` 那句「zero-wind 逐 run == E0 已验证」保持原样不动、也不提前改成"未验证"，状态是 pending revalidation。
+
+
 ### 2026-10-08（第三十六笔）：#70 阶段⑤ —— E1 载重惩罚归属的两种口径**并列入档**（不动实现）+ 隐身门普查（因果落到一手证据）
 
 基线 79ce795。主控裁定 (一) 只入档口径、不改代码；(二) 先查清"为什么一直没被跑到"再谈修复，**不许直接修**。生产零改动；未 push、未打 tag、paper/ 未碰、`drone.py` 三段未动。

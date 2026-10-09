@@ -45,7 +45,14 @@ class ReadmeCountTests(unittest.TestCase):
         """先证明测量本身数到了东西，否则后面的比对全是空转。"""
         rc = _tool()
         rows = rc.render_lines()
-        self.assertEqual(len(rows), 2, "TARGETS 配了两处，同步检查一下")
+        # 与 TARGETS 对账，而不是钉一个手写的 2：钉死数字会让"加一个目录"这件事必须同时改这里，
+        #   于是它迟早被顺手改成通过（隐身门普查那轮的根因之一就是 TARGETS 只列两处而无人报警）。
+        self.assertEqual(len(rows), len(rc.TARGETS),
+                         "render_lines 行数 %d != TARGETS 配置数 %d ⇒ 有目录被静默丢掉" % (
+                             len(rows), len(rc.TARGETS)))
+        self.assertGreaterEqual(len(rows), 3,
+                                "接线后至少应覆盖 console/experiments/frontend 三处；只剩两处说明有人把 "
+                                "frontend 又摘掉了（见 docs/P70_invisible_gate_census.md）")
         for _label, subdir, nfiles, ntests, _txt in rows:
             self.assertGreater(nfiles, 0, "%s/ 一个测试文件都没数到，测量失效" % subdir)
             self.assertGreater(ntests, 10,
@@ -78,15 +85,31 @@ class ReadmeCountTests(unittest.TestCase):
         rc = _tool()
         rows = rc.render_lines()
         text = (ROOT / "README.md").read_bytes().decode("utf-8")
-        claims = [(int(m.group(2)), int(m.group(4))) for m in rc.COUNT_PAT.finditer(text)]
-        self.assertEqual(len(claims), len(rows),
-                         "README 里有 %d 处计数字位，测量了 %d 个目录 —— 对不上"
-                         % (len(claims), len(rows)))
-        for (cn, ct), (_label, subdir, nf, nt, _t) in zip(claims, rows):
-            self.assertEqual((cn, ct), (nf, nt),
-                             "%s/：README 写 %d 个文件 / %d 个用例，实测 %d / %d。"
-                             "修复：python console/_readme_counts.py --fix"
-                             % (subdir, cn, ct, nf, nt))
+        #: ⚠ 按**目录标签**配对，不按出现顺序。位置式 zip 是本轮实测驳回的形状：
+        #:   往 README 中间插一个新目录的计数字位会把后面的位顶偏，于是 verify 报出
+        #:   "experiments/：README 写 2 个文件 / 19 个用例" —— 那是**误配不是漂移**，
+        #:   但它长得太像真漂移，很容易被下一个人当"数字过期"直接 --fix 覆盖掉。
+        claims = {m.group("dir"): (int(m.group("nf")), int(m.group("nt")))
+                  for m in rc.CLAIM_PAT.finditer(text)}
+        measured = {r[1]: (r[2], r[3]) for r in rows}
+        self.assertEqual(sorted(claims), sorted(measured),
+                         "README 的计数字位目录集与 TARGETS 测到的目录集不等：README=%s TARGETS=%s"
+                         % (sorted(claims), sorted(measured)))
+        for subdir, (nf, nt) in sorted(measured.items()):
+            self.assertEqual(claims[subdir], (nf, nt),
+                             "%s/：README 写 %s，实测 %s。修复：python console/_readme_counts.py --fix"
+                             % (subdir, claims[subdir], (nf, nt)))
+        # 判别式：把三段声明**打乱顺序**重排后，按标签配对仍必须全对（位置式在这里会红）
+        order = [l for l in text.splitlines() if rc.CLAIM_PAT.search(l)]
+        self.assertGreaterEqual(len(order), 3, "[RC_BLIND] 计数字位不足三处，顺序判据无从构造")
+        shuffled = list(reversed(order))
+        for line_new, line_old in zip(shuffled, order):
+            d_new = rc.CLAIM_PAT.search(line_new).group("dir")
+            d_old = rc.CLAIM_PAT.search(line_old).group("dir")
+            self.assertIn(d_new, measured, "[RC_BLIND] 打乱后出现未知目录 %s" % d_new)
+            vals = tuple(int(x) for x in rc.CLAIM_PAT.search(line_new).group("nf", "nt"))
+            self.assertEqual(vals, measured[d_new],
+                             "[RC_POSITIONAL] 第 %s 行的值与其目录不符 ⇒ 说明声明是按位置写的" % d_new)
 
     def test_fix_is_byte_noop_when_readme_is_current(self):
         """README 已是实测值时，--fix 必须一个字节都不动（含行尾）。
@@ -117,25 +140,25 @@ class ReadmeCountTests(unittest.TestCase):
         original = readme.read_bytes()
         try:
             text = original.decode("utf-8")
-            m = rc.COUNT_PAT.search(text)
+            m = rc.CLAIM_PAT.search(text)
             self.assertIsNotNone(m, "README 里找不到计数字位，本用例的判据是空转")
-            stale = rc.COUNT_PAT.sub(lambda x: "%s%d%s%d%s" % (
-                x.group(1), int(x.group(2)) + 7, x.group(3),
-                int(x.group(4)) + 7, x.group(5)), text, count=1)
+            stale = rc.CLAIM_PAT.sub(lambda x: "%s%d%s%d%s" % (
+                x.group("prefix"), int(x.group("nf")) + 7, x.group("mid"),
+                int(x.group("nt")) + 7, x.group("tail")), text, count=1)
             self.assertNotEqual(stale, text, "扰动没改动任何字节，判据是空转")
             # 只该有数字变：把数字抹成 # 后两份文本必须同形 —— 这比"长度差多少"稳，
             # 因为 +7 跨不进位（14→21、131→138）是巧合，95→102 就会变长。
             skel = lambda s: re.sub(r"\d", "#", s)
             self.assertEqual(skel(stale), skel(text),
                              "扰动改到了数字以外的字符，测的就不是计数判据了")
-            self.assertEqual(len(rc.COUNT_PAT.findall(stale)), len(rc.COUNT_PAT.findall(text)))
-            self.assertNotEqual(rc.COUNT_PAT.findall(stale), rc.COUNT_PAT.findall(text),
+            self.assertEqual(len(rc.CLAIM_PAT.findall(stale)), len(rc.CLAIM_PAT.findall(text)))
+            self.assertNotEqual(rc.CLAIM_PAT.findall(stale), rc.CLAIM_PAT.findall(text),
                                 "扰动后计数字位的值仍然相同")
 
             rc.write_text_lossy(readme, stale)
             back = readme.read_bytes().decode("utf-8")
             self.assertEqual(back, stale, "写盘没生效 —— 后面测的是没改过的文件")
-            self.assertIn(str(int(m.group(4)) + 7), back, "盘上找不到扰动后的值")
+            self.assertIn(str(int(m.group("nt")) + 7), back, "盘上找不到扰动后的值")
             self.assertEqual(rc.line_ending_stats(readme), rc.line_ending_stats_from_bytes(
                 original), "写扰动时把行尾改了")
 

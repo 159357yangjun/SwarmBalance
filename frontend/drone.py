@@ -167,6 +167,11 @@ class Drone:
         base_consumption = distance * self.battery_consumption_base
         
         # 载重影响
+        # ⚠ 口径甲（能耗侧）：这里用 current_load ⇒ "派单即加惩罚"，故**飞往取货点的空驶段也吃载重惩罚**。
+        #   对面 `frontend/environment.py:1741 _is_carrying()` 按航线标签把同一段判成**空载**（口径乙），
+        #   两种口径相反且本仓**同时**在跑（主控裁定①：维持并存、暂不统一）。
+        #   ⇒ 后果：Wh/km 的分子含归属未定的惩罚、分母按另一口径划分 ⇒ **商无定义**，
+        #     未定口径前不得对外声称任何 Wh/km。全文见 docs/P70_E1_load_penalty_attribution_two_readings.md。
         load_factor = (self.current_load / self.carrying_capacity) * self.battery_load_penalty_factor
         total_consumption = base_consumption * (1 + load_factor) * self._wind_factor(wind_along)
         

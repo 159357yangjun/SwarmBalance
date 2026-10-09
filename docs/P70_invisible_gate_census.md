@@ -108,3 +108,56 @@ ls console/__init__.py experiments/__init__.py frontend/__init__.py   # 第三�
 grep -n "TARGETS = (" -A 3 console/_readme_counts.py
 grep -n "wind" docs/C5_收口与结项.md                                   # 空
 ```
+
+---
+
+## 6. 接线已做（主控裁定②：放行接线、不含修复）——选的是路径②，不是建议的路径①
+
+主控建议加 `frontend/__init__.py`（"同时修好另外两个隐身文件"）。**实测后改选了另一条**，理由是一手副作用：
+
+```
+$ touch frontend/__init__.py
+$ python -m unittest discover -s . -p "test_wind*.py" -t .
+Ran 20 tests … FAILED (failures=1, errors=1)      ← 多出一个 error
+ERROR: frontend.greedy (unittest.loader._FailedTest)
+  File ".../frontend/greedy/scheduler.py", line 6, in <module>   ← 扁平 import 在包语境下断
+```
+⇒ 加了 `__init__.py` 之后 discover 会把 `frontend/greedy/` 当子包去导入，而它内部用的是扁平 import
+（`environment.py:14-25` 同样是 `from drone import …` 这种），于是**新造出一个坏模块**。
+⇒ 而且它只解决"根 discover 进得去"，并不把 frontend 带进 `_readme_counts` 的分母。
+⇒ 试探用的 `__init__.py` 已删除（`ls` 复核不存在）。
+
+**实际采用的接线路径 = 给 `_readme_counts` 增加第三个 TARGETS 项 + 让 top_level_dir 可显式指定**：
+
+| 改动 | 为什么必须一起改 |
+|---|---|
+| `TARGETS += ("test_*.py", "frontend", "frontend")` | 分母此前按构造装不下 frontend |
+| `_CHILD` 的 `top_level_dir` 从写死 `str(top)` 改为可传入 | **不加这一条，光加 TARGETS 会让工具自己红**：`discover('frontend', top_level_dir='.')` 实测抛 `ImportError: Start directory is not importable` |
+| README 三处计数字位**改为自带目录名**（`# console: 51 个文件 / 367 个用例`） | 旧 verify 是 `zip(claims, rows)` **位置式**配对 ⇒ 我插入 frontend 那一位后，experiments 被顶偏，报出 "experiments/：README 写 2 个文件 / 19 个用例" —— **那是误配不是漂移**，但长得太像真漂移，很容易被下一个人当"数字过期"直接 `--fix` 覆盖掉 |
+| `fix()` 同样改为按标签定位；命中数 ≠ 1 时**拒绝猜位置并返回 1** | 否则 --fix 会把误配写回盘上，把错的数据变成"看起来一致" |
+| `console/test_readme_counts.py::test_measure_is_not_vacuous` 的 `len(rows)==2` → 与 `len(TARGETS)` 对账 + 下限 ≥3 | 钉死 2 会让"加一个目录"必须顺手改这里；改成对账后，**有人摘掉 frontend 会当场红** |
+| 同文件加**顺序判别式**：把三段声明整体倒序重排后仍须逐目录对上 | 位置式实现在这一步必然红 ⇒ 证明现在吃的确实是标签而不是位置 |
+
+### 新分母（本轮现算，非推算）
+
+```
+[OK] README 测试计数与实测一致（console=51文件/367用例；experiments=3文件/32用例；frontend=2文件/19用例）
+```
+⇒ **367 → 386 例（+19）**，文件 51 → 53。主控问的"预期 367→?"答：**386**（若只算 console 那一路仍是 367，因为 frontend 的 19 例走的是独立一条 discover，不并入 console 那条命令）。
+
+### 接线后的关键不变量：那例红**仍然是红**
+
+```
+$ python -m unittest discover -s frontend -t frontend -p "test_wind*.py"
+Ran 19 tests in 15.904s
+FAILED (failures=1)          ← 与接线前同一格、同一个差异清单（12 处）
+```
+⇒ 遵守裁定"**不得为了让那例绿而改判据或改基线**"：我没动 `test_wind_injection.py`、没动 E0 基线、
+没动任何断言。接线只是让它**从此会被跑到**。
+
+### 顺带被咬到的一处（同轮，属注释插入的代价）
+
+我给 `drone.py` 加口径注释把文件推下 5 行，`_citations --verify` 当场报
+`ANCHOR_MISS docs/数据来源与可追溯性登记表.md:41 frontend/drone.py:206#不再使用`（真值现为 :211）
+⇒ 只改引用不改判据。**这已是本仓第 N 次由行号引用漂出来的红**，登记在此是为了说明：
+往生产文件插注释也会触发同一把门，不只是改 README 才会。

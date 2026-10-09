@@ -28,9 +28,15 @@ sys.pycache_prefix = _bc_os.path.join(_bc_tf.gettempdir(), "swarmbalance-pyc", _
 README = ROOT / "README.md"
 
 # (README 里的目录标签, 发现起点, 顶层目录)
+#: ⚠ 第三项是 top_level_dir，不是"显示用的名字"——它决定 discover 能不能进得去那个目录：
+#:   `frontend/` **没有 __init__.py** ⇒ 以仓库根为顶层时 `discover('frontend', top_level_dir='.')`
+#:   会直接抛 `ImportError: Start directory is not importable`（本轮实测），所以它的顶层只能是它自己。
+#:   这一条的来历见 docs/P70_invisible_gate_census.md：frontend 的两把 E1 门长期红却从没被跑到，
+#:   根因就是本表历史上只列 console/experiments。
 TARGETS = (
     ("test_*.py", "console", "console"),
     ("test_*.py", "experiments", "experiments"),
+    ("test_*.py", "frontend", "frontend"),
 )
 
 LINE_RE = "|".join(re.escape(t[0]) for t in TARGETS)
@@ -39,9 +45,12 @@ LINE_RE = "|".join(re.escape(t[0]) for t in TARGETS)
 _CHILD = r'''
 import sys, unittest
 from pathlib import Path
-top = Path(sys.argv[1]); sub = sys.argv[2]
+top = Path(sys.argv[1]); sub = sys.argv[2]; tld = sys.argv[3] if len(sys.argv) > 3 else sub
 files = sorted(p.name for p in (top / sub).glob("test_*.py"))
-suite = unittest.TestLoader().discover(str(top / sub), top_level_dir=str(top), pattern="test_*.py")
+# ⚠ top_level_dir 必须能显式给：`frontend/` 没有 __init__.py，以仓库根为顶层时 discover 直接抛
+#   `ImportError: Start directory is not importable`（本轮实测）。历史上这里写死 str(top)，
+#   所以即便往 TARGETS 加了 frontend 也只会让本工具自己红 —— 接线要连这里一起改。
+suite = unittest.TestLoader().discover(str(top / sub), top_level_dir=str(top / tld), pattern="test_*.py")
 def count(s):
     n = 0
     for item in s:
@@ -51,7 +60,7 @@ print("%d,%d" % (len(files), count(suite)))
 '''
 
 
-def measure(subdir: str):
+def measure(subdir: str, tld: str = None):
     """返回 (测试文件数, 用例数) —— **必须在项目 venv 解释器下量**。
 
     为什么不能就地量：缺依赖的解释器（如系统 Anaconda）里，那些测试模块在导入期就
@@ -70,7 +79,7 @@ def measure(subdir: str):
     import sys as _sys
     _sys.path.insert(0, str(Path(__file__).resolve().parent))
     from _preflight import isolated_env
-    proc = subprocess.run([str(vp), "-c", _CHILD, str(ROOT), subdir],
+    proc = subprocess.run([str(vp), "-c", _CHILD, str(ROOT), subdir, tld or subdir],
                           cwd=str(ROOT), capture_output=True, text=True,
                           encoding="utf-8", errors="replace", env=isolated_env())
     if proc.returncode != 0:
@@ -97,13 +106,21 @@ def _venv_python():
 
 def render_lines():
     out = []
-    for label, subdir, _ in TARGETS:
-        nf, nt = measure(subdir)
+    for label, subdir, tld in TARGETS:
+        nf, nt = measure(subdir, tld)
         out.append((label, subdir, nf, nt, "%s 个文件 / %d 个用例" % (nf, nt)))
     return out
 
 
-COUNT_PAT = re.compile(r"(test_\*\.py\s+#\s*)(\d+)( 个文件 / )(\d+)( 个用例)")
+#: ⚠ 配对**必须按目录标签，不能按出现顺序**。旧实现是 `zip(claims, rows)`（位置式），
+#:   本轮往 README 的 frontend 段加一个计数字位时，它把 experiments 那行顶到第三位 ⇒
+#:   verify 报出 "experiments/：README 写 2 个文件 / 19 个用例" —— **那是误配不是漂移**，
+#:   而它长得太像真漂移，很容易被下一个人当成"README 数字过期了"直接用 --fix 覆盖掉。
+#:   （同一条教训在文档引用上已经付过四次代价：见 docs/P70_invisible_gate_census.md 与登记表 :495。）
+#:   ⇒ 现在声明行必须自带目录名，形如 `# console: 51 个文件 / 367 个用例`。
+CLAIM_PAT = re.compile(
+    r"(?P<prefix>test_\*\.py\s+#\s*(?P<dir>[a-z_]+): )"
+    r"(?P<nf>\d+)(?P<mid> 个文件 / )(?P<nt>\d+)(?P<tail> 个用例)")
 
 
 def read_text_lossy(path: Path) -> str:
@@ -129,17 +146,23 @@ def line_ending_stats_from_bytes(raw: bytes):
 
 def verify() -> int:
     text = read_text_lossy(README)
-    claims = [(int(m.group(2)), int(m.group(4))) for m in COUNT_PAT.finditer(text)]
+    # 按**目录标签**取声明，不再依赖出现顺序（见 CLAIM_PAT 上方那段实测驳回记录）
+    claims = {m.group("dir"): (int(m.group("nf")), int(m.group("nt"))) for m in CLAIM_PAT.finditer(text)}
 
     rows = render_lines()
     problems = []
-    if len(claims) != len(rows):
-        problems.append("README 里有 %d 处计数字位，实测了 %d 个目录 —— 对不上"
-                        % (len(claims), len(rows)))
-    for (cn, ct), (_label, subdir, nf, nt, _t) in zip(claims, rows):
-        if (cn, ct) != (nf, nt):
+    measured = {r[1]: (r[2], r[3]) for r in rows}
+    missing = sorted(set(measured) - set(claims))
+    extra = sorted(set(claims) - set(measured))
+    if missing:
+        problems.append("README 里缺这些目录的计数字位（带目录名那种）：%s" % missing)
+    if extra:
+        problems.append("README 里有 %s 处计数字位，但 TARGETS 没测它 ⇒ 要么补 TARGETS 要么删该位"
+                        % extra)
+    for subdir, (nf, nt) in sorted(measured.items()):
+        if subdir in claims and claims[subdir] != (nf, nt):
             problems.append("%s/：README 写 %d 个文件 / %d 个用例，实测 %d / %d"
-                            % (subdir, cn, ct, nf, nt))
+                            % (subdir, claims[subdir][0], claims[subdir][1], nf, nt))
     if problems:
         print("[FAIL] README 测试计数与实测不一致：")
         for p in problems:
@@ -152,21 +175,19 @@ def verify() -> int:
 
 
 def fix() -> int:
-    """按 README 中出现顺序，把每个计数字位换成实测值。
-
-    每轮重新扫描并按偏移替换，避免"上一处替换改变文本长度导致下一处偏移"。
-    """
+    """按**目录标签**把每个计数字位换成实测值（不靠出现顺序，理由见 CLAIM_PAT 上方注释）。"""
     rows = render_lines()
     before = line_ending_stats(README)
-    for pos, (_, _subdir, nf, nt, _txt) in enumerate(rows):
+    for _label, subdir, nf, nt, _txt in rows:
         text = read_text_lossy(README)
-        matches = list(COUNT_PAT.finditer(text))
-        if pos >= len(matches):
-            print("[WARN] README 里第 %d 处计数字位不存在，跳过" % (pos + 1))
-            continue
-        m = matches[pos]
+        hit = [m for m in CLAIM_PAT.finditer(text) if m.group("dir") == subdir]
+        if len(hit) != 1:
+            print("[FAIL] README 里 `%s:` 那种计数字位找到 %d 处（应为恰好 1 处）⇒ "
+                  "--fix 拒绝猜位置；请在对应目录段补/删成一处" % (subdir, len(hit)))
+            return 1
+        m = hit[0]
         write_text_lossy(README, text[:m.start()] + "%s%d%s%d%s"
-                         % (m.group(1), nf, m.group(3), nt, m.group(5)) + text[m.end():])
+                         % (m.group("prefix"), nf, m.group("mid"), nt, m.group("tail")) + text[m.end():])
     after = line_ending_stats(README)
     if before != after:
         print("[FAIL] --fix 改动了行尾（%s → %s），这会把整份文件显示成已修改" % (before, after))

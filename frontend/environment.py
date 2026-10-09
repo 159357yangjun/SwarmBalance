@@ -1741,6 +1741,13 @@ class Environment:
     def _is_carrying(drone) -> bool:
         """本步是否真正"带货在飞"——用于空载率统计。
 
+        ⚠ 口径乙（里程/KPI 侧）：下面这套航线标签判法与 `frontend/drone.py:170` 的能耗口径**相反** —
+          那里用 current_load ⇒ "派单即加惩罚"，同一段飞往取货的空驶在能耗侧算**载货**、在这里算**空载**。
+          两种口径本仓同时在跑（主控裁定①：维持并存、暂不统一），故两侧读数不可相加、也不可互校。
+          全文见 docs/P70_E1_load_penalty_attribution_two_readings.md。
+          ⇒ 另注：`console/test_c4_cargo_truth_scan_gate.py` 只禁"**新代码**"用 current_load 当载货真值，
+            drone.py:170 那条是它豁免的历史用法 —— "已被认定错误"不等于"已修"。
+
         注意不能直接用 `current_load > 0`：环境在**派单时刻**就调用 add_load，
         因此"飞往取货点"的那一段也会被认为是载货，空载率会被低估到接近 0。
         正确口径是看航线上下一个任务航点：
