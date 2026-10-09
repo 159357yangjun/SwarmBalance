@@ -84,3 +84,21 @@ jobs:
       - name: Full suite (explicit opt-in only)
         if: ${{ github.event_name == 'workflow_dispatch' && inputs.full_suite == true }}
         run: .\.venv310\Scripts\python.exe scripts/ci_unittest.py full
+
+  portable-rewrite-shallow:
+    name: Portable rewrite archive (shallow clone)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout exactly one commit
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      - name: Python 3.10
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+      - name: Assert shallow checkout
+        run: test "$(git rev-parse --is-shallow-repository)" = "true"
+      - name: Verify archive with explicit partial-history scope
+        run: python console/_citations.py --rewrite-report --verify --portable
