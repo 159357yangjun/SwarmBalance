@@ -103,11 +103,99 @@ def selftest():
     return 0
 
 
+
+def diagnose_child():
+    """Independent discovery census matching _readme_counts._CHILD in one process."""
+    import ast
+    import collections
+    import re
+
+    loader = unittest.TestLoader()
+    suite = loader.discover(str(ROOT / "console"), top_level_dir=str(ROOT),
+                            pattern="test_*.py")
+    cases = []
+
+    def flatten(s):
+        for item in s:
+            if isinstance(item, unittest.TestSuite):
+                flatten(item)
+            else:
+                cases.append(item)
+
+    flatten(suite)
+    runtime = collections.defaultdict(set)
+    for case in cases:
+        tid = case.id()
+        match = re.match(r"^(console\\.test_[A-Za-z0-9_]+)(?:\\.|$)", tid)
+        if match:
+            runtime[match.group(1)].add(tid)
+
+    static = {}
+    for path in sorted((ROOT / "console").glob("test_*.py")):
+        module_name = "console." + path.stem
+        tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+        classes = {node.name: node for node in tree.body
+                   if isinstance(node, ast.ClassDef)}
+
+        def test_case_class(name, seen=None):
+            if name not in classes:
+                return False
+            seen = seen or set()
+            if name in seen:
+                return False
+            seen.add(name)
+            node = classes[name]
+            for base in node.bases:
+                base_name = base.id if isinstance(base, ast.Name) else (
+                    base.attr if isinstance(base, ast.Attribute) else "")
+                if base_name in {"TestCase", "IsolatedAsyncioTestCase"}:
+                    return True
+                if test_case_class(base_name, seen):
+                    return True
+            return False
+
+        static[module_name] = {
+            "%s.%s.%s" % (module_name, cls.name, member.name)
+            for cls in classes.values() if test_case_class(cls.name)
+            for member in cls.body
+            if isinstance(member, (ast.FunctionDef, ast.AsyncFunctionDef))
+            and member.name.startswith("test")
+        }
+    print("[CENSUS_DIAG] files=%d static_declared=%d runtime=%d loader_errors=%d" %
+          (len(static), sum(len(s) for s in static.values()), len(cases),
+           len(loader.errors)), flush=True)
+    for name in sorted(set(static) | set(runtime)):
+        observed = runtime[name]
+        defined = static.get(name, set())
+        print("[CENSUS_MODULE] %s source=%d discovered=%d missing=%d extra=%d" %
+              (name, len(defined), len(observed),
+               len(defined - observed), len(observed - defined)), flush=True)
+        for case_id in sorted(defined - observed):
+            print("[CENSUS_MISSING] " + case_id, flush=True)
+        for case_id in sorted(observed - defined):
+            print("[CENSUS_EXTRA] " + case_id, flush=True)
+    for item in loader.errors:
+        print("[CENSUS_IMPORT_ERROR] " + item[-4000:], flush=True)
+    return 0
+
+
+def diagnose():
+    """Reproduce the count tool's clean environment rather than the parent CI."""
+    from console._preflight import isolated_env
+    proc = subprocess.run(
+        [sys.executable, str(Path(__file__).resolve()), "--diagnose-child"],
+        cwd=str(ROOT), env=isolated_env(), check=False,
+    )
+    return proc.returncode
+
+
 def main(argv):
     if len(argv) != 1:
         print("Usage: python scripts/ci_unittest.py {selftest|quick|full|_group NAME}")
         return 2
     mode = argv[0]
+    if mode == "diagnose":
+        return diagnose()
     if mode == "selftest":
         return selftest()
     groups = tuple(QUICK) if mode == "quick" else tuple(FULL) if mode == "full" else ()
@@ -130,6 +218,8 @@ def main(argv):
 
 
 if __name__ == "__main__":
+    if len(sys.argv) == 2 and sys.argv[1] == "--diagnose-child":
+        sys.exit(diagnose_child())
     if len(sys.argv) == 3 and sys.argv[1] == "--group":
         name = sys.argv[2]
         sys.exit(run_group(name) if name in QUICK or name in FULL else 2)
