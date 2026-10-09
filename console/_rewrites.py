@@ -532,6 +532,8 @@ def verify_portable(root=ROOT):
     for sha in reachable:
         prefixes.setdefault(sha[:7], []).append(sha)
     verified = 0
+    titles_verified = 0
+    amended_title_local_only = 0
     unavailable = 0
     for kind, old_sha, live_sha, tip, subject in mapping:
         matches = [s for s in reachable if s.startswith(live_sha)]
@@ -542,12 +544,20 @@ def verify_portable(root=ROOT):
             errors.append("[REWRITE_PORTABLE_LIVE_SHA] %s => %s reachable=%d" %
                           (old_sha, live_sha, len(matches)))
             continue
+        # An "amended message" *intentionally changed the title*; the
+        # archive stores the OLD title. Without the old object, equality with
+        # the live title would be a false requirement. Only attest live SHA.
+        if kind == "消息改写":
+            verified += 1
+            amended_title_local_only += 1
+            continue
         rc, actual_title = _git(root, "show", "-s", "--format=%s", matches[0])
         if rc or actual_title.strip()[:58] != subject:
             errors.append("[REWRITE_PORTABLE_LIVE_TITLE] %s => %s title mismatch" %
                           (old_sha, live_sha))
             continue
         verified += 1
+        titles_verified += 1
 
     rc, messages = _git(root, "log", "--format=%B%x00", "HEAD")
     if rc or not messages.strip():
@@ -556,9 +566,10 @@ def verify_portable(root=ROOT):
         errors.append("[REWRITE_PORTABLE_RESIDUE] ^MSG; found in current reachable history")
 
     print("[REWRITE_PORTABLE_SCOPE] clone_shallow=%s mapped_rows=%d "
-          "live_verified=%d live_unavailable=%d old_objects_verified=0 "
-          "old_reflog_verified=0 dangling_verified=0" %
-          (shallow, len(mapping), verified, unavailable))
+          "live_verified=%d titles_verified=%d title_local_only=%d live_unavailable=%d "
+          "old_objects_verified=0 old_reflog_verified=0 dangling_verified=0" %
+          (shallow, len(mapping), verified, titles_verified,
+           amended_title_local_only, unavailable))
     print("[REWRITE_LOCAL_ONLY] original orphan/old-tip counts and old->new tree "
           "equivalence are ARCHIVE_ONLY, not CI-pass claims")
     if shallow:
