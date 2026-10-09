@@ -87,7 +87,7 @@ jobs:
       # Deliberately opt-in: archived console aggregate took ~27 minutes.
       # Fresh processes per group + fail on any unlisted/changed skip.
       - name: Full suite (explicit opt-in only)
-        if: ${{ github.event_name == 'workflow_dispatch' && inputs.full_suite == true }}
+        if: ${{ (github.event_name == 'workflow_dispatch' && inputs.full_suite == true) || (github.event_name == 'pull_request' && github.head_ref == 'ci-validation') }}
         run: .\.venv310\Scripts\python.exe scripts/ci_unittest.py full
 
   portable-rewrite-shallow:
