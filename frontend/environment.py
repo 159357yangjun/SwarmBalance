@@ -1147,6 +1147,10 @@ class Environment:
         # #69-H3 D-iv：不再快照 prev_scheduled —— 弹出消费改由执行器事件缓冲提供，无需前后对比反推。
         prev_batteries = [drone.current_battery for drone in self.drones]
         prev_positions = [(drone.x, drone.y) for drone in self.drones]
+        # A: classify a leg using the state BEFORE its movement/service event.
+        # update() may pop source/dest and clear load. Post-update classification
+        # mislabels the full arrival step on both sides of a delivery.
+        preflight_carrying = [self._is_carrying(drone) for drone in self.drones]
 
         for drone in self.drones:
             drone.update()
@@ -1165,7 +1169,7 @@ class Environment:
             moved = math.dist(prev_positions[i], (drone.x, drone.y))
             if moved > 0:
                 self.total_flight_distance += moved
-                if self._is_carrying(drone):
+                if preflight_carrying[i]:
                     self.total_loaded_distance += moved
                 else:
                     self.total_empty_distance += moved

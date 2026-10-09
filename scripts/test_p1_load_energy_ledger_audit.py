@@ -143,16 +143,23 @@ class LoadEnergyLedgerAudit(unittest.TestCase):
         self.assertAlmostEqual(env.total_loaded_distance, 20.0,
                                msg="[P1_DELIVERY_RECLASS] pre-delivery 20m counted as empty")
 
-    def test_assigned_load_does_not_charge_physical_payload_before_pickup(self):
+    def test_assigned_load_penalty_is_frozen_before_pickup(self):
+        """B is NOT approved for production. Assert exact conservative control."""
         d = self.drone(load=10)
         d.scheduled_position = [(100.0, 0.0, "source"), (200.0, 0.0, "dest")]
         self.assertFalse(self.Environment._is_carrying(d))
         cost = d.consume_battery(20.0)
-        empty_cost = 20.0 * 0.06
-        print("[P1_PREPICKUP_ENERGY] actual=%.6fWh empty_physical=%.6fWh" %
-              (cost, empty_cost))
-        self.assertAlmostEqual(cost, empty_cost,
-                               msg="[P1_ASSIGNED_VS_ONBOARD] empty pickup-leg gets assigned-weight penalty")
+        physically_empty_cost = 20.0 * 0.06
+        assigned_baseline_cost = physically_empty_cost * (1 + 0.33)
+        print("[P1_B_CONTROL] charged=%.6fWh physical_empty=%.6fWh excess=%.6fWh" %
+              (cost, physically_empty_cost, cost - physically_empty_cost))
+        self.assertAlmostEqual(cost, assigned_baseline_cost,
+                               msg="[P1_B_CONTROL_DRIFT] approved B control formula changed")
+        self.assertGreater(cost, physically_empty_cost,
+                           "[P1_B_CONTROL_DROPPED] pickup leg no longer carries assigned penalty")
+        self.assertAlmostEqual(d.last_energy_required_wh, assigned_baseline_cost)
+        self.assertAlmostEqual(d.last_energy_debited_wh, cost)
+        self.assertEqual(d.last_energy_shortfall_wh, 0.0)
 
     def test_battery_depletion_return_equals_actual_ledger_delta(self):
         d = self.drone(load=0)
@@ -160,9 +167,14 @@ class LoadEnergyLedgerAudit(unittest.TestCase):
         before = d.current_battery
         reported = d.consume_battery(100.0)
         booked = before - d.current_battery
-        print("[P1_DEPLETION] returned_Wh=%.6f ledger_delta_Wh=%.6f" % (reported, booked))
+        print("[P1_DEPLETION] required_Wh=%.6f debited_Wh=%.6f shortfall_Wh=%.6f" %
+              (d.last_energy_required_wh, reported, d.last_energy_shortfall_wh))
         self.assertAlmostEqual(reported, booked,
-                               msg="[P1_DEPLETION_GAP] return is unbounded demand, ledger counts clipped battery delta")
+                               msg="[P1_DEPLETION_GAP] return must equal actual battery debit")
+        self.assertAlmostEqual(d.last_energy_required_wh, 6.0)
+        self.assertAlmostEqual(d.last_energy_debited_wh, 1.0)
+        self.assertAlmostEqual(d.last_energy_shortfall_wh, 5.0)
+        self.assertTrue(d.energy_insufficient)
 
     def test_negative_distance_is_rejected_without_charging_battery(self):
         d = self.drone(load=0.0)
