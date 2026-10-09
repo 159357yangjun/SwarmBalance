@@ -74,6 +74,10 @@ jobs:
           SWARM_REWRITE_TEST_MODE: portable
         run: .\.venv310\Scripts\python.exe -m unittest -v console.test_rewrite_map
 
+      - name: Recheck three full-suite regression failures
+        run: |
+          .\.venv310\Scripts\python.exe -m unittest -v console.test_dead_charging_fields.DeadChargingFieldTests.test_classifier_is_not_vacuous console.test_compare_gate.CitationIntegrityTests.test_coverage_is_printed_not_just_asserted console.test_frozen_artifact_source_pins.FrozenArtifactSourcePin.test_C_declaration_requires_the_named_artifact
+
       - name: Quick invariant checks (P2, P3, G2 calibration)
         run: .\.venv310\Scripts\python.exe scripts/ci_unittest.py quick
 
