@@ -17,6 +17,7 @@ B1_ALLOWED_CHANGES = {
     ".github/workflows/p2-4b-b1-energy-quote.yml",
     "docs/P2_4B_B1_ENERGY_QUOTE_EVIDENCE.md",
     "docs/数据来源与可追溯性登记表.md",  # correct migrated code-line anchors only
+    "console/test_c4_cargo_truth_scan_gate.py",  # audited bounded-capacity exemption moved with quote
     "frontend/drone.py",
     "scripts/test_p2_4b_b1_energy_quote.py",
     "scripts/p2_4a_state_contract_test.py",  # chained slice scope guard
