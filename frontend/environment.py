@@ -869,6 +869,23 @@ class Environment:
             # 2) 泊位请求登记：已抵达机巢、尚未换电的无人机进入对应机巢等待队列
             if getattr(drone, 'awaiting_berth', False):
                 sid = getattr(drone, 'berth_station_id', None)
+                if (os.environ.get("SWARM_BALANCE_CHARGE_TARGET_IDENTITY") == "1"
+                        and getattr(drone, "_manual_charge_requested", False)):
+                    target = self._station_by_id(sid)
+                    valid = (
+                        sid is not None and target is not None
+                        and str(getattr(drone, "charge_target_station_id", "")) == str(sid)
+                        and not getattr(target, "closed", False)
+                        and math.dist(drone.get_position(), target.get_position()) < 1e-6)
+                    if not valid:
+                        for old_queue in self._nest_waiting.values():
+                            while idx in old_queue:
+                                old_queue.remove(idx)
+                        drone.awaiting_berth = False
+                        drone.berth_station_id = None
+                        drone.awaiting_since = None
+                        drone.charge_target_hold_reason = "arrival_not_verified"
+                        continue
                 if sid is not None:
                     if drone.awaiting_since is None:
                         drone.awaiting_since = self.current_time
@@ -887,6 +904,17 @@ class Environment:
                     best = max(q, key=self._drone_berth_score)
                 q.remove(best)
                 drone = self.drones[best]
+                if (os.environ.get("SWARM_BALANCE_CHARGE_TARGET_IDENTITY") == "1"
+                        and getattr(drone, "_manual_charge_requested", False)
+                        and (str(getattr(drone, "charge_target_station_id", "")) != str(st.station_id)
+                             or not drone.awaiting_berth
+                             or math.dist(drone.get_position(), st.get_position()) >= 1e-6
+                             or getattr(st, "closed", False))):
+                    drone.awaiting_berth = False
+                    drone.berth_station_id = None
+                    drone.awaiting_since = None
+                    drone.charge_target_hold_reason = "arrival_not_verified"
+                    continue
                 wait_time = 0.0
                 if drone.awaiting_since is not None:
                     wait_time = max(0.0, self.current_time - drone.awaiting_since)
