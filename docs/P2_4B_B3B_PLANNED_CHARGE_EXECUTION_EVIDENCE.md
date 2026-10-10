@@ -32,3 +32,10 @@
 - B3a 的范围测试针对不可变 `b10b49e5e69a2d2b9986e20bf8b8b853460ec4f0`；B3b 增加 `scripts/p2_4a_state_contract_test.py::test_13_only_b3b_planned_execution_scope_changed`，对白名单五文件执行 Git diff 精确集合等式。
 - 本次提交请求 [full-suite] 完整四组真实 Windows CI。暂时将 PR #18 base 改为 `ci-validation` 以符合 `.github/workflows/ci.yml` 的 PR 触发条件。只有本次新 HEAD 所有 `console/frontend/root/experiments/verification` 等 Job 自身到达 `completed/success`，才恢复为 `p2-4b-b3-planned-station-quote-v1` 并回读 GitHub API。
 - 其中旧日志 `[WIND_REF_GUARD]` 会有刻意触发并在断言中捕获的红灯和条件 SkipTest：这不是自动允许未知测试跳过；以 strict skip policy 的真实全量结果为准。
+
+## 全量 CI 引用校验红灯与最小修复
+
+- 首次完整四组 CI [#38046765705](https://github.com/159357yangjun/SwarmBalance/actions/runs/38046765705) 中，`verification` 的 `console/_citations.py --verify --portable-rewrite` 报出 9 条 `frontend/environment.py` 代码行号锚点失效。这是 B3b 在 `request_drone_charge` 中新增路线决策后引起的**文档位置漂移**，不能当作全量成功。
+- 仅在 `docs/数据来源与可追溯性登记表.md` 中逐条定位原源码符号并修正九个锚点：`timeout_rate`、`total_swap_sessions`、`wait_time`、`denom_steps`、`total_delay`、`avg_energy_per_distance`、`current_load`。不动算法、原始归档和 `console/_citations.py` 的检查逻辑。
+- 严格 B3b 变更白名单显式增加上述登记表文件，没有降低 Git 文件范围判据。
+- 本次提交请求新的 [full-suite] CI，必须以修复后**最新 HEAD** 的真实 `verification` 和 `console/frontend/experiments/root` 终态为准。任何此前因并发取消或局部通过的工作流都不能作为整体验收证据。
