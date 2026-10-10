@@ -1,0 +1,131 @@
+name: P2.2 G2 before-after diagnosis
+
+on:
+  push:
+    branches: [p2-2-g2-root-cause-diagnostic-v1]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  g2-before-after:
+    name: G2 actual test / ${{ matrix.label }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - label: old-p2-1
+            sha: 806d07653af52b83202ba232cb1f3e88dd9b7901
+          - label: new-p2-2
+            sha: 5bcc6cb9661dc250c11c578acbacc32c8b0d6f4f
+    runs-on: windows-2022
+    timeout-minutes: 65
+    env:
+      PYTHONIOENCODING: utf-8
+      PYTHONUTF8: "1"
+      PYTHONDONTWRITEBYTECODE: "1"
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - name: Checkout immutable production commit
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ matrix.sha }}
+          fetch-depth: 0
+      - name: Verify exact SHA and unchanged test file
+        run: |
+          $actual = git rev-parse HEAD
+          if ($actual -ne "${{ matrix.sha }}") { throw "Wrong checkout SHA: $actual" }
+          $blob = git rev-parse "HEAD:console/test_speed_fallback_gate.py"
+          if ($blob -ne "0e0512495e82048044710182c31405e5a897b8cb") { throw "G2 test source drift: $blob" }
+          Write-Host "[G2_DIAG_SHA] ${{ matrix.label }} $actual test_blob=$blob"
+      - name: Python 3.10
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+          cache: pip
+          cache-dependency-path: requirements.txt
+      - name: Install project environment matching full suite
+        run: |
+          python -m venv .venv310
+          .\.venv310\Scripts\python.exe -m pip install "pip==23.3.2" numpy==1.26.4
+          .\.venv310\Scripts\python.exe -m pip install -r requirements.txt
+      - name: Execute identical G2TEETH test on actual old/new commit
+        id: g2
+        run: |
+          .\.venv310\Scripts\python.exe -m unittest -v console.test_speed_fallback_gate.SpeedFallbackGateTests.test_g2teeth_mutation_turns_the_denominator_off
+      - name: Report historical test outcome
+        if: always()
+        run: |
+          Write-Host "[G2_DIAG] label=${{ matrix.label }} sha=${{ matrix.sha }} outcome=${{ steps.g2.outcome }}"
+
+  g2-policy-trace:
+    name: P2.2 flight-block and scheduler-flush provenance
+    runs-on: windows-2022
+    timeout-minutes: 65
+    env:
+      PYTHONIOENCODING: utf-8
+      PYTHONUTF8: "1"
+      PYTHONDONTWRITEBYTECODE: "1"
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - name: Checkout isolated diagnostic branch
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Guard immutable production implementation
+        run: |
+          $sourceBlob = git rev-parse "HEAD:frontend/drone.py"
+          $baselineBlob = git rev-parse "5bcc6cb9661dc250c11c578acbacc32c8b0d6f4f:frontend/drone.py"
+          if ($sourceBlob -ne $baselineBlob) { throw "Production drone.py drift" }
+          Write-Host "[G2_POLICY_GUARD] production_drone_blob=$sourceBlob"
+      - name: Python 3.10
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+          cache: pip
+          cache-dependency-path: requirements.txt
+      - name: Install project dependencies
+        run: |
+          python -m venv .venv310
+          .\\.venv310\\Scripts\\python.exe -m pip install "pip==23.3.2" numpy==1.26.4
+          .\\.venv310\\Scripts\\python.exe -m pip install -r requirements.txt
+      - name: Run three unchanged workloads with read-only telemetry
+        run: |
+          foreach ($face in @("gate", "mutate", "noDenom")) {
+            Write-Host "[G2_POLICY_FACE] $face"
+            .\\.venv310\\Scripts\\python.exe console/phase0_speed_gate_teeth_probe.py $face
+            if ($LASTEXITCODE -ne 0) { throw "Probe failed on $face" }
+          }
+
+  g2-energy-isolation:
+    name: G2 real-gate battery-isolated fixture calibration
+    runs-on: windows-2022
+    timeout-minutes: 65
+    env:
+      PYTHONIOENCODING: utf-8
+      PYTHONUTF8: "1"
+      PYTHONDONTWRITEBYTECODE: "1"
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - name: Checkout diagnosis branch
+        uses: actions/checkout@v4
+      - name: Python 3.10
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+          cache: pip
+          cache-dependency-path: requirements.txt
+      - name: Install dependencies
+        run: |
+          python -m venv .venv310
+          .\\.venv310\\Scripts\\python.exe -m pip install "pip==23.3.2" numpy==1.26.4
+          .\\.venv310\\Scripts\\python.exe -m pip install -r requirements.txt
+      - name: Run actual gate with 20x fixture batteries and unchanged 1 percent assertion
+        run: .\\.venv310\\Scripts\\python.exe scripts/p2_2_g2_battery_counterfactual.py

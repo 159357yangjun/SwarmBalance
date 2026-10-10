@@ -53,6 +53,15 @@ FACES = {
 def _write_cfg(tasks, mix):
     base = json.loads((ROOT / "config" / "simulation.json").read_text(encoding="utf-8"))
     base["task_generation"]["realistic"].update({"interval_scale": 0.70, "total_tasks": tasks})
+    # Isolated fixture counterfactual only: DO NOT bypass the production gate.
+    # A speed/PSO denominator test may remove battery exhaustion as a confound.
+    _battery_scale = float(os.environ.get("SWARM_G2_DIAG_BATTERY_SCALE", "1.0"))
+    if not 1.0 <= _battery_scale <= 100.0:
+        raise ValueError("Diagnostic battery scale must be in [1, 100]")
+    if _battery_scale != 1.0:
+        base["drone"]["battery_capacity"] *= _battery_scale
+        for profile in base["heterogeneous"]["drone_types"].values():
+            profile["battery_capacity"] *= _battery_scale
     base["heterogeneous"]["fleet_mix"] = mix
     # num_drones 与 mix 合计对齐：见 test_speed_fallback_gate._load_config_for_gate() 的恒等式。
     base["environment"]["num_drones"] = sum(int(v) for v in mix.values())
@@ -95,6 +104,9 @@ def main(face):
 
         counts = {"n": 0}
         peak = {"p": 0}
+        blocked_steps = 0
+        blocked_ids = set()
+        first_block = None
         from backend_si import pso_scheduler as P
         orig = P.PSOOptimizer.optimize
         orig_maybe = P.PSOScheduler._maybe_flush_buffer
@@ -117,10 +129,28 @@ def main(face):
             while not done:
                 action = sch.step(obs, current_time=env.current_time)
                 obs, _, done, _ = env.step(action)
+                # P2.2-only diagnostic: read-only blocked-state census after real step().
+                # This is not a scheduling intervention or a change to the safety gate.
+                blocked_now = [d for d in env.drones
+                               if getattr(d, "flight_energy_blocked", False)]
+                blocked_steps += len(blocked_now)
+                for d in blocked_now:
+                    blocked_ids.add(getattr(d, "drone_id", id(d)))
+                if blocked_now and first_block is None:
+                    d = blocked_now[0]
+                    first_block = (float(env.current_time), float(d.current_battery),
+                                   float(d.last_energy_required_wh),
+                                   len(d.scheduled_position))
             reasons = _read_flush_reasons(sch)
         finally:
             P.PSOOptimizer.optimize = orig
             P.PSOScheduler._maybe_flush_buffer = orig_maybe
+        print("[G2_POLICY_TRACE] face=%s blocked_drone_steps=%d blocked_unique=%d "
+              "first=(time,battery,required,route_len)=%s flush_size=%d "
+              "flush_emergency=%d flush_timeout=%d optimize=%d" % (
+                  face, blocked_steps, len(blocked_ids), first_block,
+                  reasons["flush_size"], reasons["flush_emergency"],
+                  reasons["flush_timeout"], counts["n"]))
         # 每个值都加引号：mix=[...] 内部本身带空格，裸 token 会让门按空格切分时拿到
         # "mix=[1," / "2," ..." 这种残片（本轮实测 ValueError）。
         print('TEETH face="%s" tasks=%d mix="%s" drones_in_env=%d speeds="%s" '

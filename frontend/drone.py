@@ -1,5 +1,6 @@
 import math
 import random
+import os
 from config.config_loder import get_shared_config
 from charging_station import DEFAULT_CHARGING_STATIONS, find_nearest_station
 
@@ -80,6 +81,10 @@ class Drone:
         # 载重信息
         self.carrying_capacity = carrying_capacity if carrying_capacity is not None else DEFAULT_CARRYING_CAPACITY
         self.current_load = 0  # 当前载重
+        # B experimental channel: actual onboard kg set only after source
+        # service event and removed after destination service event.
+        # This does NOT replace assigned current_load for task capacity.
+        self.onboard_load_kg = 0.0
         
         # 任务信息
         self.tasks = []
@@ -101,6 +106,9 @@ class Drone:
         self.last_energy_debited_wh = 0.0
         self.last_energy_shortfall_wh = 0.0
         self.energy_insufficient = False
+        # P2.2: an unaffordable step is a grounded hold, not simulated flight.
+        self.flight_energy_blocked = False
+        self.flight_energy_block_reason = None
         self.is_charging = False  # 是否正在换电/不可接单（沿用具名，语义=换电）
         self.charging_station_id = None  # 当前所在机巢ID
         self.swap_time_seconds = DRONE_SWAP_TIME  # 换电耗时（秒）
@@ -200,7 +208,16 @@ class Drone:
         #   两种口径相反且本仓**同时**在跑（主控裁定①：维持并存、暂不统一）。
         #   ⇒ 后果：Wh/km 的分子含归属未定的惩罚、分母按另一口径划分 ⇒ **商无定义**，
         #     未定口径前不得对外声称任何 Wh/km。全文见 docs/P70_E1_load_penalty_attribution_two_readings.md。
-        load_factor = (self.current_load / self.carrying_capacity) * self.battery_load_penalty_factor
+        # B is opt-in ONLY on the experiment branch; default remains the
+        # approved assigned-load control. No silent switch in production.
+        if os.environ.get("SWARM_BALANCE_ENERGY_ACCOUNTING") == "onboard":
+            charge_load = float(self.onboard_load_kg)
+            if not math.isfinite(charge_load) or not 0 <= charge_load <= self.carrying_capacity:
+                raise ValueError("[ENERGY_ONBOARD_LOAD_INVALID] onboard_load_kg=%r" %
+                                 (self.onboard_load_kg,))
+        else:
+            charge_load = self.current_load
+        load_factor = (charge_load / self.carrying_capacity) * self.battery_load_penalty_factor
         total_consumption = base_consumption * (1 + load_factor) * self._wind_factor(wind_along)
         
         # C: required Wh is the original model demand. The account may only
@@ -285,6 +302,7 @@ class Drone:
         """返回出发点装货"""
         self.scheduled_position = [base_position]
         self.current_load = 0
+        self.onboard_load_kg = 0.0
         self.is_free = False
 
     def add_load(self, weight):
@@ -361,6 +379,13 @@ class Drone:
             # 顺风/逆风因此随航段自动变号 —— 这是 wind_along 必须是分量而非幅值的原因。
             wind_along = self._wind_along_for(dx, dy, distance)
 
+            # P2.2: evaluate the *actual next movement* before mutating
+            # position, battery, task state or waypoint/event buffers.
+            # Do not partially debit an impossible leg and still fly it.
+            next_meters = min(distance, max_distance)
+            if not self._flight_step_feasible(next_meters, wind_along):
+                return
+
             if distance <= max_distance:
                 # If we're close enough to target, move directly to it
                 self.x = target_x
@@ -410,6 +435,52 @@ class Drone:
                 self.y += (dy / distance) * actual_distance
                 # 飞行消耗电量
                 self.consume_battery(actual_distance, wind_along)
+
+    def _flight_step_feasible(self, distance, wind_along):
+        """Fail-closed real-movement gate. No shadow battery or formula switch.
+
+        This quotes the identical mass/Wh/m/wind expression consumed by
+        consume_battery(), without calling the mutating debit routine.
+        A blocked proposed step records unmet REQUIRED Wh and debits zero,
+        so required == debited + shortfall remains true.
+        """
+        for name, value in (("distance", distance),
+                            ("carrying_capacity", self.carrying_capacity),
+                            ("current_load", self.current_load),
+                            ("current_battery", self.current_battery),
+                            ("battery_consumption_base", self.battery_consumption_base),
+                            ("battery_load_penalty_factor", self.battery_load_penalty_factor)):
+            if not isinstance(value, (float, int)) or not math.isfinite(value):
+                raise ValueError("[ENERGY_INPUT_NOT_FINITE] %s=%r" % (name, value))
+        if distance < 0 or self.carrying_capacity <= 0 or self.current_battery < 0:
+            raise ValueError("[FLIGHT_ENERGY_INVALID] distance/capacity/battery")
+        if not 0 <= self.current_load <= self.carrying_capacity:
+            raise ValueError("[ENERGY_LOAD_INVALID] current_load=%r" % self.current_load)
+        if self.battery_consumption_base < 0 or self.battery_load_penalty_factor < 0:
+            raise ValueError("[ENERGY_COEFFICIENT_NEGATIVE]")
+        if os.environ.get("SWARM_BALANCE_ENERGY_ACCOUNTING") == "onboard":
+            load = float(self.onboard_load_kg)
+            if not math.isfinite(load) or not 0 <= load <= self.carrying_capacity:
+                raise ValueError("[ENERGY_ONBOARD_LOAD_INVALID]")
+        else:
+            load = self.current_load
+        required = (distance * self.battery_consumption_base *
+                    (1 + (load / self.carrying_capacity) * self.battery_load_penalty_factor) *
+                    self._wind_factor(wind_along))
+        if not math.isfinite(required) or required < 0:
+            raise ValueError("[ENERGY_REQUIREMENT_INVALID] required_wh=%r" % required)
+        if required > self.current_battery:
+            self.flight_energy_blocked = True
+            self.flight_energy_block_reason = "insufficient_step_energy"
+            self.energy_insufficient = True
+            self.last_energy_required_wh = required
+            self.last_energy_debited_wh = 0.0
+            self.last_energy_shortfall_wh = required
+            self.is_free = False  # keep reserved; no free/unassigned phantom dispatch
+            return False
+        self.flight_energy_blocked = False
+        self.flight_energy_block_reason = None
+        return True
 
     def get_position(self):
         return (self.x, self.y)
