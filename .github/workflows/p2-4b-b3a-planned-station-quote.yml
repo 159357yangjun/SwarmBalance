@@ -37,3 +37,6 @@ jobs:
       - name: RED or GREEN actual A* energy quote and OSM audit
         run: |
           .\.venv310\Scripts\python.exe -m unittest -v scripts.test_p2_4b_b3_planned_station_quote
+      - name: B1/B2/P2.2/C4 regressions and immutable four-stage scope guards
+        run: |
+          .\.venv310\Scripts\python.exe -m unittest -v scripts.test_p2_4b_b1_energy_quote scripts.test_p2_4b_b2_station_energy_gate scripts.test_p2_2_flight_energy_gate console.test_c4_cargo_truth_scan_gate scripts.p2_4a_state_contract_test
