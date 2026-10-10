@@ -1220,7 +1220,15 @@ class Environment:
         preflight_carrying = [self._is_carrying(drone) for drone in self.drones]
 
         for drone in self.drones:
-            drone.update()
+            if os.environ.get("SWARM_BALANCE_AUTO_PLANNED_STATION") == "1":
+                # Real Environment RoutePlanner geometry, supplied only
+                # to the experimental automatic energy diversion. This keeps
+                # legacy Drone.update() signatures and E0 default untouched.
+                drone.update(station_quote_provider=(
+                    lambda station, d=drone:
+                    self.quote_planned_station_energy_wh(d, station)))
+            else:
+                drone.update()
 
         # 统计耗电量和充电量
         for i, drone in enumerate(self.drones):

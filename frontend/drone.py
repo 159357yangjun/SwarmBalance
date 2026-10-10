@@ -347,7 +347,7 @@ class Drone:
         """获取剩余载重"""
         return self.carrying_capacity - self.current_load
 
-    def update(self, time_step=None):
+    def update(self, time_step=None, station_quote_provider=None):
         # 故障/停飞状态：冻结当前位置与电量，不推进任何飞行/换电逻辑。
         # 任务回收与泊位释放由 Environment.set_drone_out_of_service() 统一处理。
         if getattr(self, 'out_of_service', False):
@@ -393,7 +393,34 @@ class Drone:
             # normal deployments keep the exact old nearest-station rule.
             # This is only a direct-hop necessary energy screen, not mapped
             # path certification or a production default policy change.
-            if os.environ.get("SWARM_BALANCE_STATION_ENERGY_GATE") == "1":
+            auto_planned_waypoints = None
+            if os.environ.get("SWARM_BALANCE_AUTO_PLANNED_STATION") == "1":
+                # Only an explicitly injected Environment RoutePlanner can
+                # certify the geometry. Missing provider => HOLD, not a
+                # straight-line fallback or a free station teleport.
+                offers = []
+                if callable(station_quote_provider):
+                    for station in (self.known_stations or []):
+                        if getattr(station, "closed", False):
+                            continue
+                        quote = station_quote_provider(station)
+                        if (quote.get("feasible") and not quote.get("fallback")
+                                and quote.get("affordable")):
+                            offers.append((quote["total_wh"], quote["distance_m"],
+                                           str(station.station_id), station, quote))
+                if not offers:
+                    self.flight_energy_blocked = True
+                    self.flight_energy_block_reason = "no_affordable_planned_station"
+                    self.is_free = False
+                    return
+                *_, nearest, chosen = min(offers, key=lambda item: item[:3])
+                auto_planned_waypoints = [
+                    (float(x), float(y), "waypoint")
+                    for x, y in chosen["waypoints"]]
+                self.charge_target_station_id = nearest.station_id
+                self.flight_energy_blocked = False
+                self.flight_energy_block_reason = None
+            elif os.environ.get("SWARM_BALANCE_STATION_ENERGY_GATE") == "1":
                 nearest = self._select_energy_affordable_direct_station()
                 if nearest is None:
                     self.flight_energy_blocked = True
@@ -412,7 +439,9 @@ class Drone:
                 self.awaiting_berth = True
                 self.berth_station_id = nearest.station_id
             else:
-                self.scheduled_position = [nest_pos]
+                self.scheduled_position = (auto_planned_waypoints
+                                           if auto_planned_waypoints is not None
+                                           else [nest_pos])
             return
 
         if self.scheduled_position:

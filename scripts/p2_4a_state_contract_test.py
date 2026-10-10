@@ -17,6 +17,16 @@ B1_HEAD = "fd8a001b09cb85b6875426d0e30532ee6e6831ac"
 B2_HEAD = "1601a36e7fb560b7126d13133d820a7bb4c60fe6"
 B3A_HEAD = "b10b49e5e69a2d2b9986e20bf8b8b853460ec4f0"
 B3B_HEAD = "25a77553c710c06cc105986f140d66ba5c5c6c6d"
+B3C_HEAD = "fca9ebfeb2413d8b396f20c10c98ddd50d2fcd47"
+B4_ALLOWED_CHANGES = {
+    ".github/workflows/p2-4b-b4-auto-planned-nest.yml",
+    "docs/P2_4B_B4_AUTO_PLANNED_NEST_EVIDENCE.md",
+    "frontend/drone.py",
+    "frontend/environment.py",
+    "scripts/p2_4a_state_contract_test.py",
+    "scripts/test_p2_4b_b4_auto_planned_nest.py",
+}
+
 B3C_ALLOWED_CHANGES = {
     ".github/workflows/p2-4b-b3c-target-station.yml",
     "docs/P2_4B_B3C_STATION_IDENTITY_EVIDENCE.md",
@@ -235,11 +245,21 @@ class RecoveryStateContract(unittest.TestCase):
         try:
             names = subprocess.check_output(
                 ["git", "-C", str(ROOT), "-c", "core.quotePath=false",
-                 "diff", "--name-only", B3B_HEAD + "...HEAD"], text=True).splitlines()
+                 "diff", "--name-only", B3B_HEAD + "..." + B3C_HEAD], text=True).splitlines()
         except (subprocess.CalledProcessError, FileNotFoundError) as exc:
             self.fail("[B3C_GIT_DIFF_NOT_VERIFIED] " + repr(exc))
         self.assertEqual(set(names), B3C_ALLOWED_CHANGES,
                          "[B3C_SCOPE_VIOLATION] strict seven-file station guard only")
+
+    def test_15_only_b4_auto_planned_energy_scope_changed(self):
+        try:
+            names = subprocess.check_output(
+                ["git", "-C", str(ROOT), "-c", "core.quotePath=false",
+                 "diff", "--name-only", B3C_HEAD + "...HEAD"], text=True).splitlines()
+        except (subprocess.CalledProcessError, FileNotFoundError) as exc:
+            self.fail("[B4_GIT_DIFF_NOT_VERIFIED] " + repr(exc))
+        self.assertEqual(set(names), B4_ALLOWED_CHANGES,
+                         "[B4_SCOPE_VIOLATION] exact automatic route six files only")
 
 
 if __name__ == "__main__":
