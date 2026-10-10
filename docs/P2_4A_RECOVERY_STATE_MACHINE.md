@@ -10,6 +10,7 @@
 - `Environment.request_drone_charge()` 可以挂起原航线并请求换电，但也未证明剩余 Wh 可覆盖到站全程；现有 `_manage_berths()` 负责泊位与换电时长，不提供飞行可达性证据。
 - `Environment.set_drone_out_of_service()` 会回收**所有**剩余任务到原取货点，即使有订单已加载。这只是现行**仿真抽象**，不能当作货物真实返回原取货点的证据。当前 `is_free` 转换兜底还可能触发隐式完成，需要阻止恢复过程制造虚假交付。
 - `Task.status` 只有 `pending / assigned / in_progress / completed / failed`，没有持久外部回收或悬置态。P2.4a 的 `unresolved` 只能先作为**单独运行账本分类的拟议字段**，不能声称当前代码已经支持。
+- 现有 `Environment.drone_assignments` 中，每笔订单 `load_time=None` 表示**尚无取货航点服务记录**；只有真正消费 `source` 服务航点后才会设置非空 `load_time` 并增加 `onboard_load_kg`。回收时必须逐订单核对该字段，而不是看到任务状态为 `assigned` 就假定货物在原取货点；多单混合链尤其不能统一回滚。
 - 现有 `Drone._flight_step_feasible()` 与 `consume_battery()` 重复 Wh 公式；未来优先共享**只读报价函数**，不能简单复用带副作用的扣电函数做预估。
 
 ## 2. 规范目标与状态表
