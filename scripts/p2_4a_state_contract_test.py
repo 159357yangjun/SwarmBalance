@@ -12,6 +12,17 @@ ROOT = pathlib.Path(__file__).resolve().parents[1]
 CONTRACT = ROOT / "docs" / "contracts" / "p2_4a_recovery_state_machine.json"
 DOC = ROOT / "docs" / "P2_4A_RECOVERY_STATE_MACHINE.md"
 P22 = "97200d2786a5fc775a8e6ea4ca5f95f90b5bcefb"
+P24A_HEAD = "7ca10647201432062fbfd366fccba48027dbdd24"
+B1_ALLOWED_CHANGES = {
+    ".github/workflows/p2-4b-b1-energy-quote.yml",
+    "docs/P2_4B_B1_ENERGY_QUOTE_EVIDENCE.md",
+    "docs/数据来源与可追溯性登记表.md",  # correct migrated code-line anchors only
+    "console/test_c4_cargo_truth_scan_gate.py",  # audited bounded-capacity exemption moved with quote
+    "frontend/drone.py",
+    "scripts/test_p2_4b_b1_energy_quote.py",
+    "scripts/p2_4a_state_contract_test.py",  # chained slice scope guard
+}
+
 ALLOWED_CHANGES = {
     "docs/contracts/p2_4a_recovery_state_machine.json",
     "docs/P2_4A_RECOVERY_STATE_MACHINE.md",
@@ -123,17 +134,31 @@ class RecoveryStateContract(unittest.TestCase):
                                 for s in self.c[group]))
 
     def test_09_only_p24a_documents_tests_and_workflow_changed(self):
-        # Full history checkout is part of CI; fail if production modules or
-        # frozen experiment results were accidentally edited on this branch.
+        # Historical *immutable* design slice; descendants may implement code.
+        # The P2.4a four-file gate must remain strict and never inspect a
+        # broader future HEAD as though it were still design-only.
         try:
             output = subprocess.check_output(
-                ["git", "-C", str(ROOT), "diff", "--name-only",
-                 P22 + "...HEAD"], text=True).splitlines()
+                ["git", "-C", str(ROOT), "-c", "core.quotePath=false", "diff", "--name-only",
+                 P22 + "..." + P24A_HEAD], text=True).splitlines()
         except (subprocess.CalledProcessError, FileNotFoundError) as exc:
             self.fail("[P24A_GIT_DIFF_NOT_VERIFIED] " + repr(exc))
         self.assertTrue(output, "[P24A_EMPTY_CHANGE] no contract committed")
         self.assertEqual(set(output), ALLOWED_CHANGES,
-                         "[P24A_SCOPE_VIOLATION] changes differ from four design-only files")
+                         "[P24A_SCOPE_VIOLATION] exactly four design files required")
+
+    def test_10_only_b1_energy_quote_scope_changed(self):
+        # New, equally strict HEAD gate covers every new B1 file, including
+        # this anchored historical-slice adaptation. Fail on changes to
+        # scheduler/config/frozen archives or unapproved files.
+        try:
+            output = subprocess.check_output(
+                ["git", "-C", str(ROOT), "-c", "core.quotePath=false", "diff", "--name-only",
+                 P24A_HEAD + "...HEAD"], text=True).splitlines()
+        except (subprocess.CalledProcessError, FileNotFoundError) as exc:
+            self.fail("[B1_GIT_DIFF_NOT_VERIFIED] " + repr(exc))
+        self.assertEqual(set(output), B1_ALLOWED_CHANGES,
+                         "[B1_SCOPE_VIOLATION] only listed energy-quote / test files")
 
 
 if __name__ == "__main__":
