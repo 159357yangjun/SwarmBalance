@@ -726,6 +726,61 @@ class Environment:
                 task.category = c
         return {'task_id': str(task.task_id), 'changed': changed}
 
+    def resume_held_charge_route(self, drone_id):
+        """B4c experimental explicit resume, after a fresh A* and Wh quote.
+
+        Reopening a nest does NOT release a prior hold. The operator must
+        explicitly request resumption, and *all* checks happen before any
+        battery, position, mission or route mutation. This API does not
+        create external rescue, cargo transfer or recharge events.
+        """
+        if (os.environ.get("SWARM_BALANCE_HELD_ROUTE_REQUOTE") != "1"
+                or os.environ.get("SWARM_BALANCE_AUTO_PLANNED_STATION") != "1"
+                or os.environ.get("SWARM_BALANCE_CHARGE_TARGET_IDENTITY") != "1"):
+            raise ValueError("[B4C_OPT_IN_REQUIRED] all route and identity gates must be enabled")
+        idx = self._drone_index_by_id(drone_id)
+        drone = self.drones[idx]
+        if (getattr(drone, "out_of_service", False)
+                or getattr(drone, "is_charging", False)
+                or getattr(drone, "awaiting_berth", False)
+                or getattr(drone, "_manual_charge_requested", False)
+                or not getattr(drone, "_suspended_route", [])
+                or not getattr(drone, "charge_target_hold_reason", None)):
+            raise ValueError("[B4C_NOT_HELD_AUTO_CHARGE] no supported recovery state")
+        target_id = getattr(drone, "charge_target_station_id", None)
+        target = self._station_by_id(target_id)
+        if target is None or getattr(target, "closed", False):
+            raise ValueError("[B4C_STATION_CLOSED] requested target is absent or closed")
+        # This quote uses real current position, current wind and B1 single
+        # source Wh. It fails closed on planner fallback and missing reserve.
+        fresh = self.quote_planned_station_energy_wh(drone, target)
+        if (not fresh["feasible"] or fresh["fallback"]
+                or not fresh["affordable"]):
+            raise ValueError("[B4C_ROUTE_UNAFFORDABLE] %s" % fresh["reason"])
+        new_waypoints = [(float(x), float(y), "waypoint")
+                         for x, y in fresh["waypoints"]]
+        if not new_waypoints and drone.get_position() != target.get_position():
+            raise ValueError("[B4C_NO_PLANNED_WAYPOINTS] unexpected empty route")
+        # Atomic state transition after all eligibility and Wh checks.
+        drone.scheduled_position = new_waypoints
+        drone.charge_target_hold_reason = None
+        drone.flight_energy_blocked = False
+        drone.flight_energy_block_reason = None
+        drone.is_free = False
+        self._prev_free_status[idx] = False
+        if not new_waypoints:
+            drone.awaiting_berth = True
+            drone.berth_station_id = target.station_id
+            drone.awaiting_since = float(self.current_time)
+        return {
+            "drone_id": str(drone.drone_id),
+            "station_id": str(target.station_id),
+            "changed": True,
+            "planned_distance_m": fresh["distance_m"],
+            "required_wh": fresh["required_wh"],
+            "reserve_wh": fresh["reserve_wh"],
+        }
+
     def request_drone_charge(self, drone_id, station_id=None):
         """人工请求无人机前往指定/最近开放机巢换电。
 
