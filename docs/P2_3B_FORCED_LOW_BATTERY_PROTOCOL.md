@@ -1,0 +1,5 @@
+# P2.3b – deliberately activated energy gate
+
+Two **immutable** source versions: P2.1 `806d076` before, P2.2 `5bcc6cb` after. Run real `Environment.step()` and `Drone.update()` in the existing deterministic one-drone test shell. Four *controlled* initial batteries (0, 0.2, 1.2, 3.0 Wh), 2 sequential 20m movement steps; 8 episodes. Compare actual location, debit, shortfall, route and consumed waypoints. This supplies a positive trigger that the earlier 30 paired city scenarios lacked.
+
+Expected: 0 or 0.2 Wh => legacy advances 40m unpaid, gated version advances 0m; 1.2 Wh => legacy advances 40m with unpaid second leg, new advances only first 20m; 3.0 Wh => both advance 40m. **Do not label this as a representative city-scale completion-rate change**: it holds no task arrival generator, dispatcher or recovery model. No production changes, no B default-mode modification, no PR merge. Keep original P2.2 full CI console failure `test_g2teeth_mutation_turns_the_denominator_off` visible as an unresolved blocker, not fixed as part of this diagnostic.
