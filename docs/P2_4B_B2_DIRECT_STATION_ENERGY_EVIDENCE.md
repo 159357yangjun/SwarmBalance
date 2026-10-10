@@ -37,3 +37,11 @@
 - B1 历史约束现在固定于不可变 `fd8a001b09cb85b6875426d0e30532ee6e6831ac`，B2 新增单独的当前 `HEAD` 白名单，绝不放宽 B1 和 P2.4a 的历史变更范围断言。
 - 临时将 PR #16 的 base 设置为 `ci-validation`，仅为触发 [full-suite] 四组真实 Windows CI。若本 HEAD 完整 Job 均 `completed/success`，才恢复为 `p2-4b-b1-energy-quote-v1` 并通过 API 回读，保持 Draft、不合并。
 - 任何未完成或并发取消的全量工作流都不是验证通过的证据；尤其必须检查 `Full suite / console` 和 `verification` 的终态。
+
+## B2 E0 frozen baseline regression and opt-in isolation
+
+- Full four-group baseline-sensitive run [#38044535266](https://github.com/159357yangjun/SwarmBalance/actions/runs/38044535266) produced a genuine `frontend.test_wind_injection.WindInjectionEquivalenceTests.test_every_run_reproduces_e0_bit_for_bit` **RED**: on C1/rep1, frozen E0 completed 106 tasks whereas active-by-default B2 completed 91, with 58 non-mileage discrepancies. This is a behavioral regression, **not** a justification to rewrite the frozen E0 files or weaken the equivalence test.
+- Therefore `Drone.update()` only uses the new direct-hop energy screen when environment variable `SWARM_BALANCE_STATION_ENERGY_GATE=1` is explicitly set. **Default is OFF**; absent or `0` keeps historical `find_nearest_station()` behavior, preserving E0/E1 semantics, even when the nearest nest is energy-unaffordable. This legacy limitation is acknowledged, not represented as fixed in production.
+- All targeted B2 RED/GREEN scenarios now explicitly opt in with `@patch.dict(os.environ, {"SWARM_BALANCE_STATION_ENERGY_GATE": "1"})`; new negative test checks the pre-existing nearest-nest behavior with flag `0` and no automatic enablement in `simulation.json`.
+- The dedicated B2 Windows workflow now replays `frontend/test_wind_injection.py` under `SWARM_BALANCE_STATION_ENERGY_GATE=0`, including the **unchanged frozen E0 raw-run comparison**. A future change that leaks B2 into the default will turn this gate RED.
+- These straight-hop tests do **not** justify enabling B2 by default or claiming obstacle-avoiding station reachability. A later planned-route gate with actual OSM/no-fly checks and paired operational impacts is required first. Never overwrite E0/E1 or turn B2 on silently.
