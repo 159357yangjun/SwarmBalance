@@ -255,7 +255,7 @@ def aggregate(args):
         groups.append(result)
         print("[SHADOW_AGG] "+canonical(result),flush=True)
     evidence=dict(source_sha=args.source_sha,
-                  p1_2_sha=P1_2_SHA,episodes=len(rows),pairs=len(pairs),
+                  p1_2_sha=P1_2_SHA,episodes=len(rows),pair_count=len(pairs),
                   source_kind="real Greedy trajectories + shadow required-Wh observation",
                   limits=[
                       "No shadow battery state is simulated; shortfall and swap behavior belong to the active baseline only.",
