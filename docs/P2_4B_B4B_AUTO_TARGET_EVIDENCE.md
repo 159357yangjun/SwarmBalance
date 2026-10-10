@@ -28,3 +28,10 @@
 ## 明确未完成
 
 此阶段没有解决实时风场变化重新规划、自动闭站后恢复/撤销任务、没有第三方实物交接的已取货货物回收，也没有对物理降落或真实机巢硬件做实测校准。
+
+## 强化专项 GREEN 与全量 CI 请求
+
+- 精确 HEAD `f73fa55601379f8b32d1c06a58c170041835e796` 的真实 Windows 专项 [Actions #38065146516](https://github.com/159357yangjun/SwarmBalance/actions/runs/38065146516) `completed/success`：B4b + 历史继承 61/61、B4/B3c/B3b/B3a/B2/B1/P2.2/C4 及全部 Git 文件范围门禁 271/271、冻结 E0 风实验 11/11，**343/343 PASS**。
+- B4 历史变更范围始终固定在不可变 `e669075e120d3e646ec7f0623346608736f26966`；B4b 自身七文件白名单严格集合相等，`test_16_only_b4b_target_identity_scope_changed` 在 CI 中实际 PASS。
+- 本次文档提交请求 **[full-suite]** 全部 Windows 四组及辅助九个 Job。PR #23 临时 base `ci-validation` 只为触发原仓库全量 CI 的 PR 过滤器，并不是准备合并。只有新 HEAD 的 `verification`、`Full suite / console`、`frontend`、`root`、`experiments` 及全部其余 Job 真正 `completed/success` 后，才恢复正确 base `p2-4b-b4-auto-planned-nest-red-v1` 并 API 回读，保持 Draft/open/unmerged。
+- 成功的专项不能替代全量。若发现文档引用漂移、Windows 编码或冻结 E0 误差，保留真实 RED、做最小修复并重新验收，不允许改写 E0/E1 或关闭门禁。
