@@ -18,3 +18,10 @@
 - 用户可观察的风场变化在测试中通过 `d.set_wind()` 明确注入，只有下一次重新报价才用当前风场。正常运行的风更新调度不由本阶段承诺。
 - 原 B4b 严格文件范围检查固定在不可变父 HEAD；当前 B4c 独立检查新增六文件严格白名单，引用登记表仅修复因加入新接口造成的代码行号漂移，没有放宽 `console/_citations.py`。
 - 只有最新 B4c HEAD 的专项、继承 B4b/B4/B3c/B3b/B3a/B2/B1/P2.2/C4、冻结 E0 及完整 Windows CI 的 `console/frontend/root/experiments/verification` 和所有辅助 Job 全部真正 `completed/success` 后，才能完成阶段验收。所有 PR 保持 Draft/unmerged；B4b 必须自行完整成功后才可对其收尾。
+
+## 扩展专项与全量 Windows CI 验收
+
+- 父 B4b 已于 [full-suite #38065340479](https://github.com/159357yangjun/SwarmBalance/actions/runs/38065340479) 9/9 完整成功，并把 PR #23 的 base 恢复至 B4 正确分支、API 回读确认。父 HEAD `69ea639f12a89141adc881ae614e511a72ede7d4` 未变。
+- 当前 B4c 专项 [#38066343519](https://github.com/159357yangjun/SwarmBalance/actions/runs/38066343519) 于精确 HEAD `0a45435f4058ef12a0160577ac4ecb43e3d01f55` `completed/success`：B4c＋继承 72/72、B4b/B4/B3c/B3b/B3a/B2/B1/P2.2/C4 与历史范围门禁 333/333、冻结 E0 风对照 11/11，**416/416 PASS**。`test_17_only_b4c_held_requote_scope_changed` 确认六文件严格等式；GitHub `compare_commits` 亦核验相同文件列表。
+- 本次提交 **[full-suite]**，以最新 HEAD 触发四组 Windows CI 及辅助验证；必须等九个 `verification`、`Full suite / console`、`frontend`、`root`、`experiments`、P1 等 Job 的真实终态全部 `completed/success`。专项 GREEN 不取代全量验收。
+- PR #24 仅暂时指向 `ci-validation` 触发完整 CI。全绿后必须把 base 恢复到 `p2-4b-b4b-auto-target-closure-red-v1`，GitHub API 回读 HEAD、Draft、未合并；任何失败均保留真实日志，不降低验证强度。
