@@ -1,5 +1,6 @@
 import math
 import random
+import os
 from config.config_loder import get_shared_config
 from charging_station import DEFAULT_CHARGING_STATIONS, find_nearest_station
 
@@ -80,6 +81,10 @@ class Drone:
         # 载重信息
         self.carrying_capacity = carrying_capacity if carrying_capacity is not None else DEFAULT_CARRYING_CAPACITY
         self.current_load = 0  # 当前载重
+        # B experimental channel: actual onboard kg set only after source
+        # service event and removed after destination service event.
+        # This does NOT replace assigned current_load for task capacity.
+        self.onboard_load_kg = 0.0
         
         # 任务信息
         self.tasks = []
@@ -101,6 +106,9 @@ class Drone:
         self.last_energy_debited_wh = 0.0
         self.last_energy_shortfall_wh = 0.0
         self.energy_insufficient = False
+        # P2.2: an unaffordable step is a grounded hold, not simulated flight.
+        self.flight_energy_blocked = False
+        self.flight_energy_block_reason = None
         self.is_charging = False  # 是否正在换电/不可接单（沿用具名，语义=换电）
         self.charging_station_id = None  # 当前所在机巢ID
         self.swap_time_seconds = DRONE_SWAP_TIME  # 换电耗时（秒）
@@ -156,22 +164,15 @@ class Drone:
         # 单位位移向量 · 风速向量的相反数 = 逆风为正的分量
         return -(uv[0] * (dx / distance) + uv[1] * (dy / distance))
 
-    def consume_battery(self, distance, wind_along=None):
-        """
-        消耗电量
-        
-        消耗公式：
-            总消耗 = 基础消耗 × (1 + 载重惩罚) × 风能耗倍率
-            其中 载重惩罚 = (current_load / carrying_capacity) × LOAD_PENALTY_FACTOR
-                 风能耗倍率 = _wind_factor(wind_along)
+    def quote_flight_energy_wh(self, distance, wind_along=None):
+        """Return theoretical Wh for the requested segment without any mutation.
 
-        `wind_along` 是**沿航线方向的风分量（m/s）**，符号约定：**正=逆风、负=顺风**。
-        它是 E1（能耗结构扩展）新增的唯一自由度：不改位移、不改速度、不改任务生成，
-        因此 E0→E1 的结果差异只能归因于"同一段路更费电"这一条路径。
-        默认 None ⇒ 逐字退回 E0 行为（倍率恒 1.0），这是 wind=0 必须与 E0 数值一致的前提。
+        Single source for both direct consume_battery() ledger billing and the
+        P2.2 real next-step flight feasibility gate. The original assigned
+        load policy remains the default; onboard stays explicit opt-in.
+        Does not promise complete-route or reachable-nest feasibility.
         """
-        # C: reject invalid inputs BEFORE any battery mutation.
-        # Keep the approved B control formula (assigned current_load) untouched.
+        # Keep the original C/B invalid-input and energy-policy semantics.
         for name, value in (("distance", distance),
                             ("carrying_capacity", self.carrying_capacity),
                             ("current_load", self.current_load),
@@ -191,18 +192,40 @@ class Drone:
             raise ValueError("[ENERGY_BATTERY_NEGATIVE] current_battery=%r" % (self.current_battery,))
         if self.battery_consumption_base < 0 or self.battery_load_penalty_factor < 0:
             raise ValueError("[ENERGY_COEFFICIENT_NEGATIVE] invalid energy coefficient")
-        # 基础飞行消耗
+        # Historical assigned charging penalizes pre-pickup flights. P1-B
+        # intentionally remains opt-in and is not changed in this refactor.
+        if os.environ.get("SWARM_BALANCE_ENERGY_ACCOUNTING") == "onboard":
+            charge_load = float(self.onboard_load_kg)
+            if not math.isfinite(charge_load) or not 0 <= charge_load <= self.carrying_capacity:
+                raise ValueError("[ENERGY_ONBOARD_LOAD_INVALID] onboard_load_kg=%r" %
+                                 (self.onboard_load_kg,))
+        else:
+            charge_load = self.current_load
         base_consumption = distance * self.battery_consumption_base
+        load_factor = (charge_load / self.carrying_capacity) * self.battery_load_penalty_factor
+        required = base_consumption * (1 + load_factor) * self._wind_factor(wind_along)
+        if not math.isfinite(required) or required < 0:
+            raise ValueError("[ENERGY_REQUIREMENT_INVALID] required_wh=%r" % required)
+        return required
+
+    def consume_battery(self, distance, wind_along=None):
+        """
+        消耗电量
         
-        # 载重影响
-        # ⚠ 口径甲（能耗侧）：这里用 current_load ⇒ "派单即加惩罚"，故**飞往取货点的空驶段也吃载重惩罚**。
-        #   对面 `frontend/environment.py:1741 _is_carrying()` 按航线标签把同一段判成**空载**（口径乙），
-        #   两种口径相反且本仓**同时**在跑（主控裁定①：维持并存、暂不统一）。
-        #   ⇒ 后果：Wh/km 的分子含归属未定的惩罚、分母按另一口径划分 ⇒ **商无定义**，
-        #     未定口径前不得对外声称任何 Wh/km。全文见 docs/P70_E1_load_penalty_attribution_two_readings.md。
-        load_factor = (self.current_load / self.carrying_capacity) * self.battery_load_penalty_factor
-        total_consumption = base_consumption * (1 + load_factor) * self._wind_factor(wind_along)
-        
+        消耗公式：
+            总消耗 = 基础消耗 × (1 + 载重惩罚) × 风能耗倍率
+            其中 载重惩罚 = (current_load / carrying_capacity) × LOAD_PENALTY_FACTOR
+                 风能耗倍率 = _wind_factor(wind_along)
+
+        `wind_along` 是**沿航线方向的风分量（m/s）**，符号约定：**正=逆风、负=顺风**。
+        它是 E1（能耗结构扩展）新增的唯一自由度：不改位移、不改速度、不改任务生成，
+        因此 E0→E1 的结果差异只能归因于"同一段路更费电"这一条路径。
+        默认 None ⇒ 逐字退回 E0 行为（倍率恒 1.0），这是 wind=0 必须与 E0 数值一致的前提。
+        """
+        # All validation and required-Wh arithmetic now use the same
+        # read-only source as the flight gate. Actual debit stays here.
+        total_consumption = self.quote_flight_energy_wh(distance, wind_along)
+
         # C: required Wh is the original model demand. The account may only
         # debit available battery; the rest is explicit energy shortfall.
         if not math.isfinite(total_consumption) or total_consumption < 0:
@@ -241,6 +264,34 @@ class Drone:
             return min(WIND_FACTOR_CEIL, 1.0 + WIND_ENERGY_HEADWIND_PER_MS * w)
         return max(WIND_FACTOR_FLOOR, 1.0 - WIND_ENERGY_TAILWIND_PER_MS * (-w))
     
+    def _select_energy_affordable_direct_station(self):
+        """Necessary Wh-screen for current straight station hop; not OSM clearance.
+
+        Only preemptive *active-mission* diversion uses this until route
+        planning and no-fly verification are integrated in P2.4b-B2 follow-up.
+        A successful straight-hop quote is NOT a proof of real-map reachability.
+        A 5% nameplate reserve is an explicit synthetic assumption, NOT a
+        calibrated manufacturer/flight-log requirement.
+        """
+        capacity = self.battery_capacity
+        if not isinstance(capacity, (float, int)) or not math.isfinite(capacity) or capacity <= 0:
+            raise ValueError("[B2_BATTERY_CAPACITY_INVALID] battery_capacity=%r" % capacity)
+        reserve_wh = 0.05 * capacity
+        candidates = []
+        for station in (self.known_stations or []):
+            if getattr(station, "closed", False):
+                continue
+            sx, sy = station.get_position()
+            dx, dy = sx - self.x, sy - self.y
+            dist = math.hypot(dx, dy)
+            if not math.isfinite(dist):
+                continue
+            along = self._wind_along_for(dx, dy, dist)
+            needed = self.quote_flight_energy_wh(dist, along)
+            if dist == 0 or needed + reserve_wh <= self.current_battery:
+                candidates.append((needed, dist, str(station.station_id), station))
+        return min(candidates, key=lambda item: item[:3])[-1] if candidates else None
+
     def start_charging(self, station_id, charging_power=None, swap_time_seconds=None):
         """在机巢开始换电（降落整组更换电池，非慢充）。
 
@@ -285,6 +336,7 @@ class Drone:
         """返回出发点装货"""
         self.scheduled_position = [base_position]
         self.current_load = 0
+        self.onboard_load_kg = 0.0
         self.is_free = False
 
     def add_load(self, weight):
@@ -295,10 +347,15 @@ class Drone:
         """获取剩余载重"""
         return self.carrying_capacity - self.current_load
 
-    def update(self, time_step=None):
+    def update(self, time_step=None, station_quote_provider=None):
         # 故障/停飞状态：冻结当前位置与电量，不推进任何飞行/换电逻辑。
         # 任务回收与泊位释放由 Environment.set_drone_out_of_service() 统一处理。
         if getattr(self, 'out_of_service', False):
+            return
+        # B3c explicit experimental hold: closure cannot cause a free direct
+        # reroute or phantom arrival; resume requires a new quoted request.
+        if (os.environ.get("SWARM_BALANCE_CHARGE_TARGET_IDENTITY") == "1"
+                and getattr(self, "charge_target_hold_reason", None)):
             return
         if time_step is None:
             time_step = DRONE_TIME_STEP
@@ -329,17 +386,62 @@ class Drone:
         if (self.scheduled_position and self.executing_task_id is not None
                 and self.is_low_battery() and not self.awaiting_berth
                 and not self._suspended_route):
+            # Do not sacrifice the original manifest for a mathematically
+            # unaffordable nearest nest. The direct-hop test is only a
+            # necessary energy bound, not a no-fly/OSM route certification.
+            # Explicit experimental opt-in; historical E0/E1 runs and
+            # normal deployments keep the exact old nearest-station rule.
+            # This is only a direct-hop necessary energy screen, not mapped
+            # path certification or a production default policy change.
+            auto_planned_waypoints = None
+            if os.environ.get("SWARM_BALANCE_AUTO_PLANNED_STATION") == "1":
+                # Only an explicitly injected Environment RoutePlanner can
+                # certify the geometry. Missing provider => HOLD, not a
+                # straight-line fallback or a free station teleport.
+                offers = []
+                if callable(station_quote_provider):
+                    for station in (self.known_stations or []):
+                        if getattr(station, "closed", False):
+                            continue
+                        quote = station_quote_provider(station)
+                        if (quote.get("feasible") and not quote.get("fallback")
+                                and quote.get("affordable")):
+                            offers.append((quote["total_wh"], quote["distance_m"],
+                                           str(station.station_id), station, quote))
+                if not offers:
+                    self.flight_energy_blocked = True
+                    self.flight_energy_block_reason = "no_affordable_planned_station"
+                    self.is_free = False
+                    return
+                *_, nearest, chosen = min(offers, key=lambda item: item[:3])
+                auto_planned_waypoints = [
+                    (float(x), float(y), "waypoint")
+                    for x, y in chosen["waypoints"]]
+                self.charge_target_station_id = nearest.station_id
+                self.flight_energy_blocked = False
+                self.flight_energy_block_reason = None
+            elif os.environ.get("SWARM_BALANCE_STATION_ENERGY_GATE") == "1":
+                nearest = self._select_energy_affordable_direct_station()
+                if nearest is None:
+                    self.flight_energy_blocked = True
+                    self.flight_energy_block_reason = "no_energy_affordable_station"
+                    self.is_free = False
+                    return
+                self.flight_energy_blocked = False
+                self.flight_energy_block_reason = None
+            else:
+                nearest = find_nearest_station(self.known_stations, (self.x, self.y))
             self._suspended_route = list(self.scheduled_position)
             self.scheduled_position = []
             self.is_free = False
-            nearest = find_nearest_station(self.known_stations, (self.x, self.y))
-            if nearest is not None:
-                nest_pos = nearest.get_position()
-                if (self.x, self.y) == nest_pos:
-                    self.awaiting_berth = True
-                    self.berth_station_id = nearest.station_id
-                else:
-                    self.scheduled_position = [nest_pos]
+            nest_pos = nearest.get_position()
+            if (self.x, self.y) == nest_pos:
+                self.awaiting_berth = True
+                self.berth_station_id = nearest.station_id
+            else:
+                self.scheduled_position = (auto_planned_waypoints
+                                           if auto_planned_waypoints is not None
+                                           else [nest_pos])
             return
 
         if self.scheduled_position:
@@ -361,6 +463,13 @@ class Drone:
             # 顺风/逆风因此随航段自动变号 —— 这是 wind_along 必须是分量而非幅值的原因。
             wind_along = self._wind_along_for(dx, dy, distance)
 
+            # P2.2: evaluate the *actual next movement* before mutating
+            # position, battery, task state or waypoint/event buffers.
+            # Do not partially debit an impossible leg and still fly it.
+            next_meters = min(distance, max_distance)
+            if not self._flight_step_feasible(next_meters, wind_along):
+                return
+
             if distance <= max_distance:
                 # If we're close enough to target, move directly to it
                 self.x = target_x
@@ -377,10 +486,27 @@ class Drone:
                         # 预判/人工换电改道：已抵达机巢，登记泊位请求等待环境仲裁。
                         # 人工换电可以发生在空闲机；若有挂起任务则换电后恢复任务航线。
                         self.is_free = False
-                        nearest = find_nearest_station(self.known_stations, (self.x, self.y))
-                        if nearest is not None and (self.x, self.y) == nearest.get_position():
-                            self.awaiting_berth = True
-                            self.berth_station_id = nearest.station_id
+                        if (os.environ.get("SWARM_BALANCE_CHARGE_TARGET_IDENTITY") == "1"
+                                and (self._manual_charge_requested
+                                     or os.environ.get("SWARM_BALANCE_AUTO_PLANNED_STATION") == "1")):
+                            # Exact requested ID, not a distance tie at
+                            # co-located stations. Never silently swap elsewhere.
+                            wanted_id = str(self.charge_target_station_id)
+                            target_station = next(
+                                (st for st in (self.known_stations or [])
+                                 if str(st.station_id) == wanted_id), None)
+                            if (target_station is not None
+                                    and not getattr(target_station, "closed", False)
+                                    and (self.x, self.y) == target_station.get_position()):
+                                self.awaiting_berth = True
+                                self.berth_station_id = target_station.station_id
+                            else:
+                                self.charge_target_hold_reason = "target_station_not_available"
+                        else:
+                            nearest = find_nearest_station(self.known_stations, (self.x, self.y))
+                            if nearest is not None and (self.x, self.y) == nearest.get_position():
+                                self.awaiting_berth = True
+                                self.berth_station_id = nearest.station_id
                     else:
                         self.is_free = True
                         self.current_load = 0  # 任务完成，卸货
@@ -410,6 +536,29 @@ class Drone:
                 self.y += (dy / distance) * actual_distance
                 # 飞行消耗电量
                 self.consume_battery(actual_distance, wind_along)
+
+    def _flight_step_feasible(self, distance, wind_along):
+        """Fail-closed real-movement gate. No shadow battery or formula switch.
+
+        This calls the single read-only Wh quote shared by consume_battery(),
+        without calling or mutating the actual debit routine.
+        A blocked proposed step records unmet REQUIRED Wh and debits zero,
+        so required == debited + shortfall remains true.
+        """
+        # The exact same pure Wh source as consume_battery().
+        required = self.quote_flight_energy_wh(distance, wind_along)
+        if required > self.current_battery:
+            self.flight_energy_blocked = True
+            self.flight_energy_block_reason = "insufficient_step_energy"
+            self.energy_insufficient = True
+            self.last_energy_required_wh = required
+            self.last_energy_debited_wh = 0.0
+            self.last_energy_shortfall_wh = required
+            self.is_free = False  # keep reserved; no free/unassigned phantom dispatch
+            return False
+        self.flight_energy_blocked = False
+        self.flight_energy_block_reason = None
+        return True
 
     def get_position(self):
         return (self.x, self.y)
