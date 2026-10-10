@@ -34,3 +34,11 @@
 6. 本文只归档专项 RED/GREEN。B3c HEAD 的完整 `console/frontend/experiments/root/verification` CI 独立验收必须到 `completed/success`，否则不得恢复 PR 临时 CI base 或声明全量通过。
 
 下一阶段可推进 B4 自动低电恢复与已取货货物外部处置，但必须逐状态独立 RED/GREEN，而不是继续复用最短距离作为安全返巢充分依据。
+
+## 增强回归 GREEN 与完整 CI 验收请求
+
+- [Actions #38050572275](https://github.com/159357yangjun/SwarmBalance/actions/runs/38050572275) at `287bb7f64a9708fc5a83651cfc7ea084cefcc4d9` **completed/success**：48/48 B3c 实体/继承用例、174/174 B3b/B3a/B2/B1/P2.2/C4 + 6 阶段精确 Git 白名单、11/11 冻结 E0 对照，共计 **233/233 通过**。
+- 最早的 [RED #38050037131](https://github.com/159357yangjun/SwarmBalance/actions/runs/38050037131) 与 [RED #38050264948](https://github.com/159357yangjun/SwarmBalance/actions/runs/38050264948) 已永久保留。本次没有跳过、xfail 或缩小失败断言。
+- Git 白名单固定父 B3b 的不可变 HEAD `25a77553c710c06cc105986f140d66ba5c5c6c6d`；只允许七个 B3c 文件变化：无人机、环境、专项与历史校验测试、工作流、证据文档及纯行号源登记表。
+- 为触发仓库现有 `.github/workflows/ci.yml`，已临时将 Draft PR #19 base 设置为 `ci-validation`。**此提交请求 [full-suite] 完整矩阵**；`Full suite / console`、`frontend/root/experiments`、`verification` 与 P1 随附 Job 均需是本 HEAD 的真实 `completed/success`，否则不得宣称全量完成。
+- 全量成功后应恢复 PR #19 base 为 `p2-4b-b3b-planned-charge-route-v1`，API 回读验证 HEAD/Draft/未合并；保持 `master`、默认模式、E0/E1 数据全不变。
