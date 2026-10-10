@@ -1,0 +1,449 @@
+{
+  "contract_id": "SwarmBalance-P2.4a-recovery-v1",
+  "status": "DESIGN_ONLY_NOT_IMPLEMENTED",
+  "source": {
+    "p2_2_head": "97200d2786a5fc775a8e6ea4ca5f95f90b5bcefb",
+    "p2_2_full_ci": 38037310389,
+    "p2_3b_depletion_head": "5b023f72fc24231ce7c9e0b7a019f0fc101cbba9",
+    "p2_3b_ci": 38033007846
+  },
+  "default_energy_accounting": "assigned",
+  "states": [
+    {
+      "id": "IDLE",
+      "implementation": "planned"
+    },
+    {
+      "id": "MISSION_ACTIVE",
+      "implementation": "planned"
+    },
+    {
+      "id": "STEP_BLOCKED",
+      "implementation": "planned"
+    },
+    {
+      "id": "RECOVERY_ASSESSMENT",
+      "implementation": "planned"
+    },
+    {
+      "id": "DIVERTING_TO_NEST",
+      "implementation": "planned"
+    },
+    {
+      "id": "WAITING_FOR_BERTH",
+      "implementation": "planned"
+    },
+    {
+      "id": "SWAPPING_BATTERY",
+      "implementation": "planned"
+    },
+    {
+      "id": "RESUMING_ROUTE",
+      "implementation": "planned"
+    },
+    {
+      "id": "WAITING_EXTERNAL_HELP",
+      "implementation": "planned"
+    },
+    {
+      "id": "TASK_REQUEUE_PENDING",
+      "implementation": "planned"
+    },
+    {
+      "id": "SIM_TERMINATED_UNRESOLVED",
+      "implementation": "planned"
+    }
+  ],
+  "guards": [
+    {
+      "id": "dispatch_full_route_reserve",
+      "description": "Full route with cargo, wind, task and station reserve quoted; reject if not affordable",
+      "fail_closed": true
+    },
+    {
+      "id": "next_step_unaffordable",
+      "description": "P2.2 next step requires more Wh than available",
+      "fail_closed": true
+    },
+    {
+      "id": "recovery_assessment_requested",
+      "description": "Read-only assessment; no movement or battery credit",
+      "fail_closed": true
+    },
+    {
+      "id": "nest_path_affordable",
+      "description": "Open nest, planned obstacle-free path, along-track wind load and reserve all affordable",
+      "fail_closed": true
+    },
+    {
+      "id": "no_nest_path_affordable",
+      "description": "No verified feasible open nest, not merely nearest-by-distance",
+      "fail_closed": true
+    },
+    {
+      "id": "authorized_external_energy",
+      "description": "Explicit external Wh/provenance event; not automatic top-up",
+      "fail_closed": true
+    },
+    {
+      "id": "actual_nest_arrival",
+      "description": "Consumed real nest arrival waypoint; physical position at nest",
+      "fail_closed": true
+    },
+    {
+      "id": "path_becomes_unaffordable",
+      "description": "Diversion step no longer payable; do not continue motion",
+      "fail_closed": true
+    },
+    {
+      "id": "berth_acquired",
+      "description": "Available berth acquired exactly once at station",
+      "fail_closed": true
+    },
+    {
+      "id": "swap_completed_on_site",
+      "description": "Finite swap interval fully elapsed at occupied berth",
+      "fail_closed": true
+    },
+    {
+      "id": "manifest_route_preserved",
+      "description": "Route, custody, outstanding IDs and weights reconciled",
+      "fail_closed": true
+    },
+    {
+      "id": "all_tasks_not_picked",
+      "description": "Every requeued task load_time is None and cargo not yet onboard",
+      "fail_closed": true
+    },
+    {
+      "id": "external_custody_verified",
+      "description": "Explicit external retrieval and physical goods holder/location recorded",
+      "fail_closed": true
+    },
+    {
+      "id": "explicit_terminal_decision",
+      "description": "Authorized simulation termination; unfinished stays unresolved",
+      "fail_closed": true
+    },
+    {
+      "id": "low_battery_and_nest_affordable",
+      "description": "Threshold triggers only if full energy/path feasibility passes",
+      "fail_closed": true
+    },
+    {
+      "id": "fault_detected",
+      "description": "Actual power-loss/fault signal; no inferred safe landing",
+      "fail_closed": true
+    }
+  ],
+  "transitions": [
+    {
+      "id": "T01",
+      "from": "IDLE",
+      "to": "MISSION_ACTIVE",
+      "guard": "dispatch_full_route_reserve",
+      "effect": "reserve_task_once",
+      "implementation": "planned"
+    },
+    {
+      "id": "T02",
+      "from": "MISSION_ACTIVE",
+      "to": "STEP_BLOCKED",
+      "guard": "next_step_unaffordable",
+      "effect": "preserve_position_route_tasks",
+      "implementation": "planned"
+    },
+    {
+      "id": "T03",
+      "from": "STEP_BLOCKED",
+      "to": "RECOVERY_ASSESSMENT",
+      "guard": "recovery_assessment_requested",
+      "effect": "quote_candidate_routes",
+      "implementation": "planned"
+    },
+    {
+      "id": "T04",
+      "from": "RECOVERY_ASSESSMENT",
+      "to": "DIVERTING_TO_NEST",
+      "guard": "nest_path_affordable",
+      "effect": "suspend_original_route",
+      "implementation": "planned"
+    },
+    {
+      "id": "T05",
+      "from": "RECOVERY_ASSESSMENT",
+      "to": "WAITING_EXTERNAL_HELP",
+      "guard": "no_nest_path_affordable",
+      "effect": "retain_loaded_cargo",
+      "implementation": "planned"
+    },
+    {
+      "id": "T06",
+      "from": "STEP_BLOCKED",
+      "to": "RESUMING_ROUTE",
+      "guard": "authorized_external_energy",
+      "effect": "record_external_energy",
+      "implementation": "planned"
+    },
+    {
+      "id": "T07",
+      "from": "DIVERTING_TO_NEST",
+      "to": "WAITING_FOR_BERTH",
+      "guard": "actual_nest_arrival",
+      "effect": "witness_arrival",
+      "implementation": "planned"
+    },
+    {
+      "id": "T08",
+      "from": "DIVERTING_TO_NEST",
+      "to": "STEP_BLOCKED",
+      "guard": "path_becomes_unaffordable",
+      "effect": "debit_zero_wh",
+      "implementation": "planned"
+    },
+    {
+      "id": "T09",
+      "from": "WAITING_FOR_BERTH",
+      "to": "SWAPPING_BATTERY",
+      "guard": "berth_acquired",
+      "effect": "occupy_berth_once",
+      "implementation": "planned"
+    },
+    {
+      "id": "T10",
+      "from": "SWAPPING_BATTERY",
+      "to": "RESUMING_ROUTE",
+      "guard": "swap_completed_on_site",
+      "effect": "release_berth_once",
+      "implementation": "planned"
+    },
+    {
+      "id": "T11",
+      "from": "RESUMING_ROUTE",
+      "to": "MISSION_ACTIVE",
+      "guard": "manifest_route_preserved",
+      "effect": "resume_existing_assignments",
+      "implementation": "planned"
+    },
+    {
+      "id": "T12",
+      "from": "WAITING_EXTERNAL_HELP",
+      "to": "TASK_REQUEUE_PENDING",
+      "guard": "all_tasks_not_picked",
+      "effect": "atomically_requeue_unpicked",
+      "implementation": "planned"
+    },
+    {
+      "id": "T13",
+      "from": "WAITING_EXTERNAL_HELP",
+      "to": "TASK_REQUEUE_PENDING",
+      "guard": "external_custody_verified",
+      "effect": "atomically_requeue_custody_recovered",
+      "implementation": "planned"
+    },
+    {
+      "id": "T14",
+      "from": "WAITING_EXTERNAL_HELP",
+      "to": "SIM_TERMINATED_UNRESOLVED",
+      "guard": "explicit_terminal_decision",
+      "effect": "retain_unresolved_evidence",
+      "implementation": "planned"
+    },
+    {
+      "id": "T15",
+      "from": "MISSION_ACTIVE",
+      "to": "DIVERTING_TO_NEST",
+      "guard": "low_battery_and_nest_affordable",
+      "effect": "select_verified_nest",
+      "implementation": "planned"
+    },
+    {
+      "id": "T16",
+      "from": "MISSION_ACTIVE",
+      "to": "STEP_BLOCKED",
+      "guard": "fault_detected",
+      "effect": "record_fault_no_landing_claim",
+      "implementation": "planned"
+    }
+  ],
+  "invariants": [
+    {
+      "id": "I01",
+      "severity": "hard",
+      "description": "Unaffordable positive-distance next step never moves, consumes waypoint or creates pickup/delivery"
+    },
+    {
+      "id": "I02",
+      "severity": "hard",
+      "description": "Required Wh = debited Wh + shortfall Wh; blocked step debits zero"
+    },
+    {
+      "id": "I03",
+      "severity": "hard",
+      "description": "Energy increases only on logged physical on-site swap or explicit external intervention"
+    },
+    {
+      "id": "I04",
+      "severity": "hard",
+      "description": "One task has exactly one owner among unassigned, assigned, completed, failed, unresolved; at most one completion"
+    },
+    {
+      "id": "I05",
+      "severity": "hard",
+      "description": "Already picked-up cargo cannot teleport to original source or be automatically requeued"
+    },
+    {
+      "id": "I06",
+      "severity": "hard",
+      "description": "Swap requires real nest arrival, berth lease, elapsed time and single release"
+    },
+    {
+      "id": "I07",
+      "severity": "hard",
+      "description": "Blocked/unavailable drone is not dispatch eligible"
+    },
+    {
+      "id": "I08",
+      "severity": "hard",
+      "description": "Station must have a verified flight path, budget and reserve; nearest is not sufficient"
+    },
+    {
+      "id": "I09",
+      "severity": "hard",
+      "description": "Multi-task manifest, assigned/onboard loads and task ledger transition atomically"
+    },
+    {
+      "id": "I10",
+      "severity": "hard",
+      "description": "Terminal simulation state makes no real emergency-landing or physical safety claim"
+    },
+    {
+      "id": "I11",
+      "severity": "hard",
+      "description": "Service happens only on genuinely popped source/dest waypoint"
+    },
+    {
+      "id": "I12",
+      "severity": "hard",
+      "description": "Default assigned mode remains; onboard opt-in only; frozen E0/E1 unchanged"
+    },
+    {
+      "id": "I13",
+      "severity": "hard",
+      "description": "Energy quote and debit share authoritative formula including load/wind"
+    },
+    {
+      "id": "I14",
+      "severity": "hard",
+      "description": "Recovery, berth and requeue operations idempotent across repeated steps"
+    }
+  ],
+  "scenarios": [
+    {
+      "id": "A01",
+      "phase": "p2.2_current",
+      "stimulus": "0.2 Wh for 1.2 Wh next step",
+      "expected": "blocked; no movement; zero debit; original route retained"
+    },
+    {
+      "id": "A02",
+      "phase": "p2.2_current",
+      "stimulus": "externally replenish blocked drone",
+      "expected": "same route resumes without free energy"
+    },
+    {
+      "id": "A03",
+      "phase": "future_red",
+      "stimulus": "nearest nest unreachable by remaining Wh",
+      "expected": "station diversion rejected without movement"
+    },
+    {
+      "id": "A04",
+      "phase": "future_red",
+      "stimulus": "forced zero-Wh mid-flight",
+      "expected": "no travel, phantom landing, charging or delivery"
+    },
+    {
+      "id": "A05",
+      "phase": "future_red",
+      "stimulus": "assigned but unpicked task",
+      "expected": "requeue exactly once with custody unchanged"
+    },
+    {
+      "id": "A06",
+      "phase": "future_red",
+      "stimulus": "picked-up task on stranded drone",
+      "expected": "no source teleport or requeue without physical handoff"
+    },
+    {
+      "id": "A07",
+      "phase": "future_red",
+      "stimulus": "mixed loaded/unpicked task chain",
+      "expected": "separate custody and eligible requeue atomically"
+    },
+    {
+      "id": "A08",
+      "phase": "future_red",
+      "stimulus": "blocked for 100 steps",
+      "expected": "no duplicate completion/requeue or energy; count blocked steps"
+    },
+    {
+      "id": "A09",
+      "phase": "future_red",
+      "stimulus": "full berth with competing drone requests",
+      "expected": "no swapping before berth and exactly-once release"
+    },
+    {
+      "id": "A10",
+      "phase": "future_red",
+      "stimulus": "wind or route changes before nest reach",
+      "expected": "re-estimate energy, else block"
+    },
+    {
+      "id": "A11",
+      "phase": "future_red",
+      "stimulus": "episode horizon with unresolved loaded goods",
+      "expected": "unresolved included in metrics, not completed"
+    },
+    {
+      "id": "A12",
+      "phase": "future_red",
+      "stimulus": "assigned vs onboard policy switch",
+      "expected": "default unchanged; explicit opt-in energy differences"
+    },
+    {
+      "id": "A13",
+      "phase": "future_red",
+      "stimulus": "read-only quote vs real debit",
+      "expected": "single formula, toleranced agreement for identical step input"
+    },
+    {
+      "id": "A14",
+      "phase": "future_red",
+      "stimulus": "same recovery command repeated twice",
+      "expected": "no double requeue/energy credit/berth/delivery"
+    },
+    {
+      "id": "A15",
+      "phase": "future_red",
+      "stimulus": "geometry close but source/dest not popped",
+      "expected": "no pickup/delivery"
+    },
+    {
+      "id": "A16",
+      "phase": "future_red",
+      "stimulus": "authorized external recovery",
+      "expected": "record physical custody holder/location and external Wh separately"
+    }
+  ],
+  "constraints": {
+    "automatic_landing": false,
+    "remote_instant_swap": false,
+    "cargo_teleport": false,
+    "free_energy": false,
+    "production_changes_p2_4a": false,
+    "baseline_e0_e1_overwrite": false,
+    "merge_pr": false
+  },
+  "acceptance": "P2.4a passes structural contract tests ONLY. P2.4b must independently record true RED production-path witnesses before a physical behavior fix, then show real GREEN plus full CI."
+}
