@@ -35,6 +35,10 @@ class AutoChargingWindBudget(AutoPlannedLowBatteryNest):
     @patch.dict(os.environ, OPT)
     def test_B4c_01_wind_shift_makes_whole_route_unaffordable_hold_before_next_move(self):
         d, env, st = self._low_battery(wh=12.0)
+        # The isolated small_environment fixture intentionally omits the
+        # production berth counters. Initialize rather than skip the strict
+        # no-phantom-swap assertion below.
+        env.total_swap_sessions = 0
         old_mission = list(d.scheduled_position)
         with patch.dict(d._wind_factor.__globals__, WIND):
             d.set_wind(0.0, 0.0)
