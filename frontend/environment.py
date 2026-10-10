@@ -542,6 +542,7 @@ class Environment:
             drone.scheduled_position = []
             drone.executing_task_id = None
             drone.current_load = 0.0
+            drone.onboard_load_kg = 0.0
             drone.is_free = True
             self._prev_free_status[idx] = True
             return {'drone_idx': idx, 'drone_id': str(drone.drone_id), 'requeued_task_ids': [], 'changed': True}
@@ -579,6 +580,7 @@ class Environment:
         drone._suspended_route = []
         drone._manual_charge_requested = False
         drone.current_load = 0.0
+        drone.onboard_load_kg = 0.0
         drone.executing_task_id = None
         drone.is_charging = False
         drone.swap_remaining_steps = 0.0
