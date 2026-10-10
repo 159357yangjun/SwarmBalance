@@ -60,8 +60,8 @@ def _is_cargo_truth_test(code):
 #:   "必须回来改门"，而符号+子串只在被豁免的那句话本身被改动时失效（那正是该重新审的时候）。
 EXEMPT = {
     "frontend/drone.py": {
-        ("consume_battery", "self.current_load < 0 or self.current_load > self.carrying_capacity"):
-            "C 输入校验：这是一对有明确容量上限的非法载荷拒绝条件，不据此判断是否物理在机。"
+        ("quote_flight_energy_wh", "self.current_load < 0 or self.current_load > self.carrying_capacity"):
+            "C 只读报价输入校验（从 consume_battery 搬入）：这是一对有明确容量上限的非法载荷拒绝条件，不据此判断是否物理在机。"
             "必须同时包含负值下界和 carrying_capacity 上界，禁止扩大到单独 current_load>0。",
     },
     "frontend/environment.py": {
@@ -247,13 +247,13 @@ class CargoTruthScanGate(unittest.TestCase):
         # Its invalid-cargo classification must not hide a real cargo-truth
         # predicate placed elsewhere in the same function.
         self.assertIn(
-            ("consume_battery",
+            ("quote_flight_energy_wh",
              "self.current_load < 0 or self.current_load > self.carrying_capacity"),
             EXEMPT["frontend/drone.py"],
             "[C4_EXEMPT_SCOPE] C validation must have a named, bounded exception",
         )
         self.assertNotIn(
-            ("consume_battery", "self.current_load > 0"),
+            ("quote_flight_energy_wh", "self.current_load > 0"),
             EXEMPT["frontend/drone.py"],
             "[C4_SCAN_BLIND] genuine cargo-truth predicate must never be exempted",
         )
