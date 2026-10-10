@@ -32,7 +32,7 @@
 ## 4. 跨阶段测试契约与全量 CI
 
 - P2.4a 的四文件设计范围门禁现在固定在不可变设计 HEAD `7ca10647201432062fbfd366fccba48027dbdd24` 上，仍严查四文件；不能拿 B1 合法变更误判历史设计越界。
-- B1 单独增加精确变更清单：能耗实现、严格测试、专项 CI、本证据文档、以及继承阶段门禁的适配文件。未允许修改 Greedy、PSO、系统配置、冻结实测/仿真输入。
+- B1 单独增加精确变更清单：能耗实现、严格测试、专项 CI、本证据文档、继承阶段门禁的适配文件、以及物理参数登记表中两条因公式抽取而漂移的引用行号（`frontend/drone.py:204#battery_consumption_base` 与 `frontend/drone.py:272#不再使用`）。未允许修改 Greedy、PSO、系统配置、冻结实测/仿真输入。
 - 由于仓库主 `ci.yml` 只在 PR 目标为 `master` 或 `ci-validation` 时运行，PR #15 **临时**改为 `ci-validation` 触发最新 HEAD 的完整矩阵；在确认 `console/frontend/experiments/root` 及所有必需 jobs 真正成功后恢复基准 `p2-4a-recovery-state-contract-v1` 并 API 回读。不得合并。
 
 ## 5. 尚未满足的结论与后续门
@@ -40,3 +40,9 @@
 P2.4b-B1 只是实现 **A13 单步理论 Wh 的单源计算**；仅有这一接口，不能把当前最近机巢选择称为“可安全抵达”，也不能声称已解决已取货订单外部回收。P2.4b-B2 应使用此接口配合实际规划线路、任务重量与风险储备做可达机巢判断，先取得真正 RED 再修复。
 
 本次提交请求四组全量 CI；只有全量工作流自身到达 `completed/success` 才能宣布该 HEAD 全量验收通过。保留 Draft、未合并。
+
+## 6. 全量红灯根因及修复证据
+
+- 首次全量验证 [#38041459466](https://github.com/159357yangjun/SwarmBalance/actions/runs/38041459466)：verification 的 `console/_citations.py --verify --portable-rewrite` 对两条失效行号报 `[ANCHOR_MISS]`（原 `frontend/drone.py:200`、`:266`）。这些行号因抽取报价函数而移动；门禁本身正确。
+- 仅更新源登记表的两条引用至 `:204#battery_consumption_base`、`:272#不再使用`，并在 B1 精确允许变更清单中显式列入该文档。不改校验脚本、不关闭断言、不覆盖冻结样本。
+- `console` 在旧全量工作流中被后续 push 的 CI concurrency 取消，因此该轮不得宣称所有分组通过。以修复后最新 SHA 的真正完整 CI 终态为准。
