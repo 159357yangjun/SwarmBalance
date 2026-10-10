@@ -127,6 +127,34 @@ class TargetStationIdentityGate(PlannedManualChargeRoute):
         self.assertEqual(a.occupied, 1)
         self.assertEqual(b.occupied, 1)
 
+    @patch.dict(os.environ, _OPTS)
+    def test_B3c_05_forged_waiting_far_from_nest_never_gets_berth_or_energy(self):
+        d, env, a, b = self._two_stations(same_coords=False)
+        d.charge_target_station_id = "B"
+        d.awaiting_berth = True  # corrupt/unwitnessed state: at (0,0)
+        d.berth_station_id = "B"
+        d._manual_charge_requested = True
+        before = d.current_battery
+        env._manage_berths()  # actual berth allocator, not a stub
+        self.assertEqual(d.get_position(), (0.0, 0.0))
+        self.assertFalse(d.is_charging, "[B3C_FAKE_ARRIVAL_GRANTED_BERTH]")
+        self.assertEqual(b.occupied, 0)
+        self.assertEqual(env.total_swap_sessions, 0)
+        self.assertEqual(d.current_battery, before)
+
+    @patch.dict(os.environ, _OPTS)
+    def test_B3c_06_forged_wrong_target_queue_cannot_swap_at_A(self):
+        d, env, a, b = self._two_stations(same_coords=True)
+        d.x, d.y = b.get_position()
+        d.charge_target_station_id = "B"
+        d.awaiting_berth = True  # wrong station ID despite identical coordinates
+        d.berth_station_id = "A"
+        d._manual_charge_requested = True
+        env._manage_berths()
+        self.assertFalse(d.is_charging, "[B3C_FAKE_TARGET_ID_GRANTED_BERTH]")
+        self.assertEqual((a.occupied, b.occupied), (0, 0))
+        self.assertEqual(env.total_swap_sessions, 0)
+
 
 if __name__ == "__main__":
     import unittest
