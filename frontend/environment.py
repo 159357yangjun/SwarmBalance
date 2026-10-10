@@ -632,6 +632,12 @@ class Environment:
                 drone.awaiting_berth = False
                 drone.berth_station_id = None
                 drone.awaiting_since = None
+                # Opt-in B3c: no arbitrary move to another nest without
+                # quoting its planned map route and validating custody.
+                if (os.environ.get("SWARM_BALANCE_CHARGE_TARGET_IDENTITY") == "1"
+                        and str(getattr(drone, "charge_target_station_id", "")) == str(st.station_id)):
+                    drone.charge_target_hold_reason = "target_station_closed"
+                    continue
                 nearest = find_nearest_station(self.charging_stations, drone.get_position())
                 if nearest is not None:
                     drone.scheduled_position = [nearest.get_position()]
@@ -650,6 +656,10 @@ class Environment:
                 headed_for_closed_nest = math.dist(last_pos, target_pos) < 1e-6
                 charging_detour = bool(getattr(drone, '_suspended_route', [])) or (getattr(drone, 'executing_task_id', None) is None and not drone.is_free)
                 if headed_for_closed_nest and charging_detour:
+                    if (os.environ.get("SWARM_BALANCE_CHARGE_TARGET_IDENTITY") == "1"
+                            and str(getattr(drone, "charge_target_station_id", "")) == str(st.station_id)):
+                        drone.charge_target_hold_reason = "target_station_closed"
+                        continue
                     nearest = find_nearest_station(self.charging_stations, drone.get_position())
                     if nearest is not None:
                         drone.scheduled_position = [nearest.get_position()]
@@ -759,6 +769,12 @@ class Environment:
                     for x, y in planned_quote["waypoints"]
                 ]
 
+        # B3c: record requested charging *identity* separately from nearest
+        # geometry, only under explicit opt-in. A failed quote above must
+        # leave all mission and target state untouched.
+        if os.environ.get("SWARM_BALANCE_CHARGE_TARGET_IDENTITY") == "1":
+            drone.charge_target_station_id = st.station_id
+            drone.charge_target_hold_reason = None
         route = list(getattr(drone, 'scheduled_position', []) or [])
         if route and not getattr(drone, '_suspended_route', []):
             drone._suspended_route = route
