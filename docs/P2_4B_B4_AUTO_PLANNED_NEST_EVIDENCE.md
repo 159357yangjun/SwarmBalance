@@ -20,3 +20,10 @@
 4. 已取货实物归属、外部接驳和补能后任务恢复未获真实性实测，不允许“自动补能成功率”中存在无成本货物传送。
 5. 遵循 P2.4a～B3c 不可变历史范围检查，并给 B4 本身新增严格**六文件**白名单。新增的实验开关只来自环境变量，未改写冻结输入与 `simulation.json`。
 6. 本阶段 47 条专项 GREEN **不构成全部通过**；必须继续执行继承 B3c/B3b/B3a/B2/B1/P2.2/C4、冻结 E0，以及独立四组全量 CI，且同 HEAD 的 `console/frontend/root/experiments/verification` 等 Job 全为 `completed/success`，才可恢复正确 PR base。所有 PR 保持 Draft/unmerged。
+
+## 严格继承专项与全量 CI 验收
+
+- [B4 专项 #38051502845](https://github.com/159357yangjun/SwarmBalance/actions/runs/38051502845) 对完整 HEAD `aad45baede411dd9339ed0ff01e722380e0cf094` **completed/success**。三组严格独立测试：47 条本轮真实执行与历史 P1、223 条 B3c/B3b/B3a/B2/B1/P2.2/C4 与严格阶段文件范围、11 条 E0 冻结非里程指标对照，总计 **281/281 PASS**。
+- 新增的第 15 个 `scripts.p2_4a_state_contract_test` 范围用例确实通过：B3c 历史切片固定在不可变 HEAD `fca9ebfeb2413d8b396f20c10c98ddd50d2fcd47`，B4 当前 HEAD 的变更文件严格等于新增 6 个允许路径。没有松动原设计/B1/B2/B3a/B3b/B3c 的精确白名单。
+- B4 专项并非最终完整验证。本次文档提交请求带 **[full-suite]** 的 Windows 四组 CI。暂时将 PR #20 base 指向 `ci-validation` 触发 CI；必须收到最新 HEAD 所有 `root/frontend/experiments/console/verification` 及其余辅助 Job 的真实终态成功，之后才恢复 `p2-4b-b3c-station-identity-v1` 并用 GitHub API 回读。
+- 仍保持 Draft、不合并、不修改 E0/E1 和正常模式，也不自动开启实验环境变量。前一版 B3c 完整 CI 需要自己达到真实绿灯，不与 B4 专项绿灯混为一谈。
