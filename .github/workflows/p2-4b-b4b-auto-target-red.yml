@@ -33,3 +33,14 @@ jobs:
       - name: Real auto target and closure RED/GREEN
         run: |
           .\.venv310\Scripts\python.exe -m unittest -v scripts.test_p2_4b_b4b_auto_target_closure
+      - name: Inherited B4 B3c B3b B3a B2 B1 P2.2 C4 and strict historical slices
+        run: |
+          .\.venv310\Scripts\python.exe -m unittest -v scripts.test_p2_4b_b4_auto_planned_nest scripts.test_p2_4b_b3c_target_station scripts.test_p2_4b_b3b_planned_charge_route scripts.test_p2_4b_b3_planned_station_quote scripts.test_p2_4b_b2_station_energy_gate scripts.test_p2_4b_b1_energy_quote scripts.test_p2_2_flight_energy_gate console.test_c4_cargo_truth_scan_gate scripts.p2_4a_state_contract_test
+      - name: Frozen E0 wind equivalence with experimental modes OFF
+        env:
+          SWARM_BALANCE_AUTO_PLANNED_STATION: "0"
+          SWARM_BALANCE_CHARGE_TARGET_IDENTITY: "0"
+          SWARM_BALANCE_PLANNED_STATION_ROUTE: "0"
+          SWARM_BALANCE_STATION_ENERGY_GATE: "0"
+        run: |
+          .\.venv310\Scripts\python.exe -m unittest discover -s frontend -p test_wind_injection.py -v
