@@ -16,6 +16,17 @@ P24A_HEAD = "7ca10647201432062fbfd366fccba48027dbdd24"
 B1_HEAD = "fd8a001b09cb85b6875426d0e30532ee6e6831ac"
 B2_HEAD = "1601a36e7fb560b7126d13133d820a7bb4c60fe6"
 B3A_HEAD = "b10b49e5e69a2d2b9986e20bf8b8b853460ec4f0"
+B3B_HEAD = "25a77553c710c06cc105986f140d66ba5c5c6c6d"
+B3C_ALLOWED_CHANGES = {
+    ".github/workflows/p2-4b-b3c-target-station.yml",
+    "docs/P2_4B_B3C_STATION_IDENTITY_EVIDENCE.md",
+    "docs/数据来源与可追溯性登记表.md",
+    "frontend/drone.py",
+    "frontend/environment.py",
+    "scripts/p2_4a_state_contract_test.py",
+    "scripts/test_p2_4b_b3c_target_station.py",
+}
+
 B3B_ALLOWED_CHANGES = {
     ".github/workflows/p2-4b-b3b-planned-charge-route.yml",
     "docs/数据来源与可追溯性登记表.md",  # 9 exact relocated environment.py citation anchors
@@ -214,11 +225,21 @@ class RecoveryStateContract(unittest.TestCase):
         try:
             names = subprocess.check_output(
                 ["git", "-C", str(ROOT), "-c", "core.quotePath=false",
-                 "diff", "--name-only", B3A_HEAD + "...HEAD"], text=True).splitlines()
+                 "diff", "--name-only", B3A_HEAD + "..." + B3B_HEAD], text=True).splitlines()
         except (subprocess.CalledProcessError, FileNotFoundError) as exc:
             self.fail("[B3B_GIT_DIFF_NOT_VERIFIED] " + repr(exc))
         self.assertEqual(set(names), B3B_ALLOWED_CHANGES,
                          "[B3B_SCOPE_VIOLATION] exact manual-planned-route allowlist only")
+
+    def test_14_only_b3c_target_identity_and_berth_scope_changed(self):
+        try:
+            names = subprocess.check_output(
+                ["git", "-C", str(ROOT), "-c", "core.quotePath=false",
+                 "diff", "--name-only", B3B_HEAD + "...HEAD"], text=True).splitlines()
+        except (subprocess.CalledProcessError, FileNotFoundError) as exc:
+            self.fail("[B3C_GIT_DIFF_NOT_VERIFIED] " + repr(exc))
+        self.assertEqual(set(names), B3C_ALLOWED_CHANGES,
+                         "[B3C_SCOPE_VIOLATION] strict seven-file station guard only")
 
 
 if __name__ == "__main__":
