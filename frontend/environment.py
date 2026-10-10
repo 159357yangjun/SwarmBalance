@@ -740,6 +740,25 @@ class Environment:
         if st is None:
             raise ValueError("当前没有可用机巢")
 
+        # B3b experimental ONLY. Produce a real obstacle-aware route and a
+        # complete per-leg B1 Wh quote BEFORE changing mission/cargo/berth.
+        # Default-off leaves legacy direct-hop behavior byte-for-byte intact.
+        planned_charge_waypoints = None
+        if os.environ.get("SWARM_BALANCE_PLANNED_STATION_ROUTE") == "1":
+            already_at_nest = math.dist(drone.get_position(), st.get_position()) < 1e-6
+            if not already_at_nest:
+                planned_quote = self.quote_planned_station_energy_wh(drone, st)
+                if not planned_quote["feasible"] or not planned_quote["affordable"]:
+                    raise ValueError(
+                        "[B3B_NO_AFFORDABLE_PLANNED_ROUTE] station=%s reason=%s" %
+                        (st.station_id, planned_quote["reason"]))
+                # Tag ALL diversion legs as non-service; never consume
+                # source/dest while travelling to a charging nest.
+                planned_charge_waypoints = [
+                    (float(x), float(y), "waypoint")
+                    for x, y in planned_quote["waypoints"]
+                ]
+
         route = list(getattr(drone, 'scheduled_position', []) or [])
         if route and not getattr(drone, '_suspended_route', []):
             drone._suspended_route = route
@@ -752,7 +771,9 @@ class Environment:
             drone.awaiting_since = float(self.current_time)
             drone.is_free = False
         else:
-            drone.scheduled_position = [target]
+            drone.scheduled_position = (planned_charge_waypoints
+                                        if planned_charge_waypoints is not None
+                                        else [target])
             drone.is_free = False
         self._prev_free_status[idx] = False
         return {
