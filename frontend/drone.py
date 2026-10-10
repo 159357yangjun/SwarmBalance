@@ -384,14 +384,21 @@ class Drone:
             # Do not sacrifice the original manifest for a mathematically
             # unaffordable nearest nest. The direct-hop test is only a
             # necessary energy bound, not a no-fly/OSM route certification.
-            nearest = self._select_energy_affordable_direct_station()
-            if nearest is None:
-                self.flight_energy_blocked = True
-                self.flight_energy_block_reason = "no_energy_affordable_station"
-                self.is_free = False
-                return
-            self.flight_energy_blocked = False
-            self.flight_energy_block_reason = None
+            # Explicit experimental opt-in; historical E0/E1 runs and
+            # normal deployments keep the exact old nearest-station rule.
+            # This is only a direct-hop necessary energy screen, not mapped
+            # path certification or a production default policy change.
+            if os.environ.get("SWARM_BALANCE_STATION_ENERGY_GATE") == "1":
+                nearest = self._select_energy_affordable_direct_station()
+                if nearest is None:
+                    self.flight_energy_blocked = True
+                    self.flight_energy_block_reason = "no_energy_affordable_station"
+                    self.is_free = False
+                    return
+                self.flight_energy_blocked = False
+                self.flight_energy_block_reason = None
+            else:
+                nearest = find_nearest_station(self.known_stations, (self.x, self.y))
             self._suspended_route = list(self.scheduled_position)
             self.scheduled_position = []
             self.is_free = False
