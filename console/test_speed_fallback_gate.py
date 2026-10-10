@@ -144,6 +144,8 @@ def _load_config_for_gate():
     base["task_generation"]["realistic"].update({"interval_scale": 0.70, "total_tasks": 240})
     base["environment"]["num_drones"] = 6
     base["heterogeneous"]["fleet_mix"] = {"light_express": 3, "standard_cargo": 2, "heavy_cargo": 1}
+    from console.g2_speed_fixture import isolate_g2_battery_depletion
+    isolate_g2_battery_depletion(base)  # synthetic speed test, not a fleet performance experiment
     _mix = sum(base["heterogeneous"]["fleet_mix"].values())
     if _mix != base["environment"]["num_drones"]:
         raise ValueError("[GATE_FIXTURE] fleet_mix 合计 %d 与 num_drones %d 不一致 ⇒ 机队规模这个"
@@ -346,6 +348,8 @@ class SpeedFallbackGateTests(unittest.TestCase):
             self.assertNotIn(DEFAULT_FALLBACK, obs_seen, "[%s] observation 出现 speed=200" % r["algorithm"])
             bad = [v for v in obs_seen if not (FLEET_SPEED_RANGE[0] <= v <= FLEET_SPEED_RANGE[1])]
             self.assertEqual(bad, [], "[%s] observation speed 超出机型包络 %s：%s" % (r["algorithm"], FLEET_SPEED_RANGE, bad))
+            self.assertEqual(r["blocked_drone_steps"], 0,
+                             "[%s][G2_ENERGY_CONFOUND] blocked in speed fallback probe" % r["algorithm"])
             if r["algorithm"] == "greedy":
                 self.assertEqual(r["optimize_calls"], 0, "greedy 不该经过后端 optimize")
                 print("[G2/%-7s] (subprocess) observation %d 次 speed=%s；无批量优化器调用" % (
@@ -381,6 +385,8 @@ base = json.loads((ROOT / "config" / "simulation.json").read_text(encoding="utf-
 base["task_generation"]["realistic"].update({"interval_scale": 0.70, "total_tasks": 240})
 base["environment"]["num_drones"] = 6
 base["heterogeneous"]["fleet_mix"] = {"light_express": 3, "standard_cargo": 2, "heavy_cargo": 1}
+from console.g2_speed_fixture import isolate_g2_battery_depletion
+isolate_g2_battery_depletion(base)   # identical high-energy G2 fixture
 tmpd = pathlib.Path(os.environ.get("TMP", "/tmp")) / ("g2child_%d" % os.getpid())
 tmpd.mkdir(parents=True, exist_ok=True)
 cfg = tmpd / "sim.json"
@@ -432,8 +438,10 @@ else:
         print(json.dumps({"skip": "OR-Tools 不可用"})); raise SystemExit(0)
     s = ORToolsScheduler(num_drones=len(env.drones), verbose=False, seed=40901); nxt = lambda o: s.step(o, current_time=env.current_time)
 done = False
+blocked_steps = 0
 while not done:
     obs, _, done, _ = env.step(nxt(obs))
+    blocked_steps += sum(bool(getattr(d, "flight_energy_blocked", False)) for d in env.drones)
     # observation 层的 speed 直接从返回的 obs 采样（两个 key 都看）：greedy 不经过后端
     # _extract_capacity，若只靠那个钩子取样，greedy 会得到空样本 ⇒ 假 NO_OBS_SAMPLE。
     for key in ("drone_capabilities", "drone_chain_info"):
@@ -443,7 +451,7 @@ while not done:
                 obs_seen.append(float(v))
 print(json.dumps({"ok": True, "algorithm": ALGO, "obs_speeds": sorted(set(obs_seen)),
                   "opt_speeds": sorted(set(opt_seen)), "optimize_calls": len(opt_seen),
-                  "num_drones": int(E.DEFAULT_NUM_DRONES)}))
+                  "num_drones": int(E.DEFAULT_NUM_DRONES), "blocked_drone_steps": blocked_steps}))
 '''
 
     def _run_g2_in_subprocess(self, algorithm):
@@ -576,6 +584,13 @@ print(json.dumps({"ok": True, "algorithm": ALGO, "obs_speeds": sorted(set(obs_se
         #        · gate/mutate 任务量同为 240（唯一变量是机队），所以 mutate 的 optimize
         #          必须**跌到 gate 的一个很小比例**才算承重变量被切到；
         #        · 分母用本轮真值（gate 面读数），不是上一轮抄下来的数。
+        # This speed/PSO denominator test must not silently become a
+        # low-energy recovery benchmark. P2.2's separate RED/GREEN tests
+        # are responsible for fail-closed motion under insufficient Wh.
+        for face, row in (("gate", gate), ("mutate", mut), ("noDenom", nod)):
+            self.assertEqual(self._i(row, "blocked_drone_steps"), 0,
+                             "[%s][G2_ENERGY_CONFOUND] flight blocked even with "
+                             "isolated synthetic battery budget" % face)
         g_opt, m_opt = self._i(gate, "optimize_calls"), self._i(mut, "optimize_calls")
         self.assertEqual(self._i(mut, "flush_size"), 0,
                          "[mutate] 变异后 flush_size 仍 >0 ⇒ 承重变量没被切到，门的牙是假的")
