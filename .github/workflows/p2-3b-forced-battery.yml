@@ -1,0 +1,38 @@
+name: P2.3b forced low battery witness
+on:
+  pull_request:
+    branches: [ci-validation]
+permissions:
+  contents: read
+jobs:
+  forced-battery:
+    if: ${{ github.head_ref == 'p2-3b-low-battery-trigger-v1' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+      - name: Check out immutable code revisions
+        run: |
+          python -m py_compile scripts/p2_3b_forced_low_battery.py
+          git worktree add --detach "$RUNNER_TEMP/p23b-old" 806d07653af52b83202ba232cb1f3e88dd9b7901
+          git worktree add --detach "$RUNNER_TEMP/p23b-new" 5bcc6cb9661dc250c11c578acbacc32c8b0d6f4f
+      - name: Install existing dependencies
+        run: |
+          python -m pip install 'pip==23.3.2' 'numpy==1.26.4'
+          python -m pip install -r requirements.txt
+      - name: Trigger real legacy unpaid movement and repaired gate
+        run: |
+          python scripts/p2_3b_forced_low_battery.py --old-root "$RUNNER_TEMP/p23b-old" --new-root "$RUNNER_TEMP/p23b-new" --output "$RUNNER_TEMP/p23b_evidence.json"
+      - name: Preserve every actual episode
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: p23b-forced-battery-witness
+          path: ${{ runner.temp }}/p23b_evidence.json
+          if-no-files-found: warn
+          retention-days: 30
