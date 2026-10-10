@@ -18,6 +18,7 @@ B2_HEAD = "1601a36e7fb560b7126d13133d820a7bb4c60fe6"
 B3A_HEAD = "b10b49e5e69a2d2b9986e20bf8b8b853460ec4f0"
 B3B_ALLOWED_CHANGES = {
     ".github/workflows/p2-4b-b3b-planned-charge-route.yml",
+    "docs/数据来源与可追溯性登记表.md",  # 9 exact relocated environment.py citation anchors
     "docs/P2_4B_B3B_PLANNED_CHARGE_EXECUTION_EVIDENCE.md",
     "frontend/environment.py",
     "scripts/p2_4a_state_contract_test.py",
