@@ -54,3 +54,11 @@ P2.4b-B1 只是实现 **A13 单步理论 Wh 的单源计算**；仅有这一接�
 - Minimal fix in `scripts/p2_4a_state_contract_test.py`: invoke both immutable P2.4a and B1 Git filename comparisons with `-c core.quotePath=false` under `PYTHONUTF8=1`. Exact-set assertion and file allowlists stay unchanged.
 - [GREEN B1 #38041727742](https://github.com/159357yangjun/SwarmBalance/actions/runs/38041727742): `31/31` B1, `30/30` P2.2, `10/10` inherited immutable design / exact B1 file-scope gate, all passed (71 tests); real Windows CI `completed/success`.
 - This evidence commit asks for a new all-four-group full-suite run. Do not restore the correct Draft PR base or claim full acceptance until its exact head SHA's full workflow and the `console` group both conclude success.
+
+## 8. Console C4 cargo-truth red and minimal correction
+
+- [Full CI #38041829686](https://github.com/159357yangjun/SwarmBalance/actions/runs/38041829686) **completed/failure**: `console` ran 374 tests, 2 failures, 4 expected skips. Both failures belong to `console.test_c4_cargo_truth_scan_gate`: `test_clean_face_repo_has_no_violation` and `test_exempt_entries_are_not_stale`. Pure Wh formula extraction moved the **unchanged bounded-range validation** from `consume_battery` to `quote_flight_energy_wh`; exact C4 (symbol, line substring) exemption was still pinned to the old method.
+- Minimum change: move only the exemption's **symbol** to `quote_flight_energy_wh`, keep the precise source-substring `self.current_load < 0 or self.current_load > self.carrying_capacity`, keep the dirty-face mutation and `current_load > 0` prohibition unchanged; retain explicit reason and update exact B1 scope file allowance.
+- The B1 specialized workflow also now directly runs the real C4 clean/dirty test, so any future moving of the exemption without scanner parity fails quickly, not after the slow full console matrix.
+- Do not interpret nearby `[FAIL] ROW_SETS` printed by diagnostic mutation faces as a separate failed `unittest`; actual `[CI_VERDICT]` for that run was two failed C4 tests and no errors. No test was disabled or skipped to repair this.
+- This evidence update **requests final [full-suite]** verification on the resulting immutable branch HEAD. All 9 Jobs including `Full suite / console` must be successful before restoring PR #15 base.
