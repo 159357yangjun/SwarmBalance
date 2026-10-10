@@ -39,6 +39,9 @@ jobs:
       - name: Actual RED or GREEN B1 unittest; never skip or xfail
         run: |
           .\.venv310\Scripts\python.exe -m unittest -v scripts.test_p2_4b_b1_energy_quote
+      - name: C4 cargo truth scan and dirty-face mutation retain strict behavior
+        run: |
+          .\.venv310\Scripts\python.exe -m unittest -v console.test_c4_cargo_truth_scan_gate
       - name: P2.2 real flight safety retained
         run: |
           .\.venv310\Scripts\python.exe -m unittest -v scripts.test_p2_2_flight_energy_gate
