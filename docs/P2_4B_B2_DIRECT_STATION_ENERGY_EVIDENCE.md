@@ -30,3 +30,10 @@
 ## 验收策略
 
 本 PR 的 28 条专项 GREEN 只是 B2 当前必要条件绿灯。需同时检查 B1 继承测试、C4 货物真实性扫描、P2.4a/B1/B2 分支范围门禁和真实四组全量 CI；不得将部分/取消的工作流算作 full-suite 成功。所有 PR 保持 Draft/未合并。
+
+## B2 回归增强与全量验证请求
+
+- [Actions #38044437715](https://github.com/159357yangjun/SwarmBalance/actions/runs/38044437715) **completed/success**：28 个 B2 原始/继承测试 `OK`，并串联验证 76 个 B1 报价、P2.2 低电安全、C4 货物真实性、P2.4a/B1/B2 精确 Git 文件范围测试 `OK`；共执行 104 个测试，不含合并前/全量对照结果。
+- B1 历史约束现在固定于不可变 `fd8a001b09cb85b6875426d0e30532ee6e6831ac`，B2 新增单独的当前 `HEAD` 白名单，绝不放宽 B1 和 P2.4a 的历史变更范围断言。
+- 临时将 PR #16 的 base 设置为 `ci-validation`，仅为触发 [full-suite] 四组真实 Windows CI。若本 HEAD 完整 Job 均 `completed/success`，才恢复为 `p2-4b-b1-energy-quote-v1` 并通过 API 回读，保持 Draft、不合并。
+- 任何未完成或并发取消的全量工作流都不是验证通过的证据；尤其必须检查 `Full suite / console` 和 `verification` 的终态。
