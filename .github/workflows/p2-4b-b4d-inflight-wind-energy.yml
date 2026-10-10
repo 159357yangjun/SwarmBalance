@@ -1,0 +1,35 @@
+name: P2.4b-B4d in-flight wind route-energy RED
+on:
+  push:
+    branches: [p2-4b-b4d-inflight-wind-energy-red-v1]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  b4d-wind:
+    runs-on: windows-2022
+    timeout-minutes: 45
+    env:
+      PYTHONIOENCODING: utf-8
+      PYTHONUTF8: "1"
+      PYTHONDONTWRITEBYTECODE: "1"
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+          cache: pip
+          cache-dependency-path: requirements.txt
+      - name: Install project dependencies
+        run: |
+          python -m venv .venv310
+          .\.venv310\Scripts\python.exe -m pip install "pip==23.3.2" numpy==1.26.4
+          .\.venv310\Scripts\python.exe -m pip install -r requirements.txt
+      - name: Actual Environment.step B4d wind RED/GREEN
+        run: |
+          .\.venv310\Scripts\python.exe -m unittest -v scripts.test_p2_4b_b4d_inflight_wind_energy
