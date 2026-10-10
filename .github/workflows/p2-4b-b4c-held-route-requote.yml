@@ -1,0 +1,36 @@
+name: P2.4b-B4c held charging route re-quote RED
+on:
+  push:
+    branches: [p2-4b-b4c-held-route-requote-v1]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  b4c-held-requote:
+    name: Reopened nest and headwind explicit replan
+    runs-on: windows-2022
+    timeout-minutes: 40
+    env:
+      PYTHONIOENCODING: utf-8
+      PYTHONUTF8: "1"
+      PYTHONDONTWRITEBYTECODE: "1"
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+          cache: pip
+          cache-dependency-path: requirements.txt
+      - name: Install pinned dependencies
+        run: |
+          python -m venv .venv310
+          .\.venv310\Scripts\python.exe -m pip install "pip==23.3.2" numpy==1.26.4
+          .\.venv310\Scripts\python.exe -m pip install -r requirements.txt
+      - name: Real B4c held route RED/GREEN
+        run: |
+          .\.venv310\Scripts\python.exe -m unittest -v scripts.test_p2_4b_b4c_held_route_requote
