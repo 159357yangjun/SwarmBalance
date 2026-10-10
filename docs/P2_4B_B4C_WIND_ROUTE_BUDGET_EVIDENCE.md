@@ -22,3 +22,10 @@ B4 能在任务低电时评估 A* 机巢路径并安排执行，但报价只发�
 4. 一如既往保留 `assigned` 默认口径、E0/E1 固定样本及其真实对照，所有安全判断依赖当前代码的理论能源模型，不代表厂家实测余量。
 5. B4b 历史精确文件范围测试固定在不可变 `8c382fbf3b5fb7991f52dc21ab764a3dcc3f365b`，新增 B4c **五文件**严格白名单（workflow、证据文档、`frontend/drone.py`、范围测试、B4c 真实测试）；不得放宽前期断言。
 6. 还需继承 B4b/B4/B3c/B3b/B3a/B2/B1/P2.2/C4 测试、E0 重放与全部四组 Windows CI + verification 的最新 SHA 终态。阶段全部验证前保持 Draft、未合并；不触发默认生产启用。
+
+## 全量验收请求
+
+- [增强专项 #38064707093](https://github.com/159357yangjun/SwarmBalance/actions/runs/38064707093) 对完整源 HEAD `a635d21b93a7008259297c2e6ffa6e60a631a191` **completed/success**：55/55 B4c+P1、332/332 B4b/B4/B3c/B3b/B3a/B2/B1/P2.2/C4 及全部 17 项精确 Git 历史范围断言、11/11 冻结 E0，共 **398/398 PASS**。
+- 本次提交触发带 **[full-suite]** 的 Windows 四组 CI；为匹配仓库 PR 触发过滤，PR #22 目标分支临时改为 `ci-validation`。全部 `console/frontend/root/experiments/verification` 加其他辅助 Job 必须在本次**新 HEAD** 上完成且 `conclusion=success` 才可宣布全量验收。
+- 仅在同一 HEAD 全量 9/9 成功后，恢复 PR #22 base 为 `p2-4b-b4b-auto-station-identity-v1` 并回读 Draft/head/未合并。B4b 父 PR #21 的全量 CI 独立验收，不能以 B4c 成功取代。
+- 未修改生产默认风场开关、E0/E1、调度器和物理公式，仍不代表真实飞行认证。
