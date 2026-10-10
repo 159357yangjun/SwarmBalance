@@ -17,6 +17,7 @@ from scripts.test_p2_4b_b4_auto_planned_nest import AutoPlannedLowBatteryNest
 
 OPT = {
     "SWARM_BALANCE_AUTO_PLANNED_STATION": "1",
+    "SWARM_BALANCE_AUTO_WIND_BUDGET_GATE": "1",
     "SWARM_BALANCE_CHARGE_TARGET_IDENTITY": "1",
     "SWARM_BALANCE_PLANNED_STATION_ROUTE": "0",
     "SWARM_BALANCE_STATION_ENERGY_GATE": "0",
@@ -86,6 +87,20 @@ class AutoChargingWindBudget(AutoPlannedLowBatteryNest):
             self.assertNotEqual(d.get_position(), start,
                                 "[B4C_E0_CALM_ROUTE_INCORRECTLY_BLOCKED]")
             self.assertFalse(d.flight_energy_blocked)
+
+    @patch.dict(os.environ, dict(OPT, SWARM_BALANCE_AUTO_WIND_BUDGET_GATE="0"))
+    def test_B4c_03_explicit_budget_guard_off_keeps_legacy_step_only_policy(self):
+        d, env, st = self._low_battery(wh=12.0)
+        with patch.dict(d._wind_factor.__globals__, WIND):
+            d.set_wind(0.0, 0.0)
+            env.step({})  # A* planned under affordable calm conditions
+            before = d.get_position()
+            d.set_wind(-12.0, 0.0)
+            self.assertFalse(env.quote_planned_station_energy_wh(d, st)["affordable"])
+            env.step({})
+            self.assertNotEqual(d.get_position(), before,
+                                "[B4C_DEFAULT_OFF_POLICY_DRIFT]")
+            self.assertGreater(env.total_energy_consumed, 0.0)
 
 
 if __name__ == "__main__":
