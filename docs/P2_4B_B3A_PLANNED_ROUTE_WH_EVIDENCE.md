@@ -21,3 +21,10 @@
 6. B3a 的完全验收仍要求继承 P2.4a/B1/B2 严格 Git 文件范围门禁及 B1/P2.2/C4 的原测试；全量四组 CI 必须真实 `completed/success`，不能以本轮 28 测试替代。
 
 所有 PR 保持 Draft、未合并。
+
+## 继承回归、精确范围门禁与全量验收请求
+
+- [Actions #38045941865](https://github.com/159357yangjun/SwarmBalance/actions/runs/38045941865) completed/success，28 条 B3a / P1 实际路径测试 + 107 条 B1/B2/P2.2/C4/状态设计与历史 Git 范围断言，共 135/135 PASS；其中 `test_12_only_b3a_route_quote_scope_changed` 已实际 PASS。
+- B3a 没有修改生产调度行为，也没有将 A* 规划路由装载到 `Drone.scheduled_position`。此结果只代表只读路径 Wh 报价与实际几何规划器的联通，不能声称完成路径执行或返航可行性。
+- 为触发四组全量 CI，PR #17 的 base 暂指向 `ci-validation`；必须待 **同一 HEAD** 的 `root/frontend/experiments/console` 与 `verification` 等 Job 全部 `completed/success` 后，恢复 `p2-4b-b2-station-reachability-v1` 并通过 GitHub API 回读确认。
+- 本次提交请求 [full-suite] 严格 CI；不降低断言、不修改真实 E0/E1 历史数据、不切换默认能耗与机巢策略，不合并 PR。
