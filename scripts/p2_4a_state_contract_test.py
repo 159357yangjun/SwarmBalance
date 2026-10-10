@@ -13,6 +13,16 @@ CONTRACT = ROOT / "docs" / "contracts" / "p2_4a_recovery_state_machine.json"
 DOC = ROOT / "docs" / "P2_4A_RECOVERY_STATE_MACHINE.md"
 P22 = "97200d2786a5fc775a8e6ea4ca5f95f90b5bcefb"
 P24A_HEAD = "7ca10647201432062fbfd366fccba48027dbdd24"
+B1_HEAD = "fd8a001b09cb85b6875426d0e30532ee6e6831ac"
+B2_ALLOWED_CHANGES = {
+    ".github/workflows/p2-4b-b2-station-energy.yml",
+    "docs/P2_4B_B2_DIRECT_STATION_ENERGY_EVIDENCE.md",
+    "docs/数据来源与可追溯性登记表.md",
+    "frontend/drone.py",
+    "scripts/p2_4a_state_contract_test.py",
+    "scripts/test_p2_4b_b2_station_energy_gate.py",
+}
+
 B1_ALLOWED_CHANGES = {
     ".github/workflows/p2-4b-b1-energy-quote.yml",
     "docs/P2_4B_B1_ENERGY_QUOTE_EVIDENCE.md",
@@ -154,11 +164,22 @@ class RecoveryStateContract(unittest.TestCase):
         try:
             output = subprocess.check_output(
                 ["git", "-C", str(ROOT), "-c", "core.quotePath=false", "diff", "--name-only",
-                 P24A_HEAD + "...HEAD"], text=True).splitlines()
+                 P24A_HEAD + "..." + B1_HEAD], text=True).splitlines()
         except (subprocess.CalledProcessError, FileNotFoundError) as exc:
             self.fail("[B1_GIT_DIFF_NOT_VERIFIED] " + repr(exc))
         self.assertEqual(set(output), B1_ALLOWED_CHANGES,
                          "[B1_SCOPE_VIOLATION] only listed energy-quote / test files")
+    def test_11_only_b2_direct_station_gate_scope_changed(self):
+        # Do not broaden B1's immutable historical scope to accept B2.
+        # Every current B2 file still requires an exact whitelist match.
+        try:
+            output = subprocess.check_output(
+                ["git", "-C", str(ROOT), "-c", "core.quotePath=false", "diff", "--name-only",
+                 B1_HEAD + "...HEAD"], text=True).splitlines()
+        except (subprocess.CalledProcessError, FileNotFoundError) as exc:
+            self.fail("[B2_GIT_DIFF_NOT_VERIFIED] " + repr(exc))
+        self.assertEqual(set(output), B2_ALLOWED_CHANGES,
+                         "[B2_SCOPE_VIOLATION] exact B2 allowlist only")
 
 
 if __name__ == "__main__":

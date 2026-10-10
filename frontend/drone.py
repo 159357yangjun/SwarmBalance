@@ -264,6 +264,34 @@ class Drone:
             return min(WIND_FACTOR_CEIL, 1.0 + WIND_ENERGY_HEADWIND_PER_MS * w)
         return max(WIND_FACTOR_FLOOR, 1.0 - WIND_ENERGY_TAILWIND_PER_MS * (-w))
     
+    def _select_energy_affordable_direct_station(self):
+        """Necessary Wh-screen for current straight station hop; not OSM clearance.
+
+        Only preemptive *active-mission* diversion uses this until route
+        planning and no-fly verification are integrated in P2.4b-B2 follow-up.
+        A successful straight-hop quote is NOT a proof of real-map reachability.
+        A 5% nameplate reserve is an explicit synthetic assumption, NOT a
+        calibrated manufacturer/flight-log requirement.
+        """
+        capacity = self.battery_capacity
+        if not isinstance(capacity, (float, int)) or not math.isfinite(capacity) or capacity <= 0:
+            raise ValueError("[B2_BATTERY_CAPACITY_INVALID] battery_capacity=%r" % capacity)
+        reserve_wh = 0.05 * capacity
+        candidates = []
+        for station in (self.known_stations or []):
+            if getattr(station, "closed", False):
+                continue
+            sx, sy = station.get_position()
+            dx, dy = sx - self.x, sy - self.y
+            dist = math.hypot(dx, dy)
+            if not math.isfinite(dist):
+                continue
+            along = self._wind_along_for(dx, dy, dist)
+            needed = self.quote_flight_energy_wh(dist, along)
+            if dist == 0 or needed + reserve_wh <= self.current_battery:
+                candidates.append((needed, dist, str(station.station_id), station))
+        return min(candidates, key=lambda item: item[:3])[-1] if candidates else None
+
     def start_charging(self, station_id, charging_power=None, swap_time_seconds=None):
         """在机巢开始换电（降落整组更换电池，非慢充）。
 
@@ -353,17 +381,33 @@ class Drone:
         if (self.scheduled_position and self.executing_task_id is not None
                 and self.is_low_battery() and not self.awaiting_berth
                 and not self._suspended_route):
+            # Do not sacrifice the original manifest for a mathematically
+            # unaffordable nearest nest. The direct-hop test is only a
+            # necessary energy bound, not a no-fly/OSM route certification.
+            # Explicit experimental opt-in; historical E0/E1 runs and
+            # normal deployments keep the exact old nearest-station rule.
+            # This is only a direct-hop necessary energy screen, not mapped
+            # path certification or a production default policy change.
+            if os.environ.get("SWARM_BALANCE_STATION_ENERGY_GATE") == "1":
+                nearest = self._select_energy_affordable_direct_station()
+                if nearest is None:
+                    self.flight_energy_blocked = True
+                    self.flight_energy_block_reason = "no_energy_affordable_station"
+                    self.is_free = False
+                    return
+                self.flight_energy_blocked = False
+                self.flight_energy_block_reason = None
+            else:
+                nearest = find_nearest_station(self.known_stations, (self.x, self.y))
             self._suspended_route = list(self.scheduled_position)
             self.scheduled_position = []
             self.is_free = False
-            nearest = find_nearest_station(self.known_stations, (self.x, self.y))
-            if nearest is not None:
-                nest_pos = nearest.get_position()
-                if (self.x, self.y) == nest_pos:
-                    self.awaiting_berth = True
-                    self.berth_station_id = nearest.station_id
-                else:
-                    self.scheduled_position = [nest_pos]
+            nest_pos = nearest.get_position()
+            if (self.x, self.y) == nest_pos:
+                self.awaiting_berth = True
+                self.berth_station_id = nearest.station_id
+            else:
+                self.scheduled_position = [nest_pos]
             return
 
         if self.scheduled_position:
