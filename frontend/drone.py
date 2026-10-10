@@ -164,22 +164,15 @@ class Drone:
         # 单位位移向量 · 风速向量的相反数 = 逆风为正的分量
         return -(uv[0] * (dx / distance) + uv[1] * (dy / distance))
 
-    def consume_battery(self, distance, wind_along=None):
-        """
-        消耗电量
-        
-        消耗公式：
-            总消耗 = 基础消耗 × (1 + 载重惩罚) × 风能耗倍率
-            其中 载重惩罚 = (current_load / carrying_capacity) × LOAD_PENALTY_FACTOR
-                 风能耗倍率 = _wind_factor(wind_along)
+    def quote_flight_energy_wh(self, distance, wind_along=None):
+        """Return theoretical Wh for the requested segment without any mutation.
 
-        `wind_along` 是**沿航线方向的风分量（m/s）**，符号约定：**正=逆风、负=顺风**。
-        它是 E1（能耗结构扩展）新增的唯一自由度：不改位移、不改速度、不改任务生成，
-        因此 E0→E1 的结果差异只能归因于"同一段路更费电"这一条路径。
-        默认 None ⇒ 逐字退回 E0 行为（倍率恒 1.0），这是 wind=0 必须与 E0 数值一致的前提。
+        Single source for both direct consume_battery() ledger billing and the
+        P2.2 real next-step flight feasibility gate. The original assigned
+        load policy remains the default; onboard stays explicit opt-in.
+        Does not promise complete-route or reachable-nest feasibility.
         """
-        # C: reject invalid inputs BEFORE any battery mutation.
-        # Keep the approved B control formula (assigned current_load) untouched.
+        # Keep the original C/B invalid-input and energy-policy semantics.
         for name, value in (("distance", distance),
                             ("carrying_capacity", self.carrying_capacity),
                             ("current_load", self.current_load),
@@ -199,17 +192,8 @@ class Drone:
             raise ValueError("[ENERGY_BATTERY_NEGATIVE] current_battery=%r" % (self.current_battery,))
         if self.battery_consumption_base < 0 or self.battery_load_penalty_factor < 0:
             raise ValueError("[ENERGY_COEFFICIENT_NEGATIVE] invalid energy coefficient")
-        # 基础飞行消耗
-        base_consumption = distance * self.battery_consumption_base
-        
-        # 载重影响
-        # ⚠ 口径甲（能耗侧）：这里用 current_load ⇒ "派单即加惩罚"，故**飞往取货点的空驶段也吃载重惩罚**。
-        #   对面 `frontend/environment.py:1741 _is_carrying()` 按航线标签把同一段判成**空载**（口径乙），
-        #   两种口径相反且本仓**同时**在跑（主控裁定①：维持并存、暂不统一）。
-        #   ⇒ 后果：Wh/km 的分子含归属未定的惩罚、分母按另一口径划分 ⇒ **商无定义**，
-        #     未定口径前不得对外声称任何 Wh/km。全文见 docs/P70_E1_load_penalty_attribution_two_readings.md。
-        # B is opt-in ONLY on the experiment branch; default remains the
-        # approved assigned-load control. No silent switch in production.
+        # Historical assigned charging penalizes pre-pickup flights. P1-B
+        # intentionally remains opt-in and is not changed in this refactor.
         if os.environ.get("SWARM_BALANCE_ENERGY_ACCOUNTING") == "onboard":
             charge_load = float(self.onboard_load_kg)
             if not math.isfinite(charge_load) or not 0 <= charge_load <= self.carrying_capacity:
@@ -217,9 +201,31 @@ class Drone:
                                  (self.onboard_load_kg,))
         else:
             charge_load = self.current_load
+        base_consumption = distance * self.battery_consumption_base
         load_factor = (charge_load / self.carrying_capacity) * self.battery_load_penalty_factor
-        total_consumption = base_consumption * (1 + load_factor) * self._wind_factor(wind_along)
+        required = base_consumption * (1 + load_factor) * self._wind_factor(wind_along)
+        if not math.isfinite(required) or required < 0:
+            raise ValueError("[ENERGY_REQUIREMENT_INVALID] required_wh=%r" % required)
+        return required
+
+    def consume_battery(self, distance, wind_along=None):
+        """
+        消耗电量
         
+        消耗公式：
+            总消耗 = 基础消耗 × (1 + 载重惩罚) × 风能耗倍率
+            其中 载重惩罚 = (current_load / carrying_capacity) × LOAD_PENALTY_FACTOR
+                 风能耗倍率 = _wind_factor(wind_along)
+
+        `wind_along` 是**沿航线方向的风分量（m/s）**，符号约定：**正=逆风、负=顺风**。
+        它是 E1（能耗结构扩展）新增的唯一自由度：不改位移、不改速度、不改任务生成，
+        因此 E0→E1 的结果差异只能归因于"同一段路更费电"这一条路径。
+        默认 None ⇒ 逐字退回 E0 行为（倍率恒 1.0），这是 wind=0 必须与 E0 数值一致的前提。
+        """
+        # All validation and required-Wh arithmetic now use the same
+        # read-only source as the flight gate. Actual debit stays here.
+        total_consumption = self.quote_flight_energy_wh(distance, wind_along)
+
         # C: required Wh is the original model demand. The account may only
         # debit available battery; the rest is explicit energy shortfall.
         if not math.isfinite(total_consumption) or total_consumption < 0:
@@ -439,36 +445,13 @@ class Drone:
     def _flight_step_feasible(self, distance, wind_along):
         """Fail-closed real-movement gate. No shadow battery or formula switch.
 
-        This quotes the identical mass/Wh/m/wind expression consumed by
-        consume_battery(), without calling the mutating debit routine.
+        This calls the single read-only Wh quote shared by consume_battery(),
+        without calling or mutating the actual debit routine.
         A blocked proposed step records unmet REQUIRED Wh and debits zero,
         so required == debited + shortfall remains true.
         """
-        for name, value in (("distance", distance),
-                            ("carrying_capacity", self.carrying_capacity),
-                            ("current_load", self.current_load),
-                            ("current_battery", self.current_battery),
-                            ("battery_consumption_base", self.battery_consumption_base),
-                            ("battery_load_penalty_factor", self.battery_load_penalty_factor)):
-            if not isinstance(value, (float, int)) or not math.isfinite(value):
-                raise ValueError("[ENERGY_INPUT_NOT_FINITE] %s=%r" % (name, value))
-        if distance < 0 or self.carrying_capacity <= 0 or self.current_battery < 0:
-            raise ValueError("[FLIGHT_ENERGY_INVALID] distance/capacity/battery")
-        if not 0 <= self.current_load <= self.carrying_capacity:
-            raise ValueError("[ENERGY_LOAD_INVALID] current_load=%r" % self.current_load)
-        if self.battery_consumption_base < 0 or self.battery_load_penalty_factor < 0:
-            raise ValueError("[ENERGY_COEFFICIENT_NEGATIVE]")
-        if os.environ.get("SWARM_BALANCE_ENERGY_ACCOUNTING") == "onboard":
-            load = float(self.onboard_load_kg)
-            if not math.isfinite(load) or not 0 <= load <= self.carrying_capacity:
-                raise ValueError("[ENERGY_ONBOARD_LOAD_INVALID]")
-        else:
-            load = self.current_load
-        required = (distance * self.battery_consumption_base *
-                    (1 + (load / self.carrying_capacity) * self.battery_load_penalty_factor) *
-                    self._wind_factor(wind_along))
-        if not math.isfinite(required) or required < 0:
-            raise ValueError("[ENERGY_REQUIREMENT_INVALID] required_wh=%r" % required)
+        # The exact same pure Wh source as consume_battery().
+        required = self.quote_flight_energy_wh(distance, wind_along)
         if required > self.current_battery:
             self.flight_energy_blocked = True
             self.flight_energy_block_reason = "insufficient_step_energy"
