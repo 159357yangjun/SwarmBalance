@@ -138,7 +138,7 @@ class RecoveryStateContract(unittest.TestCase):
         # broader future HEAD as though it were still design-only.
         try:
             output = subprocess.check_output(
-                ["git", "-C", str(ROOT), "diff", "--name-only",
+                ["git", "-C", str(ROOT), "-c", "core.quotePath=false", "diff", "--name-only",
                  P22 + "..." + P24A_HEAD], text=True).splitlines()
         except (subprocess.CalledProcessError, FileNotFoundError) as exc:
             self.fail("[P24A_GIT_DIFF_NOT_VERIFIED] " + repr(exc))
@@ -152,7 +152,7 @@ class RecoveryStateContract(unittest.TestCase):
         # scheduler/config/frozen archives or unapproved files.
         try:
             output = subprocess.check_output(
-                ["git", "-C", str(ROOT), "diff", "--name-only",
+                ["git", "-C", str(ROOT), "-c", "core.quotePath=false", "diff", "--name-only",
                  P24A_HEAD + "...HEAD"], text=True).splitlines()
         except (subprocess.CalledProcessError, FileNotFoundError) as exc:
             self.fail("[B1_GIT_DIFF_NOT_VERIFIED] " + repr(exc))
