@@ -60,3 +60,42 @@ jobs:
         if: always()
         run: |
           Write-Host "[G2_DIAG] label=${{ matrix.label }} sha=${{ matrix.sha }} outcome=${{ steps.g2.outcome }}"
+
+  g2-policy-trace:
+    name: P2.2 flight-block and scheduler-flush provenance
+    runs-on: windows-2022
+    timeout-minutes: 65
+    env:
+      PYTHONIOENCODING: utf-8
+      PYTHONUTF8: "1"
+      PYTHONDONTWRITEBYTECODE: "1"
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - name: Checkout isolated diagnostic branch
+        uses: actions/checkout@v4
+      - name: Guard immutable production implementation
+        run: |
+          $sourceBlob = git rev-parse "HEAD:frontend/drone.py"
+          $baselineBlob = git rev-parse "5bcc6cb9661dc250c11c578acbacc32c8b0d6f4f:frontend/drone.py"
+          if ($sourceBlob -ne $baselineBlob) { throw "Production drone.py drift" }
+          Write-Host "[G2_POLICY_GUARD] production_drone_blob=$sourceBlob"
+      - name: Python 3.10
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+          cache: pip
+          cache-dependency-path: requirements.txt
+      - name: Install project dependencies
+        run: |
+          python -m venv .venv310
+          .\\.venv310\\Scripts\\python.exe -m pip install "pip==23.3.2" numpy==1.26.4
+          .\\.venv310\\Scripts\\python.exe -m pip install -r requirements.txt
+      - name: Run three unchanged workloads with read-only telemetry
+        run: |
+          foreach ($face in @("gate", "mutate", "noDenom")) {
+            Write-Host "[G2_POLICY_FACE] $face"
+            .\\.venv310\\Scripts\\python.exe console/phase0_speed_gate_teeth_probe.py $face
+            if ($LASTEXITCODE -ne 0) { throw "Probe failed on $face" }
+          }
