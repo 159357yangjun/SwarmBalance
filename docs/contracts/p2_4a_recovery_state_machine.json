@@ -214,7 +214,7 @@
       "from": "SWAPPING_BATTERY",
       "to": "RESUMING_ROUTE",
       "guard": "swap_completed_on_site",
-      "effect": "release_berth_once",
+      "effect": "credit_swap_energy_and_release_berth_once",
       "implementation": "planned"
     },
     {
