@@ -46,3 +46,11 @@ P2.4b-B1 只是实现 **A13 单步理论 Wh 的单源计算**；仅有这一接�
 - 首次全量验证 [#38041459466](https://github.com/159357yangjun/SwarmBalance/actions/runs/38041459466)：verification 的 `console/_citations.py --verify --portable-rewrite` 对两条失效行号报 `[ANCHOR_MISS]`（原 `frontend/drone.py:200`、`:266`）。这些行号因抽取报价函数而移动；门禁本身正确。
 - 仅更新源登记表的两条引用至 `:204#battery_consumption_base`、`:272#不再使用`，并在 B1 精确允许变更清单中显式列入该文档。不改校验脚本、不关闭断言、不覆盖冻结样本。
 - `console` 在旧全量工作流中被后续 push 的 CI concurrency 取消，因此该轮不得宣称所有分组通过。以修复后最新 SHA 的真正完整 CI 终态为准。
+
+## 7. Windows UTF-8 scope-gate root cause and acceptance
+
+- First fixed-citation suite [#38041624320](https://github.com/159357yangjun/SwarmBalance/actions/runs/38041624320) was interrupted by later PR pushes (concurrency cancellation), **not** a complete GREEN on all four suites.
+- The separate B1 scope test [#38041619794](https://github.com/159357yangjun/SwarmBalance/actions/runs/38041619794) failed because Windows Git `diff --name-only` emitted octal-escaped CJK file names under default `core.quotePath`, whereas the allowlist contained the literal Unicode path. This is a test encoding mismatch, not a scheduler/energy regression.
+- Minimal fix in `scripts/p2_4a_state_contract_test.py`: invoke both immutable P2.4a and B1 Git filename comparisons with `-c core.quotePath=false` under `PYTHONUTF8=1`. Exact-set assertion and file allowlists stay unchanged.
+- [GREEN B1 #38041727742](https://github.com/159357yangjun/SwarmBalance/actions/runs/38041727742): `31/31` B1, `30/30` P2.2, `10/10` inherited immutable design / exact B1 file-scope gate, all passed (71 tests); real Windows CI `completed/success`.
+- This evidence commit asks for a new all-four-group full-suite run. Do not restore the correct Draft PR base or claim full acceptance until its exact head SHA's full workflow and the `console` group both conclude success.
