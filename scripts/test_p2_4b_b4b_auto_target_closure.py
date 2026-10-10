@@ -69,6 +69,70 @@ class AutoTargetAndClosure(TargetStationIdentityGate):
         self.assertEqual(d.scheduled_position,[a.get_position()])
         self.assertEqual(d._suspended_route,old)
 
+
+    @patch.dict(os.environ,FLAGS)
+    def test_B4b_forged_auto_arrival_far_from_target_cannot_get_berth(self):
+        d,env,a,b=self._setup_auto(colocated=False)
+        d.charge_target_station_id="B"
+        d._suspended_route=list(d.scheduled_position)
+        d.awaiting_berth=True
+        d.berth_station_id="B"
+        before=d.current_battery
+        env._manage_berths()
+        self.assertFalse(d.is_charging, "[B4B_AUTO_REMOTE_FREE_SWAP]")
+        self.assertEqual((a.occupied,b.occupied),(0,0))
+        self.assertEqual(env.total_swap_sessions,0)
+        self.assertEqual(d.current_battery,before)
+
+    @patch.dict(os.environ,FLAGS)
+    def test_B4b_forged_auto_wrong_station_same_location_cannot_swap(self):
+        d,env,a,b=self._setup_auto(colocated=True)
+        d.x,d.y=b.get_position()
+        d.charge_target_station_id="B"
+        d._suspended_route=list(d.scheduled_position)
+        d.awaiting_berth=True
+        d.berth_station_id="A"
+        env._manage_berths()
+        self.assertFalse(d.is_charging, "[B4B_AUTO_WRONG_STATION_FREE_SWAP]")
+        self.assertEqual((a.occupied,b.occupied),(0,0))
+        self.assertEqual(env.total_swap_sessions,0)
+
+    @patch.dict(os.environ,FLAGS)
+    def test_B4b_forged_auto_missing_target_id_cannot_swap(self):
+        d,env,a,b=self._setup_auto(colocated=False)
+        d.x,d.y=b.get_position()
+        d.charge_target_station_id=None
+        d._suspended_route=list(d.scheduled_position)
+        d.awaiting_berth=True
+        d.berth_station_id="B"
+        env._manage_berths()
+        self.assertFalse(d.is_charging, "[B4B_AUTO_MISSING_TARGET_FREE_SWAP]")
+        self.assertEqual(b.occupied,0)
+        self.assertEqual(env.total_swap_sessions,0)
+
+    @patch.dict(os.environ,FLAGS)
+    def test_B4b_target_state_cleared_after_real_swap_completion(self):
+        d,env,a,b=self._setup_auto(colocated=True)
+        a.closed=True
+        env.step({})
+        self.assertEqual(str(d.charge_target_station_id),"B")
+        a.closed=False
+        seen_charging=False
+        for _ in range(25):
+            env.step({})
+            if d.is_charging:
+                seen_charging=True
+            if seen_charging and not d.is_charging:
+                break
+        self.assertTrue(seen_charging,"[B4B_SWAP_NOT_OBSERVED]")
+        self.assertFalse(d.is_charging,"[B4B_SWAP_NOT_FINISHED]")
+        self.assertIsNone(getattr(d,"charge_target_station_id",None),
+                          "[B4B_STALE_TARGET_AFTER_SWAP]")
+        self.assertIsNone(getattr(d,"charge_target_hold_reason",None),
+                          "[B4B_STALE_HOLD_AFTER_SWAP]")
+        self.assertEqual(d._manual_charge_requested,False)
+        self.assertEqual(d.executing_task_id,"T1")
+
 if __name__=="__main__":
     import unittest
     unittest.main()
