@@ -1,0 +1,44 @@
+name: P2.4b-B1 authoritative energy quote red-green
+
+on:
+  push:
+    branches: [p2-4b-b1-energy-quote-v1]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  b1-quote:
+    name: Real Drone quote/debit/Gate contract
+    runs-on: windows-2022
+    timeout-minutes: 45
+    env:
+      PYTHONIOENCODING: utf-8
+      PYTHONUTF8: "1"
+      PYTHONDONTWRITEBYTECODE: "1"
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - name: Checkout actual branch and full history
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Pin Python 3.10
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+          cache: pip
+          cache-dependency-path: requirements.txt
+      - name: Install exact dependencies
+        run: |
+          python -m venv .venv310
+          .\.venv310\Scripts\python.exe -m pip install "pip==23.3.2" numpy==1.26.4
+          .\.venv310\Scripts\python.exe -m pip install -r requirements.txt
+      - name: Actual RED or GREEN B1 unittest; never skip or xfail
+        run: |
+          .\.venv310\Scripts\python.exe -m unittest -v scripts.test_p2_4b_b1_energy_quote
+      - name: P2.2 real flight safety retained
+        run: |
+          .\.venv310\Scripts\python.exe -m unittest -v scripts.test_p2_2_flight_energy_gate
