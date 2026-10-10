@@ -53,6 +53,15 @@ FACES = {
 def _write_cfg(tasks, mix):
     base = json.loads((ROOT / "config" / "simulation.json").read_text(encoding="utf-8"))
     base["task_generation"]["realistic"].update({"interval_scale": 0.70, "total_tasks": tasks})
+    # Isolated fixture counterfactual only: DO NOT bypass the production gate.
+    # A speed/PSO denominator test may remove battery exhaustion as a confound.
+    _battery_scale = float(os.environ.get("SWARM_G2_DIAG_BATTERY_SCALE", "1.0"))
+    if not 1.0 <= _battery_scale <= 100.0:
+        raise ValueError("Diagnostic battery scale must be in [1, 100]")
+    if _battery_scale != 1.0:
+        base["drone"]["battery_capacity"] *= _battery_scale
+        for profile in base["heterogeneous"]["drone_types"].values():
+            profile["battery_capacity"] *= _battery_scale
     base["heterogeneous"]["fleet_mix"] = mix
     # num_drones 与 mix 合计对齐：见 test_speed_fallback_gate._load_config_for_gate() 的恒等式。
     base["environment"]["num_drones"] = sum(int(v) for v in mix.values())
