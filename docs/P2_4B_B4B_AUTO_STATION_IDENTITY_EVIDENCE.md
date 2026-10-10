@@ -19,3 +19,10 @@
 5. 专项 60/60 成功不等于全量通过。必须跑继承 P2.2/C4/B1/B2/B3a/B3b/B3c/B4、冻结 E0 对照，并取得最新 HEAD 上 `console/frontend/root/experiments/verification` 及其余 Jobs **全部 completed/success**；只有全部通过才能恢复 PR 的原 base。
 
 全部代码位于独立 Draft PR，不合并；仅显式实验开关生效，E0/E1 归档始终不变。
+
+## 全量 CI 请求与继承验收
+
+- [增强专项 #38063832465](https://github.com/159357yangjun/SwarmBalance/actions/runs/38063832465) exact HEAD `3bd28814463bdc8f23244772d03eaa7f2f2f3617` **completed/success**：B4b 60/60、B4/B3c/B3b/B3a/B2/B1/P2.2/C4 与第 16 项变更范围断言 271/271、冻结 E0 11/11，共 **342/342 PASS**；旧 B4 历史文件清单精确不变。
+- 为发起全部 Windows 回归，PR #21 base 暂时调为 `ci-validation`，仅用于 `.github/workflows/ci.yml` PR 触发。此文档提交请求 **[full-suite]** 四组 + P1 校验、文档引用、浅克隆等完整 CI。
+- 本次文档与登记表行号修复分别属于 B4b 精确七文件白名单；未降低源码锚点验证器、C4 扫描或测试断言。
+- 必须检查**最新 HEAD** 的 `Full suite / console`、`frontend`、`experiments`、`root`、`verification` 和其余所有 Job 本身达到 `completed/success`，不得将中间 specialty 绿灯替代最终验收。只有全套通过后，恢复 PR #21 base 为 `p2-4b-b4-auto-planned-nest-red-v1` 并 API 回读；保持 Draft、未合并。
