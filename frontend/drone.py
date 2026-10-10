@@ -347,6 +347,25 @@ class Drone:
         """获取剩余载重"""
         return self.carrying_capacity - self.current_load
 
+    def _quote_remaining_waypoints_wh(self):
+        """Read-only B1 Wh total along *scheduled* waypoints and current wind.
+
+        Only a theoretical fixed-route energy quote. This does not check
+        real airspace, physical landing, wind prediction or reserve adequacy.
+        """
+        prev_x, prev_y = self.x, self.y
+        total_wh = 0.0
+        for waypoint in self.scheduled_position:
+            x, y = float(waypoint[0]), float(waypoint[1])
+            dx, dy = x - prev_x, y - prev_y
+            distance = math.hypot(dx, dy)
+            along = self._wind_along_for(dx, dy, distance)
+            total_wh += self.quote_flight_energy_wh(distance, along)
+            prev_x, prev_y = x, y
+        if not math.isfinite(total_wh):
+            raise ValueError("[B4C_REMAINING_WH_NOT_FINITE]")
+        return total_wh
+
     def update(self, time_step=None, station_quote_provider=None):
         # 故障/停飞状态：冻结当前位置与电量，不推进任何飞行/换电逻辑。
         # 任务回收与泊位释放由 Environment.set_drone_out_of_service() 统一处理。
@@ -445,6 +464,25 @@ class Drone:
             return
 
         if self.scheduled_position:
+            # B4c explicit experiment: P2.2 blocks unaffordable NEXT moves,
+            # but that is not enough if a wind shift makes the ENTIRE
+            # already-planned charging detour unaffordable. Re-quote the
+            # actual remaining waypoints before spending a single Wh.
+            # No new energy formula; all legs reuse B1 pure Wh quote.
+            if (os.environ.get("SWARM_BALANCE_AUTO_WIND_BUDGET_GATE") == "1"
+                    and os.environ.get("SWARM_BALANCE_AUTO_PLANNED_STATION") == "1"
+                    and self._suspended_route
+                    and not self._manual_charge_requested
+                    and getattr(self, "charge_target_station_id", None) is not None
+                    and all(len(p) >= 3 and p[2] == "waypoint"
+                            for p in self.scheduled_position)):
+                required = self._quote_remaining_waypoints_wh()
+                reserve_wh = 0.05 * self.battery_capacity  # synthetic B3a/B4 assumption
+                if required + reserve_wh > self.current_battery:
+                    self.flight_energy_blocked = True
+                    self.flight_energy_block_reason = "remaining_planned_route_unaffordable"
+                    self.is_free = False
+                    return
             # Get the next target position (支持新旧两种格式)
             target = self.scheduled_position[0]
             if len(target) >= 3:
