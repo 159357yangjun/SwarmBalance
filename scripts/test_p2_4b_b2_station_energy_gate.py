@@ -7,6 +7,7 @@ The P2.2 fail-closed step motion gate remains enabled.
 """
 from __future__ import annotations
 
+import os
 from unittest.mock import patch
 from scripts.test_p1_load_energy_ledger_audit import LoadEnergyLedgerAudit
 
@@ -22,6 +23,7 @@ class StationEnergyGateContract(LoadEnergyLedgerAudit):
         env = self.small_environment(d)
         return d, env
 
+    @patch.dict(os.environ, {"SWARM_BALANCE_STATION_ENERGY_GATE": "1"})
     def test_B2_a03_unaffordable_all_nests_does_not_overwrite_mission(self):
         d, env = self._scenario(available_wh=0.4, capacity_wh=50.0,
                                 stations=[(1, 100.0, 0.0), (2, 0.0, 150.0)])
@@ -40,6 +42,7 @@ class StationEnergyGateContract(LoadEnergyLedgerAudit):
         self.assertTrue(d.flight_energy_blocked,
                         "[B2_UNREACHABLE_NEST_NO_EXPLICIT_HOLD]")
 
+    @patch.dict(os.environ, {"SWARM_BALANCE_STATION_ENERGY_GATE": "1"})
     def test_B2_wind_makes_farther_station_cheaper_than_nearest(self):
         d, env = self._scenario(available_wh=8.0, capacity_wh=50.0,
                                 stations=[(1, 100.0, 0.0), (2, 0.0, 150.0)])
@@ -64,6 +67,7 @@ class StationEnergyGateContract(LoadEnergyLedgerAudit):
                          "[B2_ENERGY_OPTIMIZATION_STILL_NEAREST_DISTANCE]")
         self.assertEqual(d.consumed_waypoints_this_step, [])
 
+    @patch.dict(os.environ, {"SWARM_BALANCE_STATION_ENERGY_GATE": "1"})
     def test_B2_closed_station_never_selected_even_if_shortest(self):
         d, env = self._scenario(available_wh=8.0, capacity_wh=50.0,
                                 stations=[(1, 20.0, 0.0), (2, 0.0, 40.0)])
@@ -72,6 +76,7 @@ class StationEnergyGateContract(LoadEnergyLedgerAudit):
         self.assertEqual(d.scheduled_position, [(0.0, 40.0)])
         self.assertEqual(d.consumed_waypoints_this_step, [])
 
+    @patch.dict(os.environ, {"SWARM_BALANCE_STATION_ENERGY_GATE": "1"})
     def test_B2_unreachable_nest_does_not_pay_or_fake_pickup_after_multiple_steps(self):
         d, env = self._scenario(available_wh=0.4, capacity_wh=50.0,
                                 stations=[(1, 100.0, 0.0)])
@@ -83,6 +88,29 @@ class StationEnergyGateContract(LoadEnergyLedgerAudit):
             self.assertEqual(d.consumed_waypoints_this_step, [])
         self.assertAlmostEqual(env.total_flight_distance, 0.0)
         self.assertAlmostEqual(env.total_energy_consumed, 0.0)
+
+    @patch.dict(os.environ, {"SWARM_BALANCE_STATION_ENERGY_GATE": "0"})
+    def test_B2_default_is_exact_legacy_nearest_nest_without_opt_in(self):
+        # The prior implementation replaces route with nearest nest even
+        # if full-hop Wh is unaffordable. That historical outcome must
+        # remain visible under default-off, not rewritten as a B2 success.
+        d, env = self._scenario(available_wh=0.4, capacity_wh=50.0,
+                                stations=[(1, 100.0, 0.0), (2, 0.0, 150.0)])
+        env.step({})
+        self.assertEqual((d.x, d.y), (0.0, 0.0))
+        self.assertEqual(d.scheduled_position, [(100.0, 0.0)],
+                         "[B2_DEFAULT_POLICY_DRIFT] historical station behavior changed")
+        self.assertEqual(d._suspended_route,
+                         [(240.0, 0.0, "source"), (320.0, 0.0, "dest")])
+        self.assertAlmostEqual(d.current_battery, 0.4)
+
+    def test_B2_feature_flag_is_absent_from_shipped_config(self):
+        from pathlib import Path
+        import json
+        config_path = Path(__file__).resolve().parents[1] / "config" / "simulation.json"
+        conf = json.loads(config_path.read_text(encoding="utf-8"))
+        self.assertNotIn("SWARM_BALANCE_STATION_ENERGY_GATE", conf)
+        self.assertNotIn("station_energy_gate", conf)
 
 
 if __name__ == "__main__":
