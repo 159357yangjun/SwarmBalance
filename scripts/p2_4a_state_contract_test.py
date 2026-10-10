@@ -92,11 +92,12 @@ class RecoveryStateContract(unittest.TestCase):
         self.assertEqual(len(to_swap), 1)
         self.assertEqual((to_swap[0]["from"], to_swap[0]["guard"]),
                          ("WAITING_FOR_BERTH", "berth_acquired"))
-        crediting = [x for x in t if x["effect"] == "credit_swap_energy"]
-        self.assertEqual(crediting, [], "Credit requires explicit on-site swap completion")
+        crediting = [x for x in t if "credit_swap_energy" in x["effect"]]
         done_swap = [x for x in t if x["guard"] == "swap_completed_on_site"]
-        self.assertEqual(len(done_swap), 1)
+        self.assertEqual(len(crediting), 1)
+        self.assertEqual(crediting, done_swap, "[P24A_MAGIC_CHARGE] on-site energy only")
         self.assertEqual(done_swap[0]["from"], "SWAPPING_BATTERY")
+        self.assertIn("release_berth_once", done_swap[0]["effect"])
 
     def test_06_prohibited_magic_actions_are_all_false(self):
         for name, enabled in self.c["constraints"].items():
