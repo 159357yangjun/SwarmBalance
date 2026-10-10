@@ -870,7 +870,9 @@ class Environment:
             if getattr(drone, 'awaiting_berth', False):
                 sid = getattr(drone, 'berth_station_id', None)
                 if (os.environ.get("SWARM_BALANCE_CHARGE_TARGET_IDENTITY") == "1"
-                        and getattr(drone, "_manual_charge_requested", False)):
+                        and (getattr(drone, "_manual_charge_requested", False)
+                             or (os.environ.get("SWARM_BALANCE_AUTO_PLANNED_STATION") == "1"
+                                 and bool(getattr(drone, "_suspended_route", []))))):
                     target = self._station_by_id(sid)
                     valid = (
                         sid is not None and target is not None
@@ -905,8 +907,11 @@ class Environment:
                 q.remove(best)
                 drone = self.drones[best]
                 if (os.environ.get("SWARM_BALANCE_CHARGE_TARGET_IDENTITY") == "1"
-                        and getattr(drone, "_manual_charge_requested", False)
-                        and (str(getattr(drone, "charge_target_station_id", "")) != str(st.station_id)
+                        and (getattr(drone, "_manual_charge_requested", False)
+                             or (os.environ.get("SWARM_BALANCE_AUTO_PLANNED_STATION") == "1"
+                                 and bool(getattr(drone, "_suspended_route", []))))
+                        and (getattr(drone, "charge_target_station_id", None) is None
+                             or str(getattr(drone, "charge_target_station_id", "")) != str(st.station_id)
                              or not drone.awaiting_berth
                              or math.dist(drone.get_position(), st.get_position()) >= 1e-6
                              or getattr(st, "closed", False))):

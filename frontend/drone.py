@@ -370,6 +370,11 @@ class Drone:
                 self.current_battery = self.battery_capacity
                 self.is_charging = False
                 self._manual_charge_requested = False
+                # Target is bound to this swap, never the next task. Keep
+                # charging_station_id until Environment releases its berth.
+                if os.environ.get("SWARM_BALANCE_CHARGE_TARGET_IDENTITY") == "1":
+                    self.charge_target_station_id = None
+                    self.charge_target_hold_reason = None
                 # 泊位释放交由环境仲裁处理（charging_station_id 暂留，供环境识别机巢）
                 self._pending_release = True
                 if self._suspended_route:
@@ -487,8 +492,10 @@ class Drone:
                         # 人工换电可以发生在空闲机；若有挂起任务则换电后恢复任务航线。
                         self.is_free = False
                         if (os.environ.get("SWARM_BALANCE_CHARGE_TARGET_IDENTITY") == "1"
-                                and self._manual_charge_requested
-                                and getattr(self, "charge_target_station_id", None) is not None):
+                                and getattr(self, "charge_target_station_id", None) is not None
+                                and (self._manual_charge_requested
+                                     or (os.environ.get("SWARM_BALANCE_AUTO_PLANNED_STATION") == "1"
+                                         and bool(self._suspended_route)))):
                             # Exact requested ID, not a distance tie at
                             # co-located stations. Never silently swap elsewhere.
                             wanted_id = str(self.charge_target_station_id)
