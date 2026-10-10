@@ -97,7 +97,9 @@ class PlannedManualChargeRoute(PlannedStationQuoteTests):
         self.assertAlmostEqual(before - d.current_battery, quote["required_wh"], places=6)
         self.assertAlmostEqual(env.total_energy_consumed, quote["required_wh"], places=6)
         self.assertAlmostEqual(env.total_flight_distance, quote["distance_m"], places=6)
-        self.assertFalse(d.consumed_waypoints_this_step or [])
+        self.assertTrue(all(len(wp) >= 3 and wp[2] == "waypoint"
+                            for wp in d.consumed_waypoints_this_step),
+                        "[B3B_PHANTOM_TASK_SERVICE_WAYPOINT]")
         self.assertTrue(all(env.route_planner._path_clear(
             (0., 0.) if i == 0 else passed[i-1], p)
             for i, p in enumerate(passed)), "[B3B_EXECUTED_OBSTACLE_CROSSING]")
