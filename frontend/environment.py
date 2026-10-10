@@ -1979,6 +1979,71 @@ class Environment:
             self.total_no_fly_detours += 1
         return [tuple(p) for p in res.waypoints]
 
+    def quote_planned_station_energy_wh(self, drone, station, reserve_fraction=0.05):
+        """Read-only planned-route Wh quote for a potential charging nest.
+
+        Uses the already-configured RoutePlanner and B1 single-source Drone
+        quote for EVERY planned leg (including along-track wind). An A* fallback
+        is NOT a safe path; reject it even if the fallback line is cheap.
+
+        This method does NOT choose a station, schedule a route, occupy a berth,
+        restore cargo, or mutate drone position/battery/tasks. Existing
+        direct-hop experimental selection remains unchanged. Geometry caches
+        may be populated by planner.path_clear; mission counters are not.
+        """
+        import math as _math
+        fraction = float(reserve_fraction)
+        if not _math.isfinite(fraction) or not 0.0 <= fraction < 1.0:
+            raise ValueError("[B3_BAD_RESERVE_FRACTION] %r" % reserve_fraction)
+        battery_capacity = float(drone.battery_capacity)
+        if not _math.isfinite(battery_capacity) or battery_capacity <= 0.0:
+            raise ValueError("[B3_INVALID_BATTERY_CAPACITY] %r" % battery_capacity)
+        start = (float(drone.x), float(drone.y))
+        target = tuple(float(x) for x in station.get_position()[:2])
+        res = self.route_planner.plan(RouteRequest(start=start, goal=target))
+        base = {
+            "station_id": str(station.station_id),
+            "feasible": False, "fallback": bool(res.fallback),
+            "affordable": False, "reason": "planner_fallback",
+            "waypoints": tuple(res.waypoints), "distance_m": 0.0,
+            "required_wh": None, "reserve_wh": fraction * battery_capacity,
+            "total_wh": None,
+        }
+        if not res.feasible or res.fallback:
+            return base
+
+        route = [tuple(map(float, p[:2])) for p in res.waypoints]
+        # A* finishes within 1m of goal. That tolerance alone is NOT a
+        # physical nest arrival. Attach the actual station coordinate only
+        # if the final segment is obstacle-free.
+        end = route[-1] if route else start
+        if _math.dist(end, target) > 1e-8:
+            if not self.route_planner._path_clear(end, target):
+                return dict(base, fallback=False, reason="station_endpoint_unreachable")
+            route.append(target)
+
+        distance_m, required_wh = 0.0, 0.0
+        prev = start
+        for next_pt in route:
+            if not self.route_planner._path_clear(prev, next_pt):
+                return dict(base, fallback=False, reason="blocked_planned_leg")
+            dx, dy = next_pt[0] - prev[0], next_pt[1] - prev[1]
+            leg_distance = _math.hypot(dx, dy)
+            if not _math.isfinite(leg_distance):
+                return dict(base, fallback=False, reason="nonfinite_planned_leg")
+            wind_along = drone._wind_along_for(dx, dy, leg_distance)
+            required_wh += drone.quote_flight_energy_wh(leg_distance, wind_along)
+            distance_m += leg_distance
+            prev = next_pt
+        total = required_wh + base["reserve_wh"]
+        if not _math.isfinite(total):
+            return dict(base, fallback=False, reason="nonfinite_energy_quote")
+        return dict(base, feasible=True, fallback=False,
+                    affordable=total <= drone.current_battery,
+                    reason="affordable" if total <= drone.current_battery else "insufficient_wh",
+                    waypoints=tuple(route), distance_m=distance_m,
+                    required_wh=required_wh, total_wh=total)
+
     def route_plan_detailed(self, start_pos, end_pos):
         """新增只读入口：返回 RouteResult（含 feasible/direct/detour/fallback/distance）。
 
