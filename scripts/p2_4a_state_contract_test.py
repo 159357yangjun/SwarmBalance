@@ -14,6 +14,15 @@ DOC = ROOT / "docs" / "P2_4A_RECOVERY_STATE_MACHINE.md"
 P22 = "97200d2786a5fc775a8e6ea4ca5f95f90b5bcefb"
 P24A_HEAD = "7ca10647201432062fbfd366fccba48027dbdd24"
 B1_HEAD = "fd8a001b09cb85b6875426d0e30532ee6e6831ac"
+B2_HEAD = "1601a36e7fb560b7126d13133d820a7bb4c60fe6"
+B3A_ALLOWED_CHANGES = {
+    ".github/workflows/p2-4b-b3a-planned-station-quote.yml",
+    "docs/P2_4B_B3A_PLANNED_ROUTE_WH_EVIDENCE.md",
+    "frontend/environment.py",
+    "scripts/p2_4a_state_contract_test.py",
+    "scripts/test_p2_4b_b3_planned_station_quote.py",
+}
+
 B2_ALLOWED_CHANGES = {
     ".github/workflows/p2-4b-b2-station-energy.yml",
     "docs/P2_4B_B2_DIRECT_STATION_ENERGY_EVIDENCE.md",
@@ -175,11 +184,21 @@ class RecoveryStateContract(unittest.TestCase):
         try:
             output = subprocess.check_output(
                 ["git", "-C", str(ROOT), "-c", "core.quotePath=false", "diff", "--name-only",
-                 B1_HEAD + "...HEAD"], text=True).splitlines()
+                 B1_HEAD + "..." + B2_HEAD], text=True).splitlines()
         except (subprocess.CalledProcessError, FileNotFoundError) as exc:
             self.fail("[B2_GIT_DIFF_NOT_VERIFIED] " + repr(exc))
         self.assertEqual(set(output), B2_ALLOWED_CHANGES,
                          "[B2_SCOPE_VIOLATION] exact B2 allowlist only")
+
+    def test_12_only_b3a_route_quote_scope_changed(self):
+        try:
+            names = subprocess.check_output(
+                ["git", "-C", str(ROOT), "-c", "core.quotePath=false",
+                 "diff", "--name-only", B2_HEAD + "...HEAD"], text=True).splitlines()
+        except (subprocess.CalledProcessError, FileNotFoundError) as exc:
+            self.fail("[B3A_GIT_DIFF_NOT_VERIFIED] " + repr(exc))
+        self.assertEqual(set(names), B3A_ALLOWED_CHANGES,
+                         "[B3A_SCOPE_VIOLATION] exact route quote allowlist only")
 
 
 if __name__ == "__main__":
