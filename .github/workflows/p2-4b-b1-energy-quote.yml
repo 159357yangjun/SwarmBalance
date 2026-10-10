@@ -42,3 +42,6 @@ jobs:
       - name: P2.2 real flight safety retained
         run: |
           .\.venv310\Scripts\python.exe -m unittest -v scripts.test_p2_2_flight_energy_gate
+      - name: P2.4a immutable design scope and B1 strictly allowed change scope
+        run: |
+          .\.venv310\Scripts\python.exe -m unittest -v scripts.p2_4a_state_contract_test
