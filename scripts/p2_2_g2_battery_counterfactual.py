@@ -29,7 +29,7 @@ def run(face):
         raise AssertionError("failed or missing measurements %s rc=%s: %s" %
                              (face, p.returncode, (p.stdout + p.stderr)[-700:]))
     kv = dict(token.split("=", 1) for token in shlex.split(readings[0])[1:])
-    blocked = int(re.search(r"blocked_drone_steps=(\\d+)", telemetry[0]).group(1))
+    blocked = int(re.search(r"blocked_drone_steps=(\d+)", telemetry[0]).group(1))
     if blocked != 0:
         raise AssertionError("battery-normalized %s is STILL flight blocked %d" % (face, blocked))
     return kv
