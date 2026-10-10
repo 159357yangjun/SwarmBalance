@@ -1,0 +1,27 @@
+name: P2.2 energy-feasible movement gate
+
+on:
+  pull_request:
+    branches: [ci-validation]
+
+permissions:
+  contents: read
+
+jobs:
+  gate-contract:
+    if: ${{ github.head_ref == 'p2-2-flight-energy-gate-v1' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+      - name: Parse real physics contract before dependencies
+        run: python -m py_compile scripts/test_p2_2_flight_energy_gate.py
+      - name: Install project dependencies
+        run: |
+          python -m pip install 'pip==23.3.2' 'numpy==1.26.4'
+          python -m pip install -r requirements.txt
+      - name: Run P2.2 STRICT RED/GREEN feasibility contract with real update and step
+        run: python -m unittest -v scripts.test_p2_2_flight_energy_gate
