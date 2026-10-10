@@ -1,0 +1,32 @@
+name: P1-B posthoc paired analysis evidence audit
+
+on:
+  pull_request:
+    branches: [ci-validation]
+
+permissions:
+  contents: read
+
+jobs:
+  verify-posthoc:
+    if: ${{ github.head_ref == 'p1-b-paired-analysis-v1' }}
+    name: P1.3 re-check 60 original simulator records
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+      - name: Recompute paired confidence intervals and energy identity
+        run: python scripts/p1_b_validate_posthoc.py
+      - name: Retain the permanent derived statistics and underlying 60 rows
+        uses: actions/upload-artifact@v4
+        with:
+          name: p1b-posthoc-statistical-evidence
+          path: |
+            docs/evidence/P1_B_PAIRED_60_EPISODES.csv
+            docs/evidence/P1_B_PAIRED_30_SEED_STATS.json
+            docs/P1_B_PAIRED_P1_3_ANALYSIS.md
+          retention-days: 30
+          if-no-files-found: error

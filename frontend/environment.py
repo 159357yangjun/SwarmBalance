@@ -542,6 +542,7 @@ class Environment:
             drone.scheduled_position = []
             drone.executing_task_id = None
             drone.current_load = 0.0
+            drone.onboard_load_kg = 0.0
             drone.is_free = True
             self._prev_free_status[idx] = True
             return {'drone_idx': idx, 'drone_id': str(drone.drone_id), 'requeued_task_ids': [], 'changed': True}
@@ -579,6 +580,7 @@ class Environment:
         drone._suspended_route = []
         drone._manual_charge_requested = False
         drone.current_load = 0.0
+        drone.onboard_load_kg = 0.0
         drone.executing_task_id = None
         drone.is_charging = False
         drone.swap_remaining_steps = 0.0
@@ -630,6 +632,12 @@ class Environment:
                 drone.awaiting_berth = False
                 drone.berth_station_id = None
                 drone.awaiting_since = None
+                # Opt-in B3c: no arbitrary move to another nest without
+                # quoting its planned map route and validating custody.
+                if (os.environ.get("SWARM_BALANCE_CHARGE_TARGET_IDENTITY") == "1"
+                        and str(getattr(drone, "charge_target_station_id", "")) == str(st.station_id)):
+                    drone.charge_target_hold_reason = "target_station_closed"
+                    continue
                 nearest = find_nearest_station(self.charging_stations, drone.get_position())
                 if nearest is not None:
                     drone.scheduled_position = [nearest.get_position()]
@@ -648,6 +656,10 @@ class Environment:
                 headed_for_closed_nest = math.dist(last_pos, target_pos) < 1e-6
                 charging_detour = bool(getattr(drone, '_suspended_route', [])) or (getattr(drone, 'executing_task_id', None) is None and not drone.is_free)
                 if headed_for_closed_nest and charging_detour:
+                    if (os.environ.get("SWARM_BALANCE_CHARGE_TARGET_IDENTITY") == "1"
+                            and str(getattr(drone, "charge_target_station_id", "")) == str(st.station_id)):
+                        drone.charge_target_hold_reason = "target_station_closed"
+                        continue
                     nearest = find_nearest_station(self.charging_stations, drone.get_position())
                     if nearest is not None:
                         drone.scheduled_position = [nearest.get_position()]
@@ -714,6 +726,61 @@ class Environment:
                 task.category = c
         return {'task_id': str(task.task_id), 'changed': changed}
 
+    def resume_held_charge_route(self, drone_id):
+        """B4c experimental explicit resume, after a fresh A* and Wh quote.
+
+        Reopening a nest does NOT release a prior hold. The operator must
+        explicitly request resumption, and *all* checks happen before any
+        battery, position, mission or route mutation. This API does not
+        create external rescue, cargo transfer or recharge events.
+        """
+        if (os.environ.get("SWARM_BALANCE_HELD_ROUTE_REQUOTE") != "1"
+                or os.environ.get("SWARM_BALANCE_AUTO_PLANNED_STATION") != "1"
+                or os.environ.get("SWARM_BALANCE_CHARGE_TARGET_IDENTITY") != "1"):
+            raise ValueError("[B4C_OPT_IN_REQUIRED] all route and identity gates must be enabled")
+        idx = self._drone_index_by_id(drone_id)
+        drone = self.drones[idx]
+        if (getattr(drone, "out_of_service", False)
+                or getattr(drone, "is_charging", False)
+                or getattr(drone, "awaiting_berth", False)
+                or getattr(drone, "_manual_charge_requested", False)
+                or not getattr(drone, "_suspended_route", [])
+                or not getattr(drone, "charge_target_hold_reason", None)):
+            raise ValueError("[B4C_NOT_HELD_AUTO_CHARGE] no supported recovery state")
+        target_id = getattr(drone, "charge_target_station_id", None)
+        target = self._station_by_id(target_id)
+        if target is None or getattr(target, "closed", False):
+            raise ValueError("[B4C_STATION_CLOSED] requested target is absent or closed")
+        # This quote uses real current position, current wind and B1 single
+        # source Wh. It fails closed on planner fallback and missing reserve.
+        fresh = self.quote_planned_station_energy_wh(drone, target)
+        if (not fresh["feasible"] or fresh["fallback"]
+                or not fresh["affordable"]):
+            raise ValueError("[B4C_ROUTE_UNAFFORDABLE] %s" % fresh["reason"])
+        new_waypoints = [(float(x), float(y), "waypoint")
+                         for x, y in fresh["waypoints"]]
+        if not new_waypoints and drone.get_position() != target.get_position():
+            raise ValueError("[B4C_NO_PLANNED_WAYPOINTS] unexpected empty route")
+        # Atomic state transition after all eligibility and Wh checks.
+        drone.scheduled_position = new_waypoints
+        drone.charge_target_hold_reason = None
+        drone.flight_energy_blocked = False
+        drone.flight_energy_block_reason = None
+        drone.is_free = False
+        self._prev_free_status[idx] = False
+        if not new_waypoints:
+            drone.awaiting_berth = True
+            drone.berth_station_id = target.station_id
+            drone.awaiting_since = float(self.current_time)
+        return {
+            "drone_id": str(drone.drone_id),
+            "station_id": str(target.station_id),
+            "changed": True,
+            "planned_distance_m": fresh["distance_m"],
+            "required_wh": fresh["required_wh"],
+            "reserve_wh": fresh["reserve_wh"],
+        }
+
     def request_drone_charge(self, drone_id, station_id=None):
         """人工请求无人机前往指定/最近开放机巢换电。
 
@@ -738,6 +805,31 @@ class Environment:
         if st is None:
             raise ValueError("当前没有可用机巢")
 
+        # B3b experimental ONLY. Produce a real obstacle-aware route and a
+        # complete per-leg B1 Wh quote BEFORE changing mission/cargo/berth.
+        # Default-off leaves legacy direct-hop behavior byte-for-byte intact.
+        planned_charge_waypoints = None
+        if os.environ.get("SWARM_BALANCE_PLANNED_STATION_ROUTE") == "1":
+            already_at_nest = math.dist(drone.get_position(), st.get_position()) < 1e-6
+            if not already_at_nest:
+                planned_quote = self.quote_planned_station_energy_wh(drone, st)
+                if not planned_quote["feasible"] or not planned_quote["affordable"]:
+                    raise ValueError(
+                        "[B3B_NO_AFFORDABLE_PLANNED_ROUTE] station=%s reason=%s" %
+                        (st.station_id, planned_quote["reason"]))
+                # Tag ALL diversion legs as non-service; never consume
+                # source/dest while travelling to a charging nest.
+                planned_charge_waypoints = [
+                    (float(x), float(y), "waypoint")
+                    for x, y in planned_quote["waypoints"]
+                ]
+
+        # B3c: record requested charging *identity* separately from nearest
+        # geometry, only under explicit opt-in. A failed quote above must
+        # leave all mission and target state untouched.
+        if os.environ.get("SWARM_BALANCE_CHARGE_TARGET_IDENTITY") == "1":
+            drone.charge_target_station_id = st.station_id
+            drone.charge_target_hold_reason = None
         route = list(getattr(drone, 'scheduled_position', []) or [])
         if route and not getattr(drone, '_suspended_route', []):
             drone._suspended_route = route
@@ -750,7 +842,9 @@ class Environment:
             drone.awaiting_since = float(self.current_time)
             drone.is_free = False
         else:
-            drone.scheduled_position = [target]
+            drone.scheduled_position = (planned_charge_waypoints
+                                        if planned_charge_waypoints is not None
+                                        else [target])
             drone.is_free = False
         self._prev_free_status[idx] = False
         return {
@@ -830,6 +924,25 @@ class Environment:
             # 2) 泊位请求登记：已抵达机巢、尚未换电的无人机进入对应机巢等待队列
             if getattr(drone, 'awaiting_berth', False):
                 sid = getattr(drone, 'berth_station_id', None)
+                if (os.environ.get("SWARM_BALANCE_CHARGE_TARGET_IDENTITY") == "1"
+                        and (getattr(drone, "_manual_charge_requested", False)
+                             or (os.environ.get("SWARM_BALANCE_AUTO_PLANNED_STATION") == "1"
+                                 and bool(getattr(drone, "_suspended_route", []))))):
+                    target = self._station_by_id(sid)
+                    valid = (
+                        sid is not None and target is not None
+                        and str(getattr(drone, "charge_target_station_id", "")) == str(sid)
+                        and not getattr(target, "closed", False)
+                        and math.dist(drone.get_position(), target.get_position()) < 1e-6)
+                    if not valid:
+                        for old_queue in self._nest_waiting.values():
+                            while idx in old_queue:
+                                old_queue.remove(idx)
+                        drone.awaiting_berth = False
+                        drone.berth_station_id = None
+                        drone.awaiting_since = None
+                        drone.charge_target_hold_reason = "arrival_not_verified"
+                        continue
                 if sid is not None:
                     if drone.awaiting_since is None:
                         drone.awaiting_since = self.current_time
@@ -848,6 +961,20 @@ class Environment:
                     best = max(q, key=self._drone_berth_score)
                 q.remove(best)
                 drone = self.drones[best]
+                if (os.environ.get("SWARM_BALANCE_CHARGE_TARGET_IDENTITY") == "1"
+                        and (getattr(drone, "_manual_charge_requested", False)
+                             or (os.environ.get("SWARM_BALANCE_AUTO_PLANNED_STATION") == "1"
+                                 and bool(getattr(drone, "_suspended_route", []))))
+                        and (getattr(drone, "charge_target_station_id", None) is None
+                             or str(getattr(drone, "charge_target_station_id", "")) != str(st.station_id)
+                             or not drone.awaiting_berth
+                             or math.dist(drone.get_position(), st.get_position()) >= 1e-6
+                             or getattr(st, "closed", False))):
+                    drone.awaiting_berth = False
+                    drone.berth_station_id = None
+                    drone.awaiting_since = None
+                    drone.charge_target_hold_reason = "arrival_not_verified"
+                    continue
                 wait_time = 0.0
                 if drone.awaiting_since is not None:
                     wait_time = max(0.0, self.current_time - drone.awaiting_since)
@@ -1153,7 +1280,51 @@ class Environment:
         preflight_carrying = [self._is_carrying(drone) for drone in self.drones]
 
         for drone in self.drones:
-            drone.update()
+            # B4d opt-in only: refresh live ENV wind before actual movement,
+            # then quote the *scheduled remaining* station path, not just the
+            # next 20m step. No energy, mission, path or cargo mutation here.
+            if (os.environ.get("SWARM_BALANCE_INFLIGHT_WIND_REQUOTE") == "1"
+                    and os.environ.get("SWARM_BALANCE_AUTO_PLANNED_STATION") == "1"
+                    and os.environ.get("SWARM_BALANCE_CHARGE_TARGET_IDENTITY") == "1"):
+                drone.set_wind(getattr(self, "wind_u", None),
+                               getattr(self, "wind_v", None))
+                in_auto_station_detour = (
+                    not getattr(drone, "_manual_charge_requested", False)
+                    and not getattr(drone, "is_charging", False)
+                    and not getattr(drone, "awaiting_berth", False)
+                    and not getattr(drone, "out_of_service", False)
+                    and bool(getattr(drone, "_suspended_route", []))
+                    and getattr(drone, "charge_target_station_id", None) is not None
+                    and bool(getattr(drone, "scheduled_position", [])))
+                if (in_auto_station_detour
+                        and not getattr(drone, "charge_target_hold_reason", None)):
+                    remaining_wh = 0.0
+                    prior = drone.get_position()
+                    for waypoint in drone.scheduled_position:
+                        nxt = (float(waypoint[0]), float(waypoint[1]))
+                        dx, dy = nxt[0] - prior[0], nxt[1] - prior[1]
+                        leg_m = math.hypot(dx, dy)
+                        remaining_wh += drone.quote_flight_energy_wh(
+                            leg_m, drone._wind_along_for(dx, dy, leg_m))
+                        prior = nxt
+                    # Same 5% experimental reserve as B3a/B4. This is
+                    # a synthetic assumption, not manufacturer-certified.
+                    reserve_wh = 0.05 * drone.battery_capacity
+                    if remaining_wh + reserve_wh > drone.current_battery:
+                        drone.charge_target_hold_reason = "inflight_wind_energy_unaffordable"
+                        drone.flight_energy_blocked = True
+                        drone.flight_energy_block_reason = "inflight_remaining_route_unaffordable"
+                        drone.is_free = False
+                        continue
+            if os.environ.get("SWARM_BALANCE_AUTO_PLANNED_STATION") == "1":
+                # Real Environment RoutePlanner geometry, supplied only
+                # to the experimental automatic energy diversion. This keeps
+                # legacy Drone.update() signatures and E0 default untouched.
+                drone.update(station_quote_provider=(
+                    lambda station, d=drone:
+                    self.quote_planned_station_energy_wh(d, station)))
+            else:
+                drone.update()
 
         # 统计耗电量和充电量
         for i, drone in enumerate(self.drones):
@@ -1199,10 +1370,22 @@ class Environment:
                         # 服务航点被弹出即视为取货完成：判据只有标签一条。
                         # 旧写法还要求 source_pos == task.source，与上面的标签判据并存时
                         # 会在 detour（A* 容差抵达，末点非精确 source）下永远失配 ⇒ 无取货却算送达。
+                        # Same-source co-dispatch has ONE source waypoint for
+                        # multiple tasks. Load all unpicked assignments from
+                        # that source together; a distinct later source stops
+                        # the group. Do not compare to route endpoint position:
+                        # the planner may finish within a 1m service tolerance.
+                        picked_source = None
                         for assignment in assignments:
-                            if assignment.get('load_time') is None:
-                                assignment['load_time'] = self.current_time
+                            if assignment.get('load_time') is not None:
+                                continue
+                            task_source = tuple(assignment['task'].get_source())
+                            if picked_source is None:
+                                picked_source = task_source
+                            elif task_source != picked_source:
                                 break
+                            assignment['load_time'] = self.current_time
+                            drone.onboard_load_kg += float(assignment['task'].get_weight())
                 if len(popped) >= 3 and popped[2] == 'dest':
                     if i in self.drone_assignments:
                         assignments = self.drone_assignments[i]
@@ -1220,6 +1403,10 @@ class Environment:
                                     0.0,
                                     float(drone.current_load)
                                     - float(assignment['task'].get_weight()))
+                                drone.onboard_load_kg = max(
+                                    0.0,
+                                    float(drone.onboard_load_kg)
+                                    - float(assignment['task'].get_weight()))
                                 self.drone_chain_len[i] = max(
                                     0, int(self.drone_chain_len.get(i, 0)) - 1)
                                 assignments.remove(assignment)
@@ -1228,6 +1415,10 @@ class Environment:
                             drone.current_load = max(
                                 0.0,
                                 float(drone.current_load)
+                                - float(assignments['task'].get_weight()))
+                            drone.onboard_load_kg = max(
+                                0.0,
+                                float(drone.onboard_load_kg)
                                 - float(assignments['task'].get_weight()))
                             self.drone_chain_len[i] = max(
                                 0, int(self.drone_chain_len.get(i, 0)) - 1)
@@ -1956,6 +2147,71 @@ class Environment:
         if res.detour:
             self.total_no_fly_detours += 1
         return [tuple(p) for p in res.waypoints]
+
+    def quote_planned_station_energy_wh(self, drone, station, reserve_fraction=0.05):
+        """Read-only planned-route Wh quote for a potential charging nest.
+
+        Uses the already-configured RoutePlanner and B1 single-source Drone
+        quote for EVERY planned leg (including along-track wind). An A* fallback
+        is NOT a safe path; reject it even if the fallback line is cheap.
+
+        This method does NOT choose a station, schedule a route, occupy a berth,
+        restore cargo, or mutate drone position/battery/tasks. Existing
+        direct-hop experimental selection remains unchanged. Geometry caches
+        may be populated by planner.path_clear; mission counters are not.
+        """
+        import math as _math
+        fraction = float(reserve_fraction)
+        if not _math.isfinite(fraction) or not 0.0 <= fraction < 1.0:
+            raise ValueError("[B3_BAD_RESERVE_FRACTION] %r" % reserve_fraction)
+        battery_capacity = float(drone.battery_capacity)
+        if not _math.isfinite(battery_capacity) or battery_capacity <= 0.0:
+            raise ValueError("[B3_INVALID_BATTERY_CAPACITY] %r" % battery_capacity)
+        start = (float(drone.x), float(drone.y))
+        target = tuple(float(x) for x in station.get_position()[:2])
+        res = self.route_planner.plan(RouteRequest(start=start, goal=target))
+        base = {
+            "station_id": str(station.station_id),
+            "feasible": False, "fallback": bool(res.fallback),
+            "affordable": False, "reason": "planner_fallback",
+            "waypoints": tuple(res.waypoints), "distance_m": 0.0,
+            "required_wh": None, "reserve_wh": fraction * battery_capacity,
+            "total_wh": None,
+        }
+        if not res.feasible or res.fallback:
+            return base
+
+        route = [tuple(map(float, p[:2])) for p in res.waypoints]
+        # A* finishes within 1m of goal. That tolerance alone is NOT a
+        # physical nest arrival. Attach the actual station coordinate only
+        # if the final segment is obstacle-free.
+        end = route[-1] if route else start
+        if _math.dist(end, target) > 1e-8:
+            if not self.route_planner._path_clear(end, target):
+                return dict(base, fallback=False, reason="station_endpoint_unreachable")
+            route.append(target)
+
+        distance_m, required_wh = 0.0, 0.0
+        prev = start
+        for next_pt in route:
+            if not self.route_planner._path_clear(prev, next_pt):
+                return dict(base, fallback=False, reason="blocked_planned_leg")
+            dx, dy = next_pt[0] - prev[0], next_pt[1] - prev[1]
+            leg_distance = _math.hypot(dx, dy)
+            if not _math.isfinite(leg_distance):
+                return dict(base, fallback=False, reason="nonfinite_planned_leg")
+            wind_along = drone._wind_along_for(dx, dy, leg_distance)
+            required_wh += drone.quote_flight_energy_wh(leg_distance, wind_along)
+            distance_m += leg_distance
+            prev = next_pt
+        total = required_wh + base["reserve_wh"]
+        if not _math.isfinite(total):
+            return dict(base, fallback=False, reason="nonfinite_energy_quote")
+        return dict(base, feasible=True, fallback=False,
+                    affordable=total <= drone.current_battery,
+                    reason="affordable" if total <= drone.current_battery else "insufficient_wh",
+                    waypoints=tuple(route), distance_m=distance_m,
+                    required_wh=required_wh, total_wh=total)
 
     def route_plan_detailed(self, start_pos, end_pos):
         """新增只读入口：返回 RouteResult（含 feasible/direct/detour/fallback/distance）。
