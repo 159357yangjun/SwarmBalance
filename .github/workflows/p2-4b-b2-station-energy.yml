@@ -42,3 +42,8 @@ jobs:
       - name: Inherited B1 quote, P2.2 safety, C4 cargo and strict P2.4a-B1-B2 scope gates
         run: |
           .\.venv310\Scripts\python.exe -m unittest -v scripts.test_p2_4b_b1_energy_quote scripts.test_p2_2_flight_energy_gate console.test_c4_cargo_truth_scan_gate scripts.p2_4a_state_contract_test
+      - name: Frozen E0 bit-for-bit replay under default disabled B2 policy
+        env:
+          SWARM_BALANCE_STATION_ENERGY_GATE: "0"
+        run: |
+          .\.venv310\Scripts\python.exe -m unittest discover -s frontend -p test_wind_injection.py -v
