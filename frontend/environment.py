@@ -1199,10 +1199,22 @@ class Environment:
                         # 服务航点被弹出即视为取货完成：判据只有标签一条。
                         # 旧写法还要求 source_pos == task.source，与上面的标签判据并存时
                         # 会在 detour（A* 容差抵达，末点非精确 source）下永远失配 ⇒ 无取货却算送达。
+                        # Same-source co-dispatch has ONE source waypoint for
+                        # multiple tasks. Load all unpicked assignments from
+                        # that source together; a distinct later source stops
+                        # the group. Do not compare to route endpoint position:
+                        # the planner may finish within a 1m service tolerance.
+                        picked_source = None
                         for assignment in assignments:
-                            if assignment.get('load_time') is None:
-                                assignment['load_time'] = self.current_time
+                            if assignment.get('load_time') is not None:
+                                continue
+                            task_source = tuple(assignment['task'].get_source())
+                            if picked_source is None:
+                                picked_source = task_source
+                            elif task_source != picked_source:
                                 break
+                            assignment['load_time'] = self.current_time
+                            drone.onboard_load_kg += float(assignment['task'].get_weight())
                 if len(popped) >= 3 and popped[2] == 'dest':
                     if i in self.drone_assignments:
                         assignments = self.drone_assignments[i]
@@ -1220,6 +1232,10 @@ class Environment:
                                     0.0,
                                     float(drone.current_load)
                                     - float(assignment['task'].get_weight()))
+                                drone.onboard_load_kg = max(
+                                    0.0,
+                                    float(drone.onboard_load_kg)
+                                    - float(assignment['task'].get_weight()))
                                 self.drone_chain_len[i] = max(
                                     0, int(self.drone_chain_len.get(i, 0)) - 1)
                                 assignments.remove(assignment)
@@ -1228,6 +1244,10 @@ class Environment:
                             drone.current_load = max(
                                 0.0,
                                 float(drone.current_load)
+                                - float(assignments['task'].get_weight()))
+                            drone.onboard_load_kg = max(
+                                0.0,
+                                float(drone.onboard_load_kg)
                                 - float(assignments['task'].get_weight()))
                             self.drone_chain_len[i] = max(
                                 0, int(self.drone_chain_len.get(i, 0)) - 1)

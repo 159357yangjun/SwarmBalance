@@ -199,6 +199,9 @@ jobs:
         run: .\\.venv310\\Scripts\\python.exe -m pip install -r requirements.txt
       - name: Run production-path mileage and Wh contract probes
         run: .\\.venv310\\Scripts\\python.exe -m unittest -v scripts.test_p1_load_energy_ledger_audit
+      - name: Verify opt-in B accounting contract (experiment branch only)
+        if: ${{ github.head_ref == 'p1-b-onboard-energy-experiment' }}
+        run: .\\.venv310\\Scripts\\python.exe -m unittest -v scripts.test_p1_onboard_energy_experiment
 
   p1-fixed-seed-comparison:
     name: P1 fixed-seed real-simulation comparison

@@ -1,5 +1,6 @@
 import math
 import random
+import os
 from config.config_loder import get_shared_config
 from charging_station import DEFAULT_CHARGING_STATIONS, find_nearest_station
 
@@ -80,6 +81,10 @@ class Drone:
         # 载重信息
         self.carrying_capacity = carrying_capacity if carrying_capacity is not None else DEFAULT_CARRYING_CAPACITY
         self.current_load = 0  # 当前载重
+        # B experimental channel: actual onboard kg set only after source
+        # service event and removed after destination service event.
+        # This does NOT replace assigned current_load for task capacity.
+        self.onboard_load_kg = 0.0
         
         # 任务信息
         self.tasks = []
@@ -200,7 +205,16 @@ class Drone:
         #   两种口径相反且本仓**同时**在跑（主控裁定①：维持并存、暂不统一）。
         #   ⇒ 后果：Wh/km 的分子含归属未定的惩罚、分母按另一口径划分 ⇒ **商无定义**，
         #     未定口径前不得对外声称任何 Wh/km。全文见 docs/P70_E1_load_penalty_attribution_two_readings.md。
-        load_factor = (self.current_load / self.carrying_capacity) * self.battery_load_penalty_factor
+        # B is opt-in ONLY on the experiment branch; default remains the
+        # approved assigned-load control. No silent switch in production.
+        if os.environ.get("SWARM_BALANCE_ENERGY_ACCOUNTING") == "onboard":
+            charge_load = float(self.onboard_load_kg)
+            if not math.isfinite(charge_load) or not 0 <= charge_load <= self.carrying_capacity:
+                raise ValueError("[ENERGY_ONBOARD_LOAD_INVALID] onboard_load_kg=%r" %
+                                 (self.onboard_load_kg,))
+        else:
+            charge_load = self.current_load
+        load_factor = (charge_load / self.carrying_capacity) * self.battery_load_penalty_factor
         total_consumption = base_consumption * (1 + load_factor) * self._wind_factor(wind_along)
         
         # C: required Wh is the original model demand. The account may only
@@ -285,6 +299,7 @@ class Drone:
         """返回出发点装货"""
         self.scheduled_position = [base_position]
         self.current_load = 0
+        self.onboard_load_kg = 0.0
         self.is_free = False
 
     def add_load(self, weight):
