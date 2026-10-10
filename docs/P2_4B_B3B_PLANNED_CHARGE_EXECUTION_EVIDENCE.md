@@ -25,3 +25,10 @@
 - 继承 B1、B2、B3a、P2.2、C4、E0 守恒与历史强制文件范围门禁。
 - B3a 的白名单验证冻结在不可变 HEAD `b10b49e`，B3b 自己新增精确白名单，禁止改变 Greedy、PSO、基准数据及默认配置。
 - 此外必须取得自身最新 HEAD 的完整四组 `root/frontend/experiments/console` CI 与 `verification` 真实终态成功，才能恢复 PR #18 的正确目标分支。所有 PR 保持 Draft，禁止合并。
+
+## 扩展专项与全量 CI 验收
+
+- [专项 Actions #38046629378](https://github.com/159357yangjun/SwarmBalance/actions/runs/38046629378) `completed/success`，精确 HEAD `ed78059dcdb402f01f688cc894ceed512672b9a7`。分三组执行：37/37 B3b+P1；136/136 B3a/B2/B1/P2.2/C4及 P2.4a～B3b Git 范围；11/11 冻结 E0 风实验，**共 184/184 通过**。未删、未禁用或弱化原断言。
+- B3a 的范围测试针对不可变 `b10b49e5e69a2d2b9986e20bf8b8b853460ec4f0`；B3b 增加 `scripts/p2_4a_state_contract_test.py::test_13_only_b3b_planned_execution_scope_changed`，对白名单五文件执行 Git diff 精确集合等式。
+- 本次提交请求 [full-suite] 完整四组真实 Windows CI。暂时将 PR #18 base 改为 `ci-validation` 以符合 `.github/workflows/ci.yml` 的 PR 触发条件。只有本次新 HEAD 所有 `console/frontend/root/experiments/verification` 等 Job 自身到达 `completed/success`，才恢复为 `p2-4b-b3-planned-station-quote-v1` 并回读 GitHub API。
+- 其中旧日志 `[WIND_REF_GUARD]` 会有刻意触发并在断言中捕获的红灯和条件 SkipTest：这不是自动允许未知测试跳过；以 strict skip policy 的真实全量结果为准。
