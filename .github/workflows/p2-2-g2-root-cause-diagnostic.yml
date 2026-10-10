@@ -75,6 +75,8 @@ jobs:
     steps:
       - name: Checkout isolated diagnostic branch
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - name: Guard immutable production implementation
         run: |
           $sourceBlob = git rev-parse "HEAD:frontend/drone.py"
