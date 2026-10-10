@@ -352,6 +352,11 @@ class Drone:
         # 任务回收与泊位释放由 Environment.set_drone_out_of_service() 统一处理。
         if getattr(self, 'out_of_service', False):
             return
+        # B3c explicit experimental hold: closure cannot cause a free direct
+        # reroute or phantom arrival; resume requires a new quoted request.
+        if (os.environ.get("SWARM_BALANCE_CHARGE_TARGET_IDENTITY") == "1"
+                and getattr(self, "charge_target_hold_reason", None)):
+            return
         if time_step is None:
             time_step = DRONE_TIME_STEP
         v = self.speed
@@ -452,10 +457,27 @@ class Drone:
                         # 预判/人工换电改道：已抵达机巢，登记泊位请求等待环境仲裁。
                         # 人工换电可以发生在空闲机；若有挂起任务则换电后恢复任务航线。
                         self.is_free = False
-                        nearest = find_nearest_station(self.known_stations, (self.x, self.y))
-                        if nearest is not None and (self.x, self.y) == nearest.get_position():
-                            self.awaiting_berth = True
-                            self.berth_station_id = nearest.station_id
+                        if (os.environ.get("SWARM_BALANCE_CHARGE_TARGET_IDENTITY") == "1"
+                                and self._manual_charge_requested
+                                and getattr(self, "charge_target_station_id", None) is not None):
+                            # Exact requested ID, not a distance tie at
+                            # co-located stations. Never silently swap elsewhere.
+                            wanted_id = str(self.charge_target_station_id)
+                            target_station = next(
+                                (st for st in (self.known_stations or [])
+                                 if str(st.station_id) == wanted_id), None)
+                            if (target_station is not None
+                                    and not getattr(target_station, "closed", False)
+                                    and (self.x, self.y) == target_station.get_position()):
+                                self.awaiting_berth = True
+                                self.berth_station_id = target_station.station_id
+                            else:
+                                self.charge_target_hold_reason = "target_station_not_available"
+                        else:
+                            nearest = find_nearest_station(self.known_stations, (self.x, self.y))
+                            if nearest is not None and (self.x, self.y) == nearest.get_position():
+                                self.awaiting_berth = True
+                                self.berth_station_id = nearest.station_id
                     else:
                         self.is_free = True
                         self.current_load = 0  # 任务完成，卸货
