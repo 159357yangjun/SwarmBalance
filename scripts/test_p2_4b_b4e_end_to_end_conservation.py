@@ -41,7 +41,13 @@ class B4eEndToEndConservation(InflightWindRouteEnergy):
                              "[B4E_HEADWIND_ALLOWED_MOTION_OR_DEBIT]")
             self.assertEqual(d.charge_target_hold_reason,
                              "inflight_wind_energy_unaffordable")
+            # Leave A open: the environment deliberately forbids closing
+            # the last usable nest. Only the contracted target B may close.
+            a.closed = False
+            self.assertFalse(a.closed)
             env.set_station_closed("B", True)
+            self.assertTrue(b.closed)
+            self.assertEqual(str(d.charge_target_station_id), "B")
             env.wind_u, env.wind_v = 0.0, 0.0
             frozen = self._flight_snapshot(d, env)
             for _ in range(2):
