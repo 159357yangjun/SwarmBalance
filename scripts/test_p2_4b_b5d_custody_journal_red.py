@@ -82,7 +82,7 @@ class CustodyJournalRed(unittest.TestCase):
         self.assertEqual(len(fresh.all_events()), 2)
 
 
-    def test_B5d_07_exact_isolated_three_file_scope(self):
+    def test_B5d_07_exact_isolated_four_file_scope(self):
         import subprocess
         root = Path(__file__).resolve().parents[1]
         try:
@@ -96,8 +96,9 @@ class CustodyJournalRed(unittest.TestCase):
         self.assertEqual(set(changed), {
             ".github/workflows/p2-4b-b5d-custody-journal.yml",
             "console/custody_journal.py",
+            "scripts/p2_4a_state_contract_test.py",
             "scripts/test_p2_4b_b5d_custody_journal_red.py",
-        }, "[B5D_SCOPE_VIOLATION] exact isolated journal boundary")
+        }, "[B5D_SCOPE_VIOLATION] exact four-file isolated journal boundary")
 
 
 if __name__ == "__main__":
