@@ -1,0 +1,48 @@
+name: P2.4a recovery state contract (design-only)
+
+on:
+  push:
+    branches: [p2-4a-recovery-state-contract-v1]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  recovery-contract:
+    name: Recovery design graph plus unchanged P2.2 real safety
+    runs-on: windows-2022
+    timeout-minutes: 30
+    env:
+      PYTHONIOENCODING: utf-8
+      PYTHONUTF8: "1"
+      PYTHONDONTWRITEBYTECODE: "1"
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - name: Checkout complete history for actual diff scope gate
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Python 3.10
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+          cache: pip
+          cache-dependency-path: requirements.txt
+      - name: Install exact project dependencies
+        run: |
+          python -m venv .venv310
+          .\.venv310\Scripts\python.exe -m pip install "pip==23.3.2" numpy==1.26.4
+          .\.venv310\Scripts\python.exe -m pip install -r requirements.txt
+      - name: Compile design contract test
+        run: .\.venv310\Scripts\python.exe -m py_compile scripts/p2_4a_state_contract_test.py
+      - name: Validate design machine and real P2.2 safety characterization
+        run: |
+          .\.venv310\Scripts\python.exe -m unittest -v scripts.p2_4a_state_contract_test scripts.test_p2_2_flight_energy_gate
+      - name: Explicit design-only result
+        run: |
+          Write-Host "[P24A_DESIGN_ONLY] structural machine / custody gates checked"
+          Write-Host "[P24A_NOT_PRODUCTION_RECOVERY] future RED scenarios A03-A16 not implemented"
+          Write-Host "[P24A_BASELINE] P2.2 97200d2786a5fc775a8e6ea4ca5f95f90b5bcefb"
