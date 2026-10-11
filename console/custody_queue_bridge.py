@@ -246,8 +246,16 @@ class DurableCustodyQueueBridge:
         idx = self._idx(drone_id)
         if not self.path.exists():
             raise ValueError("[B5F_INTENT_MISSING] no durable handoff")
+        # B5g opt-in: BEGIN IMMEDIATE serializes the entire
+        # read -> live-Environment custody transition -> durable ACK for
+        # competing callers using the SAME SQLite file and authoritative Env.
+        # Existing B5f mode is unchanged. This is NOT a cross-process
+        # simulator checkpoint or transaction spanning RAM and disk.
+        serialized = os.environ.get("SWARM_BALANCE_B5G_SERIALIZED_RECONCILIATION") == "1"
         db = self._connect()
         try:
+            if serialized:
+                db.execute("BEGIN IMMEDIATE")  # acquire write lock BEFORE reading custody
             row = self._row(db, event_id)
             if row is None or row[2] != idx:
                 raise ValueError("[B5F_INTENT_MISSING] wrong event or drone")
@@ -256,6 +264,11 @@ class DurableCustodyQueueBridge:
             if hashlib.sha256(_canonical(proof).encode("utf-8")).hexdigest() != fingerprint:
                 raise ValueError("[B5F_LEDGER_CORRUPT] receipt disagrees with digest")
             applied_in_env = self._already_applied(idx, task_id, proof)
+            if serialized and row[-1] == "applied" and not applied_in_env:
+                # A rebuilt-but-stale simulator cannot silently earn a second
+                # pending-queue credit for an already-committed DB event.
+                raise ValueError("[B5G_STALE_ENV] durable applied event conflicts "
+                                 "with live or reconstructed simulator state")
             changed = False
             if not applied_in_env:
                 self._assert_held(idx, proof, expected_task_id=task_id)
@@ -269,7 +282,13 @@ class DurableCustodyQueueBridge:
                 db.execute("UPDATE handoff_intents SET state='applied' "
                            "WHERE event_id=?", (event_id,))
                 db.commit()
+            elif serialized:
+                db.commit()  # release B5g SQLite write lock on idempotent replay
             return {"changed": changed, "requeued_task_ids": [task_id] if changed else [],
                     "event_id": event_id}
+        except BaseException:
+            if serialized:
+                db.rollback()  # durable record remains 'recorded' after failed ACK
+            raise
         finally:
             db.close()
