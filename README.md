@@ -27,7 +27,7 @@ P4（子集逐用例状态集合两向对撞，单成员进程构造）。判据
 钉住清单已补上 `frontend/route_planner.py`（Phase 1A 抽出去的正是路径规划本体；它缺席时"pin 全数相符"证明不了行为没变），
 代价是 7 个历史产物各缺该文件、已逐个具名登记 —— 机制与那 12 格差异的因果链见 `docs/P70_zero_wind_vs_E0_mechanism.md`。
 套件真值以 `python console/_readme_counts.py --verify` **现算**为准：console **53 文件 / 374 用例**、
-experiments 3 文件 / 32 用例、frontend 2 文件 / 21 用例、仓库根窄模式 `test_build*.py` 1 文件 / 3 用例。
+experiments 4 文件 / 37 用例、frontend 2 文件 / 21 用例、仓库根窄模式 `test_build*.py` 1 文件 / 3 用例。
 （下面那句"286 例"是 2026-10-05 的旧快照，留着是为了不假装它没写过；
 从 #70-P1 起一律按 `_readme_counts.py` 报数，别手抄。）
 调度层两项增强**默认全部关闭** ⇒ 生产行为与基线一致。下一步是 1B-3（续航可行性）与 1C（状态机单一真源）。
@@ -508,7 +508,7 @@ swarm-balance/
 │  ├─ reporting.py               # 统计与配对检验
 │  ├─ reproducibility.py         # 复现清单（schema v2：按算法登记源码哈希）
 │  ├─ presets/                   # quick.yaml / conclusion.yaml / paper.yaml
-│  └─ test_*.py                  # experiments: 3 个文件 / 32 个用例
+│  └─ test_*.py                  # experiments: 4 个文件 / 37 个用例
 │
 ├─ results/
 │  ├─ compare/                   # 对比 CSV（答辩对比页数据源；两份清单见 console/server.py
