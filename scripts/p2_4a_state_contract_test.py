@@ -26,6 +26,14 @@ B4E_HEAD = "cea965f9b66e26473d4d1190a3f70c6cc8b7c61f"
 B5A_HEAD = "ba3eac83151928a080d6c2abac40bdc4b245c704"
 B5B_HEAD = "ac3660154e4729f9a56561ca312dc0cd94846f8b"
 B5C_HEAD = "4f5fc4639fe4b45296b6720454e5d946249bdcc1"
+B5D_HEAD = "907735e82591fff60840e21a7dcafb2a861ece71"
+B5E_ALLOWED_CHANGES = {
+    ".github/workflows/p2-4b-b5e-journaled-handoff.yml",
+    "console/custody_transaction.py",
+    "frontend/environment.py",
+    "scripts/p2_4a_state_contract_test.py",
+    "scripts/test_p2_4b_b5e_journaled_handoff_red.py",
+}
 B5D_ALLOWED_CHANGES = {
     ".github/workflows/p2-4b-b5d-custody-journal.yml",
     "console/custody_journal.py",
@@ -410,11 +418,23 @@ class RecoveryStateContract(unittest.TestCase):
         try:
             names = subprocess.check_output(
                 ["git", "-C", str(ROOT), "-c", "core.quotePath=false",
-                 "diff", "--name-only", B5C_HEAD + "...HEAD"], text=True).splitlines()
+                 "diff", "--name-only", B5C_HEAD + "..." + B5D_HEAD], text=True).splitlines()
         except (subprocess.CalledProcessError, FileNotFoundError) as exc:
             self.fail("[B5D_GIT_DIFF_NOT_VERIFIED] " + repr(exc))
         self.assertEqual(set(names), B5D_ALLOWED_CHANGES,
                          "[B5D_SCOPE_VIOLATION] exact four-file isolated journal boundary")
+
+    def test_24_only_b5e_journaled_transaction_scope_changed(self):
+        # Every historical B5d file is frozen; this is a NEW exact
+        # five-file B5e allowance, not a relaxation of any prior stage.
+        try:
+            names = subprocess.check_output(
+                ["git", "-C", str(ROOT), "-c", "core.quotePath=false",
+                 "diff", "--name-only", B5D_HEAD + "...HEAD"], text=True).splitlines()
+        except (subprocess.CalledProcessError, FileNotFoundError) as exc:
+            self.fail("[B5E_GIT_DIFF_NOT_VERIFIED] " + repr(exc))
+        self.assertEqual(set(names), B5E_ALLOWED_CHANGES,
+                         "[B5E_SCOPE_VIOLATION] exact five-file transaction boundary")
 
 
 if __name__ == "__main__":
