@@ -22,6 +22,14 @@ B4_HEAD = "e669075e120d3e646ec7f0623346608736f26966"
 B4B_HEAD = "69ea639f12a89141adc881ae614e511a72ede7d4"
 B4C_HEAD = "42cf220143caff5fe12e91c0731279ed4486272e"
 B4D_HEAD = "47e64cac22dc5d1476f52a47b3ffd4f3d5ef9002"
+B4E_HEAD = "cea965f9b66e26473d4d1190a3f70c6cc8b7c61f"
+B5A_ALLOWED_CHANGES = {
+    ".github/workflows/p2-4b-b5a-cargo-custody.yml",
+    "docs/数据来源与可追溯性登记表.md",  # actual relocated anchors only
+    "frontend/environment.py",
+    "scripts/p2_4a_state_contract_test.py",
+    "scripts/test_p2_4b_b5a_cargo_custody_red.py",
+}
 # B4e is a strict independent child; do not reinterpret B4d's frozen
 # six-file boundary as a diff to the HEAD of every descendant.
 B4E_ALLOWED_CHANGES = {
@@ -335,11 +343,23 @@ class RecoveryStateContract(unittest.TestCase):
         try:
             names = subprocess.check_output(
                 ["git", "-C", str(ROOT), "-c", "core.quotePath=false",
-                 "diff", "--name-only", B4D_HEAD + "...HEAD"], text=True).splitlines()
+                 "diff", "--name-only", B4D_HEAD + "..." + B4E_HEAD], text=True).splitlines()
         except (subprocess.CalledProcessError, FileNotFoundError) as exc:
             self.fail("[B4E_GIT_DIFF_NOT_VERIFIED] " + repr(exc))
         self.assertEqual(set(names), B4E_ALLOWED_CHANGES,
                          "[B4E_SCOPE_VIOLATION] exact three-file B4e experimental test boundary")
+
+    def test_20_only_b5a_picked_cargo_fault_scope_changed(self):
+        # The accepted B4e three-file slice remains immutable. B5a must
+        # independently account for EVERY changed file without weakening it.
+        try:
+            names = subprocess.check_output(
+                ["git", "-C", str(ROOT), "-c", "core.quotePath=false",
+                 "diff", "--name-only", B4E_HEAD + "...HEAD"], text=True).splitlines()
+        except (subprocess.CalledProcessError, FileNotFoundError) as exc:
+            self.fail("[B5A_GIT_DIFF_NOT_VERIFIED] " + repr(exc))
+        self.assertEqual(set(names), B5A_ALLOWED_CHANGES,
+                         "[B5A_SCOPE_VIOLATION] exact B5a five-file experimental boundary")
 
 
 if __name__ == "__main__":
