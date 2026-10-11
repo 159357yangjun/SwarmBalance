@@ -2562,3 +2562,180 @@ class Environment:
         events[event_id] = record
         return {"drone_idx": idx, "changed": True,
                 "requeued_task_ids": [task_id], "custody_event": dict(record)}
+
+def record_external_manifest_handoff(self, drone_id, *, receipts):
+        """B5c experimental *operator-attested* atomic mixed-manifest release.
+
+        Only after valid original-source receipts for ALL actually picked items,
+        release the entire ordered manifest. Unpicked items need no receipt and
+        remain at their real original sources. No airplane movement, energy
+        award, or authenticated physical rescue is asserted by this simulator.
+        """
+        if (os.environ.get("SWARM_BALANCE_B5A_CARGO_CUSTODY_GATE") != "1"
+                or os.environ.get("SWARM_BALANCE_B5B_EXTERNAL_HANDOFF") != "1"
+                or os.environ.get("SWARM_BALANCE_B5C_MIXED_CHAIN_RELEASE") != "1"):
+            raise ValueError("[B5C_FEATURE_DISABLED] three opt-in gates required")
+        idx = self._drone_index_by_id(drone_id)
+        d = self.drones[idx]
+        if not isinstance(receipts, (tuple, list)) or not receipts:
+            raise ValueError("[B5C_RECEIPT_MISSING] picked cargo needs evidence")
+
+        def required_text(value, field):
+            if not isinstance(value, str) or not value.strip():
+                raise ValueError("[B5C_INVALID_RECEIPT] missing " + field)
+            return value.strip()
+
+        proofs = []
+        for raw in receipts:
+            if not isinstance(raw, dict):
+                raise ValueError("[B5C_INVALID_RECEIPT] receipt must be a mapping")
+            task_id = required_text(raw.get("task_id"), "task_id")
+            event_id = required_text(raw.get("event_id"), "event_id")
+            actor_id = required_text(raw.get("actor_id"), "actor_id")
+            evidence_ref = required_text(raw.get("evidence_ref"), "evidence_ref")
+            if raw.get("disposition") != "returned_to_original_source":
+                raise ValueError("[B5C_INVALID_DISPOSITION] returned_to_original_source only")
+            try:
+                pos = raw.get("receipt_position")
+                if not isinstance(pos, (tuple, list)) or len(pos) != 2:
+                    raise ValueError("point shape")
+                point = (float(pos[0]), float(pos[1]))
+                if isinstance(raw.get("received_weight_kg"), bool):
+                    raise ValueError("boolean weight")
+                weight = float(raw["received_weight_kg"])
+                if not all(math.isfinite(x) for x in point) or not (
+                        math.isfinite(weight) and weight > 0):
+                    raise ValueError("nonfinite value")
+            except (TypeError, KeyError, ValueError, OverflowError) as exc:
+                raise ValueError("[B5C_INVALID_RECEIPT] finite mass and point required") from exc
+            proofs.append((event_id, task_id, actor_id, evidence_ref, point, weight,
+                           "returned_to_original_source"))
+        event_ids = [r[0] for r in proofs]
+        task_ids = [r[1] for r in proofs]
+        if len(set(event_ids)) != len(event_ids) or len(set(task_ids)) != len(task_ids):
+            raise ValueError("[B5C_DUPLICATE_RECEIPT] each picked task and event only once")
+
+        canonical = tuple(sorted(proofs))
+        key = (idx, tuple(sorted(event_ids)))
+        replays = getattr(self, "external_manifest_handoffs", None) or {}
+        prior = replays.get(key)
+        if prior is not None:
+            if prior["proofs"] != canonical:
+                raise ValueError("[B5C_EVENT_CONFLICT] same event IDs, altered receipt")
+            return {"drone_idx": idx, "changed": False, "requeued_task_ids": [],
+                    "event_ids": tuple(sorted(event_ids))}
+
+        events = getattr(self, "external_custody_events", None) or {}
+        if any(event_id in events for event_id in event_ids):
+            raise ValueError("[B5C_EVENT_CONFLICT] event already recorded")
+        if (not getattr(d, "out_of_service", False)
+                or getattr(d, "cargo_custody_hold_reason", None)
+                   != "picked_cargo_requires_external_handoff"):
+            raise ValueError("[B5C_NOT_HELD] witnessed cargo must remain on failed drone")
+
+        assigned = self.drone_assignments.get(idx)
+        items = (assigned if isinstance(assigned, list)
+                 else [assigned] if assigned is not None else [])
+        if len(items) < 2 or any(not isinstance(a, dict) or a.get("task") is None
+                                 for a in items):
+            raise ValueError("[B5C_MANIFEST_UNSUPPORTED] needs complete multi-task assignment")
+        all_ids = [str(a["task"].task_id) for a in items]
+        if len(set(all_ids)) != len(all_ids):
+            raise ValueError("[B5C_DUPLICATE_TASK] manifest has repeated task")
+        picked = [a for a in items if a.get("load_time") is not None]
+        if not picked:
+            raise ValueError("[B5C_NO_PICKUP] no witnessed source service")
+        picked_ids = {str(a["task"].task_id) for a in picked}
+        if set(task_ids) != picked_ids:
+            raise ValueError("[B5C_RECEIPT_SET_MISMATCH] require every picked order exactly once")
+        if str(getattr(d, "executing_task_id", "")) not in all_ids:
+            raise ValueError("[B5C_TASK_IDENTITY_MISMATCH] executing task not assigned")
+
+        receipt_by_task = {r[1]: r for r in proofs}
+        total_assigned_kg = 0.0
+        total_onboard_kg = 0.0
+        for a in items:
+            task = a["task"]
+            tid = str(task.task_id)
+            if task.status not in ("assigned", "in_progress"):
+                raise ValueError("[B5C_INVALID_TASK_STATE] no release of completed or pending task")
+            tw = float(task.get_weight())
+            if not math.isfinite(tw) or tw <= 0:
+                raise ValueError("[B5C_INVALID_TASK_WEIGHT] manifest weight invalid")
+            total_assigned_kg += tw
+            if a.get("load_time") is not None:
+                total_onboard_kg += tw
+                proof = receipt_by_task[tid]
+                point, received_weight = proof[4], proof[5]
+                try:
+                    source = tuple(float(v) for v in task.get_source())
+                except (TypeError, ValueError, OverflowError) as exc:
+                    raise ValueError("[B5C_INVALID_SOURCE] invalid pickup position") from exc
+                if (len(source) != 2 or not all(math.isfinite(v) for v in source)
+                        or not all(math.isclose(x, y, abs_tol=1e-6, rel_tol=0.0)
+                                   for x, y in zip(point, source))):
+                    raise ValueError("[B5C_RECEIPT_LOCATION_MISMATCH] source return unproven")
+                if not math.isclose(received_weight, tw, rel_tol=0.0, abs_tol=1e-6):
+                    raise ValueError("[B5C_RECEIPT_WEIGHT_MISMATCH] bad load receipt")
+
+        if (not math.isclose(float(getattr(d, "onboard_load_kg", 0.0)),
+                             total_onboard_kg, rel_tol=0.0, abs_tol=1e-6)
+                or not math.isclose(float(getattr(d, "current_load", 0.0)),
+                                    total_assigned_kg, rel_tol=0.0, abs_tol=1e-6)):
+            raise ValueError("[B5C_CARGO_MASS_NOT_CONSERVED] manifest and drone disagree")
+
+        existing_pending = {str(t.task_id) for t in self.task_generator.unassigned_tasks}
+        if existing_pending.intersection(all_ids):
+            raise ValueError("[B5C_ALREADY_PENDING] duplicate task in queue")
+        if any(str(other.get("task").task_id) in all_ids
+               for drone_idx, assignments in self.drone_assignments.items()
+               if drone_idx != idx
+               for other in (assignments if isinstance(assignments, list) else [assignments])
+               if isinstance(other, dict) and other.get("task") is not None):
+            raise ValueError("[B5C_ALREADY_ASSIGNED] duplicate task ownership")
+        if any(str(row.get("task").task_id) in all_ids
+               for row in (getattr(self, "completed_task_log", None) or [])
+               if isinstance(row, dict) and row.get("task") is not None):
+            raise ValueError("[B5C_ALREADY_COMPLETED] cannot requeue delivered orders")
+
+        # PREPARE phase is complete. A single sequential COMMIT transfers the
+        # reported custody, task identities, and mass without simulated motion.
+        records = {}
+        position = tuple(d.get_position())
+        now = float(getattr(self, "current_time", 0.0))
+        for event_id, task_id, actor, evidence, point, mass, disposition in proofs:
+            assignment = next(a for a in picked if str(a["task"].task_id) == task_id)
+            records[event_id] = {
+                "event_id": event_id, "task_id": task_id, "drone_idx": idx,
+                "drone_id": str(d.drone_id), "operator_id": actor,
+                "evidence_ref": evidence, "receipt_position": point,
+                "received_weight_kg": mass, "disposition": disposition,
+                "load_time": assignment["load_time"],
+                "drone_position_at_handoff": position, "sim_time": now,
+                "custody_mode": "operator_attestation_not_physical_verification",
+            }
+
+        for a in items:
+            a["task"].update_status("pending")
+            self.task_generator.unassigned_tasks.append(a["task"])
+        self.drone_assignments.pop(idx, None)
+        d.onboard_load_kg = 0.0
+        d.current_load = 0.0
+        d.executing_task_id = None
+        d.scheduled_position = []
+        d._suspended_route = []
+        d._manual_charge_requested = False
+        d.cargo_custody_hold_reason = None
+        d.is_free = False  # still out of service; operator must explicitly restore
+        self.drone_chain_len[idx] = 0
+        self._prev_free_status[idx] = False
+        if not hasattr(self, "external_custody_events"):
+            self.external_custody_events = {}
+        self.external_custody_events.update(records)
+        if not hasattr(self, "external_manifest_handoffs"):
+            self.external_manifest_handoffs = {}
+        self.external_manifest_handoffs[key] = {
+            "proofs": canonical, "task_ids": tuple(all_ids),
+        }
+        return {"drone_idx": idx, "changed": True, "requeued_task_ids": all_ids,
+                "event_ids": tuple(sorted(event_ids))}
