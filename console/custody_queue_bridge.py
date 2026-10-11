@@ -170,6 +170,22 @@ class DurableCustodyQueueBridge:
                     if old[2] != idx or old[3] != fingerprint:
                         raise ValueError("[B5F_EVENT_CONFLICT] event ID has changed")
                     task_id = old[1]
+                else:
+                    # A new event ID cannot silently re-credit a task that
+                    # this drone has ALREADY returned to the pending queue.
+                    # Reject before the generic no-longer-held check. A later
+                    # genuinely new pickup remains allowed if it is held.
+                    d = self.env.drones[idx]
+                    if not getattr(d, "cargo_custody_hold_reason", None):
+                        previous = db.execute(
+                            "SELECT task_id FROM handoff_intents "
+                            "WHERE drone_idx=? AND state='applied'", (idx,)
+                        ).fetchall()
+                        pending = {str(t.task_id)
+                                   for t in self.env.task_generator.unassigned_tasks}
+                        if any(task in pending for (task,) in previous):
+                            raise ValueError("[B5F_EVENT_CONFLICT] "
+                                             "already returned task needs no new receipt")
             finally:
                 db.close()
 
