@@ -36,3 +36,16 @@ jobs:
       - name: Inherited B5c custody safety
         run: |
           .\.venv310\Scripts\python.exe -m unittest -v scripts.test_p2_4b_b5c_mixed_chain_custody_red scripts.test_p2_4b_b5b_external_custody_red scripts.test_p2_4b_b5a_cargo_custody_red
+      - name: Frozen E0 all experiments disabled
+        env:
+          SWARM_BALANCE_B5C_MIXED_CHAIN_RELEASE: "0"
+          SWARM_BALANCE_B5B_EXTERNAL_HANDOFF: "0"
+          SWARM_BALANCE_B5A_CARGO_CUSTODY_GATE: "0"
+          SWARM_BALANCE_INFLIGHT_WIND_REQUOTE: "0"
+          SWARM_BALANCE_HELD_ROUTE_REQUOTE: "0"
+          SWARM_BALANCE_AUTO_PLANNED_STATION: "0"
+          SWARM_BALANCE_CHARGE_TARGET_IDENTITY: "0"
+          SWARM_BALANCE_PLANNED_STATION_ROUTE: "0"
+          SWARM_BALANCE_STATION_ENERGY_GATE: "0"
+        run: |
+          .\.venv310\Scripts\python.exe -m unittest discover -s frontend -p test_wind_injection.py -v
