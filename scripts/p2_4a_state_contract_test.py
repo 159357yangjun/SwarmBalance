@@ -21,6 +21,14 @@ B3C_HEAD = "fca9ebfeb2413d8b396f20c10c98ddd50d2fcd47"
 B4_HEAD = "e669075e120d3e646ec7f0623346608736f26966"
 B4B_HEAD = "69ea639f12a89141adc881ae614e511a72ede7d4"
 B4C_HEAD = "42cf220143caff5fe12e91c0731279ed4486272e"
+B4D_HEAD = "47e64cac22dc5d1476f52a47b3ffd4f3d5ef9002"
+# B4e is a strict independent child; do not reinterpret B4d's frozen
+# six-file boundary as a diff to the HEAD of every descendant.
+B4E_ALLOWED_CHANGES = {
+    ".github/workflows/p2-4b-b4e-end-to-end-conservation.yml",
+    "scripts/p2_4a_state_contract_test.py",
+    "scripts/test_p2_4b_b4e_end_to_end_conservation.py",
+}
 B4D_ALLOWED_CHANGES = {
     ".github/workflows/p2-4b-b4d-inflight-wind-energy.yml",
     "docs/P2_4B_B4D_INFLIGHT_WIND_EVIDENCE.md",
@@ -316,11 +324,22 @@ class RecoveryStateContract(unittest.TestCase):
         try:
             names = subprocess.check_output(
                 ["git", "-C", str(ROOT), "-c", "core.quotePath=false",
-                 "diff", "--name-only", B4C_HEAD + "...HEAD"], text=True).splitlines()
+                 "diff", "--name-only", B4C_HEAD + "..." + B4D_HEAD], text=True).splitlines()
         except (subprocess.CalledProcessError, FileNotFoundError) as exc:
             self.fail("[B4D_GIT_DIFF_NOT_VERIFIED] " + repr(exc))
         self.assertEqual(set(names), B4D_ALLOWED_CHANGES,
                          "[B4D_SCOPE_VIOLATION] exact six-file in-flight wind boundary")
+
+    def test_19_only_b4e_end_to_end_conservation_scope_changed(self):
+        # The old B4d slice is immutable; B4e gets its OWN exact diff gate.
+        try:
+            names = subprocess.check_output(
+                ["git", "-C", str(ROOT), "-c", "core.quotePath=false",
+                 "diff", "--name-only", B4D_HEAD + "...HEAD"], text=True).splitlines()
+        except (subprocess.CalledProcessError, FileNotFoundError) as exc:
+            self.fail("[B4E_GIT_DIFF_NOT_VERIFIED] " + repr(exc))
+        self.assertEqual(set(names), B4E_ALLOWED_CHANGES,
+                         "[B4E_SCOPE_VIOLATION] exact three-file B4e experimental test boundary")
 
 
 if __name__ == "__main__":
