@@ -28,6 +28,13 @@ B5B_HEAD = "ac3660154e4729f9a56561ca312dc0cd94846f8b"
 B5C_HEAD = "4f5fc4639fe4b45296b6720454e5d946249bdcc1"
 B5D_HEAD = "907735e82591fff60840e21a7dcafb2a861ece71"
 B5E_HEAD = "d32f11137f26c18e3c7f4e0a5ee925cd7d561fe3"
+B5F_HEAD = "628f148e54fa3530e07c84e685f6ba4d7f27eece"
+B5G_ALLOWED_CHANGES = {
+    ".github/workflows/p2-4b-b5g-serialized-custody.yml",
+    "console/custody_queue_bridge.py",
+    "scripts/p2_4a_state_contract_test.py",
+    "scripts/test_p2_4b_b5g_serialized_queue_red.py",
+}
 B5F_ALLOWED_CHANGES = {
     ".github/workflows/p2-4b-b5f-queue-reconcile.yml",
     "console/custody_queue_bridge.py",
@@ -448,11 +455,22 @@ class RecoveryStateContract(unittest.TestCase):
         try:
             names = subprocess.check_output(
                 ["git", "-C", str(ROOT), "-c", "core.quotePath=false",
-                 "diff", "--name-only", B5E_HEAD + "...HEAD"], text=True).splitlines()
+                 "diff", "--name-only", B5E_HEAD + "..." + B5F_HEAD], text=True).splitlines()
         except (subprocess.CalledProcessError, FileNotFoundError) as exc:
             self.fail("[B5F_GIT_DIFF_NOT_VERIFIED] " + repr(exc))
         self.assertEqual(set(names), B5F_ALLOWED_CHANGES,
                          "[B5F_SCOPE_VIOLATION] exact four-file B5f boundary")
+
+    def test_26_only_b5g_serialized_sqlite_scope_changed(self):
+        # Accepted B5f slice remains immutable even with B5g's own edits.
+        try:
+            names = subprocess.check_output(
+                ["git", "-C", str(ROOT), "-c", "core.quotePath=false",
+                 "diff", "--name-only", B5F_HEAD + "...HEAD"], text=True).splitlines()
+        except (subprocess.CalledProcessError, FileNotFoundError) as exc:
+            self.fail("[B5G_GIT_DIFF_NOT_VERIFIED] " + repr(exc))
+        self.assertEqual(set(names), B5G_ALLOWED_CHANGES,
+                         "[B5G_SCOPE_VIOLATION] exact four-file B5g experimental boundary")
 
 
 if __name__ == "__main__":
