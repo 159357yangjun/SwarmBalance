@@ -84,7 +84,13 @@ class B4eEndToEndConservation(InflightWindRouteEnergy):
                                      "[B4E_REMOTE_BERTH_OR_SWAP]")
                     self.assertEqual(str(d.berth_station_id or d.charging_station_id), "B",
                                      "[B4E_WRONG_STATION_BERTH]")
-                if env.total_swap_sessions > 0:
+                # total_swap_sessions increments at berth admission, NOT
+                # at completed battery replacement. Require real elapsed swap.
+                if env.total_swap_sessions > 0 and not d.is_charging:
+                    self.assertEqual(d.swap_remaining_steps, 0.0,
+                                     "[B4E_SWAP_TIMER_NOT_EXPIRED]")
+                    self.assertAlmostEqual(d.current_battery, d.battery_capacity,
+                                           msg="[B4E_SWAP_DID_NOT_RESTORE_BATTERY]")
                     seen_swap = True
                     break
             self.assertTrue(seen_berth, "[B4E_BERTH_NEVER_REACHED]")
