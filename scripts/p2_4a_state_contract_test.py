@@ -33,6 +33,7 @@ B5E_ALLOWED_CHANGES = {
     "frontend/environment.py",
     "scripts/p2_4a_state_contract_test.py",
     "scripts/test_p2_4b_b5e_journaled_handoff_red.py",
+    "scripts/test_p2_4b_b5d_custody_journal_red.py",
 }
 B5D_ALLOWED_CHANGES = {
     ".github/workflows/p2-4b-b5d-custody-journal.yml",
@@ -434,7 +435,7 @@ class RecoveryStateContract(unittest.TestCase):
         except (subprocess.CalledProcessError, FileNotFoundError) as exc:
             self.fail("[B5E_GIT_DIFF_NOT_VERIFIED] " + repr(exc))
         self.assertEqual(set(names), B5E_ALLOWED_CHANGES,
-                         "[B5E_SCOPE_VIOLATION] exact five-file transaction boundary")
+                         "[B5E_SCOPE_VIOLATION] exact six-file transaction boundary")
 
 
 if __name__ == "__main__":
