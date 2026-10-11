@@ -1,3 +1,9 @@
+# B5g RED: https://github.com/159357yangjun/SwarmBalance/actions/runs/38123881386
+# Actual 66 tests: 2 FAIL + 1 ERROR; racing requeue / stale Env / SQLite lock.
+# Dedicated GREEN: https://github.com/159357yangjun/SwarmBalance/actions/runs/38124008924
+# HEAD c1a1d1f10135b6ea67f3c971e33ddf3bc277b263: 66+206+11=283 PASS.
+# Frozen E0 loaded mileage definition remains historically incomparable.
+# No full Environment persistence or authenticated physical handoff claim.
 name: P2.4b-B5g serialized custody RED
 on:
   push:
