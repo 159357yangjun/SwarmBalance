@@ -1,3 +1,7 @@
+# B5a specialized strict GREEN evidence (exact previous HEAD):
+# https://github.com/159357yangjun/SwarmBalance/actions/runs/38101275026
+# 28 + 574 + 11 = 613 PASS, real pickup and fault custody guarded.
+# This workflow is NOT physical airworthiness or cargo handoff evidence.
 name: P2.4b-B5a picked cargo fault RED
 on:
   push:
