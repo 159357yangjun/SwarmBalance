@@ -33,7 +33,7 @@ jobs:
       - name: R1 real Drone Wh m km and effective policy provenance RED
         run: |
           .\\.venv310\\Scripts\\python.exe -m unittest -v scripts.test_research_r1_energy_units_red
-      - name: Inherited B1 source-of-truth and research manifest audit
+      - name: Inherited B1 energy, manifest and immutable R1 scope
         run: |
           .\\.venv310\\Scripts\\python.exe -m unittest -v scripts.test_p2_4b_b1_energy_quote experiments.test_model_provenance_gate scripts.p2_4a_state_contract_test
       - name: Frozen E0 all experimental flags off
