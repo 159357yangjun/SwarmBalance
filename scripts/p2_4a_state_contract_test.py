@@ -32,6 +32,7 @@ B5F_HEAD = "628f148e54fa3530e07c84e685f6ba4d7f27eece"
 B5G_HEAD = "121d94ab208869e417a89b2844563a26b8e7e101"
 AUDIT_HEAD = "b23a8e4362260acb6a0df330fbd8665581d0e567"
 R1_ALLOWED_CHANGES = {
+    "console/test_config_keys_coverage.py",
     ".github/workflows/research-r1-energy-readiness.yml",
     "docs/RESEARCH_R1_ENERGY_UNITS_READINESS.md",
     "experiments/reproducibility.py",
@@ -508,7 +509,7 @@ class RecoveryStateContract(unittest.TestCase):
         except (subprocess.CalledProcessError, FileNotFoundError) as exc:
             self.fail("[R1_GIT_DIFF_NOT_VERIFIED] " + repr(exc))
         self.assertEqual(set(names), R1_ALLOWED_CHANGES,
-                         "[R1_SCOPE_VIOLATION] exact five-file units-and-provenance boundary")
+                         "[R1_SCOPE_VIOLATION] exact six-file R1 and console-corpus boundary")
 
 
 if __name__ == "__main__":

@@ -44,3 +44,11 @@
 4. 在相同原始订单流、地图、机队和能耗模型下，做 Greedy、GA、PSO、OR-Tools 多 seed 配对对照，记录未完成/超时/时延/Wh/换电等，不把“完成率全 1.0”称为最优。
 
 **保护边界**：不改 `frontend/drone.py`、`frontend/environment.py`、Greedy/PSO、`config/simulation.json`、`experiments/presets/e0_baseline.yaml`、`experiments/presets/e1_wind_clash.yaml`、或冻结 E0/E1、历史结果。旧 E0 空载里程定义不相容的告警照旧保留。
+
+## 5. 九 Job 严格集成回归揭示的新增冲突（真实失败留档）
+
+- 首轮全量 CI [#38141184828](https://github.com/159357yangjun/SwarmBalance/actions/runs/38141184828) 在 SHA `9b149d725635d0a5fa3793951aec0ac8c5a7e520` **8/9 成功；Full suite / console 失败**，不是 9/9。
+- Console 实测执行 **374 项，2 FAIL，4 SKIP**。两个失败都是 `console.test_config_keys_coverage`：R1 新增 `scripts/test_research_r1_energy_units_red.py` 引用名牌/展示键 `full_load_range_km`；旧扫描器只排除 P1 audit，从而误把 R1 专项测试的键名字面量当成生产模块读取。
+- 最小修复：只将这一个**精确的 R1 审计测试路径**加入审计专用源码排除表，并强制检查该文件存在；三个 `ALLOWED_UNREAD` 说明完全保留，所有真正生产源码仍进入扫描。R1 新阶段严格范围由原五文件明确扩至**六文件**，新增文件仅 `console/test_config_keys_coverage.py`，其他历史阶段固定范围不变。
+- Console 日志还包含 `[ROWSET_STALE]`、rewrite-map 的负向夹具验齿输出，不能把它们误认作本次真正失败的两条 unittest。
+- 修复后必须在**新 HEAD** 重新执行专项 GREEN、严格继承回归及九 Job 全量 SUCCESS，才能恢复临时 base 或宣称 R1 验收。
