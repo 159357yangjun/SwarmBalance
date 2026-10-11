@@ -20,6 +20,16 @@ B3B_HEAD = "25a77553c710c06cc105986f140d66ba5c5c6c6d"
 B3C_HEAD = "fca9ebfeb2413d8b396f20c10c98ddd50d2fcd47"
 B4_HEAD = "e669075e120d3e646ec7f0623346608736f26966"
 B4B_HEAD = "69ea639f12a89141adc881ae614e511a72ede7d4"
+B4C_HEAD = "42cf220143caff5fe12e91c0731279ed4486272e"
+B4D_ALLOWED_CHANGES = {
+    ".github/workflows/p2-4b-b4d-inflight-wind-energy.yml",
+    "docs/P2_4B_B4D_INFLIGHT_WIND_EVIDENCE.md",
+    "docs/数据来源与可追溯性登记表.md",
+    "frontend/environment.py",
+    "scripts/p2_4a_state_contract_test.py",
+    "scripts/test_p2_4b_b4d_inflight_wind_energy.py",
+}
+
 B4C_ALLOWED_CHANGES = {
     ".github/workflows/p2-4b-b4c-held-route-requote.yml",
     "docs/P2_4B_B4C_HELD_REQUOTE_EVIDENCE.md",
@@ -296,11 +306,21 @@ class RecoveryStateContract(unittest.TestCase):
         try:
             names = subprocess.check_output(
                 ["git", "-C", str(ROOT), "-c", "core.quotePath=false",
-                 "diff", "--name-only", B4B_HEAD + "...HEAD"], text=True).splitlines()
+                 "diff", "--name-only", B4B_HEAD + "..." + B4C_HEAD], text=True).splitlines()
         except (subprocess.CalledProcessError, FileNotFoundError) as exc:
             self.fail("[B4C_GIT_DIFF_NOT_VERIFIED] " + repr(exc))
         self.assertEqual(set(names), B4C_ALLOWED_CHANGES,
                          "[B4C_SCOPE_VIOLATION] exact six-file held route re-quote")
+
+    def test_18_only_b4d_inflight_wind_scope_changed(self):
+        try:
+            names = subprocess.check_output(
+                ["git", "-C", str(ROOT), "-c", "core.quotePath=false",
+                 "diff", "--name-only", B4C_HEAD + "...HEAD"], text=True).splitlines()
+        except (subprocess.CalledProcessError, FileNotFoundError) as exc:
+            self.fail("[B4D_GIT_DIFF_NOT_VERIFIED] " + repr(exc))
+        self.assertEqual(set(names), B4D_ALLOWED_CHANGES,
+                         "[B4D_SCOPE_VIOLATION] exact six-file in-flight wind boundary")
 
 
 if __name__ == "__main__":

@@ -1280,6 +1280,42 @@ class Environment:
         preflight_carrying = [self._is_carrying(drone) for drone in self.drones]
 
         for drone in self.drones:
+            # B4d opt-in only: refresh live ENV wind before actual movement,
+            # then quote the *scheduled remaining* station path, not just the
+            # next 20m step. No energy, mission, path or cargo mutation here.
+            if (os.environ.get("SWARM_BALANCE_INFLIGHT_WIND_REQUOTE") == "1"
+                    and os.environ.get("SWARM_BALANCE_AUTO_PLANNED_STATION") == "1"
+                    and os.environ.get("SWARM_BALANCE_CHARGE_TARGET_IDENTITY") == "1"):
+                drone.set_wind(getattr(self, "wind_u", None),
+                               getattr(self, "wind_v", None))
+                in_auto_station_detour = (
+                    not getattr(drone, "_manual_charge_requested", False)
+                    and not getattr(drone, "is_charging", False)
+                    and not getattr(drone, "awaiting_berth", False)
+                    and not getattr(drone, "out_of_service", False)
+                    and bool(getattr(drone, "_suspended_route", []))
+                    and getattr(drone, "charge_target_station_id", None) is not None
+                    and bool(getattr(drone, "scheduled_position", [])))
+                if (in_auto_station_detour
+                        and not getattr(drone, "charge_target_hold_reason", None)):
+                    remaining_wh = 0.0
+                    prior = drone.get_position()
+                    for waypoint in drone.scheduled_position:
+                        nxt = (float(waypoint[0]), float(waypoint[1]))
+                        dx, dy = nxt[0] - prior[0], nxt[1] - prior[1]
+                        leg_m = math.hypot(dx, dy)
+                        remaining_wh += drone.quote_flight_energy_wh(
+                            leg_m, drone._wind_along_for(dx, dy, leg_m))
+                        prior = nxt
+                    # Same 5% experimental reserve as B3a/B4. This is
+                    # a synthetic assumption, not manufacturer-certified.
+                    reserve_wh = 0.05 * drone.battery_capacity
+                    if remaining_wh + reserve_wh > drone.current_battery:
+                        drone.charge_target_hold_reason = "inflight_wind_energy_unaffordable"
+                        drone.flight_energy_blocked = True
+                        drone.flight_energy_block_reason = "inflight_remaining_route_unaffordable"
+                        drone.is_free = False
+                        continue
             if os.environ.get("SWARM_BALANCE_AUTO_PLANNED_STATION") == "1":
                 # Real Environment RoutePlanner geometry, supplied only
                 # to the experimental automatic energy diversion. This keeps
