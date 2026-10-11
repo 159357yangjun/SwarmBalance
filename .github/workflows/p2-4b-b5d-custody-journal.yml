@@ -1,3 +1,8 @@
+# RED: https://github.com/159357yangjun/SwarmBalance/actions/runs/38110666158 (missing journal module)
+# Dedicated GREEN at 4fed9bee0b24d2776b3e31b317403d2c5423a7fb:
+# https://github.com/159357yangjun/SwarmBalance/actions/runs/38110913311
+# 7/7 journal + strict scope, 138/138 inherited, 11/11 frozen E0.
+# E0 mileage-definition caveat applies; NO simulation checkpoint or physical authentication.
 name: P2.4b-B5d custody journal RED
 on:
   push:
