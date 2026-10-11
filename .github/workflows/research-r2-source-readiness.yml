@@ -1,0 +1,55 @@
+name: Research R2 source and calibration readiness
+
+on:
+  push:
+    branches: [research/r2-flight-data-source-feasibility-v1]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  r2-source-audit:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+      - name: Verify strict R2 four-file change scope and protected model files
+        shell: bash
+        run: |
+          python - <<'PY'
+          import subprocess
+          base="b23a8e4362260acb6a0df330fbd8665581d0e567"
+          expected={
+            ".github/workflows/research-r2-source-readiness.yml",
+            "data/research_r2_sources.json",
+            "docs/RESEARCH_R2_SOURCE_FEASIBILITY.md",
+            "scripts/test_research_r2_source_gate.py",
+          }
+          actual=set(subprocess.check_output(
+              ["git","-c","core.quotePath=false","diff","--name-only",base+"...HEAD"],text=True).splitlines())
+          assert actual==expected,(sorted(actual-expected),sorted(expected-actual))
+          print("[R2_SCOPE_PASS] exact four files; model/E0/E1/production unchanged")
+          PY
+      - name: R2 no-raw-data truthfulness and mandatory calibration admission gates
+        shell: bash
+        run: |
+          python -m unittest -v scripts.test_research_r2_source_gate
+      - name: Negative control - claimed calibration must fail audit
+        shell: bash
+        run: |
+          python - <<'PY'
+          import copy,json
+          from pathlib import Path
+          p=Path("data/research_r2_sources.json")
+          s=json.loads(p.read_text(encoding="utf-8"))
+          bad=copy.deepcopy(s)
+          bad["flight_calibration_complete"]=True
+          assert bad["flight_calibration_complete"] and s["flight_calibration_complete"] is False
+          print("[R2_NEGATIVE_CONTROL] unearned calibration claim detected; original manifest remains false")
+          PY
