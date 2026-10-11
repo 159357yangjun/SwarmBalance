@@ -23,6 +23,13 @@ B4B_HEAD = "69ea639f12a89141adc881ae614e511a72ede7d4"
 B4C_HEAD = "42cf220143caff5fe12e91c0731279ed4486272e"
 B4D_HEAD = "47e64cac22dc5d1476f52a47b3ffd4f3d5ef9002"
 B4E_HEAD = "cea965f9b66e26473d4d1190a3f70c6cc8b7c61f"
+B5A_HEAD = "ba3eac83151928a080d6c2abac40bdc4b245c704"
+B5B_ALLOWED_CHANGES = {
+    ".github/workflows/p2-4b-b5b-external-custody.yml",
+    "frontend/environment.py",
+    "scripts/p2_4a_state_contract_test.py",
+    "scripts/test_p2_4b_b5b_external_custody_red.py",
+}
 B5A_ALLOWED_CHANGES = {
     ".github/workflows/p2-4b-b5a-cargo-custody.yml",
     "docs/数据来源与可追溯性登记表.md",  # actual relocated anchors only
@@ -355,11 +362,23 @@ class RecoveryStateContract(unittest.TestCase):
         try:
             names = subprocess.check_output(
                 ["git", "-C", str(ROOT), "-c", "core.quotePath=false",
-                 "diff", "--name-only", B4E_HEAD + "...HEAD"], text=True).splitlines()
+                 "diff", "--name-only", B4E_HEAD + "..." + B5A_HEAD], text=True).splitlines()
         except (subprocess.CalledProcessError, FileNotFoundError) as exc:
             self.fail("[B5A_GIT_DIFF_NOT_VERIFIED] " + repr(exc))
         self.assertEqual(set(names), B5A_ALLOWED_CHANGES,
                          "[B5A_SCOPE_VIOLATION] exact B5a five-file experimental boundary")
+
+    def test_21_only_b5b_external_handoff_scope_changed(self):
+        # Preserve B5a's exact historical five-file slice and independently
+        # enforce every B5b modification; never widen old allowlists.
+        try:
+            names = subprocess.check_output(
+                ["git", "-C", str(ROOT), "-c", "core.quotePath=false",
+                 "diff", "--name-only", B5A_HEAD + "...HEAD"], text=True).splitlines()
+        except (subprocess.CalledProcessError, FileNotFoundError) as exc:
+            self.fail("[B5B_GIT_DIFF_NOT_VERIFIED] " + repr(exc))
+        self.assertEqual(set(names), B5B_ALLOWED_CHANGES,
+                         "[B5B_SCOPE_VIOLATION] exact four-file B5b experimental boundary")
 
 
 if __name__ == "__main__":

@@ -2432,3 +2432,133 @@ class Environment:
             return False
 
         return True
+
+    def record_external_cargo_handoff(
+            self, drone_id, *, event_id, actor_id, evidence_ref,
+            receipt_position, received_weight_kg, disposition):
+        """B5b opt-in, *operator-attested* physical return to ORIGINAL source.
+
+        This endpoint records an external operator's supplied receipt; it does
+        NOT verify real-world provenance, move an aircraft, or credit battery.
+        Restrict to exactly one actually picked task. Mixed task chains and
+        unsupported partial transfers fail closed pending a later design.
+        All validation precedes every state mutation.
+        """
+        if (os.environ.get("SWARM_BALANCE_B5B_EXTERNAL_HANDOFF") != "1"
+                or os.environ.get("SWARM_BALANCE_B5A_CARGO_CUSTODY_GATE") != "1"):
+            raise ValueError("[B5B_FEATURE_DISABLED] experimental manual return only")
+        idx = self._drone_index_by_id(drone_id)
+        drone = self.drones[idx]
+
+        def _text(value, label):
+            if not isinstance(value, str) or not value.strip():
+                raise ValueError("[B5B_INVALID_RECEIPT] " + label + " is required")
+            return value.strip()
+
+        event_id = _text(event_id, "event_id")
+        actor_id = _text(actor_id, "actor_id")
+        evidence_ref = _text(evidence_ref, "evidence_ref")
+        if disposition != "returned_to_original_source":
+            raise ValueError("[B5B_INVALID_DISPOSITION] no implicit customer delivery")
+
+        try:
+            if not isinstance(receipt_position, (list, tuple)) or len(receipt_position) != 2:
+                raise ValueError("wrong point shape")
+            point = (float(receipt_position[0]), float(receipt_position[1]))
+            if not all(math.isfinite(v) for v in point):
+                raise ValueError("nonfinite point")
+            if isinstance(received_weight_kg, bool):
+                raise ValueError("bool is not mass")
+            mass = float(received_weight_kg)
+            if not math.isfinite(mass) or mass <= 0:
+                raise ValueError("invalid mass")
+        except (TypeError, ValueError, OverflowError) as exc:
+            raise ValueError("[B5B_INVALID_RECEIPT] finite position and mass required") from exc
+
+        events = getattr(self, "external_custody_events", None)
+        if events is not None and event_id in events:
+            prior = events[event_id]
+            if (prior["drone_idx"] == idx
+                    and prior["operator_id"] == actor_id
+                    and prior["evidence_ref"] == evidence_ref
+                    and prior["receipt_position"] == point
+                    and prior["received_weight_kg"] == mass
+                    and prior["disposition"] == disposition):
+                return {"drone_idx": idx, "changed": False, "requeued_task_ids": [],
+                        "custody_event": dict(prior)}
+            raise ValueError("[B5B_EVENT_CONFLICT] event ID already bound to another receipt")
+
+        if (not getattr(drone, "out_of_service", False)
+                or getattr(drone, "cargo_custody_hold_reason", None)
+                   != "picked_cargo_requires_external_handoff"):
+            raise ValueError("[B5B_NOT_HELD] no failed drone with witnessed cargo")
+        assigned = self.drone_assignments.get(idx)
+        tasks = (assigned if isinstance(assigned, list)
+                 else [assigned] if assigned is not None else [])
+        if len(tasks) != 1 or not isinstance(tasks[0], dict):
+            raise ValueError("[B5B_CHAIN_HANDOFF_NOT_SUPPORTED] partial/mixed tasks rejected")
+        assignment = tasks[0]
+        task = assignment.get("task")
+        if task is None or assignment.get("load_time") is None:
+            raise ValueError("[B5B_NOT_PICKED] no real consumed source waypoint")
+        task_id = str(task.task_id)
+        if (task_id != str(getattr(drone, "executing_task_id", None))
+                or task.status in ("pending", "completed", "failed")):
+            raise ValueError("[B5B_ASSIGNMENT_MISMATCH] custody identity not stable")
+
+        source = tuple(float(p) for p in task.get_source())
+        if len(source) != 2 or not all(math.isfinite(p) for p in source):
+            raise ValueError("[B5B_INVALID_SOURCE] no verified original pickup coordinates")
+        if not all(math.isclose(a, b, rel_tol=0.0, abs_tol=1e-6)
+                   for a, b in zip(point, source)):
+            raise ValueError("[B5B_WRONG_RECEIPT_LOCATION] cannot requeue from remote holder")
+
+        task_weight = float(task.get_weight())
+        onboard = float(getattr(drone, "onboard_load_kg", 0.0))
+        assigned_kg = float(getattr(drone, "current_load", 0.0))
+        if (not all(math.isfinite(v) and v > 0
+                    for v in (task_weight, onboard, assigned_kg))
+                or not math.isclose(mass, task_weight, rel_tol=0.0, abs_tol=1e-6)
+                or not math.isclose(mass, onboard, rel_tol=0.0, abs_tol=1e-6)
+                or not math.isclose(mass, assigned_kg, rel_tol=0.0, abs_tol=1e-6)):
+            raise ValueError("[B5B_WEIGHT_NOT_CONSERVED] receipt != witnessed load")
+
+        if any(str(t.task_id) == task_id
+               for t in self.task_generator.unassigned_tasks):
+            raise ValueError("[B5B_ALREADY_QUEUED] task already pending")
+        if any(str(row.get("task").task_id) == task_id
+               for row in (getattr(self, "completed_task_log", None) or [])
+               if isinstance(row, dict) and row.get("task") is not None):
+            raise ValueError("[B5B_ALREADY_COMPLETED] cannot requeue a delivered order")
+
+        # Only now is the operator's external return attestation *committed*.
+        # This is not a simulated instant aircraft/cargo transport event.
+        record = {
+            "event_id": event_id, "drone_idx": idx, "drone_id": str(drone.drone_id),
+            "task_id": task_id, "load_time": assignment["load_time"],
+            "operator_id": actor_id, "evidence_ref": evidence_ref,
+            "disposition": disposition, "receipt_position": point,
+            "received_weight_kg": mass,
+            "drone_position_at_handoff": tuple(drone.get_position()),
+            "sim_time": float(getattr(self, "current_time", 0.0)),
+            "custody_mode": "operator_attestation_not_physical_verification",
+        }
+        task.update_status("pending")
+        self.task_generator.unassigned_tasks.append(task)
+        self.drone_assignments.pop(idx, None)
+        drone.onboard_load_kg = 0.0
+        drone.current_load = 0.0
+        drone.executing_task_id = None
+        drone.scheduled_position = []
+        drone._suspended_route = []
+        drone._manual_charge_requested = False
+        drone.cargo_custody_hold_reason = None
+        drone.is_free = False  # still out of service until explicit reactivation
+        self.drone_chain_len[idx] = 0
+        self._prev_free_status[idx] = False
+        if events is None:
+            events = {}
+            self.external_custody_events = events
+        events[event_id] = record
+        return {"drone_idx": idx, "changed": True,
+                "requeued_task_ids": [task_id], "custody_event": dict(record)}
