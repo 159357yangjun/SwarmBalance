@@ -1,3 +1,7 @@
+# Specialized GREEN evidence at immutable pre-full-suite HEAD:
+# https://github.com/159357yangjun/SwarmBalance/actions/runs/38100411695
+# B4e 86 PASS; inherited 487 PASS; frozen E0 11 PASS.
+# Historical E0 mileage-definition drift is known and NOT bit-identical.
 name: P2.4b-B4e end-to-end conservation RED
 on:
   push:
