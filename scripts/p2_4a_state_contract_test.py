@@ -27,6 +27,13 @@ B5A_HEAD = "ba3eac83151928a080d6c2abac40bdc4b245c704"
 B5B_HEAD = "ac3660154e4729f9a56561ca312dc0cd94846f8b"
 B5C_HEAD = "4f5fc4639fe4b45296b6720454e5d946249bdcc1"
 B5D_HEAD = "907735e82591fff60840e21a7dcafb2a861ece71"
+B5E_HEAD = "d32f11137f26c18e3c7f4e0a5ee925cd7d561fe3"
+B5F_ALLOWED_CHANGES = {
+    ".github/workflows/p2-4b-b5f-queue-reconcile.yml",
+    "console/custody_queue_bridge.py",
+    "scripts/p2_4a_state_contract_test.py",
+    "scripts/test_p2_4b_b5f_queue_reconcile_red.py",
+}
 B5E_ALLOWED_CHANGES = {
     ".github/workflows/p2-4b-b5e-transactional-custody.yml",
     "console/custody_transaction.py",
@@ -428,11 +435,24 @@ class RecoveryStateContract(unittest.TestCase):
         try:
             names = subprocess.check_output(
                 ["git", "-C", str(ROOT), "-c", "core.quotePath=false",
-                 "diff", "--name-only", B5D_HEAD + "...HEAD"], text=True).splitlines()
+                 "diff", "--name-only", B5D_HEAD + "..." + B5E_HEAD], text=True).splitlines()
         except (subprocess.CalledProcessError, FileNotFoundError) as exc:
             self.fail("[B5E_GIT_DIFF_NOT_VERIFIED] " + repr(exc))
         self.assertEqual(set(names), B5E_ALLOWED_CHANGES,
                          "[B5E_SCOPE_VIOLATION] exact five-file transaction boundary")
+
+
+    def test_25_only_b5f_sqlite_queue_bridge_scope_changed(self):
+        # Never reinterpret historical B5e's strict five-file change set
+        # against a moving B5f HEAD; B5f gets an independent exact gate.
+        try:
+            names = subprocess.check_output(
+                ["git", "-C", str(ROOT), "-c", "core.quotePath=false",
+                 "diff", "--name-only", B5E_HEAD + "...HEAD"], text=True).splitlines()
+        except (subprocess.CalledProcessError, FileNotFoundError) as exc:
+            self.fail("[B5F_GIT_DIFF_NOT_VERIFIED] " + repr(exc))
+        self.assertEqual(set(names), B5F_ALLOWED_CHANGES,
+                         "[B5F_SCOPE_VIOLATION] exact four-file B5f boundary")
 
 
 if __name__ == "__main__":
