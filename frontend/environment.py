@@ -2563,7 +2563,7 @@ class Environment:
         return {"drone_idx": idx, "changed": True,
                 "requeued_task_ids": [task_id], "custody_event": dict(record)}
 
-    def record_external_manifest_handoff(self, drone_id, *, receipts):
+    def record_external_manifest_handoff(self, drone_id, *, receipts, preview_only=False):
         """B5c experimental *operator-attested* atomic mixed-manifest release.
 
         Only after valid original-source receipts for ALL actually picked items,
@@ -2714,6 +2714,14 @@ class Environment:
                 "drone_position_at_handoff": position, "sim_time": now,
                 "custody_mode": "operator_attestation_not_physical_verification",
             }
+
+        # B5e experimental read-only preflight: reuse ALL existing B5c
+        # validation without modifying custody, queue, energy or task status.
+        # Old callers default to the unchanged actual commit behavior.
+        if preview_only:
+            return {"drone_idx": idx, "changed": False, "validated": True,
+                    "requeued_task_ids": list(all_ids),
+                    "event_ids": tuple(sorted(event_ids))}
 
         for a in items:
             a["task"].update_status("pending")
