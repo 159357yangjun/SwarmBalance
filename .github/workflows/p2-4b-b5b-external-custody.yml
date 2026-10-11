@@ -1,3 +1,8 @@
+# B5b RED evidence: Actions #38102203846 (38 tests, 12 ERROR: missing method).
+# Strict B5b GREEN: https://github.com/159357yangjun/SwarmBalance/actions/runs/38102334790
+# Exact HEAD b5bd919e8e9b96bebd7844801142d10d476795ff:
+# 38/38 actual pickup and controls; 603/603 inherited; 11/11 frozen E0.
+# E0 mileage definition is not bit-identical. Physical rescue is NOT verified.
 name: P2.4b-B5b operator-attested handoff RED
 on:
   push:
