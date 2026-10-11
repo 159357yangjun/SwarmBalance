@@ -25,6 +25,7 @@ B4D_HEAD = "47e64cac22dc5d1476f52a47b3ffd4f3d5ef9002"
 B4E_HEAD = "cea965f9b66e26473d4d1190a3f70c6cc8b7c61f"
 B5A_ALLOWED_CHANGES = {
     ".github/workflows/p2-4b-b5a-cargo-custody.yml",
+    "docs/数据来源与可追溯性登记表.md",  # actual relocated anchors only
     "frontend/environment.py",
     "scripts/p2_4a_state_contract_test.py",
     "scripts/test_p2_4b_b5a_cargo_custody_red.py",
@@ -358,7 +359,7 @@ class RecoveryStateContract(unittest.TestCase):
         except (subprocess.CalledProcessError, FileNotFoundError) as exc:
             self.fail("[B5A_GIT_DIFF_NOT_VERIFIED] " + repr(exc))
         self.assertEqual(set(names), B5A_ALLOWED_CHANGES,
-                         "[B5A_SCOPE_VIOLATION] exact B5a four-file experimental boundary")
+                         "[B5A_SCOPE_VIOLATION] exact B5a five-file experimental boundary")
 
 
 if __name__ == "__main__":
