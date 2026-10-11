@@ -2715,6 +2715,33 @@ class Environment:
                 "custody_mode": "operator_attestation_not_physical_verification",
             }
 
+        # B5d: with durable journaling explicitly enabled, persist an
+        # HMAC-verified, fsynced, immutable recovery intent *before* changing
+        # a single task / drone field. Bad disk or key means no cargo release.
+        if os.environ.get("SWARM_BALANCE_B5D_CUSTODY_JOURNAL") == "1":
+            from custody_journal import manifest_snapshot, write_intent
+            payload = {
+                "drone_id": str(d.drone_id),
+                "drone_idx": idx,
+                "receipts": [
+                    {
+                        "task_id": task_id, "event_id": event_id,
+                        "actor_id": actor, "evidence_ref": evidence,
+                        "receipt_position": list(point),
+                        "received_weight_kg": mass,
+                        "disposition": disposition,
+                    }
+                    for event_id, task_id, actor, evidence, point, mass, disposition
+                    in sorted(proofs)
+                ],
+                "pre_commit": manifest_snapshot(items, d),
+            }
+            write_intent(
+                getattr(self, "external_custody_journal_path", None),
+                payload,
+                os.environ.get("SWARM_BALANCE_B5D_JOURNAL_HMAC_KEY"),
+            )
+
         for a in items:
             a["task"].update_status("pending")
             self.task_generator.unassigned_tasks.append(a["task"])
@@ -2739,3 +2766,48 @@ class Environment:
         }
         return {"drone_idx": idx, "changed": True, "requeued_task_ids": all_ids,
                 "event_ids": tuple(sorted(event_ids))}
+
+    def replay_external_custody_journal(self, drone_id):
+        """Replay one signed intent ONLY against a matching restored context.
+
+        Requires the caller to restore or reconstruct the rest of the actual
+        simulation checkpoint separately. Never invent tasks or aircraft
+        positions from the journal alone; malformed/mismatched state fails.
+        """
+        if (os.environ.get("SWARM_BALANCE_B5D_CUSTODY_JOURNAL") != "1"
+                or os.environ.get("SWARM_BALANCE_B5C_MIXED_CHAIN_RELEASE") != "1"
+                or os.environ.get("SWARM_BALANCE_B5B_EXTERNAL_HANDOFF") != "1"
+                or os.environ.get("SWARM_BALANCE_B5A_CARGO_CUSTODY_GATE") != "1"):
+            raise ValueError("[B5D_FEATURE_DISABLED] journal and custody gates required")
+        from custody_journal import read_intent, manifest_snapshot
+        payload = read_intent(
+            getattr(self, "external_custody_journal_path", None),
+            os.environ.get("SWARM_BALANCE_B5D_JOURNAL_HMAC_KEY"),
+        )
+        idx = self._drone_index_by_id(drone_id)
+        drone = self.drones[idx]
+        if (payload.get("drone_idx") != idx
+                or payload.get("drone_id") != str(drone.drone_id)):
+            raise ValueError("[B5D_REPLAY_DRONE_MISMATCH] journal for another drone")
+        proofs = payload.get("receipts")
+        if not isinstance(proofs, list) or not proofs:
+            raise ValueError("[B5D_INTEGRITY] journal missing receipt list")
+
+        # If this same transaction has already been applied in this process,
+        # B5c's signed-event/receipt identity check gives a no-op replay.
+        event_ids = [r.get("event_id") for r in proofs if isinstance(r, dict)]
+        prior = getattr(self, "external_manifest_handoffs", None) or {}
+        if (len(event_ids) == len(proofs)
+                and (idx, tuple(sorted(event_ids))) in prior):
+            return self.record_external_manifest_handoff(idx, receipts=proofs)
+
+        assignments = self.drone_assignments.get(idx)
+        items = (assignments if isinstance(assignments, list)
+                 else [assignments] if assignments is not None else [])
+        try:
+            same = (manifest_snapshot(items, drone) == payload.get("pre_commit"))
+        except (KeyError, AttributeError, TypeError, ValueError) as exc:
+            raise ValueError("[B5D_REPLAY_STATE_CONFLICT] no matching held checkpoint") from exc
+        if not same:
+            raise ValueError("[B5D_REPLAY_STATE_CONFLICT] restored manifest differs")
+        return self.record_external_manifest_handoff(idx, receipts=proofs)
