@@ -36,6 +36,9 @@ jobs:
       - name: Existing runner and grid regression
         run: |
           .\.venv310\Scripts\python.exe -m unittest -v experiments.test_runner experiments.test_grid
+      - name: Immutable B5g and exact audit five-file scope
+        run: |
+          .\\.venv310\\Scripts\\python.exe -m unittest -v scripts.p2_4a_state_contract_test
       - name: Frozen E0 controls all experimental gates off
         env:
           SWARM_BALANCE_B5G_SERIALIZED_RECONCILIATION: "0"
