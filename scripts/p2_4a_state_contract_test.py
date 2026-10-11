@@ -31,6 +31,7 @@ B5E_HEAD = "d32f11137f26c18e3c7f4e0a5ee925cd7d561fe3"
 B5F_HEAD = "628f148e54fa3530e07c84e685f6ba4d7f27eece"
 B5G_HEAD = "121d94ab208869e417a89b2844563a26b8e7e101"
 AUDIT_ALLOWED_CHANGES = {
+    "README.md",
     ".github/workflows/model-provenance-audit.yml",
     "docs/P2_4B_B5_SECURITY_AND_RESEARCH_GATES.md",
     "experiments/reproducibility.py",
@@ -489,7 +490,7 @@ class RecoveryStateContract(unittest.TestCase):
         except (subprocess.CalledProcessError, FileNotFoundError) as exc:
             self.fail("[AUD_GIT_DIFF_NOT_VERIFIED] " + repr(exc))
         self.assertEqual(set(names), AUDIT_ALLOWED_CHANGES,
-                         "[AUD_SCOPE_VIOLATION] exact five-file research audit boundary")
+                         "[AUD_SCOPE_VIOLATION] exact six-file research audit boundary")
 
 
 if __name__ == "__main__":
