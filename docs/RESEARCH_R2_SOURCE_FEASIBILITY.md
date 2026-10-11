@@ -20,3 +20,11 @@
 - **D5 外推限制**：M100 结果仅验证 M100；FlyCart 30/ARK40 需同机型实测后才能声称外部有效性，未经验证禁止宣称真实配送时延、航程或算法收益；当前 **BLOCKED**。
 
 不得改写冻结 E0/E1，不得删除 `[E0_MILEAGE_SCOPE_INCOMPARABLE]` 的适用警告。**这份来源审计的测试只确认机器可读状态正确，不替代实飞标定。**
+
+## 第一轮增量发现：公开第三方逐飞行汇总（**二手证据，不能通过 D1**）
+
+发现 [Noice-Nishtha/UAV-Flight-ML 的 flight_level_master.csv](https://github.com/Noice-Nishtha/UAV-Flight-ML/blob/main/data/processed/flight_level_master.csv)，Git blob `ebfaaa262323c0d65380871dc99f32438cb83b9e`。GitHub 工具读取后，实际解析 **209 行 / 209 唯一 flight ID**，无空白能量/距离字段，9 行（A1–A3 辅助工况）距离为 0，**不可以算 Wh/km**。第三方表中 `total_energy_j / 3600 == total_energy_wh` 是**派生列代数同源**，不是独立能耗验证。
+
+将该文件所有 `dist_m` 相加约 **115325.42 m**；原论文摘要记载约 **65 km**。可能存在轨迹口径、处理/重复或纳入数据段差异，但**尚未诊断**，因此应记录为待对账冲突，绝不把两个值当作可互换真值，也不得把此二次加工数据的 Wh/km 拿去验证项目真实能耗。其生成脚本 [src/prepare_datasets.py](https://github.com/Noice-Nishtha/UAV-Flight-ML/blob/main/src/prepare_datasets.py) 的 Git blob 为 `02d7da6e6ef046d9c10c703e60f30a6ec2434655`，需要取得 CMU 原始逐帧 `flights.zip` 和 `parameters.csv` 后复算、核对 license/署名和原始文件 SHA-256。**当前 raw_flight_files_acquired 仍为 0；D1–D5 全部 BLOCKED。**
+
+审计后的 CI 需有**真正的失败变异对照**：在临时目录把 `flight_calibration_complete` 强行改成 `true`，独立执行原始 `test_01_no_false_calibration`，只有断言真实失败时才算检测器有牙；不能仅比较两个布尔值便自称 RED。

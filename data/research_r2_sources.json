@@ -10,7 +10,7 @@
       "license": "CC BY 4.0",
       "airframe": "DJI Matrice 100",
       "reported_flights": 209,
-      "download": "landing_page_accessible; archive_not_materialized",
+      "download": "indexed public landing page, but direct source ZIP/CSV not acquired (access blocked in audit environment)",
       "sha256": null,
       "usable_for_calibration": false,
       "note": "M100 only; cannot validate FlyCart 30/ARK40; prior KiltHub historical 403 remains unchanged"
@@ -44,6 +44,22 @@
       "sha256": null,
       "usable_for_calibration": false,
       "note": "3968.8 Wh nominal / 16 km named condition = 248.05 Wh/km, derivative not independent flight measurement"
+    },
+    {
+      "id": "secondary_m100_flightlevel",
+      "url": "https://github.com/Noice-Nishtha/UAV-Flight-ML/blob/main/data/processed/flight_level_master.csv",
+      "license": "third-party redistribution conditions not independently audited; upstream CMU data CC BY 4.0",
+      "airframe": "DJI Matrice 100 (third-party transformation)",
+      "download": "209 flight-level rows inspected via GitHub connector; raw time-series not acquired",
+      "sha256": null,
+      "git_blob_sha": "ebfaaa262323c0d65380871dc99f32438cb83b9e",
+      "rows_observed": 209,
+      "unique_flights": 209,
+      "zero_distance_rows": 9,
+      "calculated_total_dist_m": 115325.420715627,
+      "paper_approx_total_dist_m": 65000,
+      "usable_for_calibration": false,
+      "note": "Third-party aggregation, not raw sensor time series. Git blob SHA-1 is NOT original content SHA-256. 115.3km summed derived distance versus paper ~65km requires distance-definition reconciliation before any external validation."
     }
   ],
   "models": [

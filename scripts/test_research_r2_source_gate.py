@@ -13,7 +13,7 @@ class ResearchR2SourceGate(unittest.TestCase):
         self.assertFalse(self.s["flight_calibration_complete"])
         self.assertEqual(self.s["raw_flight_files_acquired"], 0)
     def test_02_no_external_source_masquerades_as_raw(self):
-        self.assertEqual(len(self.s["sources"]), 4)
+        self.assertEqual(len(self.s["sources"]), 5)
         for src in self.s["sources"]:
             with self.subTest(src=src["id"]):
                 self.assertTrue(src["url"].startswith("https://"))
@@ -33,6 +33,16 @@ class ResearchR2SourceGate(unittest.TestCase):
         self.assertEqual(set(model), {"light_express","standard_cargo","heavy_cargo"})
         self.assertAlmostEqual(model["heavy_cargo"]["full_load_wh_km"], 248.50)
         self.assertIn("not independently validated", model["heavy_cargo"]["evidence"])
+    def test_07_secondary_aggregation_cannot_clear_raw_file_gate(self):
+        s = next(x for x in self.s["sources"] if x["id"] == "secondary_m100_flightlevel")
+        self.assertFalse(s["usable_for_calibration"])
+        self.assertIsNone(s["sha256"])
+        self.assertEqual(s["rows_observed"], 209)
+        self.assertEqual(s["unique_flights"], 209)
+        self.assertEqual(s["zero_distance_rows"], 9)
+        self.assertGreater(s["calculated_total_dist_m"], s["paper_approx_total_dist_m"] * 1.5)
+        self.assertEqual(self.s["raw_flight_files_acquired"], 0)
+
     def test_06_document_has_hard_stops(self):
         d = (ROOT / "docs/RESEARCH_R2_SOURCE_FEASIBILITY.md").read_text(encoding="utf-8")
         for marker in ("D1 文件","BLOCKED","SHA-256","电压","电流","时间积分","MAE","RMSE","按整次飞行","E0/E1","禁止"):
