@@ -2433,7 +2433,7 @@ class Environment:
 
         return True
 
-def record_external_cargo_handoff(
+    def record_external_cargo_handoff(
             self, drone_id, *, event_id, actor_id, evidence_ref,
             receipt_position, received_weight_kg, disposition):
         """B5b opt-in, *operator-attested* physical return to ORIGINAL source.
