@@ -25,6 +25,13 @@ B4D_HEAD = "47e64cac22dc5d1476f52a47b3ffd4f3d5ef9002"
 B4E_HEAD = "cea965f9b66e26473d4d1190a3f70c6cc8b7c61f"
 B5A_HEAD = "ba3eac83151928a080d6c2abac40bdc4b245c704"
 B5B_HEAD = "ac3660154e4729f9a56561ca312dc0cd94846f8b"
+B5C_HEAD = "4f5fc4639fe4b45296b6720454e5d946249bdcc1"
+B5D_ALLOWED_CHANGES = {
+    ".github/workflows/p2-4b-b5d-custody-journal.yml",
+    "console/custody_journal.py",
+    "scripts/p2_4a_state_contract_test.py",
+    "scripts/test_p2_4b_b5d_custody_journal_red.py",
+}
 B5C_ALLOWED_CHANGES = {
     ".github/workflows/p2-4b-b5c-mixed-chain-custody.yml",
     "frontend/environment.py",
@@ -393,11 +400,21 @@ class RecoveryStateContract(unittest.TestCase):
         try:
             names = subprocess.check_output(
                 ["git", "-C", str(ROOT), "-c", "core.quotePath=false",
-                 "diff", "--name-only", B5B_HEAD + "...HEAD"], text=True).splitlines()
+                 "diff", "--name-only", B5B_HEAD + "..." + B5C_HEAD], text=True).splitlines()
         except (subprocess.CalledProcessError, FileNotFoundError) as exc:
             self.fail("[B5C_GIT_DIFF_NOT_VERIFIED] " + repr(exc))
         self.assertEqual(set(names), B5C_ALLOWED_CHANGES,
                          "[B5C_SCOPE_VIOLATION] exact four-file B5c experimental boundary")
+
+    def test_23_only_b5d_durable_journal_scope_changed(self):
+        try:
+            names = subprocess.check_output(
+                ["git", "-C", str(ROOT), "-c", "core.quotePath=false",
+                 "diff", "--name-only", B5C_HEAD + "...HEAD"], text=True).splitlines()
+        except (subprocess.CalledProcessError, FileNotFoundError) as exc:
+            self.fail("[B5D_GIT_DIFF_NOT_VERIFIED] " + repr(exc))
+        self.assertEqual(set(names), B5D_ALLOWED_CHANGES,
+                         "[B5D_SCOPE_VIOLATION] exact four-file isolated journal boundary")
 
 
 if __name__ == "__main__":
