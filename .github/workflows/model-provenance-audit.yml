@@ -1,3 +1,8 @@
+# RED #38131843709: 5 tests, 3 FAIL (flag values, defaults, enabled module hashes).
+# Dedicated GREEN #38132075963 at b6e49f2093d020ef6131fa6ff8e17e9f61087d38:
+# 5 model audit + 26 runner/grid + 27 history/scope + 11 frozen E0 = 69 PASS.
+# Frozen E0 mileage definition remains historically incomparable.
+# No physical flight calibration or production/frozen result changes.
 name: Experimental model provenance audit RED
 on:
   push:
