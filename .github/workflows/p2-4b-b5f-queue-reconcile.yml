@@ -1,3 +1,8 @@
+# B5f RED: https://github.com/159357yangjun/SwarmBalance/actions/runs/38121381011 (missing bridge).
+# First implementation: https://github.com/159357yangjun/SwarmBalance/actions/runs/38121527445 (52 tests, 1 FAIL duplicate event).
+# Dedicated strict GREEN: https://github.com/159357yangjun/SwarmBalance/actions/runs/38121625210
+# d89ce7369eedbe92f6c49841ca015e41a64fc499: 52 + 153 + 11 = 216 PASS.
+# Frozen E0 old empty-mileage definition is not bit-identical; no claim of certified rescue.
 name: P2.4b-B5f durable queue reconcile RED
 on:
   push:
