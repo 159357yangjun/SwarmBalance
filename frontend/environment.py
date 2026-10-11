@@ -2563,7 +2563,7 @@ class Environment:
         return {"drone_idx": idx, "changed": True,
                 "requeued_task_ids": [task_id], "custody_event": dict(record)}
 
-def record_external_manifest_handoff(self, drone_id, *, receipts):
+    def record_external_manifest_handoff(self, drone_id, *, receipts):
         """B5c experimental *operator-attested* atomic mixed-manifest release.
 
         Only after valid original-source receipts for ALL actually picked items,
