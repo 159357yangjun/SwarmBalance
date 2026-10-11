@@ -526,6 +526,10 @@ class Environment:
         out_of_service = bool(out_of_service)
 
         if not out_of_service:
+            # B5a: once custody was preserved, a simple operational reset
+            # cannot pretend an external cargo handoff has happened.
+            if getattr(drone, 'cargo_custody_hold_reason', None):
+                raise ValueError("[B5A_EXTERNAL_HANDOFF_REQUIRED] cargo still on failed drone")
             if not getattr(drone, 'out_of_service', False):
                 return {'drone_idx': idx, 'drone_id': str(drone.drone_id), 'requeued_task_ids': [], 'changed': False}
             drone.out_of_service = False
@@ -549,6 +553,49 @@ class Environment:
 
         if getattr(drone, 'out_of_service', False):
             return {'drone_idx': idx, 'drone_id': str(drone.drone_id), 'requeued_task_ids': [], 'changed': False}
+
+        # B5a opt-in only: a witnessed source service (load_time) or real
+        # onboard mass means this is a custody incident, NOT a fresh order.
+        # Keep every assignment on this drone pending an independently audited
+        # external handoff; do not requeue even unpicked legs of the same chain
+        # while physical cargo is unresolved. Legacy default stays untouched.
+        if os.environ.get("SWARM_BALANCE_B5A_CARGO_CUSTODY_GATE") == "1":
+            assigned = self.drone_assignments.get(idx)
+            items = (assigned if isinstance(assigned, list)
+                     else [assigned] if assigned is not None else [])
+            picked = any(isinstance(a, dict) and a.get("load_time") is not None
+                         for a in items)
+            carrying = float(getattr(drone, "onboard_load_kg", 0.0)) > 1e-9
+            if picked or carrying:
+                # Reclaim physical nest resources if failure happens during a
+                # queue or swap. NEVER award battery energy on a failed swap.
+                if (getattr(drone, "is_charging", False)
+                        or getattr(drone, "_pending_release", False)):
+                    st = self._station_by_id(getattr(drone, "charging_station_id", None))
+                    if st is not None:
+                        st.vacate()
+                for q in self._nest_waiting.values():
+                    while idx in q:
+                        q.remove(idx)
+                drone.awaiting_berth = False
+                drone.berth_station_id = None
+                drone.awaiting_since = None
+                drone.is_charging = False
+                drone.swap_remaining_steps = 0.0
+                drone.charging_station_id = None
+                drone._pending_release = False
+                drone.out_of_service = True
+                drone.out_of_service_reason = str(reason or '人工故障注入')
+                drone.cargo_custody_hold_reason = "picked_cargo_requires_external_handoff"
+                drone.is_free = False
+                self._prev_free_status[idx] = False
+                return {
+                    'drone_idx': idx, 'drone_id': str(drone.drone_id),
+                    'requeued_task_ids': [], 'changed': True,
+                    'cargo_custody_held': True,
+                    'held_task_ids': [str(a['task'].task_id) for a in items
+                                      if isinstance(a, dict) and a.get('task') is not None],
+                }
 
         # 若正在占用换电泊位，故障注入时立即释放，避免机巢资源永久泄漏。
         if getattr(drone, 'is_charging', False):
