@@ -180,9 +180,7 @@ def write_manifest(
     # prevent equal-seed results hiding a different Wh model.
     requested_energy_mode = os.environ.get("SWARM_BALANCE_ENERGY_ACCOUNTING")
     energy_policy = {
-        "requested": (requested_energy_mode
-                      if requested_energy_mode in (None, "assigned", "onboard")
-                      else "unrecognized"),
+        "requested": requested_energy_mode,
         "effective": "onboard" if requested_energy_mode == "onboard" else "assigned",
         "fallback_to_assigned": requested_energy_mode not in (None, "assigned", "onboard"),
     }
