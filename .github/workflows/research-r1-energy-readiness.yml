@@ -1,3 +1,8 @@
+# True R1 RED #38140710083: 18 tests, 4 ERROR (missing effective billing provenance).
+# Intermediate #38140848995: 18 tests PASS; moving historical PR36 scope caught R1 new files.
+# Latest dedicated GREEN #38140967990 at 59e0ec4222482dbcb3f89719708ee7b24893e249:
+# 18 real R1 and inherited P1 + 64 B1/PR36/scope + 11 frozen E0 = 93 PASS.
+# All model coefficients and frozen datasets unchanged; historical E0 mileage caveat retained.
 name: Research R1 energy-unit provenance RED
 on:
   push:
