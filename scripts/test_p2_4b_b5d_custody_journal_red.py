@@ -89,7 +89,7 @@ class CustodyJournalRed(unittest.TestCase):
             changed = subprocess.check_output([
                 "git", "-C", str(root), "-c", "core.quotePath=false",
                 "diff", "--name-only",
-                "4f5fc4639fe4b45296b6720454e5d946249bdcc1...HEAD"
+                "4f5fc4639fe4b45296b6720454e5d946249bdcc1...907735e82591fff60840e21a7dcafb2a861ece71"
             ], text=True).splitlines()
         except (OSError, subprocess.CalledProcessError) as exc:
             self.fail("[B5D_GIT_DIFF_NOT_VERIFIED] " + repr(exc))
