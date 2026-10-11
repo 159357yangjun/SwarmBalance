@@ -82,5 +82,23 @@ class CustodyJournalRed(unittest.TestCase):
         self.assertEqual(len(fresh.all_events()), 2)
 
 
+    def test_B5d_07_exact_isolated_three_file_scope(self):
+        import subprocess
+        root = Path(__file__).resolve().parents[1]
+        try:
+            changed = subprocess.check_output([
+                "git", "-C", str(root), "-c", "core.quotePath=false",
+                "diff", "--name-only",
+                "4f5fc4639fe4b45296b6720454e5d946249bdcc1...HEAD"
+            ], text=True).splitlines()
+        except (OSError, subprocess.CalledProcessError) as exc:
+            self.fail("[B5D_GIT_DIFF_NOT_VERIFIED] " + repr(exc))
+        self.assertEqual(set(changed), {
+            ".github/workflows/p2-4b-b5d-custody-journal.yml",
+            "console/custody_journal.py",
+            "scripts/test_p2_4b_b5d_custody_journal_red.py",
+        }, "[B5D_SCOPE_VIOLATION] exact isolated journal boundary")
+
+
 if __name__ == "__main__":
     unittest.main()
