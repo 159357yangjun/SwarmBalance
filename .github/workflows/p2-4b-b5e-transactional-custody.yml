@@ -1,3 +1,8 @@
+# RED: https://github.com/159357yangjun/SwarmBalance/actions/runs/38119768818 (missing transaction module)
+# First module check: #38119852479 new tests PASS, B5d moving historical scope failed.
+# Latest strict GREEN: https://github.com/159357yangjun/SwarmBalance/actions/runs/38119920566
+# HEAD b10498bacfc0dd2017ea02af8f37b05285320f30: B5e, inherited, E0 SUCCESS.
+# No transactional Environment/queue integration or real-world rescue verification.
 name: P2.4b-B5e transactional custody RED
 on:
   push:
