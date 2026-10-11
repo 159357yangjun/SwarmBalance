@@ -1,3 +1,9 @@
+# B5c real RED: https://github.com/159357yangjun/SwarmBalance/actions/runs/38108766820
+# RED 49 tests / 13 ERROR: missing record_external_manifest_handoff API.
+# Strict GREEN: https://github.com/159357yangjun/SwarmBalance/actions/runs/38108899615
+# HEAD a46b7cf905049219b2bf8d18ae406e4cda668266, 49+642+11=702 PASS.
+# E0 empty-mileage definition remains historically incomparable.
+# Operator attestation is not physical rescue/receipt authentication.
 name: P2.4b-B5c mixed-chain custody RED
 on:
   push:
