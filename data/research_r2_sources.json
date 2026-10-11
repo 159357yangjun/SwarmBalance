@@ -1,0 +1,82 @@
+{
+  "schema_version": 1,
+  "phase": "R2-source-audit-only",
+  "flight_calibration_complete": false,
+  "raw_flight_files_acquired": 0,
+  "sources": [
+    {
+      "id": "cmu_m100",
+      "url": "https://kilthub.cmu.edu/articles/dataset/Data_Collected_with_Package_Delivery_Quadcopter_Drone/12683453",
+      "license": "CC BY 4.0",
+      "airframe": "DJI Matrice 100",
+      "reported_flights": 209,
+      "download": "indexed public landing page, but direct source ZIP/CSV not acquired (access blocked in audit environment)",
+      "sha256": null,
+      "usable_for_calibration": false,
+      "note": "M100 only; cannot validate FlyCart 30/ARK40; prior KiltHub historical 403 remains unchanged"
+    },
+    {
+      "id": "px4_public",
+      "url": "https://docs.px4.io/main/en/dev_log/flight_log_analysis_statistical",
+      "license": "CC-BY PX4",
+      "airframe": "mixed",
+      "download": "official_catalog_only; no flight curated",
+      "sha256": null,
+      "usable_for_calibration": false,
+      "note": "metadata for airframe, payload, current/voltage, sensor quality needs individual review"
+    },
+    {
+      "id": "asi_manifest",
+      "url": "https://github.com/159357yangjun/SwarmBalance/blob/b23a8e4362260acb6a0df330fbd8665581d0e567/data/raw/px4_logs/README.md",
+      "license": "CC BY-ND 4.0",
+      "airframe": "undetermined",
+      "download": "manifests only; raw ULog unverified",
+      "sha256": null,
+      "usable_for_calibration": false,
+      "note": "ASI hover robustness package is not PX4 public log catalog or a controlled delivery energy dataset"
+    },
+    {
+      "id": "flycart30_specs",
+      "url": "https://www.dji.com/flycart-30/specs",
+      "license": "vendor published specifications, not a telemetry dataset license",
+      "airframe": "DJI FlyCart 30",
+      "download": "specification page only",
+      "sha256": null,
+      "usable_for_calibration": false,
+      "note": "3968.8 Wh nominal / 16 km named condition = 248.05 Wh/km, derivative not independent flight measurement"
+    },
+    {
+      "id": "secondary_m100_flightlevel",
+      "url": "https://github.com/Noice-Nishtha/UAV-Flight-ML/blob/main/data/processed/flight_level_master.csv",
+      "license": "third-party redistribution conditions not independently audited; upstream CMU data CC BY 4.0",
+      "airframe": "DJI Matrice 100 (third-party transformation)",
+      "download": "209 flight-level rows inspected via GitHub connector; raw time-series not acquired",
+      "sha256": null,
+      "git_blob_sha": "ebfaaa262323c0d65380871dc99f32438cb83b9e",
+      "rows_observed": 209,
+      "unique_flights": 209,
+      "zero_distance_rows": 9,
+      "calculated_total_dist_m": 115325.420715627,
+      "paper_approx_total_dist_m": 65000,
+      "usable_for_calibration": false,
+      "note": "Third-party aggregation, not raw sensor time series. Git blob SHA-1 is NOT original content SHA-256. 115.3km summed derived distance versus paper ~65km requires distance-definition reconciliation before any external validation."
+    }
+  ],
+  "models": [
+    {
+      "name": "light_express",
+      "full_load_wh_km": 38.08,
+      "evidence": "scenario-only"
+    },
+    {
+      "name": "standard_cargo",
+      "full_load_wh_km": 79.8,
+      "evidence": "scenario-only"
+    },
+    {
+      "name": "heavy_cargo",
+      "full_load_wh_km": 248.5,
+      "evidence": "derived scenario anchored to DJI FlyCart 30; not independently validated"
+    }
+  ]
+}

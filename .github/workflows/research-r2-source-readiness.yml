@@ -1,0 +1,70 @@
+name: Research R2 source and calibration readiness
+
+on:
+  push:
+    branches: [research/r2-flight-data-source-feasibility-v1]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  r2-source-audit:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+      - name: Verify strict R2 four-file change scope and protected model files
+        shell: bash
+        run: |
+          python - <<'PY'
+          import subprocess
+          base="b23a8e4362260acb6a0df330fbd8665581d0e567"
+          expected={
+            ".github/workflows/research-r2-source-readiness.yml",
+            "data/research_r2_sources.json",
+            "docs/RESEARCH_R2_SOURCE_FEASIBILITY.md",
+            "scripts/test_research_r2_source_gate.py",
+          }
+          actual=set(subprocess.check_output(
+              ["git","-c","core.quotePath=false","diff","--name-only",base+"...HEAD"],text=True).splitlines())
+          assert actual==expected,(sorted(actual-expected),sorted(expected-actual))
+          print("[R2_SCOPE_PASS] exact four files; model/E0/E1/production unchanged")
+          PY
+      - name: R2 no-raw-data truthfulness and mandatory calibration admission gates
+        shell: bash
+        run: |
+          python -m unittest -v scripts.test_research_r2_source_gate
+      - name: Negative control - claimed calibration must fail audit
+        shell: bash
+        run: |
+          python - <<'PY'
+          import json, shutil, subprocess, sys, tempfile
+          from pathlib import Path
+          source = json.loads(Path("data/research_r2_sources.json").read_text(encoding="utf-8"))
+          assert source["flight_calibration_complete"] is False
+          with tempfile.TemporaryDirectory(prefix="r2_negative_") as directory:
+              root = Path(directory)
+              for folder in ("data", "docs", "scripts"):
+                  (root / folder).mkdir()
+              source["flight_calibration_complete"] = True
+              (root / "data/research_r2_sources.json").write_text(
+                  json.dumps(source), encoding="utf-8")
+              shutil.copy2("docs/RESEARCH_R2_SOURCE_FEASIBILITY.md",
+                           root / "docs/RESEARCH_R2_SOURCE_FEASIBILITY.md")
+              shutil.copy2("scripts/test_research_r2_source_gate.py",
+                           root / "scripts/test_research_r2_source_gate.py")
+              cmd = [sys.executable, "-m", "unittest", "-v",
+                     "scripts.test_research_r2_source_gate.ResearchR2SourceGate.test_01_no_false_calibration"]
+              result = subprocess.run(cmd, cwd=root, text=True, capture_output=True)
+              assert result.returncode != 0, "R2 fake calibrated status escaped gate"
+              assert "FAIL" in result.stderr and "AssertionError" in result.stderr, (
+                  result.stdout, result.stderr)
+              print("[R2_TRUE_NEGATIVE_CONTROL] mutation calibration=true -> unittest assertion FAIL, as required")
+          print("[R2_NEGATIVE_CONTROL] original source registry left unchanged")
+          PY
