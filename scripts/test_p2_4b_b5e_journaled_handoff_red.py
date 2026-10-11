@@ -151,6 +151,57 @@ class B5eJournaledHandoffRed(B5cMixedChainCustodyRed):
         self.assertEqual(self._snapshot(d, env, [t1, t2]), snap)
 
 
+    @patch.dict(os.environ, FLAGS)
+    def test_B5e_08_commit_fsync_failure_is_in_doubt_not_replayed(self):
+        d, env, t1, t2, _ = self._mixed()
+        log, Coordinator = self._journal()
+        proof = self._receipt_for(t1)
+        with patch.object(log, "commit", side_effect=OSError("commit fsync failed")):
+            with self.assertRaisesRegex(RuntimeError, "B5E_COMMIT_UNCERTAIN"):
+                Coordinator(env, log).handoff(0, [proof])
+        self.assertEqual(len(env.task_generator.unassigned_tasks), 2)
+        from console.custody_transaction import CustodyTransactionLog
+        reopened = CustodyTransactionLog(log.path)
+        self.assertEqual(len(reopened.in_doubt()), 1)
+        with self.assertRaisesRegex(ValueError, "B5E_IN_DOUBT"):
+            Coordinator(env, reopened).handoff(0, [proof])
+        self.assertEqual(len(env.task_generator.unassigned_tasks), 2,
+                         "[B5E_IN_DOUBT_REPLAY_DUPLICATED_QUEUE]")
+
+    @patch.dict(os.environ, FLAGS)
+    def test_B5e_09_corrupt_wal_blocks_replay_without_state_mutation(self):
+        d, env, t1, t2, _ = self._mixed()
+        log, Coordinator = self._journal()
+        proof = self._receipt_for(t1)
+        snap = self._snapshot(d, env, [t1, t2])
+        def crash():
+            raise SystemExit("stop after durable prepare")
+        with self.assertRaises(SystemExit):
+            Coordinator(env, log).handoff(0, [proof], after_prepare=crash)
+        with log.path.open("ab") as handle:
+            handle.write(b'{"incomplete":')
+        from console.custody_transaction import CustodyTransactionLog
+        with self.assertRaisesRegex(ValueError, "B5E_JOURNAL_CORRUPT"):
+            Coordinator(env, CustodyTransactionLog(log.path)).handoff(0, [proof])
+        self.assertEqual(self._snapshot(d, env, [t1, t2]), snap)
+
+    @patch.dict(os.environ, FLAGS)
+    def test_B5e_10_stale_new_session_cannot_assume_durable_commit_replayed(self):
+        d, env, t1, t2, _ = self._mixed()
+        log, Coordinator = self._journal()
+        proof = self._receipt_for(t1)
+        Coordinator(env, log).handoff(0, [proof])
+        # A newly created simulation object still has faulted cargo onboard.
+        # Persisted COMMIT is not an Environment checkpoint.
+        d2, env2, tt1, tt2, _ = self._mixed()
+        snap = self._snapshot(d2, env2, [tt1, tt2])
+        from console.custody_transaction import CustodyTransactionLog
+        with self.assertRaisesRegex(ValueError, "B5E_RECONCILIATION_REQUIRED"):
+            Coordinator(env2, CustodyTransactionLog(log.path)).handoff(
+                0, [self._receipt_for(tt1)])
+        self.assertEqual(self._snapshot(d2, env2, [tt1, tt2]), snap)
+
+
 if __name__ == "__main__":
     import unittest
     unittest.main()
