@@ -46,7 +46,10 @@ SKIP_DIRS = {".git", "__pycache__", "node_modules", ".venv310", ".idea",
 # This P1 test reads nameplate full_load_range_km to check Wh/m -> Wh/km;
 # simulation still never consumes these entries. Keep the three explicit
 # ALLOWED_UNREAD explanations until production genuinely reads the key.
-AUDIT_ONLY_SOURCE_FILES = {"scripts/test_p1_load_energy_ledger_audit.py"}
+AUDIT_ONLY_SOURCE_FILES = {
+    "scripts/test_p1_load_energy_ledger_audit.py",
+    "scripts/test_research_r1_energy_units_red.py",
+}
 
 # 允许"代码里查不到字面量"的键：必须写 reason，且 reason 里要点明真正的读取位置。
 # 结构：{dotted_path_or_key: reason}
@@ -149,6 +152,11 @@ class ConfigKeyCoverageTests(unittest.TestCase):
         )
         # If the excluded audit were counted as production, these three
         # nameplate-only fields would falsely invalidate ALLOWED_UNREAD.
+        # R1 also checks the same display-only key; audit tests are not production readers.
+        self.assertTrue(
+            (ROOT / "scripts" / "test_research_r1_energy_units_red.py").is_file(),
+            "[CFG_AUDIT_SCOPE] explicitly excluded R1 audit test is missing",
+        )
         # A real production reader will still be found by the scanner.
         self.assertNotIn("full_load_range_km", self.literals,
                          "[CFG_AUDIT_SCOPE] nameplate key unexpectedly referenced by production;"

@@ -30,6 +30,15 @@ B5D_HEAD = "907735e82591fff60840e21a7dcafb2a861ece71"
 B5E_HEAD = "d32f11137f26c18e3c7f4e0a5ee925cd7d561fe3"
 B5F_HEAD = "628f148e54fa3530e07c84e685f6ba4d7f27eece"
 B5G_HEAD = "121d94ab208869e417a89b2844563a26b8e7e101"
+AUDIT_HEAD = "b23a8e4362260acb6a0df330fbd8665581d0e567"
+R1_ALLOWED_CHANGES = {
+    "console/test_config_keys_coverage.py",
+    ".github/workflows/research-r1-energy-readiness.yml",
+    "docs/RESEARCH_R1_ENERGY_UNITS_READINESS.md",
+    "experiments/reproducibility.py",
+    "scripts/p2_4a_state_contract_test.py",
+    "scripts/test_research_r1_energy_units_red.py",
+}
 AUDIT_ALLOWED_CHANGES = {
     "README.md",
     ".github/workflows/model-provenance-audit.yml",
@@ -486,11 +495,21 @@ class RecoveryStateContract(unittest.TestCase):
         try:
             names = subprocess.check_output(
                 ["git", "-C", str(ROOT), "-c", "core.quotePath=false",
-                 "diff", "--name-only", B5G_HEAD + "...HEAD"], text=True).splitlines()
+                 "diff", "--name-only", B5G_HEAD + "..." + AUDIT_HEAD], text=True).splitlines()
         except (subprocess.CalledProcessError, FileNotFoundError) as exc:
             self.fail("[AUD_GIT_DIFF_NOT_VERIFIED] " + repr(exc))
         self.assertEqual(set(names), AUDIT_ALLOWED_CHANGES,
                          "[AUD_SCOPE_VIOLATION] exact six-file research audit boundary")
+
+    def test_28_only_r1_energy_units_and_provenance_scope_changed(self):
+        try:
+            names = subprocess.check_output(
+                ["git", "-C", str(ROOT), "-c", "core.quotePath=false",
+                 "diff", "--name-only", AUDIT_HEAD + "...HEAD"], text=True).splitlines()
+        except (subprocess.CalledProcessError, FileNotFoundError) as exc:
+            self.fail("[R1_GIT_DIFF_NOT_VERIFIED] " + repr(exc))
+        self.assertEqual(set(names), R1_ALLOWED_CHANGES,
+                         "[R1_SCOPE_VIOLATION] exact six-file R1 and console-corpus boundary")
 
 
 if __name__ == "__main__":

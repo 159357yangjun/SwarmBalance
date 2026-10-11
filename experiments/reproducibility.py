@@ -174,6 +174,17 @@ def write_manifest(
     if any(gates[name] == "1" for name in EXPERIMENT_GATE_FLAGS[:5]):
         listed += list(CUSTODY_AUDIT_SOURCES)
     source_hashes = _hash_sources(project_root, dict.fromkeys(listed))
+    # Real Drone.quote_flight_energy_wh() uses *onboard* only for the exact
+    # string "onboard"; empty, unset and any other value use assigned load.
+    # Record both the requested setting and effective calculation mode to
+    # prevent equal-seed results hiding a different Wh model.
+    requested_energy_mode = os.environ.get("SWARM_BALANCE_ENERGY_ACCOUNTING")
+    energy_policy = {
+        "requested": requested_energy_mode,
+        "effective": "onboard" if requested_energy_mode == "onboard" else "assigned",
+        "fallback_to_assigned": requested_energy_mode not in (None, "assigned", "onboard"),
+    }
+
 
     manifest: Dict[str, Any] = {
         "schema_version": 2,
@@ -200,6 +211,7 @@ def write_manifest(
             "algorithm_config": {"path": _display_path(algorithm_config, project_root), "sha256": sha256_file(algorithm_config)},
             "osm": {"path": _display_path(osm_path, project_root), "sha256": sha256_file(osm_path)},
         },
+        "energy_accounting_policy": energy_policy,
         "environment_flags": {
             "SWARM_BALANCE_SIM_CONFIG": os.environ.get("SWARM_BALANCE_SIM_CONFIG"),
             **gates,
