@@ -1,0 +1,38 @@
+name: P2.4b-B5d custody journal RED
+on:
+  push:
+    branches: [p2-4b-b5d-custody-journal-red-v1]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  custody-journal:
+    runs-on: windows-2022
+    timeout-minutes: 45
+    env:
+      PYTHONIOENCODING: utf-8
+      PYTHONUTF8: "1"
+      PYTHONDONTWRITEBYTECODE: "1"
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+          cache: pip
+          cache-dependency-path: requirements.txt
+      - name: Install pinned dependencies
+        run: |
+          python -m venv .venv310
+          .\.venv310\Scripts\python.exe -m pip install "pip==23.3.2" numpy==1.26.4
+          .\.venv310\Scripts\python.exe -m pip install -r requirements.txt
+      - name: B5d RED durable journal contract
+        run: |
+          .\.venv310\Scripts\python.exe -m unittest -v scripts.test_p2_4b_b5d_custody_journal_red
+      - name: Inherited B5c custody safety
+        run: |
+          .\.venv310\Scripts\python.exe -m unittest -v scripts.test_p2_4b_b5c_mixed_chain_custody_red scripts.test_p2_4b_b5b_external_custody_red scripts.test_p2_4b_b5a_cargo_custody_red
