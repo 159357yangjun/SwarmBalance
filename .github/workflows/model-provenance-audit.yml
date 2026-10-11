@@ -1,3 +1,9 @@
+# Audit RED #38131843709: 5 tests, 3 FAIL; flags/defaults/custody hashes absent.
+# First isolated GREEN #38132075963: 69 tests PASS before README count gate.
+# Full-suite README census RED #38132236462: old experiments 3/32, measured 4/37.
+# Latest scoped GREEN #38132392648 at f5b1d7a85a28903b31ea1480fbd520497ec1ebc9:
+# 5 audit + 26 runner/grid + 27 historical/scope + 11 frozen E0 = 69 PASS.
+# Preset data and flight calibration unchanged; E0 mileage caveat preserved.
 # RED #38131843709: 5 tests, 3 FAIL (flag values, defaults, enabled module hashes).
 # Dedicated GREEN #38132075963 at b6e49f2093d020ef6131fa6ff8e17e9f61087d38:
 # 5 model audit + 26 runner/grid + 27 history/scope + 11 frozen E0 = 69 PASS.
@@ -41,7 +47,7 @@ jobs:
       - name: Existing runner and grid regression
         run: |
           .\.venv310\Scripts\python.exe -m unittest -v experiments.test_runner experiments.test_grid
-      - name: Immutable B5g and exact audit five-file scope
+      - name: Immutable B5g and exact audit six-file scope
         run: |
           .\\.venv310\\Scripts\\python.exe -m unittest -v scripts.p2_4a_state_contract_test
       - name: Frozen E0 controls all experimental gates off
