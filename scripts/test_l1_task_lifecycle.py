@@ -112,6 +112,72 @@ class L1TaskLifecycleTests(unittest.TestCase):
         self.assertAlmostEqual(float(drone.onboard_load_kg), 0.0, places=6)
         self.assertEqual(env.completed_task_log[-1]["task"], task)
 
+    def test_04_duplicate_completed_task_cannot_increment_counter(self):
+        env = self.new_world()
+        idx, task = self.select_assignable(env)
+        task.update_status("completed")
+        before = env.total_completed_tasks
+        accepted = env._record_task_completion(idx, {
+            "task": task, "assigned_time": 0, "load_time": 1,
+        })
+        self.assertFalse(accepted, "[L1_DUPLICATE_COMPLETION] replay accepted")
+        self.assertEqual(env.total_completed_tasks, before)
+
+    def test_05_destination_without_pickup_is_not_delivery(self):
+        env = self.new_world()
+        idx, task = self.select_assignable(env)
+        env.step({idx: [task.task_id]})
+        drone = env.drones[idx]
+        assignments = env.drone_assignments[idx]
+        if isinstance(assignments, dict):
+            assignments = [assignments]
+        a = next(row for row in assignments if row["task"] is task)
+        a["load_time"] = None
+        before = env.total_completed_tasks
+        # Only simulate a corrupted dest service event. No source was consumed.
+        # Execute Environment.step, rather than a hand-written duplicate parser.
+        drone.consumed_waypoints_this_step = []
+        drone.update = lambda *args, **kwargs: (
+            drone.consumed_waypoints_this_step.append(
+                (task.destination[0], task.destination[1], "dest")))
+        env.step({})
+        self.assertEqual(env.total_completed_tasks, before)
+        self.assertEqual(task.status, "assigned")
+        self.assertTrue(env.drone_assignments.get(idx))
+        self.assertEqual(float(drone.onboard_load_kg), 0.0)
+
+    def test_06_orphan_with_picked_cargo_is_held(self):
+        env = self.new_world()
+        idx, _ = self.select_assignable(env)
+        drone = env.drones[idx]
+        pos = tuple(drone.get_position())
+        destination = next(
+            ((pos[0] + dx, pos[1] + dy)
+             for dx, dy in ((3.0, 0.0), (-3.0, 0.0), (0.0, 3.0), (0.0, -3.0))
+             if env.is_path_clear(pos, (pos[0] + dx, pos[1] + dy))),
+            None)
+        self.assertIsNotNone(destination)
+        task = self.Task("l1_cargo_guard", 0.5, pos, destination, generation_time=0)
+        env.task_generator.unassigned_tasks.append(task)
+        env.total_generated_tasks += 1
+        env.step({idx: [task.task_id]})
+        self.assertEqual(task.status, "in_progress")
+        onboard = float(drone.onboard_load_kg)
+        self.assertAlmostEqual(onboard, 0.5, places=6)
+        before = env.total_completed_tasks
+        drone.scheduled_position = []
+        drone.consumed_waypoints_this_step = []
+        drone.is_free = True
+        env._prev_free_status[idx] = False
+        env.step({})
+        self.assertEqual(env.total_completed_tasks, before)
+        self.assertEqual(task.status, "in_progress")
+        self.assertFalse(drone.is_free)
+        self.assertAlmostEqual(float(drone.onboard_load_kg), onboard, places=6)
+        self.assertTrue(env.drone_assignments.get(idx))
+        self.assertGreaterEqual(float(drone.current_load), onboard)
+
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
