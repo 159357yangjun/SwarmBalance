@@ -1451,9 +1451,13 @@ class Environment:
                             # 航线按任务顺序装配，第 k 个 dest 服务航点对应第 k 条未送达 assignment。
                             if assignments:
                                 assignment = assignments[0]
-                                if not self._record_task_completion(i, assignment):
-                                    # Destination label alone cannot override
-                                    # missing pickup or duplicate completion.
+                                completed_before = self.total_completed_tasks
+                                # Keep a standalone call: the C1 independent
+                                # observer attributes it to a consumed dest
+                                # service waypoint, not to a free transition.
+                                self._record_task_completion(i, assignment)
+                                if self.total_completed_tasks == completed_before:
+                                    # A missing pickup or replay is not delivery.
                                     continue
                                 # 送达即卸货：此前 current_load 只在整条航线跑完时
                                 # 才清零，导致在途机永远"满载"、任务链被载重检查锁死。
@@ -1469,7 +1473,9 @@ class Environment:
                                     0, int(self.drone_chain_len.get(i, 0)) - 1)
                                 assignments.remove(assignment)
                         elif isinstance(assignments, dict):
-                            if not self._record_task_completion(i, assignments):
+                            completed_before = self.total_completed_tasks
+                            self._record_task_completion(i, assignments)
+                            if self.total_completed_tasks == completed_before:
                                 continue
                             drone.current_load = max(
                                 0.0,
