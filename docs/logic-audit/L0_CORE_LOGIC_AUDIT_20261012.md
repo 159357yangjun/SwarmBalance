@@ -87,3 +87,15 @@ L0 不决定新状态枚举、不改历史 `timeout_rate` 定义、不修改 `En
 外部框架：NASA-STD-7009B（Verification/Validation 与使用范围）、ODD（概念模型）、SimPy 文档（事件同刻确定顺序、资源容量）。详见 PR #39 的文献链接。
 
 **当前裁决（代码审计）：最优先隔离并修复 L0-C1/C2，其次重新定义 L0-M1 的公开指标口径；在这些门通过前，不用仿真完成率得出“某调度算法更接近真实”的结论。**
+
+
+## 八、L0 实际执行证据（完成后补录；不得混成自然轨迹）
+
+- **首轮代码 HEAD**：`8f4220ae4e52958a3bcee548d79456fbf26005d5`。GitHub Actions [#38209357798](https://github.com/159357yangjun/SwarmBalance/actions/runs/38209357798) 实际为 **2/2 Job completed/success**，但第二个 Job 的“成功”是**正确地抓到内部真实断言失败**，绝不意味着系统已修好。
+- 源码/范围门：`[L0_SCOPE_PASS]` 精确三个非生产文件；`[L0_SOURCE_AUDIT_CONFIRMED]` 给出源码行号：`assignment_status:1308`、`completion_counter:446`、`cleanup_guard:1475`、`timeout_conditional:1160`。
+- **动态现场**：`[L0_REAL_KERNEL_READY] 3.10.11`；先通过真实 `Environment.step({idx:[task_id]})` 合法接单，再人为撤销剩余航线/转为空闲，保留已接受分配。真实 `Environment.step({})` 后日志：`task_id="task_4"`、`drone_idx=0`、`before_completed=0`、`after_completed=1`、`task_status="assigned"`、`real_delivery_event_in_second_step=false`。
+- 硬断言在原环境真实执行后以 `AssertionError: [L0_CLEANUP_WITHOUT_DELIVERY]` 失败（CLI 退出码 1）；GitHub Job 只有在错误标记精准匹配且确认跑到故障注入现场时才打印 `[L0_TRUE_RED_CONFIRMED]`。**这是真 RED，不是缺依赖、超时、空执行或预先伪造的日志事件。**
+- **证据等级**：L0-C1 从“静态确认 A”升级为“故障注入执行确认 B”。仅证明代码面对该人为破坏的中间状态**可能虚假完成**，不证明常规 UI/故障 API 会自然产生该状态。L0-C2 的完成后仍 assigned 在同一运行例中直接被观察；其正常送达情况下的全链互证仍待 L1 建门。
+- L1 最先修复的不是篡改数字，而是明确**派单保留/取消/回收/送达**的统一状态转移：`is_free` **不能**作为 `DELIVERY_COMPLETED` 的充分条件。下一阶段须先写会真正失败的业务断言、修复后 GREEN，并在精确新 HEAD 完成继承回归与完整九 Job 验收。
+
+> 注：这段记录引用首轮实际运行 SHA；补录文档会产生新的 SHA。新 HEAD 的同一测试要重新验证，不能默认沿用旧运行结果。
