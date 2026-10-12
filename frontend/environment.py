@@ -422,10 +422,13 @@ class Environment:
     def _record_task_completion(self, drone_idx, assignment):
         """记录单个任务完成的统计数据"""
         completed_task = assignment['task']
+        # A service waypoint without a witnessed pickup is not a delivery.
+        # Refuse a replay/duplicate before modifying ANY counters or records.
+        if (assignment.get('load_time') is None
+                or completed_task.status not in ('assigned', 'in_progress')):
+            return False
         assigned_time = assignment.get('assigned_time', assignment.get('start_time', self.current_time))
-        load_time = assignment.get('load_time')
-        if load_time is None:
-            load_time = assigned_time
+        load_time = assignment['load_time']
         completion_time = self.current_time
         generation_time = completed_task.get_generation_time()
         if generation_time is None:
@@ -443,6 +446,9 @@ class Environment:
             delay = 0
 
         is_on_time = delay <= 0
+        # A legitimate destination-service event is the sole caller of this
+        # method. Keep Task.status and the aggregate completion ledger aligned.
+        completed_task.update_status("completed")
         self.total_completed_tasks += 1
         self.total_delay += float(delay)
         self.total_generation_to_assignment_wait += float(generation_to_assignment_wait)
@@ -488,6 +494,7 @@ class Environment:
                 expected_time, delay, is_on_time,
                 completed_task.get_priority(), completed_task.get_weight()
             )
+        return True
 
     def _priority_delay_weight(self, priority):
         try:
@@ -1432,6 +1439,7 @@ class Environment:
                             elif task_source != picked_source:
                                 break
                             assignment['load_time'] = self.current_time
+                            assignment['task'].update_status("in_progress")
                             drone.onboard_load_kg += float(assignment['task'].get_weight())
                 if len(popped) >= 3 and popped[2] == 'dest':
                     if i in self.drone_assignments:
@@ -1443,7 +1451,10 @@ class Environment:
                             # 航线按任务顺序装配，第 k 个 dest 服务航点对应第 k 条未送达 assignment。
                             if assignments:
                                 assignment = assignments[0]
-                                self._record_task_completion(i, assignment)
+                                if not self._record_task_completion(i, assignment):
+                                    # Destination label alone cannot override
+                                    # missing pickup or duplicate completion.
+                                    continue
                                 # 送达即卸货：此前 current_load 只在整条航线跑完时
                                 # 才清零，导致在途机永远"满载"、任务链被载重检查锁死。
                                 drone.current_load = max(
@@ -1458,7 +1469,8 @@ class Environment:
                                     0, int(self.drone_chain_len.get(i, 0)) - 1)
                                 assignments.remove(assignment)
                         elif isinstance(assignments, dict):
-                            self._record_task_completion(i, assignments)
+                            if not self._record_task_completion(i, assignments):
+                                continue
                             drone.current_load = max(
                                 0.0,
                                 float(drone.current_load)
@@ -1471,19 +1483,21 @@ class Environment:
                                 0, int(self.drone_chain_len.get(i, 0)) - 1)
                             del self.drone_assignments[i]
 
-            # is_free 转换兜底：无人机变为空闲时清理剩余分配记录
+            # An idle transition is NOT proof of delivery. Do not discard an
+            # unfinished manifest or invent a completion when a route vanishes
+            # (including charging diversions and fault-injected interruptions).
+            # Hold the drone until an explicit fault/recovery workflow handles
+            # outstanding custody; never silently reassign its manifest.
             if not self._prev_free_status.get(i, True) and drone.is_free:
-                if i in self.drone_assignments:
-                    assignments = self.drone_assignments[i]
-                    if isinstance(assignments, list):
-                        for assignment in list(assignments):
-                            self._record_task_completion(i, assignment)
-                            assignments.remove(assignment)
-                        if not assignments:
-                            del self.drone_assignments[i]
-                    elif isinstance(assignments, dict):
-                        self._record_task_completion(i, assignments)
-                        del self.drone_assignments[i]
+                remaining = self.drone_assignments.get(i)
+                if remaining:
+                    items = remaining if isinstance(remaining, list) else [remaining]
+                    drone.is_free = False
+                    drone.lifecycle_hold_reason = "unfinished_manifest_without_delivery"
+                    # Drone.update may clear the reservation when a route ends.
+                    # The manifest remains authoritative for outstanding load.
+                    reserved_kg = sum(float(a['task'].get_weight()) for a in items)
+                    drone.current_load = max(float(drone.current_load), reserved_kg)
 
         # 机巢泊位生命周期管理：释放泊位 + 动态优先级仲裁（创新点2）
         self._manage_berths()
