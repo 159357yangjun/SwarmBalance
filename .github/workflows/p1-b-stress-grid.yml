@@ -1,0 +1,131 @@
+name: P1-B frozen-arrival stress grid
+
+on:
+  pull_request:
+    branches: [ci-validation]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: p1-b-stress-${{ github.event.pull_request.head.ref }}
+  cancel-in-progress: true
+
+jobs:
+  calibrate:
+    if: ${{ github.head_ref == 'p1-b-stress-grid-v1' }}
+    name: P1.1 arrival intensity calibration (3 x 10)
+    runs-on: windows-2022
+    timeout-minutes: 45
+    env:
+      PYTHONIOENCODING: utf-8
+      PYTHONUTF8: "1"
+      PYTHONDONTWRITEBYTECODE: "1"
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+          cache: pip
+          cache-dependency-path: requirements.txt
+      - name: Parse the experiment before installing dependencies
+        run: python -m py_compile scripts/p1_b_stress_grid.py
+      - name: Install dependencies
+        run: |
+          python -m venv .venv310
+          .\.venv310\Scripts\python.exe -m pip install "pip==23.3.2" numpy==1.26.4
+          .\.venv310\Scripts\python.exe -m pip install -r requirements.txt
+      - name: Calibrate 3 separated arrival intensities with 10 fixed seeds
+        run: .\.venv310\Scripts\python.exe scripts/p1_b_stress_grid.py calibrate --root . --outdir "${{ runner.temp }}/p1b_calibration"
+      - name: Save frozen calibration and exact scenario configurations
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: p1b-calibration
+          path: ${{ runner.temp }}/p1b_calibration/
+          retention-days: 30
+          if-no-files-found: error
+
+  paired-grid:
+    if: ${{ github.head_ref == 'p1-b-stress-grid-v1' }}
+    name: P1.2 paired grid / ${{ matrix.profile }} / shard ${{ matrix.shard }}
+    needs: calibrate
+    runs-on: windows-2022
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        profile: [normal, elevated, high]
+        shard: [0, 1]
+    env:
+      PYTHONIOENCODING: utf-8
+      PYTHONUTF8: "1"
+      PYTHONDONTWRITEBYTECODE: "1"
+      PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+          cache: pip
+          cache-dependency-path: requirements.txt
+      - uses: actions/download-artifact@v4
+        with:
+          name: p1b-calibration
+          path: ${{ runner.temp }}/p1b_calibration
+      - name: Install Python 3.10 with pinned NumPy
+        run: |
+          python -m venv .venv310
+          .\.venv310\Scripts\python.exe -m pip install "pip==23.3.2" numpy==1.26.4
+          .\.venv310\Scripts\python.exe -m pip install -r requirements.txt
+      - name: Run assigned/onboard paired simulations on frozen common arrivals
+        run: |
+          .\.venv310\Scripts\python.exe scripts/p1_b_stress_grid.py pair --root . --outdir "${{ runner.temp }}/p1b_results" --profile "${{ matrix.profile }}" --shard ${{ matrix.shard }} --calibration "${{ runner.temp }}/p1b_calibration/calibration.json" --source-sha "$env:PR_HEAD_SHA"
+      - name: Preserve every seed, paired KPI, frozen tape, configuration hash
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: p1b-paired-${{ matrix.profile }}-${{ matrix.shard }}
+          path: ${{ runner.temp }}/p1b_results/
+          retention-days: 30
+          if-no-files-found: warn
+
+  report:
+    if: ${{ github.head_ref == 'p1-b-stress-grid-v1' }}
+    name: P1.2 verify 30 complete pairs and publish source evidence
+    needs: [calibrate, paired-grid]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    env:
+      PYTHONUTF8: "1"
+      PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: p1b-paired-*
+          merge-multiple: true
+          path: ${{ runner.temp }}/p1b_summary
+      - uses: actions/download-artifact@v4
+        with:
+          name: p1b-calibration
+          path: ${{ runner.temp }}/p1b_calibration
+      - name: Enforce 30 unique complete seed pairs and aggregate deltas
+        run: |
+          python scripts/p1_b_stress_grid.py aggregate --outdir "${{ runner.temp }}/p1b_summary" --calibration "${{ runner.temp }}/p1b_calibration/calibration.json" --source-sha "$PR_HEAD_SHA"
+      - name: Publish unmodified evidence, CSV and Markdown
+        uses: actions/upload-artifact@v4
+        with:
+          name: p1b-stress-30pair-report
+          path: ${{ runner.temp }}/p1b_summary/
+          retention-days: 30
+          if-no-files-found: error

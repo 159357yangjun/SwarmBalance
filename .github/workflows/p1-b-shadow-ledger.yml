@@ -1,0 +1,89 @@
+name: P1-B fixed-trajectory shadow billing
+
+on:
+  pull_request:
+    branches: [ci-validation]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: p1-b-shadow-${{ github.event.pull_request.head.ref }}
+  cancel-in-progress: true
+
+jobs:
+  shadow:
+    if: ${{ github.head_ref == 'p1-b-shadow-ledger-v1' }}
+    name: P1.4 observed leg shadow / ${{ matrix.profile }} / shard ${{ matrix.shard }}
+    runs-on: windows-2022
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        profile: [normal, elevated, high]
+        shard: [0, 1]
+    env:
+      PYTHONUTF8: "1"
+      PYTHONIOENCODING: utf-8
+      PYTHONDONTWRITEBYTECODE: "1"
+      SHADOW_SHA: ${{ github.event.pull_request.head.sha }}
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+          cache: pip
+          cache-dependency-path: requirements.txt
+      - name: Parse scripts before running
+        run: |
+          python -m py_compile scripts/p1_b_shadow_ledger.py
+          python -m py_compile scripts/p1_b_stress_grid.py
+      - name: Set up pinned simulator Python and dependencies
+        run: |
+          python -m venv .venv310
+          .\.venv310\Scripts\python.exe -m pip install "pip==23.3.2" numpy==1.26.4
+          .\.venv310\Scripts\python.exe -m pip install -r requirements.txt
+      - name: Replay original 5 fixed tapes under BOTH active modes, shadow both formulas on each leg
+        run: |
+          .\.venv310\Scripts\python.exe scripts/p1_b_shadow_ledger.py shard --root . --outdir "${{ runner.temp }}/p1b_shadow" --profile "${{ matrix.profile }}" --shard ${{ matrix.shard }} --source-sha "$env:SHADOW_SHA"
+      - name: Preserve per-leg shadow CSV gz and original trajectory witness checks
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: p1b-shadow-${{ matrix.profile }}-${{ matrix.shard }}
+          path: ${{ runner.temp }}/p1b_shadow/
+          retention-days: 30
+          if-no-files-found: warn
+
+  report:
+    if: ${{ github.head_ref == 'p1-b-shadow-ledger-v1' }}
+    name: P1.4 aggregate 60 frozen-trajectory witnesses
+    needs: [shadow]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    env:
+      PYTHONUTF8: "1"
+      SHADOW_SHA: ${{ github.event.pull_request.head.sha }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: p1b-shadow-*
+          merge-multiple: true
+          path: ${{ runner.temp }}/p1b_shadow
+      - name: Enforce 30 unique seed tapes, 60 actual baseline matches and exact leg identities
+        run: |
+          python scripts/p1_b_shadow_ledger.py aggregate --outdir "${{ runner.temp }}/p1b_shadow" --source-sha "$SHADOW_SHA"
+      - name: Publish figures, pair-level proof and compressed individual leg log files
+        uses: actions/upload-artifact@v4
+        with:
+          name: p1b-shadow-60-leg-episode-report
+          path: ${{ runner.temp }}/p1b_shadow/
+          retention-days: 30
+          if-no-files-found: error

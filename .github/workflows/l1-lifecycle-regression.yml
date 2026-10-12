@@ -1,0 +1,52 @@
+name: L1 real task lifecycle regression
+
+on:
+  push:
+    branches: [logic/l1-task-lifecycle-delivery-proof-v1]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  lifecycle-green:
+    runs-on: windows-2022
+    timeout-minutes: 60
+    env:
+      PYTHONIOENCODING: utf-8
+      PYTHONUTF8: "1"
+      PYTHONDONTWRITEBYTECODE: "1"
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+      - name: Install official Python 3.10 dependency stack
+        run: |
+          python -m venv .venv310
+          .\.venv310\Scripts\python.exe -m pip install "pip==23.3.2"
+          .\.venv310\Scripts\python.exe -m pip install numpy==1.26.4
+          .\.venv310\Scripts\python.exe -m pip install -r requirements.txt
+      - name: Check actual kernel prerequisites
+        run: .\.venv310\Scripts\python.exe -c "import osmnx,shapely,sys; assert sys.version_info[:2]==(3,10); print('[L1_KERNEL_READY]',sys.version.split()[0])"
+      - name: GREEN - all 6 real lifecycle behavior assertions
+        run: |
+          @'
+          import subprocess,sys
+          args=[sys.executable,"-m","unittest","-v","scripts.test_l1_task_lifecycle"]
+          p=subprocess.run(args,capture_output=True,text=True,timeout=300,encoding="utf-8",errors="replace")
+          out=p.stdout+"\n"+p.stderr
+          print(out[-20000:])
+          assert p.returncode==0, "[L1_NOT_GREEN] actual lifecycle tests fail"
+          assert "Ran 6 tests" in out and "\nOK" in out, "[L1_NOT_EXECUTED] tests missing"
+          print("[L1_REAL_GREEN] six real lifecycle and cargo-conservation assertions passed")
+          '@ | .\.venv310\Scripts\python.exe -
+      - name: Inherited route-service semantic regression
+        run: .\.venv310\Scripts\python.exe -m unittest -v console.test_r2_destination_without_load
+      - name: Inherited C1 source-destination witness gate (fixed face)
+        run: |
+          $env:C1_FACE = "fixed"
+          .\.venv310\Scripts\python.exe -m unittest -v console.test_c1_lifecycle_gate
