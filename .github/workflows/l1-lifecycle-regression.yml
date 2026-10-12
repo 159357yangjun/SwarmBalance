@@ -1,0 +1,56 @@
+name: L1 real task lifecycle regression
+
+on:
+  push:
+    branches: [logic/l1-task-lifecycle-delivery-proof-v1]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  lifecycle-red:
+    runs-on: windows-2022
+    timeout-minutes: 60
+    env:
+      PYTHONIOENCODING: utf-8
+      PYTHONUTF8: "1"
+      PYTHONDONTWRITEBYTECODE: "1"
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+      - name: Install official Python 3.10 dependency stack
+        run: |
+          python -m venv .venv310
+          .\.venv310\Scripts\python.exe -m pip install "pip==23.3.2"
+          .\.venv310\Scripts\python.exe -m pip install numpy==1.26.4
+          .\.venv310\Scripts\python.exe -m pip install -r requirements.txt
+      - name: Check actual kernel prerequisites
+        run: .\.venv310\Scripts\python.exe -c "import osmnx,shapely,sys; assert sys.version_info[:2]==(3,10); print('[L1_KERNEL_READY]',sys.version.split()[0])"
+      - name: RED must come from 3 real failing behavior assertions
+        run: |
+          @'
+          import subprocess,sys
+          args=[sys.executable,"-m","unittest","-v","scripts.test_l1_task_lifecycle"]
+          p=subprocess.run(args,capture_output=True,text=True,timeout=300,encoding="utf-8",errors="replace")
+          output=p.stdout+"\n"+p.stderr
+          print("[L1_RED_EXIT]",p.returncode)
+          print(output[-19000:])
+          expected=(
+            "test_01_no_phantom_completion_on_orphan_route",
+            "test_02_no_completion_before_pickup",
+            "test_03_real_delivery_updates_terminal_status",
+            "[L1_PHANTOM_COMPLETION]",
+            "[L1_TERMINAL_STATUS]",
+          )
+          if p.returncode==0 or any(x not in output for x in expected):
+              raise AssertionError("[L1_UNEXPECTED_RED] not all real defect witnesses reached")
+          if "FAILED (failures=3)" not in output:
+              raise AssertionError("[L1_WRONG_RED] expected exactly 3 assertion failures, not environment errors")
+          print("[L1_TRUE_RED_CONFIRMED] three real lifecycle assertions failed on baseline")
+          '@ | .\.venv310\Scripts\python.exe -
