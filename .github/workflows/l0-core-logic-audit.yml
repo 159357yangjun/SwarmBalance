@@ -1,0 +1,87 @@
+name: L0 read-only simulation logic audit
+
+on:
+  push:
+    branches: [audit/l0-core-logic-readonly-20261012]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  source-audit:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+      - name: Exact three-file L0 scope relative to frozen research audit
+        shell: bash
+        run: |
+          python - <<'PY'
+          import subprocess
+          base="b23a8e4362260acb6a0df330fbd8665581d0e567"
+          allowed={
+              ".github/workflows/l0-core-logic-audit.yml",
+              "docs/logic-audit/L0_CORE_LOGIC_AUDIT_20261012.md",
+              "scripts/l0_logic_probe.py",
+          }
+          actual=set(subprocess.check_output([
+              "git","-c","core.quotePath=false","diff","--name-only",base+"...HEAD"
+          ],text=True).splitlines())
+          assert actual == allowed, (sorted(actual-allowed),sorted(allowed-actual))
+          print("[L0_SCOPE_PASS] exactly three audit-only files")
+          PY
+      - name: Source-level state, cleanup and metrics evidence
+        shell: bash
+        run: python scripts/l0_logic_probe.py --source
+
+  forced-cleanup-red:
+    needs: source-audit
+    runs-on: windows-2022
+    timeout-minutes: 40
+    env:
+      PYTHONIOENCODING: utf-8
+      PYTHONUTF8: "1"
+      PYTHONDONTWRITEBYTECODE: "1"
+      SWARM_BALANCE_PATHCLEAR_CACHE: "0"
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+      - name: Create isolated 3.10 interpreter and install pinned dependencies
+        run: |
+          python -m venv .venv310
+          .\.venv310\Scripts\python.exe -m pip install "pip==23.3.2"
+          .\.venv310\Scripts\python.exe -m pip install numpy==1.26.4
+          .\.venv310\Scripts\python.exe -m pip install -r requirements.txt
+      - name: Confirm this is real kernel, not a missing-dependency failure
+        run: .\.venv310\Scripts\python.exe -c "import sys, shapely, numpy, osmnx; assert sys.version_info[:2] == (3,10); print('[L0_REAL_KERNEL_READY]',sys.version.split()[0])"
+      - name: Expect REAL invariant RED after an actual Environment.step
+        run: |
+          @'
+          import subprocess, sys
+          p=subprocess.run([sys.executable,"scripts/l0_logic_probe.py","--cleanup-red"],
+                           capture_output=True,text=True,timeout=240,encoding="utf-8",
+                           errors="replace")
+          output=p.stdout+"\n"+p.stderr
+          print("[L0_PROBE_RETURN_CODE]",p.returncode)
+          print(output[-11000:])
+          if p.returncode == 0:
+              raise AssertionError("[L0_NOT_RED] no unsafe completion was observed")
+          if "[L0_FAULT_INJECTION_OBSERVED]" not in output:
+              raise AssertionError("[L0_UNEXECUTED] real Environment.step preconditions not reached")
+          if "AssertionError: [L0_CLEANUP_WITHOUT_DELIVERY]" not in output:
+              raise AssertionError("[L0_WRONG_RED] failure was not the expected safety assertion")
+          print("[L0_TRUE_RED_CONFIRMED] expected hard invariant failure in real production step")
+          '@ | .\.venv310\Scripts\python.exe -
