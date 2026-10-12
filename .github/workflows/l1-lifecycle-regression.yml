@@ -32,7 +32,7 @@ jobs:
           .\.venv310\Scripts\python.exe -m pip install -r requirements.txt
       - name: Check actual kernel prerequisites
         run: .\.venv310\Scripts\python.exe -c "import osmnx,shapely,sys; assert sys.version_info[:2]==(3,10); print('[L1_KERNEL_READY]',sys.version.split()[0])"
-      - name: GREEN - all 3 real lifecycle behavior assertions
+      - name: GREEN - all 6 real lifecycle behavior assertions
         run: |
           @'
           import subprocess,sys
@@ -41,6 +41,12 @@ jobs:
           out=p.stdout+"\n"+p.stderr
           print(out[-20000:])
           assert p.returncode==0, "[L1_NOT_GREEN] actual lifecycle tests fail"
-          assert "Ran 3 tests" in out and "\nOK" in out, "[L1_NOT_EXECUTED] tests missing"
-          print("[L1_REAL_GREEN] real delivery, pickup and orphan cleanup 3/3 passed")
+          assert "Ran 6 tests" in out and "\nOK" in out, "[L1_NOT_EXECUTED] tests missing"
+          print("[L1_REAL_GREEN] six real lifecycle and cargo-conservation assertions passed")
           '@ | .\.venv310\Scripts\python.exe -
+      - name: Inherited route-service semantic regression
+        run: .\.venv310\Scripts\python.exe -m unittest -v console.test_r2_destination_without_load
+      - name: Inherited C1 source-destination witness gate (fixed face)
+        run: |
+          $env:C1_FACE = "fixed"
+          .\.venv310\Scripts\python.exe -m unittest -v console.test_c1_lifecycle_gate
