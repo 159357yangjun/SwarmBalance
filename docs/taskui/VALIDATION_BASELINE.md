@@ -24,3 +24,6 @@ Unit tests: **9/9 PASS**. Good strict fixture: **PASS, 0 errors and 0 warnings**
 - This validates the **upstream rules and package integrity only**; it does not validate 2D/3D rendering, task usability, keyboard focus, responsiveness, lifecycle, or simulation results.
 - GitHub Actions exact-HEAD status and run URLs must be checked **after** the R1 commit. They must not be assumed based on these local logs.
 - No nine-job `ci-validation` regression is claimed for master; no production code or existing CI workflow is changed.
+## GitHub uploaded-blob integrity cross-check
+
+After writing the exact 29 original upstream files to GitHub, the remote tree at commit `b37df43fe1d91b0cacd4a9b8f4bb8f6d930a60c5` was enumerated and all 29 Git Blob SHA-1 identifiers were checked against local hashes calculated from the original ZIP bytes and preserved in `validation/original-git-blob-sha1.txt`: **29/29 matches**, **0 mismatches**. Against `master@2ab60c...`, the PR diff contained **42 additions, 0 unrelated paths, 0 deletions, 0 modifications to tracked production files** (29 original upstream files + 13 scoped integration/docs/validation files). The subsequent docs-only CI-trigger commit does not touch upstream sources.
