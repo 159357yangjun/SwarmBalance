@@ -1,0 +1,17 @@
+$ python -m unittest discover -s TaskUI/tests -v
+EXIT_CODE=0
+
+test_bad_example_fails (test_taskui_check.ManifestChecks.test_bad_example_fails) ... ok
+test_deep_only_high_frequency_warns (test_taskui_check.ManifestChecks.test_deep_only_high_frequency_warns) ... ok
+test_duplicate_task_id_is_error (test_taskui_check.ManifestChecks.test_duplicate_task_id_is_error) ... ok
+test_good_example_has_no_diagnostics (test_taskui_check.ManifestChecks.test_good_example_has_no_diagnostics) ... ok
+test_high_risk_without_recovery_or_confirmation_fails (test_taskui_check.ManifestChecks.test_high_risk_without_recovery_or_confirmation_fails) ... ok
+test_invalid_entrypoint_region_is_error (test_taskui_check.ManifestChecks.test_invalid_entrypoint_region_is_error) ... ok
+test_invalid_json_is_structured_error (test_taskui_check.ManifestChecks.test_invalid_json_is_structured_error) ... ok
+test_missing_evidence_is_error (test_taskui_check.ManifestChecks.test_missing_evidence_is_error) ... ok
+test_task_budget_overflow_is_error (test_taskui_check.ManifestChecks.test_task_budget_overflow_is_error) ... ok
+
+----------------------------------------------------------------------
+Ran 9 tests in 0.013s
+
+OK

@@ -1,0 +1,102 @@
+{
+  "ok": false,
+  "file": "examples/bad.project.taskui.json",
+  "summary": {
+    "errors": 10,
+    "warnings": 5
+  },
+  "diagnostics": [
+    {
+      "severity": "error",
+      "code": "E114",
+      "path": "/tasks/0/steps/0",
+      "message": "步骤 'unknown-action' 未指向有效 action ID"
+    },
+    {
+      "severity": "error",
+      "code": "E210",
+      "path": "/screens/0/regions",
+      "message": "工作区必须且只能声明一个 primary 角色区域"
+    },
+    {
+      "severity": "error",
+      "code": "E211",
+      "path": "/screens/0/primary_region",
+      "message": "primary_region 必须指向角色为 primary 的区域"
+    },
+    {
+      "severity": "error",
+      "code": "E312",
+      "path": "/actions/0/entrypoints/0/screen_id",
+      "message": "未知屏幕 'missing-screen'"
+    },
+    {
+      "severity": "error",
+      "code": "E330",
+      "path": "/actions/0",
+      "message": "高风险操作既无可信恢复手段也无明确确认机制"
+    },
+    {
+      "severity": "error",
+      "code": "E331",
+      "path": "/actions/0/feedback",
+      "message": "修改类操作至少需要声明 success 与 failure 状态"
+    },
+    {
+      "severity": "error",
+      "code": "E401",
+      "path": "/design_evidence/decision_log",
+      "message": "文件不存在：missing3.md（相对清单所在目录）"
+    },
+    {
+      "severity": "error",
+      "code": "E401",
+      "path": "/design_evidence/task_walkthrough",
+      "message": "文件不存在：missing2.md（相对清单所在目录）"
+    },
+    {
+      "severity": "error",
+      "code": "E401",
+      "path": "/design_evidence/wireframe",
+      "message": "文件不存在：missing.md（相对清单所在目录）"
+    },
+    {
+      "severity": "error",
+      "code": "E413",
+      "path": "/test_plan/covered_tasks",
+      "message": "高频任务没有安排实际测试：['T1']"
+    },
+    {
+      "severity": "warning",
+      "code": "W212",
+      "path": "/screens/0/main_region_min_ratio",
+      "message": "主工作区目标占比低于 50%；请在决策记录中解释"
+    },
+    {
+      "severity": "warning",
+      "code": "W317",
+      "path": "/actions/0/entrypoints/0/context",
+      "message": "对象级功能应标明出现条件/选中状态"
+    },
+    {
+      "severity": "warning",
+      "code": "W320",
+      "path": "/actions/0",
+      "message": "高频操作只声明了深层/非直接入口；应说明为什么不能在当前上下文便捷访问"
+    },
+    {
+      "severity": "warning",
+      "code": "W321",
+      "path": "/actions/0",
+      "message": "高频修改操作未声明快捷键；评估是否适用（不是强制必须有）"
+    },
+    {
+      "severity": "warning",
+      "code": "W332",
+      "path": "/actions/0",
+      "message": "该操作有关联任务，但没有出现在任何任务操作路径中"
+    }
+  ],
+  "note": "静态清单检查通过不等于 UI 已实现、好用或通过可用性测试",
+  "pass": false
+}

@@ -1,0 +1,20 @@
+$ python TaskUI/tools/taskui_check.py TaskUI/examples/bad.project.taskui.json --strict
+EXIT_CODE=1
+
+ERROR   E114 /tasks/0/steps/0: 步骤 'unknown-action' 未指向有效 action ID
+ERROR   E210 /screens/0/regions: 工作区必须且只能声明一个 primary 角色区域
+ERROR   E211 /screens/0/primary_region: primary_region 必须指向角色为 primary 的区域
+ERROR   E312 /actions/0/entrypoints/0/screen_id: 未知屏幕 'missing-screen'
+ERROR   E330 /actions/0: 高风险操作既无可信恢复手段也无明确确认机制
+ERROR   E331 /actions/0/feedback: 修改类操作至少需要声明 success 与 failure 状态
+ERROR   E401 /design_evidence/decision_log: 文件不存在：missing3.md（相对清单所在目录）
+ERROR   E401 /design_evidence/task_walkthrough: 文件不存在：missing2.md（相对清单所在目录）
+ERROR   E401 /design_evidence/wireframe: 文件不存在：missing.md（相对清单所在目录）
+ERROR   E413 /test_plan/covered_tasks: 高频任务没有安排实际测试：['T1']
+WARNING W212 /screens/0/main_region_min_ratio: 主工作区目标占比低于 50%；请在决策记录中解释
+WARNING W317 /actions/0/entrypoints/0/context: 对象级功能应标明出现条件/选中状态
+WARNING W320 /actions/0: 高频操作只声明了深层/非直接入口；应说明为什么不能在当前上下文便捷访问
+WARNING W321 /actions/0: 高频修改操作未声明快捷键；评估是否适用（不是强制必须有）
+WARNING W332 /actions/0: 该操作有关联任务，但没有出现在任何任务操作路径中
+FAIL: errors=10 warnings=5
+静态清单检查通过不等于 UI 已实现、好用或通过可用性测试
