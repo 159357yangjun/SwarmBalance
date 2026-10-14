@@ -1,0 +1,18 @@
+name: TaskUI manifest check
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Test linter
+        run: python -m unittest discover -s TaskUI/tests -v
+      - name: Lint project manifest
+        # 示例项目需要将此路径替换为真正的 project.taskui.json
+        run: python TaskUI/tools/taskui_check.py TaskUI/examples/good.project.taskui.json --strict

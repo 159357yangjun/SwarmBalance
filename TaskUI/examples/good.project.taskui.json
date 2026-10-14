@@ -1,0 +1,121 @@
+{
+  "$schema": "../schemas/project.schema.json",
+  "version": "1.0",
+  "project": {
+    "name": "Example Asset Manager",
+    "primary_user": "每日整理和检索文件的桌面用户",
+    "platform": "desktop",
+    "patterns": ["object-management"]
+  },
+  "tasks": [
+    {
+      "id": "T-rename",
+      "name": "重命名当前文件",
+      "frequency": "high",
+      "success_criterion": "列表中的文件名改变，选中状态及当前位置保留",
+      "step_budget": 2,
+      "steps": ["select-asset", "rename-asset"]
+    },
+    {
+      "id": "T-delete",
+      "name": "删除选中的文件",
+      "frequency": "medium",
+      "success_criterion": "文件进入回收站，用户能撤销/恢复",
+      "step_budget": 2,
+      "steps": ["select-asset", "delete-asset"]
+    },
+    {
+      "id": "T-filter",
+      "name": "按文件名筛选资源",
+      "frequency": "high",
+      "success_criterion": "仅显示与筛选条件匹配的文件，可一键清除筛选",
+      "step_budget": 1,
+      "steps": ["filter-assets"]
+    }
+  ],
+  "screens": [
+    {
+      "id": "S-library",
+      "name": "资源管理工作区",
+      "primary_region": "R-list",
+      "main_region_min_ratio": 0.64,
+      "regions": [
+        {"id": "R-nav", "role": "navigation", "persistent": true},
+        {"id": "R-list", "role": "primary", "persistent": true},
+        {"id": "R-toolbar", "role": "toolbar", "persistent": true},
+        {"id": "R-preview", "role": "preview", "persistent": false},
+        {"id": "R-status", "role": "status", "persistent": true}
+      ]
+    }
+  ],
+  "actions": [
+    {
+      "id": "select-asset",
+      "name": "选择文件",
+      "scope": "object",
+      "frequency": "high",
+      "risk": "low",
+      "effect": "read",
+      "recovery": "not-needed",
+      "task_ids": ["T-rename", "T-delete"],
+      "entrypoints": [
+        {"screen_id": "S-library", "region_id": "R-list", "surface": "inline", "menu_depth": 0, "context": "文件列表中的当前项"}
+      ],
+      "feedback": ["selection"]
+    },
+    {
+      "id": "rename-asset",
+      "name": "重命名文件",
+      "scope": "object",
+      "frequency": "high",
+      "risk": "low",
+      "effect": "mutate",
+      "recovery": "undo",
+      "task_ids": ["T-rename"],
+      "entrypoints": [
+        {"screen_id": "S-library", "region_id": "R-list", "surface": "context-menu", "menu_depth": 0, "context": "有已选中文件"},
+        {"screen_id": "S-library", "region_id": "R-list", "surface": "shortcut", "menu_depth": 0, "context": "已选中文件，按 F2"}
+      ],
+      "feedback": ["success", "failure"]
+    },
+    {
+      "id": "delete-asset",
+      "name": "删除文件",
+      "scope": "object",
+      "frequency": "medium",
+      "risk": "high",
+      "effect": "destructive",
+      "recovery": "soft-delete",
+      "task_ids": ["T-delete"],
+      "entrypoints": [
+        {"screen_id": "S-library", "region_id": "R-list", "surface": "context-menu", "menu_depth": 0, "context": "已选中文件"}
+      ],
+      "feedback": ["success", "failure"]
+    },
+    {
+      "id": "filter-assets",
+      "name": "筛选文件",
+      "scope": "workspace",
+      "frequency": "high",
+      "risk": "low",
+      "effect": "read",
+      "recovery": "not-needed",
+      "task_ids": ["T-filter"],
+      "entrypoints": [
+        {"screen_id": "S-library", "region_id": "R-toolbar", "surface": "toolbar", "menu_depth": 0, "context": "文件列表"},
+        {"screen_id": "S-library", "region_id": "R-toolbar", "surface": "shortcut", "menu_depth": 0, "context": "按 Ctrl+F 聚焦筛选框"}
+      ],
+      "feedback": ["filtered-results", "empty-results"]
+    }
+  ],
+  "design_evidence": {
+    "wireframe": "layout-wireframe.md",
+    "task_walkthrough": "task-tests.md",
+    "decision_log": "decision-log.md"
+  },
+  "test_plan": {
+    "viewport_sizes": ["1366x768", "1920x1080", "1024x768（窄窗口）"],
+    "covered_tasks": ["T-rename", "T-delete", "T-filter"],
+    "status": "planned"
+  }
+}

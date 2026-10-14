@@ -1,0 +1,41 @@
+{
+  "utc_run": "2026-10-14T12:39:09.621612+00:00",
+  "source_archive_sha256": "51a3d064487ba0254282e5c48e6215b5486f9884cdfa3b74a20b1285536d164c",
+  "archive_bytes": 31906,
+  "source_files": 29,
+  "source_byte_identical": 29,
+  "python": "3.13.5",
+  "platform": "linux",
+  "commands": [
+    {
+      "command": "sha256sum --check --strict docs/taskui/SOURCE_SHA256SUMS.txt",
+      "log": "docs/taskui/validation/source-sha256.log",
+      "exit_code": 0,
+      "expected": 0
+    },
+    {
+      "command": "python -m compileall -q TaskUI/tools TaskUI/tests",
+      "log": "docs/taskui/validation/compile.log",
+      "exit_code": 0,
+      "expected": 0
+    },
+    {
+      "command": "python -m unittest discover -s TaskUI/tests -v",
+      "log": "docs/taskui/validation/unittests.log",
+      "exit_code": 0,
+      "expected": 0
+    },
+    {
+      "command": "python TaskUI/tools/taskui_check.py TaskUI/examples/good.project.taskui.json --strict",
+      "log": "docs/taskui/validation/good-strict.log",
+      "exit_code": 0,
+      "expected": 0
+    },
+    {
+      "command": "python TaskUI/tools/taskui_check.py TaskUI/examples/bad.project.taskui.json --strict",
+      "log": "docs/taskui/validation/bad-strict.log",
+      "exit_code": 1,
+      "expected": 1
+    }
+  ]
+}

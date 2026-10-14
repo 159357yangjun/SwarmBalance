@@ -1,0 +1,17 @@
+{
+  "version": "1.0",
+  "project": {"name": "Broken Demo", "primary_user": "未指定", "platform": "desktop", "patterns": ["object-management"]},
+  "tasks": [
+    {"id": "T1", "name": "删除文件", "frequency": "high", "success_criterion": "删除成功", "step_budget": 1, "steps": ["unknown-action"]}
+  ],
+  "screens": [
+    {"id": "S1", "name": "无主区的功能墙", "primary_region": "R-does-not-exist", "main_region_min_ratio": 0.3,
+      "regions": [{"id": "R-cards", "role": "toolbar", "persistent": true}]}
+  ],
+  "actions": [
+    {"id": "delete-file", "name": "直接永久删除", "scope": "object", "frequency": "high", "risk": "high", "effect": "destructive", "recovery": "none",
+      "task_ids": ["T1"], "entrypoints": [{"screen_id": "missing-screen", "region_id": "R-cards", "surface": "settings", "menu_depth": 3}], "feedback": ["success"]}
+  ],
+  "design_evidence": {"wireframe": "missing.md", "task_walkthrough": "missing2.md", "decision_log": "missing3.md"},
+  "test_plan": {"viewport_sizes": ["1366x768"], "covered_tasks": [], "status": "planned"}
+}

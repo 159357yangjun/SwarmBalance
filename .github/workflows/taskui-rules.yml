@@ -1,0 +1,55 @@
+name: TaskUI rules self-check
+
+on:
+  pull_request:
+    branches: [master]
+    paths:
+      - 'TaskUI/**'
+      - 'console/static/AGENTS.md'
+      - 'docs/taskui/**'
+      - '.github/workflows/taskui-rules.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  taskui-rules:
+    name: TaskUI v1.0.0 source and strict controls
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+      - name: Verify original 29 source files and checksums
+        shell: bash
+        run: |
+          sha256sum --check --strict docs/taskui/SOURCE_SHA256SUMS.txt
+          count=$(find TaskUI -type f | wc -l)
+          echo "TaskUI files: $count"
+          test "$count" -eq 29
+      - name: Compile upstream Python sources
+        run: python -m compileall -q TaskUI/tools TaskUI/tests
+      - name: Run upstream unit tests
+        run: python -m unittest discover -s TaskUI/tests -v
+      - name: Strict positive control
+        run: python TaskUI/tools/taskui_check.py TaskUI/examples/good.project.taskui.json --strict
+      - name: Strict negative control (must exit 1)
+        shell: bash
+        run: |
+          set +e
+          python TaskUI/tools/taskui_check.py TaskUI/examples/bad.project.taskui.json --strict
+          code=$?
+          set -e
+          echo "Negative-control exit code: $code"
+          test "$code" -eq 1
+      - name: Project manifest (only when approved evidence exists)
+        shell: bash
+        run: |
+          if [ -f docs/taskui/project.taskui.json ]; then
+            python TaskUI/tools/taskui_check.py docs/taskui/project.taskui.json --strict
+          else
+            echo 'NOT CONFIGURED: no approved G0/G1 project manifest. Upstream examples do not establish UI acceptance.'
+          fi

@@ -1,0 +1,107 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "TaskUI Project Manifest v1.0",
+  "description": "用于编辑器提示、外部标准 JSON Schema 验证。随包自带的 stdlib 校验器执行其核心结构与额外语义规则。",
+  "type": "object",
+  "required": ["version", "project", "tasks", "screens", "actions", "design_evidence", "test_plan"],
+  "properties": {
+    "$schema": {"type": "string"},
+    "version": {"const": "1.0"},
+    "project": {
+      "type": "object",
+      "required": ["name", "primary_user", "platform", "patterns"],
+      "properties": {
+        "name": {"type": "string", "minLength": 1},
+        "primary_user": {"type": "string", "minLength": 1},
+        "platform": {"enum": ["desktop", "web", "touch"]},
+        "patterns": {
+          "type": "array", "minItems": 1, "uniqueItems": true,
+          "items": {"enum": ["content-editor", "object-management", "business-workflow", "monitoring-analysis", "guided-wizard"]}
+        }
+      }
+    },
+    "tasks": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/task"}},
+    "screens": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/screen"}},
+    "actions": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/action"}},
+    "design_evidence": {
+      "type": "object",
+      "required": ["wireframe", "task_walkthrough", "decision_log"],
+      "properties": {
+        "wireframe": {"type": "string", "minLength": 1},
+        "task_walkthrough": {"type": "string", "minLength": 1},
+        "decision_log": {"type": "string", "minLength": 1}
+      }
+    },
+    "test_plan": {
+      "type": "object",
+      "required": ["viewport_sizes", "covered_tasks", "status"],
+      "properties": {
+        "viewport_sizes": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}},
+        "covered_tasks": {"type": "array", "items": {"type": "string"}},
+        "status": {"enum": ["planned", "in-progress", "verified"]}
+      }
+    }
+  },
+  "$defs": {
+    "task": {
+      "type": "object",
+      "required": ["id", "name", "frequency", "success_criterion", "step_budget", "steps"],
+      "properties": {
+        "id": {"type": "string", "minLength": 1},
+        "name": {"type": "string", "minLength": 1},
+        "frequency": {"enum": ["high", "medium", "low"]},
+        "success_criterion": {"type": "string", "minLength": 1},
+        "step_budget": {"type": "integer", "minimum": 1},
+        "steps": {"type": "array", "minItems": 1, "items": {"type": "string"}}
+      }
+    },
+    "screen": {
+      "type": "object",
+      "required": ["id", "name", "primary_region", "main_region_min_ratio", "regions"],
+      "properties": {
+        "id": {"type": "string", "minLength": 1},
+        "name": {"type": "string", "minLength": 1},
+        "primary_region": {"type": "string", "minLength": 1},
+        "main_region_min_ratio": {"type": "number", "exclusiveMinimum": 0, "maximum": 1},
+        "regions": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/region"}}
+      }
+    },
+    "region": {
+      "type": "object",
+      "required": ["id", "role", "persistent"],
+      "properties": {
+        "id": {"type": "string", "minLength": 1},
+        "role": {"enum": ["primary", "navigation", "toolbar", "inspector", "preview", "status", "secondary", "log", "filter"]},
+        "persistent": {"type": "boolean"}
+      }
+    },
+    "action": {
+      "type": "object",
+      "required": ["id", "name", "scope", "frequency", "risk", "effect", "recovery", "task_ids", "entrypoints", "feedback"],
+      "properties": {
+        "id": {"type": "string", "minLength": 1},
+        "name": {"type": "string", "minLength": 1},
+        "scope": {"enum": ["global", "workspace", "object"]},
+        "frequency": {"enum": ["high", "medium", "low"]},
+        "risk": {"enum": ["low", "medium", "high"]},
+        "effect": {"enum": ["read", "mutate", "destructive"]},
+        "recovery": {"enum": ["undo", "soft-delete", "version-restore", "transaction-rollback", "retry", "cancel", "not-needed", "none"]},
+        "confirmation": {"type": "string"},
+        "task_ids": {"type": "array", "items": {"type": "string"}},
+        "entrypoints": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/entrypoint"}},
+        "feedback": {"type": "array", "items": {"type": "string"}}
+      }
+    },
+    "entrypoint": {
+      "type": "object",
+      "required": ["screen_id", "region_id", "surface", "menu_depth", "context"],
+      "properties": {
+        "screen_id": {"type": "string"},
+        "region_id": {"type": "string"},
+        "surface": {"enum": ["toolbar", "inline", "menu", "context-menu", "shortcut", "command-palette", "inspector", "dialog", "navigation", "settings"]},
+        "menu_depth": {"type": "integer", "minimum": 0},
+        "context": {"type": "string"}
+      }
+    }
+  }
+}

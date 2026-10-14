@@ -1,0 +1,32 @@
+$ sha256sum --check --strict docs/taskui/SOURCE_SHA256SUMS.txt
+EXIT_CODE=0
+
+TaskUI/.github/workflows/taskui.yml: OK
+TaskUI/.gitignore: OK
+TaskUI/AGENTS.md: OK
+TaskUI/LICENSE: OK
+TaskUI/README.md: OK
+TaskUI/adapters/desktop.md: OK
+TaskUI/adapters/touch.md: OK
+TaskUI/adapters/web.md: OK
+TaskUI/checklists/human-review.md: OK
+TaskUI/core/00-task-analysis.md: OK
+TaskUI/core/01-placement.md: OK
+TaskUI/core/02-layout-interaction.md: OK
+TaskUI/core/03-gates.md: OK
+TaskUI/examples/bad-diagnostics.json: OK
+TaskUI/examples/bad.project.taskui.json: OK
+TaskUI/examples/decision-log.md: OK
+TaskUI/examples/good.project.taskui.json: OK
+TaskUI/examples/layout-wireframe.md: OK
+TaskUI/examples/task-tests.md: OK
+TaskUI/patterns/business-workflow.md: OK
+TaskUI/patterns/content-editor.md: OK
+TaskUI/patterns/guided-wizard.md: OK
+TaskUI/patterns/monitoring-analysis.md: OK
+TaskUI/patterns/object-management.md: OK
+TaskUI/prompts/design.md: OK
+TaskUI/prompts/review.md: OK
+TaskUI/schemas/project.schema.json: OK
+TaskUI/tests/test_taskui_check.py: OK
+TaskUI/tools/taskui_check.py: OK
