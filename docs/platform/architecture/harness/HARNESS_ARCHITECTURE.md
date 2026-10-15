@@ -6,7 +6,7 @@
 
 A Harness is a deterministic, in-process orchestration boundary for one simulation run. It neither represents a particular city, drone, scheduling algorithm nor owns drone physics. It validates a frozen project/scenario specification, resolves component capabilities, assembles an ARCH-01 World, initializes ARCH-03 providers, advances authoritative state, and emits traceable run results. Default execution is synchronous and serial. Do not introduce microservices, distributed orchestration or plugin sandboxes.
 
-**Decisions:** (H-01) one RunHandle per independent run, no process-wide mutable world/session; (H-02) one authoritative StateStore per run; (H-03) all state changes are staged and validated at commit barriers; (H-04) deterministic ordering and scoped RNG; (H-05) clock policy is configuration, not fixed to the legacy episode; (H-06) adapters preserve the old runtime without claiming it already implements H-02/H-03.
+**Decisions:** (H-01) one RunHandle per independent run, no process-wide mutable world/session; (H-02) one authoritative StateStore per run; (H-03) all boundary phases are staged in provisional views and published by a single atomic boundary commit; (H-04) deterministic ordering and scoped RNG; (H-05) clock policy is configuration, not fixed to the legacy episode; (H-06) adapters preserve the old runtime without claiming it already implements H-02/H-03.
 
 ## 2. Verified legacy audit (implementation, not normative contract)
 
