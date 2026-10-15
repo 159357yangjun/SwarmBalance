@@ -26,13 +26,13 @@ sequenceDiagram
     H->>S: select next timestamp and due event phases
     H->>P: event proposals / inject commands
     P-->>H: typed ChangeSet
-    H->>S: validate and commit predecision changes
+    H->>S: validate predecision changes in provisional view
     H->>P: Scheduler.decide(WorldView, ClockView)
     P-->>H: DispatchCommand
-    H->>S: validate/commit dispatch
+    H->>S: validate dispatch in provisional view
     H->>P: DynamicsModel.advance(interval, read view)
     P-->>H: state deltas + service events
-    H->>S: validate/commit model and completion events
+    H->>S: validate model and completion events in provisional view
     H->>P: MetricProvider.observe(committed snapshot)
     P-->>H: read-only metrics + trace data
     H-->>Client: revision snapshot / events
@@ -54,23 +54,23 @@ advance_boundary(handle):
   if no target: finalize(COMPLETED, EMPTY_QUEUE)
   due := deterministic_sort(pop_due(target))
   stage due PRE_INPUT and PRE_DECISION proposals
-  validate + commit predecision stage
+  validate + stage predecision changes in provisional view
   view := immutable_state_snapshot()
   dispatch := scheduler.decide(view, read_only_context)
-  validate + commit command stage
+  validate + stage dispatch changes in provisional view
   physics := dynamics.advance(view_after_dispatch, clock, target)
-  validate + commit model change stage + emitted service events
+  validate + stage model changes and service events in provisional view
   dispatch due postmodel events in canonical phase order
-  validate + commit postmodel stage; commit clock to target
+  validate + stage postmodel changes; atomically commit entire boundary including clock/queue/RNG
   publish read-only metrics and traces
   if termination_predicate(view) or horizon_reached: finalize(COMPLETED)
   otherwise return latest coherent snapshot
 on precommit fatal error:
-  rollback uncommitted phase and its queue/RNG positions
+  discard entire uncommitted boundary and restore queue/RNG positions
   emit diagnostic; finalize(FAILED)
 ```
 
-Committing multiple phase revisions is intentional: readers can obtain a coherent snapshot at each commit, but externally visible stepping returns the final boundary snapshot. To avoid half-boundary visibility, production callers SHOULD publish only an end-of-boundary snapshot and reserve phase revisions for internal event-sourced trace. If a critical exception occurs after an earlier phase commit, those commits remain valid but the run stops at the latest committed phase; a higher-level full-boundary atomicity guarantee would require staging *all* phase writes and advancing a working copy, which this DRAFT has not yet fixed. **Review decision required:** select one visibility/rollback granularity. The recommended G0 contract is a **single atomic boundary commit** of staged phase outputs (with internal provisional views), while retaining phase ordering and logs. Until ARCH-01 state snapshot semantics are finalized, no stronger guarantee should be claimed by the legacy adapter.
+**Normative decision:** one atomic externally visible boundary commit, with ordered internal provisional views for subsequent phases. All staged phase state/clock/queue/RNG edits are discarded on precommit failure. There is no published intermediate phase revision and metrics run after the boundary commit. ARCH-01 must confirm that copy-on-write or equivalent provisional-view semantics can enforce this; LEGACY_OPAQUE_STEP is explicitly excluded.
 
 ## 3. Exact old chain (for compatibility baseline)
 
