@@ -34,7 +34,7 @@ An unresponsive synchronous plugin cannot be safely interrupted inside process. 
 
 ## 4. Atomicity and recovery
 
-Before execution, snapshot transactional B/C/D. An invalid proposal: discard phase writes/events/RNG consumption and record a non-world diagnostic in trace. A postcommit metrics/export failure: do **not** revert domain state or replay the step. For fatal provider failure: stop further world commits, transition FAILED, release safely, preserve partial result. Catching an exception and continuing on old components while reporting success is forbidden.
+Before execution, snapshot transactional B/C/D. An invalid proposal: discard all boundary-staged writes/events/RNG consumption and record a non-world diagnostic in trace. A postcommit metrics/export failure: do **not** revert the already committed complete boundary state or replay the step. For fatal provider failure: stop further world commits, transition FAILED, release safely, preserve partial result. Catching an exception and continuing on old components while reporting success is forbidden.
 
 LEGACY_OPAQUE_STEP is not atomic: when env.step fails after in-place edits, mark session TAINTED/FAILED, prevent further step or checkpoint as trusted, retain diagnosis. Recovery requires clean rebuild/reset from pinned inputs. Cross-generation restoration remains rejected unless compatibility verified.
 
