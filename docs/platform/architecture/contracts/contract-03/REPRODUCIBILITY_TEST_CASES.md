@@ -112,11 +112,11 @@ This task **resolves B04 at proposed documentation level only**, pending co-sign
 
 ## 3. Formal C03 × C04 PR #57 review regression cases (AI-C addendum)
 
-Review source: CONTRACT-04 PR #57 \`027fd78589229db3d2308ced5365b7a780703805\` and its \`LOGICAL_RUN_IDENTITY_AND_RNG_CONVERGENCE.md\`; CONTRACT-03 original PR #56 \`0b038f29e7f1957bf93e4afd1e3a171d54e5b620\`. This section is *design fixtures*, except explicitly noted independent arithmetic checks. Exact LP4/HKDF derivation and complete FrozenRunSpec serialization candidate are in \`EXPERIMENT_SEED_CONTRACT.md §9\`.
+Review source: CONTRACT-04 PR #57 `027fd78589229db3d2308ced5365b7a780703805` and its `LOGICAL_RUN_IDENTITY_AND_RNG_CONVERGENCE.md`; CONTRACT-03 original PR #56 `0b038f29e7f1957bf93e4afd1e3a171d54e5b620`. This section is *design fixtures*, except explicitly noted independent arithmetic checks. Exact LP4/HKDF derivation and complete FrozenRunSpec serialization candidate are in `EXPERIMENT_SEED_CONTRACT.md §9`.
 
 ### 3.1 Actually computed vs never executed
 
-**Actually executed by AI-C:** separate Python stdlib \`hashlib/hmac/struct\` implementation of LP4, HKDF Extract/Expand and indexed draw recomputed all PR #57 synthetic fixture inputs and G01–G13 (13/13 exact matches). This includes G01 cell A \`sha256:41957ee33f111aa9fc24d694fa09c2261e0621ff8be41be653e5be32665164fb\`; G03/G04 distinct attempt hashes; G07 master uint64 \`5928125456373989572\`; G08 \`7174855733580601445\`; G09 exo key \`71431f83f3cd9855fc1351335a3197d78cba1bce8adedb2fdcaf1f2e5a779f99\`; G10 alternative exposure \`c6409fab9be559fac3c034bbec2e5ca7a26d054903976f40779590d41a865d11\`; G11 private A \`a914a88477f24edb367427e591562680c62fb05a40483e0a29e67e021868648e\`; G12 private B \`5b27c63dd4abceac6893f1a766f180efc742f5591cad633a965d67190ec06f65\`; G13 indexed draw first 8 bytes \`2276e70cab9bca45\`, \`draw_u64=2483426286146144837\`, \`draw_u53=1212610491282297\`.
+**Actually executed by AI-C:** separate Python stdlib `hashlib/hmac/struct` implementation of LP4, HKDF Extract/Expand and indexed draw recomputed all PR #57 synthetic fixture inputs and G01–G13 (13/13 exact matches). This includes G01 cell A `sha256:41957ee33f111aa9fc24d694fa09c2261e0621ff8be41be653e5be32665164fb`; G03/G04 distinct attempt hashes; G07 master uint64 `5928125456373989572`; G08 `7174855733580601445`; G09 exo key `71431f83f3cd9855fc1351335a3197d78cba1bce8adedb2fdcaf1f2e5a779f99`; G10 alternative exposure `c6409fab9be559fac3c034bbec2e5ca7a26d054903976f40779590d41a865d11`; G11 private A `a914a88477f24edb367427e591562680c62fb05a40483e0a29e67e021868648e`; G12 private B `5b27c63dd4abceac6893f1a766f180efc742f5591cad633a965d67190ec06f65`; G13 indexed draw first 8 bytes `2276e70cab9bca45`, `draw_u64=2483426286146144837`, `draw_u53=1212610491282297`.
 
 **NOT executed:** repo-sourced LP4/HKDF implementation, integration tests, Python/Node comparison for all Unicode cases, JCS RFC8785 full-spec implementations, distribution samplers, time/event engine, multiworker or crash replay, CI, actual RunRecord queries and complete simulator R1/R2/R3 replay. Do not mark these PASS.
 
@@ -125,21 +125,21 @@ Review source: CONTRACT-04 PR #57 \`027fd78589229db3d2308ced5365b7a780703805\` a
 | Case | Positive/negative input | Expected (NOT EXECUTED) |
 |---|---|---|
 | C03-ID-01 | Exact Plan triple (plan_digest,A,r02) is bound to spec SA; resubmit same digest | idempotent same cell_key, no second replication |
-| C03-ID-02 | Same frozen Plan triple requests different SB digest | \`SPEC_CHANGED_NOT_RETRY\`; no new sample under that plan; new plan revision required |
-| C03-ID-03 | RunSpec contains plan_digest, run_id, attempt_id, ordinal, generation, time or spec_digest itself | \`CYCLIC_SPEC_PLAN_DIGEST\` or \`ATTEMPT_FIELDS_IN_SPEC\`; fail before hashing |
+| C03-ID-02 | Same frozen Plan triple requests different SB digest | `SPEC_CHANGED_NOT_RETRY`; no new sample under that plan; new plan revision required |
+| C03-ID-03 | RunSpec contains plan_digest, run_id, attempt_id, ordinal, generation, time or spec_digest itself | `CYCLIC_SPEC_PLAN_DIGEST` or `ATTEMPT_FIELDS_IN_SPEC`; fail before hashing |
 | C03-ID-04 | Full FrozenRunSpec JCS serialize/parse in two conformant implementations; permute JSON key order | identical canonical bytes + spec digest; strict field validation; no path/clock from host |
-| C03-ID-05 | Non-NFC strings, duplicate normalized IDs/keys, invalid surrogate, float 9007199254740993, uint64 numeric JSON, NaN, negative zero, leading zero ordinal | \`IDENTITY_ENCODING_INVALID\` or \`FROZEN_SPEC_CONTENT_MISMATCH\`; reject rather than silently normalize/reseed |
+| C03-ID-05 | Non-NFC strings, duplicate normalized IDs/keys, invalid surrogate, float 9007199254740993, uint64 numeric JSON, NaN, negative zero, leading zero ordinal | `IDENTITY_ENCODING_INVALID` or `FROZEN_SPEC_CONTENT_MISMATCH`; reject rather than silently normalize/reseed |
 | C03-ID-06 | G01–G13 full identity/KDF/draw fixtures via two independent implementations | exact published bytes including BE64, 13/13 or fail and first mismatch |
 | C03-ID-07 | Two treatments A/B share p02,r02 and same frozen exo source; different Scheduler manifests | same exo G09; distinct private G11/G12; separate mutable handles |
-| C03-ID-08 | Attempt 1 persisted terminal SUCCEEDED but acknowledgment lost; redeliver same ordinal | durable \`(cell_key,ordinal)\` lookup returns existing attempt_id/run_id, no second worker/sample |
-| C03-ID-09 | Attempt 1 UNKNOWN or worker possibly live after crash; attempted new ordinal | fence/reconcile committed artifacts first; \`ATTEMPT_OUTCOME_UNRESOLVED\`, no optimistic rerun/double count |
+| C03-ID-08 | Attempt 1 persisted terminal SUCCEEDED but acknowledgment lost; redeliver same ordinal | durable `(cell_key,ordinal)` lookup returns existing attempt_id/run_id, no second worker/sample |
+| C03-ID-09 | Attempt 1 UNKNOWN or worker possibly live after crash; attempted new ordinal | fence/reconcile committed artifacts first; `ATTEMPT_OUTCOME_UNRESOLVED`, no optimistic rerun/double count |
 | C03-ID-10 | Verified FAILED attempt followed by preregistered attempt 2 (same spec/master/exposure) | distinct attempt_id/run_id; identical stream keys; two records, only one selected statistical outcome |
 | C03-ID-11 | Metric lock changes with new execution under full-spec private KDF | new frozen spec/cell and possibly different private keys; exo tape only if source same. Reanalysis of immutable old artifacts does not draw new RNG |
-| C03-ID-12 | Use uniform indexed sampler, change opportunity address or reuse address for two different opportunities | unique stable keys; duplicate => \`RNG_DRAW_ADDRESS_COLLISION\` |
-| C03-ID-13 | Ask R3 replay with unspecified Poisson/Gaussian sampler, PRNG implementation or numeric profile | \`RNG_VERSION_UNPINNED\` / \`REPLAY_CLAIM_UNSUPPORTED\`; 13/13 math is insufficient |
+| C03-ID-12 | Use uniform indexed sampler, change opportunity address or reuse address for two different opportunities | unique stable keys; duplicate => `RNG_DRAW_ADDRESS_COLLISION` |
+| C03-ID-13 | Ask R3 replay with unspecified Poisson/Gaussian sampler, PRNG implementation or numeric profile | `RNG_VERSION_UNPINNED` / `REPLAY_CLAIM_UNSUPPORTED`; 13/13 math is insufficient |
 | C03-ID-14 | Missing MetricDefinition, altered code/source/clock digests, scheduler-private checkpoint mismatch | incompatible RunSpec/restore; compare/resume refused with reason, no silent fallback |
-| C03-ID-15 | Two independent logical replicates share the same external exposure unintentionally | \`REPLICATION_EXPOSURE_COLLISION\` unless explicit predesignated shared-tape dependence; never count as independent |
-| C03-ID-16 | Manual ad hoc Run with no ExperimentPlan | RunRecord with \`cell_key=null\` and distinct request idempotency; no fake replicate_key |
+| C03-ID-15 | Two independent logical replicates share the same external exposure unintentionally | `REPLICATION_EXPOSURE_COLLISION` unless explicit predesignated shared-tape dependence; never count as independent |
+| C03-ID-16 | Manual ad hoc Run with no ExperimentPlan | RunRecord with `cell_key=null` and distinct request idempotency; no fake replicate_key |
 
 **Strict acceptance:** independent vector computations do **not** satisfy C03-ID-04..16. For any contract claim, require running implementation commit, fixture input hashes, actual/expected outputs, first mismatch and original logs, plus independent reviewer sign-off. A failing durable attempt-reconciliation test blocks Batch analysis and ranking, even if all mathematical vectors agree.
 
@@ -147,11 +147,11 @@ Review source: CONTRACT-04 PR #57 \`027fd78589229db3d2308ced5365b7a780703805\` a
 
 Canonical RFC8785 JCS syntactic fixture bytes (ASCII, shown without line breaks):
 
-\`\`\`json
+```json
 {"execution":{"horizon_seconds":"600"},"schema_version":"SB-FRS-JCS-v1","seed":{"master_seed_uint64":"9001"}}
-\`\`\`
+```
 
-SHA256 of these **109 displayed UTF-8 bytes** = \`sha256:b83cb48fc3fdc3aaf3d497b8ab0a2692f186e0a4436be3e0b3f3b8d7e77a8a89\`, independently calculated via Python \`hashlib\` for this ASCII test string. This **partial** object is intentionally insufficient as a real complete FrozenRunSpec; it checks only canonical byte ordering/length in a trivial sample. A real full-spec JCS digest fixture with all mandatory keys and cross-language conformance remains UNVERIFIED until implemented and independently recomputed.
+SHA256 of these **109 displayed UTF-8 bytes** = `sha256:b83cb48fc3fdc3aaf3d497b8ab0a2692f186e0a4436be3e0b3f3b8d7e77a8a89`, independently calculated via Python `hashlib` for this ASCII test string. This **partial** object is intentionally insufficient as a real complete FrozenRunSpec; it checks only canonical byte ordering/length in a trivial sample. A real full-spec JCS digest fixture with all mandatory keys and cross-language conformance remains UNVERIFIED until implemented and independently recomputed.
 
 ### 3.4 Gate
 
