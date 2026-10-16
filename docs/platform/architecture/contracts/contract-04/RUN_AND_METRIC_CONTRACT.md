@@ -16,6 +16,8 @@
 | #50 ARCH-04 | `c4c0c67111ead435062650c1ed776547c477e3e3` | 历史比较门、sidecar、legacy opaque |
 | #51 Governance | `f2df96bc609ee1e430ea6eff2456c4577347c300` | Draft/HEAD/验收与禁止越界 |
 
+本合同交叉收敛补充对照：CONTRACT-03 PR #56 @ `0b038f29e7f1957bf93e4afd1e3a171d54e5b620`、CONTRACT-05 PR #60 @ `56ad6fe7b0f3a1b0b2b613d68a6e5bd5240dc955`。两者保持独立 Draft，不将本文件视为对它们的自动修订。
+
 7 PR 的 base 均为 `master@2ab60c69a806a22d7ba20353dee0571752a0e8e5`，取证时均为 Open/Draft/unmerged。#52 将 RunRecord 列为 Experiment 资源，#53 要求 ARCH-02 RunRecord 锁定证据：**以“单 Run 的创建/提交归 Harness；批次的引用/分析归 Experiment”消歧**。两者均可读但不能各自产生第二份权威 RunRecord。
 
 ## 1. 资源所有权、寿命、版本及关系
@@ -42,9 +44,14 @@
 
 ```yaml
 spec_schema_version: "0.1.0"
-run_id: "<unique-run-id>"
-origin: MANUAL                     # MANUAL | EXPERIMENT | API | LEGACY_IMPORTED
-experiment_ref: null             # when applicable: {experiment_id, revision, plan_digest, treatment_id, replication_id}
+# Canonical FrozenRunSpec CONTENT contains execution semantics only.
+# run_id / attempt_id / generation / plan_digest / experiment_ref are stored in RunRecord binding,
+# NOT in this hashed object; otherwise retry changes spec hash or Plan<->Spec references cycle.
+resolved_seed_source: "experiment_plan"  # or explicit_run/scenario_default
+effective_master_seed_uint64: "<decimal-uint64-string>"
+seed_allocation_ref: {digest: "sha256:<real>"} # pre-plan allocation; no plan_digest cycle
+rng_derivation_spec: "C03-HKDF-HMAC-SHA256-v1" # candidate; joint approval required
+stream_contract_refs: ["namespace/owner/stream/algorithm/version/source-digest"]
 world_ref: {id: "...", revision: "...", digest: "sha256:<real>"}
 scenario_ref: {id: "...", revision: "...", digest: "sha256:<real>"}
 assembly_ref: {digest: "sha256:<real>", components: ["id/version/implementation_digest/..."]}
@@ -60,7 +67,7 @@ completeness_policy: {audit_required: true, required_artifacts: ["run_manifest",
 spec_digest: "sha256:<digest-of-canonical-spec-excluding-this-field>"
 ```
 
-标记为 `<real>` 的占位符 **不可用于真实运行**。生成 `spec_digest` 时排除其自身；记录所有不可省略的配置/模型、物理量/CRS 转换、随机流、终止/超时判据。外部不可重现数据必须固定快照或显式 `NON_REPRODUCIBLE`；不能绕过 strict 模式。**B04 RNG 未冻结之前，仅可标示 Proposed，不可宣称 paired-run 确定性。**
+标记为 `<real>` 的占位符 **不可用于真实运行**。生成 `spec_digest` 时排除其自身，以及仅属于每次尝试的 `run_id, attempt_id, attempt_ordinal, generation, retry_of, worker, timestamps, status` 和位于 ExperimentPlan 绑定侧的 `plan_digest/cell_key`；不能遗漏会改变执行/计量语义的冻结字段。Spec 内容含冻结种子分配值及指标定义摘要，而 ExperimentPlan 可以单向引用 Spec digest，禁止 Spec 再反向引用 Plan digest 形成哈希环。规范化完整对象的字节规则仍须联合批准；**身份/随机性字段顺序、golden vectors 和硬拒绝见 [LOGICAL_RUN_IDENTITY_AND_RNG_CONVERGENCE.md](LOGICAL_RUN_IDENTITY_AND_RNG_CONVERGENCE.md)**。记录所有不可省略的配置/模型、物理量/CRS 转换、随机流、终止/超时判据。外部不可重现数据必须固定快照或显式 `NON_REPRODUCIBLE`；不能绕过 strict 模式。**B04 RNG 未冻结之前，仅可标示 Proposed，不可宣称 paired-run 确定性。**
 
 ## 3. RunRecord v1 与尝试/失败规则
 
@@ -68,7 +75,7 @@ spec_digest: "sha256:<digest-of-canonical-spec-excluding-this-field>"
 
 - RunHandle 被创建后 PREPARED；配置/装配或初始化失败仍以 FAILED 留档（`spec_digest=null` 且 `freeze_error` 说明）。在分配 run_id **之前** 拒绝的畸形请求只生成 request rejection audit，不伪造已创建的 RunRecord。
 - Harness 内部 CREATED/ASSEMBLED/READY/RUNNING/PAUSED 对外可映射 PREPARED/RUNNING，并保留 `lifecycle_detail`；COMPLETED -> SUCCEEDED；STOPPED -> CANCELLED；FAILED -> FAILED。销毁句柄不改变终态；`INVALIDATED` 是后续资格审查结果，**不覆写原 SUCCEEDED/FAILED/CANCELLED 事件**。
-- `run_id` 标识一次不可替换执行尝试；`logical_run_key=(plan_digest,treatment_id,replication_id)` 对应预注册单元；每次重试创建 **新 run_id 和新 attempt_id**，以 `retry_of_run_id` 指向旧尝试，不得把旧记录改成成功或把多次尝试当独立 replicate。BatchRecord 保留所有 attempts、使用预注册 `attempt_selection_policy` 决定统计样本。
+- `run_id` 标识一次不可替换执行尝试，**不参与 FrozenRunSpec digest**。标准逻辑单元为 `logical_cell_tuple=(plan_digest,treatment_id,replicate_key,frozen_run_spec_digest)`；`replication_id` 仅用于旧版读入别名，不能与 `replicate_key` 并列形成两套键。规范 `cell_key/attempt_id/run_id` 派生和 LP4/HKDF golden vectors 详见 [联合身份契约](LOGICAL_RUN_IDENTITY_AND_RNG_CONVERGENCE.md)。每个真正重试使用同一 spec、master_seed 和 exogenous tape，但分配 **新 attempt_ordinal、attempt_id、run_id**；以 `retry_of_attempt_id` 指向旧尝试。重复提交相同 `(cell_key,attempt_ordinal)` 必须幂等返回原记录，不能再次执行或重复计数。BatchRecord 保留所有 attempts、使用预注册 `attempt_selection_policy` 决定统计样本。
 - `execution_status` 与 `evidence_completeness=COMPLETE|INCOMPLETE|UNKNOWN`、`metric_completeness=COMPLETE|PARTIAL|MISSING`、`comparison_eligibility=ELIGIBLE|NOT_COMPARABLE|UNASSESSED` **互相独立**。例如物理仿真成功、指标导出失败：SUCCEEDED + MISSING + INCOMPLETE + NOT_COMPARABLE，不能伪装“成功指标为零”。
 - 预提交错误保持上次提交 revision、时钟与 RNG；post-commit MetricProvider/export 故障只标记结果缺口，不反向撤销世界提交。必须存 `last_committed_revision, failure_phase, error_code, evidence_gap`。legacy opaque 异常需 `TAINTED`，不能报称事务恢复。
 - RunArtifact 至少分类 `RUN_MANIFEST, EVENT_LOG, SNAPSHOT, METRIC_SAMPLES, DIAGNOSTICS, CHECKPOINT, RAW_RESULT`。产物写入按新目录/新内容 hash append；导出失败产生显式 absent artifact 的 `missing_reason`，禁止捏造 sha/用同名文件覆盖。Run 结果记录是产物索引，不是某个 CSV 本身。
@@ -127,6 +134,10 @@ metric_sample:
 **strict research ranking 必须 gate=PASS 且至少满足**：指标定义 digest/window/denominator/缺值语义一致；可解释的固定任务暴露/horizon/时钟；固定 world/scenario/dataset/model/engine 基线（仅明示 treatment 可变）；随机配对规则通过或正确非配对分析；相同群体/重复/删失策略且所有 attempts 计账；关键 artifact/digest 验真；适用域相符。`unknown` 不等于相等、不允许支撑排名。只要硬条件失败即 `NOT_COMPARABLE`，不生成 winner/排名/显著性优劣宣称。
 
 Legacy `results/compare_gate.py` 存在普通 descriptive 与 strict 两种检查语义；**其“未知种子可带警告描述性并列”不意味着新研究排名适格**。继续保护 `results/compare/*`、旧配置与原始 CSV；只能生成新 sidecar。不同 code commit（尤其 #41 vs master）、模型 revision 或指标 schema 应先阻断，除非预注册明确声明它是 treatment 并说明因果识别策略。
+
+### 5.1 与 AI-C 的规范身份和 RNG 合同的交汇
+
+严格研究比较只认 `cell_key=SHA256(LP4("SB-CELL-v1",plan_digest,treatment_id,replicate_key,frozen_run_spec_digest))`；attempt ordinal 和 RunRecord 生命周期不进入 cell 身份。ExperimentPlan 必须先冻结种子分配与 Spec 输入，再产生包含 Spec refs 的最终 plan digest，不允许双向哈希引用。共享外生 RNG key 不包括 treatment/full spec/attempt；Run-private key 包括冻结 Spec 和组件身份、但不包括 attempt/worker；相同 cell 的 retry 同输入并保留所有失败证据。**精确 LP4、KDF、golden vectors、负例和未决分歧统一由 [LOGICAL_RUN_IDENTITY_AND_RNG_CONVERGENCE.md](LOGICAL_RUN_IDENTITY_AND_RNG_CONVERGENCE.md) 约束（仍为 PROPOSED）。** C03 独立 PR #56 必须另行会签同步，不能凭本 PR 声称已统一冻结。
 
 ## 6. 版本/状态约束与实施范围
 
