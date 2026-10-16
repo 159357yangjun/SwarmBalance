@@ -127,3 +127,87 @@ Only Harness creates the run_id/generation and canonical queue entry. Scenario e
 | choice between late same-time reject vs deferred explicit next boundary; horizon inclusivity; initial t=0 pre-input, event-kind phase-map; non-exact timestamp tolerance | Coordinator via ADR-002 with ARCH-01/02/03 signatures | **NEEDS DECISION** |
 
 **Required future review:** Re-open B01/B03 if any of the exact PR HEADs above change; read changed blobs and revise the matrix. Do not report these fixtures as executed runtime tests. No physical/model validation performed.
+
+
+---
+
+## 7. Unified event/Proposal schema join (AI-A → AI-B handshake, 2026-10-16)
+
+> Companion to STATE_COMMIT_CONTRACT.md §8; candidate pack \`state-event-proposal.v1-candidate-1\` (**PROPOSED, not registered as ACCEPTED ABI**). Cross-checked against #55 \`PROPOSAL_AND_OBSERVATION_SCHEMA.md\` at \`b00cd337de2797b9819089b234a113e36513e003\`, #56 \`RNG_STREAM_OWNERSHIP.md\` at \`0b038f29e7f1957bf93e4afd1e3a171d54e5b620\`, #57 \`RUN_AND_METRIC_CONTRACT.md\` at \`1f3798ad0b4e378d6ec0d13cc6945b3a1133d118\`, #60 \`IMPLEMENTATION_DEPENDENCY_PLAN.md\` at \`56ad6fe7b0f3a1b0b2b613d68a6e5bd5240dc955\`. This is a joint **proposal for review**, not evidence that peers signed.
+
+### 7.1 Envelope, typed EventIntentBatch and responsibility
+
+\`EventIntentBatchV1\` (ARCH-03 component public return): \`schema_version:"event-intent-batch.v1"\`, \`run_id:string\`, \`generation:uint64\`, \`boundary_ref:OpaqueRef\`, \`observed_view_token:OpaqueRef\`, \`producer_id:string\`, \`window_ref:ModelIntervalRef\`, \`intents:EventIntentV1[]\`, \`source_manifest_digest:string\`. An **empty \`intents:[]\` is a valid, explicitly empty batch**, distinct from provider failure (typed ContractFailureV1). Harness validates authorization, source ordering, window endpoints and replay source digest before admitting *any* intents. A hard-invalid batch is fully rejected, never prefix-enqueued.
+
+| Normalized field | Scenario EventSpec source | EventProvider EventIntent source | Harness EventEnvelope destination, ownership / rejection |
+|---|---|---|---|
+| \`schema_version\` | \`event-spec.v1\` (legacy v0.1 explicit converter) | \`event-intent.v1\` | \`event-envelope.v1\`; unsupported major CONTRACT_VERSION_MISMATCH |
+| \`event_id:string\` | immutable EventSpec ID | intent ID | carry verbatim run-mapped identity, no re-numbering; EVENT_ID_CONFLICT on equal ID different canonical payload |
+| \`run_id:string,generation:uint64\` | absent (Scenario is run-independent) | from minted ProposalContext/Batch, never arbitrary payload | **Harness injects/validates** current RunScope; STALE_GENERATION |
+| \`time_ns:uint64\` | \`time_s\` exact decimal ns conversion | \`at_seconds\` exact decimal ns conversion | **Harness authoritative** uint64; TIME_PRECISION_LOSS, TIME_REGRESSION or TIME_OVERFLOW |
+| \`phase:PhaseV1\` | versioned kind→phase map from frozen ScenarioManifest | \`phase\` declared by provider, cross-checked with capability and kind map | admission ranks immutable; UNKNOWN_PHASE_MAPPING / PHASE_CAPABILITY_MISMATCH |
+| \`priority:int32\` | \`priority:int\`, range checked | numeric \`priority:int32\`, or legacy \`priority_class\` with frozen map | copied integer; no implicit class lexicography; INVALID_PRIORITY_CLASS |
+| \`producer_id:string\` | pinned Scenario event-source ID + version | component descriptor ID must match batch/ctx identity | manifest-stable UTF-8 identity, cannot be OS/thread/Python-hash derived; INVALID_PRODUCER_ID |
+| \`producer_seq:uint64\` | event's zero-based position in **frozen canonical Scenario event list** per producer | transactional per-producer sequence issued by Harness (or checked reservation token in ctx) | Harness verifies strict monotonicity/collision and commits cursor **only with boundary**; INVALID_PRODUCER_SEQUENCE |
+| \`kind:string,target_ref:Ref?\` | kind and target_ref | kind and target_ref | versioned domain event registry/ref validator; UNKNOWN_EVENT_TYPE / ENTITY_REFERENCE_INVALID |
+| \`payload:TypedJSON,preconditions:Predicate[]\` | typed payload/constraints | typed payload/constraints | immutable canonical bytes, validation on latest provisional view; INPUT_SCHEMA_INVALID / EVENT_PRECONDITION_FAILED |
+| \`failure_policy:FailurePolicyV1\` | \`on_failure\` mapped exactly with frozen retry budget | requested policy must be authorized by FrozenRunSpec for this source/kind | Harness resolves abort/skip/bounded retry; INVALID_FAILURE_POLICY |
+| \`causal_parent_id:string?\` | explicit only if source supports | optional causal parent | pin stable parent, no dangling references; CAUSAL_REFERENCE_INVALID |
+| \`provenance:ProvenanceRef\` | scenario/source digest & ordinal | component/manifest/input digest and window ref | required converter/version/input digest; PROVENANCE_MISSING |
+| \`payload_digest:Digest,attempt:uint32\` | derived, no EventSpec authority | derived, no EventProvider authority | computed by Harness canonical serialization; attempt starts 0; EVENT_ID_CONFLICT / EVENT_RETRY_EXHAUSTED |
+
+**Input precedence:** the EventSpec \`time_s\` and EventIntent \`at_seconds\` are *input adapters*, never alternative clock owners. \`stable_order_key:string\` (ARCH-03 old proposal) remains audit-only; absent producer_seq reservation is a hard refusal. The event envelope's \`priority\` and \`phase\` never accept unregistered alias strings. Where a v0 EventSpec lacks \`phase\`, a versioned \`event_kind_phase_map\` digest frozen in RunSpec provides it; unknown kind has no default. No provider is allowed to create \`CommittedFrame\`, \`DomainFactV1\`, or WorldState writes through its event payload.
+
+**Canonical serialization**: explicitly named \`canonicalization_version\`, UTF-8 normalized string policy, type tags and stable dict key/array order must be fixed before a replay digest may be assessed. This is **not** currently a byte-level ABI or golden vector; ARCH-02/03 and CONTRACT-03 must sign and test canonicalization. An event ID is semantic identity, whereas event payload digest is the integrity check.
+
+### 7.2 Time fields and opaque refs as one joined type family
+
+| Interface | Fields/types | Allowed use | Invalid behavior |
+|---|---|---|---|
+| \`ClockRefV1\` | Harness-issued opaque \`clock_ref:string\` tied to run/generation/boundary | read-only projection \`sim_time_ns:uint64\`, \`sim_time_s:float64\`, \`step_index:uint64\`, \`committed_revision:uint64\` | cannot parse token to set time; STALE_CLOCK_REF |
+| \`BoundaryRefV1\` | Harness-issued opaque \`boundary_ref:string\` scoped to one run/generation/boundary | maps *internally* to \`boundary_id:string\` and execution fence | BOUNDARY_REF_INVALID across boundaries/generation |
+| \`ViewTokenV1\` | Harness-issued opaque \`view_token:string\` scoped to component+phase+stage_seq and committed_revision | matches \`ObservationV1.view_token\` and normalized \`ChangeSet.read_view_token\` | STALE_OBSERVATION even when committed revision same |
+| \`ModelIntervalRefV1\` | Harness-issued opaque \`model_interval_ref:string\` mapping internally to \`start_ns:uint64,end_ns:uint64,dt_ns:uint64\` | verified \`duration_seconds:float64\` projection; Dynamics never picks interval | INTERVAL_MISMATCH / INVALID_DURATION |
+| \`EventWindowRefV1\` | distinct opaque \`window_ref:string\` resolving to \`start_ns,end_ns,boundary_inclusion_policy\` | EventProvider returns batch in authorized window | OUT_OF_EVENT_WINDOW; no silent delayed ingestion |
+
+**Disallow semantic aliasing**: \`boundary_ref != view_token != clock_ref != model_interval_ref\` conceptually. Their byte strings are opaque, and type roles are not interchangeable even if accidental text equality. A reset generates new tokens. To prevent a stale predecision token reaching Dynamics, Harness must mint a new stage-specific token after action staging without incrementing committed revision. Error codes and scope fence from STATE_COMMIT_CONTRACT.md §8 apply.
+
+### 7.3 Admission order, phase seal, and model-end facts
+
+1. Freeze per-run \`EventAdmissionPolicyV1\`: \`kind_phase_map_digest:Digest\`, \`priority_class_map_digest?:Digest\`, \`window_inclusion:enum\`, \`same_time_late_policy:REJECT\` (V1 candidate), \`horizon_policy:enum\`, \`initial_t0_policy:enum\`, \`max_same_time_events:uint32>0\`, \`max_cascade_depth:uint32>0\`, \`retry_backoff_policy:explicit version\`. Missing required policy means **REJECT_ASSEMBLY**, not defaults invented by producers.
+2. Scenario EventSpec is canonicalized in frozen Scenario ordinal order. EventProvider EventIntentBatch is admitted serially by Harness **before** phase seal, using versioned producer order from component dependency DAG. Each accepted event claims unique (run,generation,event_id) and (producer_id,producer_seq); seq reservation advances transactionally and is restored on precommit rollback.
+3. For queued envelopes at the same \`time_ns\`, use **only** \`(time_ns, phase_rank, priority, producer_id, producer_seq, event_id)\`, all ascending; event_id and producer_id compare as canonical UTF-8 bytes. The ordering cannot depend on worker completion, hash-map iteration or UI polls.
+4. A provider may schedule into permitted PRE_INPUT/PRE_DECISION at an **unsealed** boundary. Neither \`OBSERVE\` nor raw \`ADVANCE_MODEL\` is a provider-executable domain mutation phase; attempts without declared capability fail PHASE_CAPABILITY_MISMATCH.
+5. A validated Dynamics \`ServiceFactCandidate\` is converted by Harness to \`DomainFactV1\` with \`fact_time_ns=model_interval.end_ns\`; its domain lifecycle changes are resolved during the preceding boundary's POST_MODEL stage, **not queued** as \`EventEnvelopeV1\`. An exogenous PRE_INPUT at the same endpoint is processed at the next boundary beginning there; no impossible global ordering of finished physical facts and not-yet-admitted envelopes is claimed.
+6. A genuine follow-up *future* event from a fact handler must be an explicitly authorized EventIntent with \`at_seconds\` > current sealed time or the next allowed boundary policy. Silent re-entry into a lower already sealed phase → INVALID_EVENT_ORDER. Same-time cascades are bounded and recorded.
+7. **Candidate freeze choice (needs coordinator approval):** initial t=0 Scenario PRE_INPUT enters the first admitted boundary before Scheduler; event exactly at horizon may be disposed according to an explicit \`horizon_policy=INCLUDE_ONCE|EXCLUDE\`; there is never an infinite extra zero-duration step. EventProvider default window suggestion \`(start_ns,end_ns]\` with a separately defined initial t=0 admission avoids boundary duplicates; otherwise assembly must carry a different named inclusion policy. All such choices are **open ADR-002 parameters**, not silently frozen by this amendment.
+
+### 7.4 Unified event failure and conversion failure semantics
+
+| Failure | Normalized code | Disposition and atomic effect |
+|---|---|---|
+| Invalid EventSpec at assembly (kind map absent, time unrepresentable, no provenance) | UNKNOWN_PHASE_MAPPING / TIME_PRECISION_LOSS / INPUT_SCHEMA_INVALID | REJECT_ASSEMBLY; no revision 0 published |
+| Invalid external EventIntentBatch before admission (wrong ctx, wrong window, missing priority map) | STALE_OBSERVATION / OUT_OF_EVENT_WINDOW / INVALID_PRIORITY_CLASS | REJECT_REQUEST; queue/counters unchanged |
+| Same event ID same digest admitted again | idempotent recorded disposition, **not a new action** | No second domain effect; return original record |
+| Same ID different semantic digest, or sequence collision | EVENT_ID_CONFLICT / INVALID_PRODUCER_SEQUENCE | REJECT_REQUEST if no boundary stage; else ROLLBACK_BOUNDARY by hard error |
+| Event precondition fails and policy=\`record_and_skip\` | EVENT_PRECONDITION_FAILED with disposition SKIP_EVENT | all **this** event's tentative effects discarded; record skipped disposition and dequeue atomically on successful full boundary, not externally early |
+| Event failure and policy=\`abort_run\` | original cause + ROLLBACK_BOUNDARY | restore all uncommitted B/C/D/queue/RNG/seq; Run FAILED by default |
+| Event \`retry_with_limit\` but missing budget/positive backoff or non-rewindable D | INVALID_FAILURE_POLICY / COMPONENT_RECOVERY_UNSUPPORTED | REJECT_ASSEMBLY or hard rollback; never spin at zero time |
+| Late lower phase or same-time cascade over budget | INVALID_EVENT_ORDER / EVENT_CYCLE | hard rollback of all uncommitted work, no phantom event |
+| MetricProvider postcommit failure | OUTPUT_FAILURE + POSTCOMMIT_PARTIAL | keep published WorldState/CommittedFrame, mark evidence status; do not re-emit events |
+
+Every failure uses \`ContractFailureV1\` with original \`source_code\`, \`disposition\`, \`world_commit_occurred\`, \`committed_revision\`, causal IDs and sanitized trace. **EventIntent is an input object; accepted EventEnvelope is a queue/control record; DomainFact is a committed domain outcome.** None may substitute for another merely because they share \`event_id\` or \`time_ns\`.
+
+### 7.5 Joint sign-off checklist (all initially PENDING)
+
+| Group | Must explicitly accept or request changes | Current |
+|---|---|---|
+| AI-B / ARCH-03 (#55) | EventIntentBatch and ProposalContext aliases, Action/StateDelta→ChangeSet/fact mapping | PENDING |
+| ARCH-02 Harness (#49) | EventEnvelope, queue/producer sequence ownership, admission policy, atomic fence and failure mapping | PENDING |
+| ARCH-01 World (#46) | EventSpec phase-kind map, typed event effects, DomainFact lifecycle invariants | PENDING |
+| AI-C CONTRACT-03 (#56) | RNG cursor/producer_seq on rollback; deterministic external source tape IDs | PENDING |
+| AI-D CONTRACT-04 (#57) | CommittedFrame/evidence partial and fact log digest, no postcommit rewind | PENDING |
+| ARCH-04 (#50) | explicit LEGACY_OPAQUE_STEP segregation | PENDING |
+| Coordinator ADR-002/003 | horizon, t=0, late same-time, phase registry, public schema major/version approval | PENDING |
+
+Acceptance requires an explicit GitHub **review/comment naming the precise #58 HEAD SHA, accepted schema pack/version and any exceptions**, then independent AI-R rereview, then coordinator ADR. Silence, task authorship, PR creation and the existence of a checklist are **not** signatures. Fixtures in STATE_EVENT_TEST_CASES.md are **NOT RUN**.
