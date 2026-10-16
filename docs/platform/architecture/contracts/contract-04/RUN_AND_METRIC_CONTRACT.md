@@ -40,34 +40,17 @@
 
 引用形式：`{type,id,schema_version,content_digest}`。内容摘要规范预设 `sha256:<64-lowercase-hex>`，计算对象为稳定序列化的逻辑内容；具体规范化方式（JSON canonicalization/二进制产物）须在实现前一致确定并加入 `digest_algorithm`，禁止基于可变 URL、文件名、`latest` 或 branch 名保证身份。schema_version 是结构兼容版本，不代替 content_digest；内容变更另生 revision/digest。缺 hash/引用解析失败 -> `PROVENANCE_INCOMPLETE`，不能结论 PASS。
 
-## 2. FrozenRunSpec v1 最低字段
+## 2. FrozenRunSpec v1 的完整规范字节与摘要（P0-03 修订）
 
-```yaml
-spec_schema_version: "0.1.0"
-# Canonical FrozenRunSpec CONTENT contains execution semantics only.
-# run_id / attempt_id / generation / plan_digest / experiment_ref are stored in RunRecord binding,
-# NOT in this hashed object; otherwise retry changes spec hash or Plan<->Spec references cycle.
-resolved_seed_source: "experiment_plan"  # or explicit_run/scenario_default
-effective_master_seed_uint64: "<decimal-uint64-string>"
-seed_allocation_ref: {digest: "sha256:<real>"} # pre-plan allocation; no plan_digest cycle
-rng_derivation_spec: "C03-HKDF-HMAC-SHA256-v1" # candidate; joint approval required
-stream_contract_refs: ["namespace/owner/stream/algorithm/version/source-digest"]
-world_ref: {id: "...", revision: "...", digest: "sha256:<real>"}
-scenario_ref: {id: "...", revision: "...", digest: "sha256:<real>"}
-assembly_ref: {digest: "sha256:<real>", components: ["id/version/implementation_digest/..."]}
-dataset_manifest_refs: ["id/revision/digest"]
-model_manifest_refs: ["id/revision/digest"]
-code_ref: {git_commit_full_sha: "<40-hex>", dirty: false, execution_mode: "NATIVE_HARNESS"}
-runtime_profile_ref: {digest: "sha256:<real>"} # OS/Python/libs/numeric/tolerance/clock
-clock_policy: {mode: FIXED_STEP, step_ns: 1000000000, horizon_ns: 3600000000000}
-rng_plan_ref: {digest: "sha256:<real>"}          # scope/streams/derivation; B04 must sign
-metric_definition_refs: [{id: "timeout_rate",version: "1.0.0",digest: "sha256:<real>"}]
-failure_policy_ref: {digest: "sha256:<real>"}
-completeness_policy: {audit_required: true, required_artifacts: ["run_manifest","diagnostics","metrics"]}
-spec_digest: "sha256:<digest-of-canonical-spec-excluding-this-field>"
-```
+**唯一规范源：** [FROZEN_RUN_SPEC_CANONICAL_AND_ATTEMPT_JOURNAL.md](FROZEN_RUN_SPEC_CANONICAL_AND_ATTEMPT_JOURNAL.md) §2 的 `SB-FROZEN-RUN-SPEC-v1` 和 `SB-CJSON-1`。必须具备完整、精确且无多余键的 spec schema，包含 World/Scenario、ResolvedConfig、ComponentAssembly、Dataset/Model、Code、Runtime/Converter、Clock、SeedAllocation/RNG、MetricDefinition、Failure、Completeness 和 ExecutionBudget/Termination 的已冻结内容寻址引用。顶层 spec 中不存在 `plan_digest/run_id/attempt_id/cell_key` 等 attempt/plan-binding 字段，也不存在自引用 `spec_digest`。Spec 先冻结、Plan 再引用 spec digest，避免循环摘要。
 
-标记为 `<real>` 的占位符 **不可用于真实运行**。生成 `spec_digest` 时排除其自身，以及仅属于每次尝试的 `run_id, attempt_id, attempt_ordinal, generation, retry_of, worker, timestamps, status` 和位于 ExperimentPlan 绑定侧的 `plan_digest/cell_key`；不能遗漏会改变执行/计量语义的冻结字段。Spec 内容含冻结种子分配值及指标定义摘要，而 ExperimentPlan 可以单向引用 Spec digest，禁止 Spec 再反向引用 Plan digest 形成哈希环。规范化完整对象的字节规则仍须联合批准；**身份/随机性字段顺序、golden vectors 和硬拒绝见 [LOGICAL_RUN_IDENTITY_AND_RNG_CONVERGENCE.md](LOGICAL_RUN_IDENTITY_AND_RNG_CONVERGENCE.md)**。记录所有不可省略的配置/模型、物理量/CRS 转换、随机流、终止/超时判据。外部不可重现数据必须固定快照或显式 `NON_REPRODUCIBLE`；不能绕过 strict 模式。**B04 RNG 未冻结之前，仅可标示 Proposed，不可宣称 paired-run 确定性。**
+**序列化：** NFC UTF-8、object key 字节排序、严格无 JSON number（所有数字需是已验证的规范十进制字符串）、布尔型/集合语义数组排序与重复拒绝，`sha256(canonical_bytes)`。禁止使用浮动路径/branch 或在无法重建的配置上计算虚假的“完整摘要”。详见附属合同的完整字段表、转义、排序、正反向校验和独立复算。
+
+**新增计算证据：** Synthetic SPEC-01 = 2471 字节，`sha256:d2c07f032498322da6130f153d72199052e249559707574559c8791e2959ddf8`；仅修改锁定指标版本的 SPEC-02 = `sha256:99353448ec6277f9bac835e82f573bf9f8051832d45db0c5307f38ac5f68e5dd`；Python/Node.js 纯规范摘要计算相同，**没有运行仓库实现/实验**。
+
+**Plan 唯一性：** 已冻结 ExperimentPlan 中 `(treatment_id,replicate_key)` 只能绑定唯一 `frozen_run_spec_digest`；相同三元组 `(plan_digest,treatment_id,replicate_key)` 绑定不同摘要时必须 `PLAN_CELL_SPEC_CONFLICT`，不得当作另一个独立 cell/replication；先创建新 ExperimentPlan 再评估。只用规范的四元组计算 cell key。运行实例/重试仅通过持久化 attempt 索引关联该 cell。
+
+**分布与抽样：** `C03C04-SAMPLER-MIN-v1` 只将 U64/UNIFORM53 字节基元列为候选已规定的行为；Gaussian/Poisson 等复杂分布未锁定采样器与跨语言 golden vector 时要拒绝严格 R3，或在执行前物化并固定外生 tape。数字环境/平台 profile 及 HKDF version 均要随 spec 锁定。AI-C 在 #56 明确会签前仍为 PROPOSED。
 
 ## 3. RunRecord v1 与尝试/失败规则
 
@@ -75,7 +58,7 @@ spec_digest: "sha256:<digest-of-canonical-spec-excluding-this-field>"
 
 - RunHandle 被创建后 PREPARED；配置/装配或初始化失败仍以 FAILED 留档（`spec_digest=null` 且 `freeze_error` 说明）。在分配 run_id **之前** 拒绝的畸形请求只生成 request rejection audit，不伪造已创建的 RunRecord。
 - Harness 内部 CREATED/ASSEMBLED/READY/RUNNING/PAUSED 对外可映射 PREPARED/RUNNING，并保留 `lifecycle_detail`；COMPLETED -> SUCCEEDED；STOPPED -> CANCELLED；FAILED -> FAILED。销毁句柄不改变终态；`INVALIDATED` 是后续资格审查结果，**不覆写原 SUCCEEDED/FAILED/CANCELLED 事件**。
-- `run_id` 标识一次不可替换执行尝试，**不参与 FrozenRunSpec digest**。标准逻辑单元为 `logical_cell_tuple=(plan_digest,treatment_id,replicate_key,frozen_run_spec_digest)`；`replication_id` 仅用于旧版读入别名，不能与 `replicate_key` 并列形成两套键。规范 `cell_key/attempt_id/run_id` 派生和 LP4/HKDF golden vectors 详见 [联合身份契约](LOGICAL_RUN_IDENTITY_AND_RNG_CONVERGENCE.md)。每个真正重试使用同一 spec、master_seed 和 exogenous tape，但分配 **新 attempt_ordinal、attempt_id、run_id**；以 `retry_of_attempt_id` 指向旧尝试。重复提交相同 `(cell_key,attempt_ordinal)` 必须幂等返回原记录，不能再次执行或重复计数。BatchRecord 保留所有 attempts、使用预注册 `attempt_selection_policy` 决定统计样本。
+- `run_id` 标识一次不可替换执行尝试，**不参与 FrozenRunSpec digest**。标准逻辑单元为 `logical_cell_tuple=(plan_digest,treatment_id,replicate_key,frozen_run_spec_digest)`；`replication_id` 仅用于旧版读入别名，不能与 `replicate_key` 并列形成两套键。规范 `cell_key/attempt_id/run_id` 派生和 LP4/HKDF golden vectors 详见 [联合身份契约](LOGICAL_RUN_IDENTITY_AND_RNG_CONVERGENCE.md)；完整 Spec hash 和 crash-safe 持久化尝试索引见 [P0-03 修订](FROZEN_RUN_SPEC_CANONICAL_AND_ATTEMPT_JOURNAL.md)。每个真正重试使用同一 spec、master_seed 和 exogenous tape，但分配 **新 attempt_ordinal、attempt_id、run_id**；以 `retry_of_attempt_id` 指向旧尝试。重复提交相同 `(cell_key,attempt_ordinal)` 必须幂等返回原记录，不能再次执行或重复计数。BatchRecord 保留所有 attempts、使用预注册 `attempt_selection_policy` 决定统计样本。
 - `execution_status` 与 `evidence_completeness=COMPLETE|INCOMPLETE|UNKNOWN`、`metric_completeness=COMPLETE|PARTIAL|MISSING`、`comparison_eligibility=ELIGIBLE|NOT_COMPARABLE|UNASSESSED` **互相独立**。例如物理仿真成功、指标导出失败：SUCCEEDED + MISSING + INCOMPLETE + NOT_COMPARABLE，不能伪装“成功指标为零”。
 - 预提交错误保持上次提交 revision、时钟与 RNG；post-commit MetricProvider/export 故障只标记结果缺口，不反向撤销世界提交。必须存 `last_committed_revision, failure_phase, error_code, evidence_gap`。legacy opaque 异常需 `TAINTED`，不能报称事务恢复。
 - RunArtifact 至少分类 `RUN_MANIFEST, EVENT_LOG, SNAPSHOT, METRIC_SAMPLES, DIAGNOSTICS, CHECKPOINT, RAW_RESULT`。产物写入按新目录/新内容 hash append；导出失败产生显式 absent artifact 的 `missing_reason`，禁止捏造 sha/用同名文件覆盖。Run 结果记录是产物索引，不是某个 CSV 本身。
@@ -138,6 +121,10 @@ Legacy `results/compare_gate.py` 存在普通 descriptive 与 strict 两种检�
 ### 5.1 与 AI-C 的规范身份和 RNG 合同的交汇
 
 严格研究比较只认 `cell_key=SHA256(LP4("SB-CELL-v1",plan_digest,treatment_id,replicate_key,frozen_run_spec_digest))`；attempt ordinal 和 RunRecord 生命周期不进入 cell 身份。ExperimentPlan 必须先冻结种子分配与 Spec 输入，再产生包含 Spec refs 的最终 plan digest，不允许双向哈希引用。共享外生 RNG key 不包括 treatment/full spec/attempt；Run-private key 包括冻结 Spec 和组件身份、但不包括 attempt/worker；相同 cell 的 retry 同输入并保留所有失败证据。**精确 LP4、KDF、golden vectors、负例和未决分歧统一由 [LOGICAL_RUN_IDENTITY_AND_RNG_CONVERGENCE.md](LOGICAL_RUN_IDENTITY_AND_RNG_CONVERGENCE.md) 约束（仍为 PROPOSED）。** C03 独立 PR #56 必须另行会签同步，不能凭本 PR 声称已统一冻结。
+
+### 5.2 尝试持久账本与崩溃恢复
+
+实现者必须在分发前持久化 `(cell_key,attempt_ordinal)` 唯一分配及 RunRecord；worker 独占 lease/fencing；artifacts staged→verified→finalized 以 attempt_id+result_digest 幂等 CAS；崩溃后先查询 `PlanCellIndex → AttemptIndex → RunRecord/Artifact`，已 finalize 仅返回原记录；有 staged 核验并补 finalize；状态未知不能盲目重启。Batch 记录所有失败/取消/UNKNOWN，分析只可每逻辑 cell 选择一次。详细状态、三种 crash 窗口和负例见 [FROZEN_RUN_SPEC_CANONICAL_AND_ATTEMPT_JOURNAL.md](FROZEN_RUN_SPEC_CANONICAL_AND_ATTEMPT_JOURNAL.md) §4–5。该执行持久性尚**未经注入测试**。
 
 ## 6. 版本/状态约束与实施范围
 
