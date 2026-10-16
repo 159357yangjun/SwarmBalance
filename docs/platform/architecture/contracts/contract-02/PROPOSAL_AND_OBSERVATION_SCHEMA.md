@@ -62,10 +62,10 @@ class ObservationV1:
     schema_version: Literal["observation.v1"]
     run_id: str
     generation: int
-    committed_revision: int
-    boundary_ref: OpaqueRef
-    view_token: OpaqueRef
-    clock_ref: OpaqueRef
+    base_revision: int             # last committed revision, stage_seq is private
+    boundary_id: str               # explicit minted public Run-local ID
+    read_view_token: OpaqueRef     # bound to run/generation/boundary/stage_seq/phase
+    clock_ref: OpaqueRef            # read-only; never substituted for boundary/window
     world_ref: Ref
     scenario_ref: Ref
     vehicles: tuple[VehicleViewV1, ...]
@@ -96,16 +96,9 @@ class AssignTaskChain:
 @dataclass(frozen=True)
 class ActionProposalV1:
     schema_version: Literal["action-proposal.v1"]
-    proposal_id: str
-    source_component_id: str
-    run_id: str
-    generation: int
-    boundary_ref: OpaqueRef
-    observed_revision: int
-    observed_view_token: OpaqueRef
+    header: "ProposalHeaderV1"  # exactly §0.1 of TRANSACTION_EVENT_PROPOSAL_CONVERGENCE.md
     actions: tuple[AssignTaskChain, ...]
-    capability_ref: str
-    provenance_ref: str              # locked manifest/model/config digest
+    emitted_event_intents: tuple["EventIntentV1", ...]  # registered capability only
 ```
 
 **提交语义**：空 `actions=()` 是明确的“无派单建议”，不是异常或缺失。所有动作必须基于同一个被签发的视图；一个 proposal 的有序动作集合要作为该 boundary 的原子候选集合提交给 Harness（存在互相矛盾/资源冲突默认拒绝整个 boundary，不用 last-write-wins）。动作 ID 幂等键由组件在 Harness 提供的身份上下文内稳定生成，重试相同输入不得生成不可解释的新 ID。正式 `ActionOperation` discriminated union 中可以允许 cancel/requeue/route request，但每个变体必须由 ARCH-01/ARCH-03 另行会签，**不得**拿自由文本 `kind` 绕过 capability 校验。
@@ -138,23 +131,16 @@ class ServiceFactCandidate:
 @dataclass(frozen=True)
 class StateDeltaProposalV1:
     schema_version: Literal["state-delta-proposal.v1"]
-    proposal_id: str
-    source_component_id: str
-    run_id: str
-    generation: int
-    boundary_ref: OpaqueRef
-    base_committed_revision: int
-    based_on_view_token: OpaqueRef  # after validated scheduler staging
-    model_interval_ref: OpaqueRef
+    header: "ProposalHeaderV1"  # SAME header shape as Scheduler public output
+    model_interval_ref: "ModelIntervalRef"  # only Dynamics; never EventWindowRefV1
     changes: tuple[MotionEnergyChange, ...]
     service_facts: tuple[ServiceFactCandidate, ...]
-    capability_ref: str
-    model_manifest_digest: str
+    emitted_event_intents: tuple["EventIntentV1", ...]
 ```
 
 **统一能量扣减**：动力学只算 `energy_consumed_wh`，Harness 与 ARCH-01 不变量校验器按当前暂存电量统一扣减一次。禁止模型同时在自身更改 Drone.battery 再提交相同耗电。是否存在“再生能源/充电”由另一个独立、受模型声明约束的 proposal variant 表达，不允许传负 `energy_consumed_wh`。位置/速度/电量/货权/服务事实的跨对象一致性由同一 boundary Committer 验证；过低电量、超质量、NaN 或无来源字段 fail-closed。`service_facts` 只是候选领域事实；具体服务事件的规范 envelope、时间字段及 task transition kind 要 **等 AI-A 会签**。
 
-**幂等与视图**：`base_committed_revision` 是上一次对外 commit 的 revision；`based_on_view_token` 则必须绑定接受合法派单暂存后构造的状态视图。即使 commit revision 尚未变化，Dynamics 也不得接收旧的 predecision token。
+**幂等与视图**：`header.base_revision` 是上一次对外 commit 的 revision；`header.read_view_token` 则必须绑定接受合法派单暂存后构造的状态视图。即使 commit revision 尚未变化，Dynamics 也不得接收旧的 predecision token。
 
 ## 5. 六类组件输入/输出与副作用矩阵
 
@@ -162,7 +148,7 @@ class StateDeltaProposalV1:
 |---|---|---|---|---|
 | DataProvider | `inspect/materialize`，有 stream 能力才 `poll` | pinned DatasetRef、window ref | 已验证实体批次 / 数据候选 | 自身缓存，**不写 B** |
 | SpatialProvider | `open/query` | frozen spatial dataset、CRS、snapshot id | 可追溯坐标/路径查询结果 | 纯缓存，**不写 B** |
-| EventProvider | `events_in_window` | 只读 state、Harness 的 window/context | `EventIntentBatch`（envelope 未冻结） | 只提议；**不排序/入队/写 B** |
+| EventProvider | `events_in_window` | 只读 state、Harness 的 `EventWindowRefV1`/context（不能是 ModelIntervalRef） | `EventIntentBatchV1` → Harness-only EventEnvelopeV1 | 只提议；**不排序/入队/写 B** |
 | Scheduler | **`propose(ObservationV1, ctx)`** | 验证过的 predecision provisional read view | `ActionProposalV1` | 只提议，不派单 |
 | DynamicsModel | **`propose(StateSliceView, Conditions, ModelIntervalRef, ctx)`** | 已暂存合法动作的只读 view | `StateDeltaProposalV1` | 只提议，不推进权威时钟/扣电 |
 | MetricProvider | `observe(CommittedFrame)`，`finalize` | 仅 postcommit；已提交 frame ref | `MetricSample` | 可写派生 E，不写 B/C；失败 partial |
@@ -206,8 +192,18 @@ Parity worker 则执行 **原方向**（legacy obs→legacy action→env.step �
 
 ## 8. 与 CONTRACT-01 的唯一入站契约（增量对齐）
 
-1. **统一 identity**：组件提交的 `ActionProposalV1/StateDeltaProposalV1` 通过版本化适配生成共同 `ProposalHeaderV1{schema_version,proposal_id,run_id,generation,boundary_id,base_revision,read_view_token,producer_id,capability_ref,provenance_ref}`。旧 `boundary_ref` 只可由 Harness 内部表解析到 `boundary_id`，旧 `observed_revision/base_committed_revision` 映射 `base_revision`，旧 `source_component_id` 映射 `producer_id`；无法验证一一对应则拒绝。所有提案不得用仅相等的 revision 跳过 stage token 比对。
-2. **统一 operation & phase**：Scheduler 的 chain 转为 `ChangeSetV1(phase=APPLY_COMMAND)` 的 typed atomic operation，Dynamics 的 motion+energy 转为 `ADVANCE_MODEL` typed operation；服务事实在 POST_MODEL 被领域 validator 核验，不直接作为同刻队列事件。每个操作具有 `operation_id,target_ref,kind,expected_version,value,unit?,provenance`，由 ARCH-01/02 的 versioned reducer 定义语义。未知 reducer/未授权事件/缺 operation version 一律 `DOMAIN_OPERATION_UNMAPPED/INPUT_SCHEMA_INVALID`，禁止自由 dict patch。
-3. **统一事件入口**：EventProvider/允许发事件的组件只能输出 `EventIntentV1`；Harness 按 AI-A 的 `EventSpec/Intent→EventEnvelopeV1` 转换与队列顺序验收。当前提案引用 PR #58 精确 HEAD `fa894cde5b22a78f5dcac4b2fbe17b3f17fa3377`，但未在 CONTRACT-02 自行冻结 Phase、time_ns、priority 或 sequence 策略。
+1. **统一 identity**：组件输出均**直接嵌入同一个** `ProposalHeaderV1{schema_version,run_id,generation,boundary_id,base_revision,read_view_token,proposal_id,producer_id,capability_ref,provenance_ref}`，Harness 归一为仅内部可见 `NormalizedChangeSetV1`。旧 `boundary_ref` 只可由 Harness 内部表解析到 `boundary_id`，旧 `observed_revision/base_committed_revision` 映射 `base_revision`，旧 `source_component_id` 映射 `producer_id`；无法验证一一对应则拒绝。所有提案不得用仅相等的 revision 跳过 stage token 比对。
+2. **统一 operation & phase**：Scheduler 的 chain 转为 `NormalizedChangeSetV1(phase=APPLY_COMMAND)` 的 typed atomic operation，Dynamics 的 motion+energy 转为 `ADVANCE_MODEL` typed operation；服务事实在 POST_MODEL 被领域 validator 核验，不直接作为同刻队列事件。每个操作具有 `operation_id,target_ref,kind,expected_version,value,unit?,provenance`，由 ARCH-01/02 的 versioned reducer 定义语义。未知 reducer/未授权事件/缺 operation version 一律 `DOMAIN_OPERATION_UNMAPPED/INPUT_SCHEMA_INVALID`，禁止自由 dict patch。
+3. **统一事件入口**：EventProvider/允许发事件的组件只能输出 `EventIntentV1`；Harness 按 AI-A 的 `EventSpec/Intent→EventEnvelopeV1` 转换与队列顺序验收。当前提案引用 PR #58 精确 HEAD `bd5e47266d79d1e087ca8cfc6fe68ea28a03496b`，但未在 CONTRACT-02 自行冻结 Phase、time_ns、priority 或 sequence 策略。
 4. **统一失败出口**：stale token `STALE_PROVISIONAL_VIEW`（源别名 STALE_OBSERVATION）、非法实体/数值与冲突作为 precommit fatal（如果 FrozenRunSpec 没有合法、已会签的例外 policy），必须恢复整个 boundary B/C/D/queue/RNG；外部 admission 的非法指令可 `REJECT_COMMAND`；postcommit metrics 是 PARTIAL evidence，不回滚 B/C。完整映射见新增收敛文件 §5。
 5. 本文中的早期伪类型片段作为 payload 接口草案而保留，若与收敛文件字段映射不一致，以 **待会签问题** 标记而非自动声称两者等价。AI-R 需要在新的 HEAD 复审时核对此处和 #58/#56/#57 的差异。所有 XW 用例 NOT_RUN。
+
+## 9. CONTRACT-01 PR #58 最新 HEAD 联合一致性包（严格 V1 候选）
+
+**输入固定**：#58 HEAD `bd5e47266d79d1e087ca8cfc6fe68ea28a03496b`; coordinator #61 HEAD `6e7b69dc70c56a8e13f5cf7de750ad3c59068dcc`。权威的候选交换类型（而非重复定义）在 [TRANSACTION_EVENT_PROPOSAL_CONVERGENCE.md §0](TRANSACTION_EVENT_PROPOSAL_CONVERGENCE.md)：公共 `ProposalHeaderV1`、公共 Scheduler/Dynamics 两种 Proposal、仅 Harness 内部 `NormalizedChangeSetV1`，及 `EventIntentBatchV1.window_ref: EventWindowRefV1`。旧 schema prose 中 `boundary_ref`, `observed_revision`, `source_component_id` 只能作可验证的历史入站别名，不能算当前第二套 wire fields。严格入口上 `boundary_id/read_view_token` 必须显式；`change-set.v1` 不能作为可提交的组件返回值。
+
+**观察正反样例**（设计、NOT_RUN）：一个 `ObservationV1(run_id=R,generation=2,boundary_id=B,base_revision=4,read_view_token=A)` → Scheduler 提交同 ID/token Header → Harness 产 `NormalizedChangeSetV1(phase=APPLY_COMMAND)` → 动力学取得 token B2（同 base_rev 4、不同 stage）→ 运动能耗归一于 `ADVANCE_MODEL` → 一次 boundary commit revision=5。反例：用 token A 给 Dynamics 或用 `ModelIntervalRef` 当 EventProvider.window_ref，分别拒绝 `STALE_OBSERVATION` 或 `WINDOW_REF_TYPE_MISMATCH`；不能因字符串相同而接受。
+
+**事件边界候选**：首次 t=0 PRE_INPUT/PRE_DECISION 在首次 boundary 的调度前可见，普通 EventProvider 窗口 `(start_ns,end_ns]`，t0 初始源单独加载一次；horizon 上事件 INCLUDE_ONCE（存在待处理事件才允许终止前有界零时长事件 boundary）；相位 seal 后迟到同刻事件 `INVALID_EVENT_ORDER`，无静默延期；kind→phase 必须 manifest-pinned，未知 kind 显式失败。这些由 AI-A/ARCH-01/02/03、协调人会签前只是**方向明确的候选**。
+
+**事务失败**：无效方案产生 `ContractFailureV1`，precommit fatal 全量 rollback B/C/D/RNG/queue/producer_seq，无部分写入；合法 event record_and_skip 仅在其余阶段成功后随一次 commit 消费；postcommit 证据故障 `POSTCOMMIT_PARTIAL` 不能回滚 revision，legacy `TAINT_LEGACY` 不可假装 checkpoint。禁止通过 proposal 转换隐藏模型异常。旧 World 文档允许的 public micro-commit 应由经过正式批准的新 strict V1 ADR-002 明确取代（当前仍未正式冻结）。
