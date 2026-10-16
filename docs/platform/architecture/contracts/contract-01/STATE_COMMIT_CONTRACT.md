@@ -50,11 +50,11 @@
 | ReadWorldView.run_id, generation, revision, sim_time_ns | immutable scalars from **last published** state | Harness | stale view rejected at admission |
 | ProvisionalView.base_revision, boundary_id, stage_seq, view_token | uint64, string, uint64, opaque string; private *stage identity*, not committed revision | Harness | STALE_PROVISIONAL_VIEW; never externally exposed as committed |
 | ProvisionalView.readonly_state | deep-immutable composed B overlay through stage_seq; does **not** expose C mutable references | Harness | MUTABLE_REFERENCE_LEAK = contract failure |
-| ChangeSet.run_id, generation, boundary_id, base_revision | string,uint64,string,uint64: optimistic concurrency fence | ARCH-03 produces; Harness validates | STALE_COMMAND / STATE_CONFLICT |
-| ChangeSet.producer_id, proposal_id, phase | stable string, stable string, PhaseV1 enum; unique idempotent proposal within run generation | Component; Harness verifies | PROPOSAL_ID_CONFLICT / INVALID_PHASE |
-| ChangeSet.read_view_token | opaque string matching the provisional view on which computed; **required in strict mode** | Harness issues; component echoes | STALE_PROVISIONAL_VIEW |
-| ChangeSet.operations | ordered array of {operation_id:string, target_ref:typed ref, kind: namespaced string, expected_version:uint64?, value: typed, unit?:string, provenance:ref}; semantically atomic | Component proposes; ARCH-01 validates; Harness applies | INPUT_SCHEMA_INVALID, UNKNOWN_REFERENCE, UNIT_MISMATCH, STATE_CONFLICT |
-| ChangeSet.emitted_event_intents | EventIntentV1[]: proposed, never direct queue writes | Component; Harness converts per time/event contract | INVALID_EVENT_ORDER; staged event rejected |
+| NormalizedChangeSetV1.run_id, generation, boundary_id, base_revision | string,uint64,string,uint64: Harness internal optimistic concurrency fence after converting public ProposalHeaderV1 | Harness ARCH-02 only (ARCH-03 supplies ActionProposalV1/StateDeltaProposalV1) | STALE_OBSERVATION / STATE_CONFLICT |
+| NormalizedChangeSetV1.producer_id, proposal_id, phase | stable string, stable string, Harness-assigned PhaseV1; unique idempotent producer proposal per run generation | Component supplies ProposalHeaderV1 fields; Harness maps and assigns phase | PROPOSAL_ID_CONFLICT / INVALID_PHASE |
+| ProposalHeaderV1.read_view_token → NormalizedChangeSetV1.read_view_token | opaque stage token from Harness, echoed in public header; required in strict mode | Harness issues and validates; component echoes without interpretation | STALE_OBSERVATION (source STALE_PROVISIONAL_VIEW) |
+| NormalizedChangeSetV1.operations | ordered array of {operation_id:string, target_ref:typed ref, kind: namespaced string, expected_version:uint64?, value: typed, unit?:string, provenance:ref}; semantically atomic, typed reducer only | Harness converter outputs; ARCH-01 validates; Harness stages and commits | DOMAIN_OPERATION_UNMAPPED, UNKNOWN_REFERENCE, UNIT_MISMATCH, STATE_CONFLICT |
+| NormalizedChangeSetV1.emitted_event_intents | EventIntentV1[]: converted from authorized public proposal emissions, never direct queue writes | Harness converter and event-admission owner | INVALID_EVENT_ORDER; staged event rejected |
 | BoundaryFence | {run_id, generation, boundary_id, base_revision, start_ns, selected_end_ns, queue_checkpoint, rng_checkpoint, private_state_tokens, admission_counter_checkpoint}; all internal immutable/checkpoint tokens | Harness ARCH-02; ARCH-03 supplies D restore | CHECKPOINT_UNAVAILABLE; refuse strict invocation |
 | BoundaryCommit | {boundary_id, from_revision, to_revision, committed_step_index, sim_time_ns, applied_operation_ids[], accepted_event_ids[], rejected_event_ids[], state_digest, control_digest}; only generated upon success | Harness | no BoundaryCommit on rejected boundary |
 | CommittedFrame | {run_id,generation,revision,step_index,at_ns,at_seconds,readonly_state,accepted_events,rejected_proposals,boundary_id,commit_digest}; visible only after commit | Harness; ARCH-03 consumes | UNSAFE_FRAME / EVIDENCE_INCOMPLETE if publication fails |
@@ -118,11 +118,11 @@ Required errors identify run_id, generation, boundary_id, base_revision, compone
 
 ## 8. Joint transaction + Proposal normalization amendment (AI-A / CONTRACT-02 alignment, 2026-10-16)
 
-> **Proposed schema pack \`state-event-proposal.v1-candidate-1\`, NOT jointly accepted.** This addendum refines §§3–7 and specifies the complete correspondence with [CONTRACT-02 PROPOSAL_AND_OBSERVATION_SCHEMA](https://github.com/159357yangjun/SwarmBalance/blob/b00cd337de2797b9819089b234a113e36513e003/docs/platform/architecture/contracts/contract-02/PROPOSAL_AND_OBSERVATION_SCHEMA.md) at PR #55 HEAD \`b00cd337de2797b9819089b234a113e36513e003\`. #58 pre-amendment HEAD \`fa894cde5b22a78f5dcac4b2fbe17b3f17fa3377\`. CONTRACT-03 #56 \`0b038f29e7f1957bf93e4afd1e3a171d54e5b620\`, CONTRACT-04 #57 \`1f3798ad0b4e378d6ec0d13cc6945b3a1133d118\`, CONTRACT-05 #60 \`56ad6fe7b0f3a1b0b2b613d68a6e5bd5240dc955\` read for cross-contract dependencies; #59 \`28daf1e336a1447b098b4d6fa044095b7caa1f4f\` identifies the missing Proposal→ChangeSet mapper. This addendum does **not** rewrite or approve the others' Drafts. In case of apparent conflict with the earlier generic \`ChangeSet\` table, the exact mapping below is the **candidate resolution within CONTRACT-01**; upstream interfaces remain proposed.
+> **Proposed schema pack `state-event-proposal.v1-candidate-1`, NOT jointly accepted.** This addendum refines §§3–7 and specifies the complete correspondence with [CONTRACT-02 PROPOSAL_AND_OBSERVATION_SCHEMA](https://github.com/159357yangjun/SwarmBalance/blob/b00cd337de2797b9819089b234a113e36513e003/docs/platform/architecture/contracts/contract-02/PROPOSAL_AND_OBSERVATION_SCHEMA.md) at PR #55 HEAD `b00cd337de2797b9819089b234a113e36513e003`. #58 pre-amendment HEAD `fa894cde5b22a78f5dcac4b2fbe17b3f17fa3377`. CONTRACT-03 #56 `0b038f29e7f1957bf93e4afd1e3a171d54e5b620`, CONTRACT-04 #57 `1f3798ad0b4e378d6ec0d13cc6945b3a1133d118`, CONTRACT-05 #60 `56ad6fe7b0f3a1b0b2b613d68a6e5bd5240dc955` read for cross-contract dependencies; #59 `28daf1e336a1447b098b4d6fa044095b7caa1f4f` identifies the missing Proposal→ChangeSet mapper. This addendum does **not** rewrite or approve the others' Drafts. In case of apparent conflict with the earlier generic `ChangeSet` table, the exact mapping below is the **candidate resolution within CONTRACT-01**; upstream interfaces remain proposed.
 
 ### 8.1 Exactly one write path, not three competing protocols
 
-\`\`\`text
+```text
 ARCH-03 Scheduler.propose(ObservationV1, ProposalContext)
   -> ActionProposalV1 [COMPONENT OUTPUT, never executable]
     -> Harness ProposalNormalizer -> NormalizedChangeSetV1
@@ -135,76 +135,140 @@ ARCH-03 EventProvider.events_in_window(..., ProposalContext)
 All NormalizedChangeSetV1 items
   -> StateCommitter validate + stage B / C / D, single boundary publish
   -> CommittedFrameV1 after commit -> MetricProvider.observe
-\`\`\`
+```
 
-\`ChangeSet\` is the **internal Harness normalization product**, not a public third component protocol; \`ActionProposalV1\` and \`StateDeltaProposalV1\` remain the **only** Scheduler/Dynamics public outputs. \`decide/advance\` in ARCH-02 remain phase descriptions, not alternative public signatures. Components cannot submit \`NormalizedChangeSetV1\` as a backdoor.
+`ChangeSet` is the **internal Harness normalization product**, not a public third component protocol; `ActionProposalV1` and `StateDeltaProposalV1` remain the **only** Scheduler/Dynamics public outputs. `decide/advance` in ARCH-02 remain phase descriptions, not alternative public signatures. Components cannot submit `NormalizedChangeSetV1` as a backdoor.
 
 ### 8.2 One canonical scope header / aliases frozen by future co-sign
 
 | Canonical normalized field and type | ActionProposalV1 input | StateDeltaProposalV1 input | Invariant, writer and failure |
 |---|---|---|---|
-| \`schema_version:string\` = \`normalized-changeset.v1\` | \`schema_version=action-proposal.v1\` | \`schema_version=state-delta-proposal.v1\` | ARCH-03 provides recognized major; Harness converts or CONTRACT_VERSION_MISMATCH |
-| \`proposal_id:string\` | \`proposal_id\` | \`proposal_id\` | Stable run/generation-scoped idempotency; same ID + unequal source digest PROPOSAL_ID_CONFLICT |
-| \`producer_id:string\` | \`source_component_id\` | \`source_component_id\` | Must match selected manifest/capability; CAPABILITY_MISMATCH |
-| \`run_id:string\`, \`generation:uint64\` | same | same | Harness admission fence; RUN_MISMATCH / STALE_GENERATION |
-| \`boundary_id:string\` internal | \`boundary_ref:OpaqueRef\` | \`boundary_ref:OpaqueRef\` | **Harness alone** resolves opaque \`boundary_ref\` to internal ID; never parse or assume string equality; BOUNDARY_REF_INVALID |
-| \`base_revision:uint64\` | \`observed_revision\` | \`base_committed_revision\` | Committed fence, never provisional stage number; STALE_OBSERVATION |
-| \`read_view_token:OpaqueRef\` | \`observed_view_token\` | \`based_on_view_token\` | Same issued stage and allowed component; STALE_OBSERVATION even if revision equal |
-| \`phase:PhaseV1\` | \`APPLY_COMMAND\` from authenticated invocation slot | \`ADVANCE_MODEL\` from authenticated invocation slot | Phase **not component-chosen**; PHASE_CAPABILITY_MISMATCH |
-| \`operations:OperationV1[]\` | normalized \`actions[]\` | normalized \`changes[]\` plus \`service_facts[]\` mapped to candidate facts | Deterministically ordered; domain validity + cross-object atomicity; INPUT_SCHEMA_INVALID / STATE_INVARIANT_FAILED |
-| \`capability_ref:string\` | same | same | Frozen descriptor capability; CAPABILITY_MISSING |
-| \`source_digest:string\` | canonical signed input digest of ActionProposal + \`provenance_ref\` | canonical signed input digest of StateDelta + \`model_manifest_digest\` | Deterministic bytes/version pinned before stage; PROVENANCE_MISSING |
-| \`model_interval_ref:OpaqueRef?\` | null (not a model operation) | \`model_interval_ref\` required | Harness-resolved \`{start_ns,end_ns}\` with validated \`duration_seconds\`; INTERVAL_MISMATCH |
-| \`emitted_event_intents:EventIntentV1[]\` | none unless independently authorized operation kind | **not derived from \`service_facts\`**; only an explicit future scheduling result | Runtime queue insertion via EventEnvelope admission only; INVALID_EVENT_ORDER |
+| `schema_version:string` = `normalized-changeset.v1` | `schema_version=action-proposal.v1` | `schema_version=state-delta-proposal.v1` | ARCH-03 provides recognized major; Harness converts or CONTRACT_VERSION_MISMATCH |
+| `proposal_id:string` | `proposal_id` | `proposal_id` | Stable run/generation-scoped idempotency; same ID + unequal source digest PROPOSAL_ID_CONFLICT |
+| `producer_id:string` | `source_component_id` | `source_component_id` | Must match selected manifest/capability; CAPABILITY_MISMATCH |
+| `run_id:string`, `generation:uint64` | same | same | Harness admission fence; RUN_MISMATCH / STALE_GENERATION |
+| `boundary_id:string` PUBLIC | `header.boundary_id:string` (prior `boundary_ref` is versioned ingress alias) | `header.boundary_id:string` (prior `boundary_ref` is versioned ingress alias) | Harness-issued run-local boundary identity; alias accepted only through explicitly versioned adapter with registry lookup, never guessed; BOUNDARY_ID_CONFLICT |
+| `base_revision:uint64` | `observed_revision` | `base_committed_revision` | Committed fence, never provisional stage number; STALE_OBSERVATION |
+| `read_view_token:OpaqueRef` | `observed_view_token` | `based_on_view_token` | Same issued stage and allowed component; STALE_OBSERVATION even if revision equal |
+| `phase:PhaseV1` | `APPLY_COMMAND` from authenticated invocation slot | `ADVANCE_MODEL` from authenticated invocation slot | Phase **not component-chosen**; PHASE_CAPABILITY_MISMATCH |
+| `operations:OperationV1[]` | normalized `actions[]` | normalized `changes[]` plus `service_facts[]` mapped to candidate facts | Deterministically ordered; domain validity + cross-object atomicity; INPUT_SCHEMA_INVALID / STATE_INVARIANT_FAILED |
+| `capability_ref:string` | same | same | Frozen descriptor capability; CAPABILITY_MISSING |
+| `source_digest:string` | canonical signed input digest of ActionProposal + `provenance_ref` | canonical signed input digest of StateDelta + `model_manifest_digest` | Deterministic bytes/version pinned before stage; PROVENANCE_MISSING |
+| `model_interval_ref:OpaqueRef?` | null (not a model operation) | `model_interval_ref` required | Harness-resolved `{start_ns,end_ns}` with validated `duration_seconds`; INTERVAL_MISMATCH |
+| `emitted_event_intents:EventIntentV1[]` | none unless independently authorized operation kind | **not derived from `service_facts`**; only an explicit future scheduling result | Runtime queue insertion via EventEnvelope admission only; INVALID_EVENT_ORDER |
 
-\`ProposalContext\` is a Harness-issued read-only capability bundle: \`run_id:string\`, \`generation:uint64\`, \`boundary_ref:OpaqueRef\`, \`view_token:OpaqueRef\`, \`clock_ref:OpaqueRef\`, \`readonly_resources:FrozenResourcePort\`, \`scoped_rng:TransactionalRNGPort\`, \`capability_ref:string\`. For Dynamics it also carries \`model_interval_ref:OpaqueRef\`; no mutable StateStore, writable event queue, wall-clock simulation time or module-global RNG. \`ClockRef\` resolves **only** within Harness to a read-only clock projection; \`BoundaryRef\`, \`ViewToken\`, \`ModelIntervalRef\` are **distinct opaque identifiers** and MUST NOT be substituted for one another. The Harness may expose numeric \`sim_time_ns:uint64\` as a read-only view field after time contract co-sign.
+`ProposalContext` is a Harness-issued read-only capability bundle: `run_id:string`, `generation:uint64`, `boundary_id:string`, `read_view_token:OpaqueRef`, `clock_ref:OpaqueRef`, `readonly_resources:FrozenResourcePort`, `scoped_rng:TransactionalRNGPort`, `capability_ref:string`. For Dynamics it also carries `model_interval_ref:OpaqueRef`; no mutable StateStore, writable event queue, wall-clock simulation time or module-global RNG. `ClockRef` resolves **only** within Harness to a read-only clock projection; `BoundaryRef`, `ViewToken`, `ModelIntervalRef` are **distinct opaque identifiers** and MUST NOT be substituted for one another. The Harness may expose numeric `sim_time_ns:uint64` as a read-only view field after time contract co-sign.
 
 ### 8.3 Minimal typed OperationV1 union, validation and fact mapping
 
 | Variant | Required fields and types | Canonical mapping / atomic effect | Owner, invalid behavior |
 |---|---|---|---|
-| \`task.assign_chain.v1\` | \`operation_id:string\`, \`actor_vehicle_id:EntityId\`, \`ordered_task_ids:EntityId[]\`, \`expected_actor_state_version:uint64\`, \`expected_task_state_versions:uint64[]\` | CONTRACT-02 \`AssignTaskChain\`: reserve task assignment and vehicle task references **within same transaction**; does **not** assert pickup or onboard cargo custody | ARCH-01 validates entity/task lifecycle and exclusivity; duplicate/overweight → INVALID_ACTION or RESOURCE_VIOLATION, no partial task |
-| \`dynamics.motion_energy.v1\` | \`operation_id\`, \`vehicle_id:EntityId\`, \`expected_vehicle_state_version:uint64\`, \`new_position:PointWithCoordinateRef\`, \`energy_consumed_wh:finite float64 ≥0\`, \`resulting_motion_status:string\`, \`model_ref:string\`, \`quality_flags:string[]\` | CONTRACT-02 \`MotionEnergyChange\`: **single atomic** position+mode+one Harness-computed battery debit of exactly \`energy_consumed_wh\`; no direct provider battery mutation | ARCH-01 energy/CRS validator; negative/nonfinite → NONFINITE_VALUE/STATE_INVARIANT_FAILED, no partial motion |
-| \`domain.service_fact.v1\` | \`fact_id:string\`, \`subject_entity_id:EntityId\`, \`service_ref:typed Ref\`, \`evidence_ref:string\`, \`fact_time_ns:uint64\`, \`origin_proposal_id:string\`, \`ordinal:uint64\` | From CONTRACT-02 \`ServiceFactCandidate\` in \`service_facts[]\`; Harness sets time to validated model interval \`end_ns\`, derives deterministic \`fact_id\` from (run,generation,boundary,proposal,ordinal,kind), **then** domain lifecycle validator stages required custody/task/lease transitions as a single fact-associated atomic group. **Not an EventEnvelope** | ARCH-01 owns service completion predicates; proximity-only or missing evidence → SERVICE_FACT_INVALID, no delivery |
-| \`domain.event_effect.v1\` | \`operation_id\`, \`origin_event_id:string\`, \`target_ref:Ref?\`, \`effect_kind:namespaced string\`, \`typed_payload:object\`, \`preconditions:typed[]\` | Normalized domain event-handler patch derived from already admitted EventEnvelope, not provider's direct StateStore write | ARCH-01/02 phase and domain validation; EVENT_PRECONDITION_FAILED; per-event policy applies |
+| `task.assign_chain.v1` | `operation_id:string`, `actor_vehicle_id:EntityId`, `ordered_task_ids:EntityId[]`, `expected_actor_state_version:uint64`, `expected_task_state_versions:uint64[]` | CONTRACT-02 `AssignTaskChain`: reserve task assignment and vehicle task references **within same transaction**; does **not** assert pickup or onboard cargo custody | ARCH-01 validates entity/task lifecycle and exclusivity; duplicate/overweight → INVALID_ACTION or RESOURCE_VIOLATION, no partial task |
+| `dynamics.motion_energy.v1` | `operation_id`, `vehicle_id:EntityId`, `expected_vehicle_state_version:uint64`, `new_position:PointWithCoordinateRef`, `energy_consumed_wh:finite float64 ≥0`, `resulting_motion_status:string`, `model_ref:string`, `quality_flags:string[]` | CONTRACT-02 `MotionEnergyChange`: **single atomic** position+mode+one Harness-computed battery debit of exactly `energy_consumed_wh`; no direct provider battery mutation | ARCH-01 energy/CRS validator; negative/nonfinite → NONFINITE_VALUE/STATE_INVARIANT_FAILED, no partial motion |
+| `domain.service_fact.v1` | `fact_id:string`, `subject_entity_id:EntityId`, `service_ref:typed Ref`, `evidence_ref:string`, `fact_time_ns:uint64`, `origin_proposal_id:string`, `ordinal:uint64` | From CONTRACT-02 `ServiceFactCandidate` in `service_facts[]`; Harness sets time to validated model interval `end_ns`, derives deterministic `fact_id` from (run,generation,boundary,proposal,ordinal,kind), **then** domain lifecycle validator stages required custody/task/lease transitions as a single fact-associated atomic group. **Not an EventEnvelope** | ARCH-01 owns service completion predicates; proximity-only or missing evidence → SERVICE_FACT_INVALID, no delivery |
+| `domain.event_effect.v1` | `operation_id`, `origin_event_id:string`, `target_ref:Ref?`, `effect_kind:namespaced string`, `typed_payload:object`, `preconditions:typed[]` | Normalized domain event-handler patch derived from already admitted EventEnvelope, not provider's direct StateStore write | ARCH-01/02 phase and domain validation; EVENT_PRECONDITION_FAILED; per-event policy applies |
 | Unknown variant | any | **Never** accept generic field assignment as escape hatch; new operation variant requires version/manifest registration | CONTRACT_VERSION_MISMATCH / INVALID_ACTION |
 
-Each normalized operation additionally carries \`based_on_state_version:uint64?\`, \`unit_ref:string?\`, \`provenance_ref:string\`, \`effect_time_ns:uint64\`; \`effect_time_ns\` is Harness-resolved for the phase (model facts use interval end). Versioned semantic reducers (e.g. lease grant) are ARCH-01-owned and must be allowlisted at assembly. Unknown reducer and cross-proposal conflicting writes reject the **entire** strict boundary; no last-write-wins. If a *single event* has a frozen \`record_and_skip\` policy and its operations fail, all that event's staged operations are discarded, its failure disposition is durably registered **only upon** an otherwise successful boundary commit. A malformed Scheduler or Dynamics proposal has **no event skip policy**.
+Each normalized operation additionally carries `based_on_state_version:uint64?`, `unit_ref:string?`, `provenance_ref:string`, `effect_time_ns:uint64`; `effect_time_ns` is Harness-resolved for the phase (model facts use interval end). Versioned semantic reducers (e.g. lease grant) are ARCH-01-owned and must be allowlisted at assembly. Unknown reducer and cross-proposal conflicting writes reject the **entire** strict boundary; no last-write-wins. If a *single event* has a frozen `record_and_skip` policy and its operations fail, all that event's staged operations are discarded, its failure disposition is durably registered **only upon** an otherwise successful boundary commit. A malformed Scheduler or Dynamics proposal has **no event skip policy**.
 
 **Ordering of validation**: recognized type/major → run/generation/boundary → minted view_token + invocation phase → component capability → unique proposal/operation IDs + source digest → typed ref and expected state versions → units/CRS/finite numbers → task/cargo/lease invariant → event schedule validity → cross-ChangeSet conflict + registered reducer → B/C/D preparation → one publish. Every rejection returns a typed diagnostic; never silently coerce incompatible units, missing indices or versions.
 
 ### 8.4 Normative candidate failure envelope, aliases and outcome semantics
 
-One structured \`ContractFailureV1\` returned by Harness for all three ingress paths:
+One structured `ContractFailureV1` returned by Harness for all three ingress paths:
 
 | Field | Type / meaning | Owner |
 |---|---|---|
-| \`schema_version\` | string = \`contract-failure.v1\` | ARCH-02 |
-| \`code\`, \`source_code?\` | canonical string enum; original component-specific code preserved when mapped | ARCH-02 maps, ARCH-03/01 supply source |
-| \`disposition\` | \`REJECT_REQUEST\` / \`SKIP_EVENT\` / \`ROLLBACK_BOUNDARY\` / \`POSTCOMMIT_PARTIAL\` / \`REJECT_ASSEMBLY\` / \`TAINT_LEGACY\` | ARCH-02 |
-| \`severity\`, \`retryable\` | enum INFO/WARN/ERROR/FATAL, bool; retryable true only if policy+full rewind proven | ARCH-02 |
-| \`run_id\`, \`generation\`, \`boundary_id?\`, \`phase?\` | stable id, uint64, optional stable id/PhaseV1 | Harness |
-| \`committed_revision\`, \`attempted_revision?\` | uint64 last published revision; any attempted revision is not externally visible | Harness |
-| \`proposal_id?\`, \`event_id?\`, \`component_id?\`, \`field_path?\` | IDs/JSON path or null | Harness |
-| \`policy_ref?\`, \`diagnostic_ref?\`, \`cause_chain?\` | frozen policy version, trace ref, sanitized cause array | Harness + evidence subsystem |
-| \`world_commit_occurred\`, \`evidence_status\` | bool; \`COMPLETE/PARTIAL/INCOMPLETE/NOT_ASSESSED\` | Harness/CONTRACT-04 |
+| `schema_version` | string = `contract-failure.v1` | ARCH-02 |
+| `code`, `source_code?` | canonical string enum; original component-specific code preserved when mapped | ARCH-02 maps, ARCH-03/01 supply source |
+| `disposition` | `REJECT_REQUEST` / `SKIP_EVENT` / `ROLLBACK_BOUNDARY` / `POSTCOMMIT_PARTIAL` / `REJECT_ASSEMBLY` / `TAINT_LEGACY` | ARCH-02 |
+| `severity`, `retryable` | enum INFO/WARN/ERROR/FATAL, bool; retryable true only if policy+full rewind proven | ARCH-02 |
+| `run_id`, `generation`, `boundary_id?`, `phase?` | stable id, uint64, optional stable id/PhaseV1 | Harness |
+| `committed_revision`, `attempted_revision?` | uint64 last published revision; any attempted revision is not externally visible | Harness |
+| `proposal_id?`, `event_id?`, `component_id?`, `field_path?` | IDs/JSON path or null | Harness |
+| `policy_ref?`, `diagnostic_ref?`, `cause_chain?` | frozen policy version, trace ref, sanitized cause array | Harness + evidence subsystem |
+| `world_commit_occurred`, `evidence_status` | bool; `COMPLETE/PARTIAL/INCOMPLETE/NOT_ASSESSED` | Harness/CONTRACT-04 |
 
-**Canonical error groups and explicit alias mapping** (retain \`source_code\`, never mask root cause): \`STALE_OBSERVATION\` ← stale token / \`STALE_COMMAND\` from a versioned Proposal; \`ENTITY_REFERENCE_INVALID\` ← \`UNKNOWN_REFERENCE\` / \`TARGET_NOT_FOUND\` only for typed ref errors; \`RESOURCE_VIOLATION\` ← capacity/lease conflicts, with original \`RESOURCE_CAPACITY_EXCEEDED\` / \`CONFLICTING_LEASE\` in \`source_code\`; \`NONFINITE_VALUE\` ← non-finite numeric proposal; \`COMPONENT_RECOVERY_UNSUPPORTED\` ← \`CHECKPOINT_UNAVAILABLE\` or unproven private D; \`CONTRACT_VERSION_MISMATCH\` ← unsupported major/operation variant. **Do not alias** distinct \`TIME_PRECISION_LOSS\`, \`EVENT_ID_CONFLICT\`, \`INVALID_EVENT_ORDER\`, \`EVENT_CYCLE\`, \`EVENT_PRECONDITION_FAILED\`, \`STATE_CONFLICT\`, \`STATE_INVARIANT_FAILED\`, \`CUSTODY_CONFLICT\`, \`SERVICE_FACT_INVALID\`, \`COMPONENT_EXCEPTION\`, \`OUTPUT_FAILURE\`; their causes and remediation differ.
+**Canonical error groups and explicit alias mapping** (retain `source_code`, never mask root cause): `STALE_OBSERVATION` ← stale token / `STALE_COMMAND` from a versioned Proposal; `ENTITY_REFERENCE_INVALID` ← `UNKNOWN_REFERENCE` / `TARGET_NOT_FOUND` only for typed ref errors; `RESOURCE_VIOLATION` ← capacity/lease conflicts, with original `RESOURCE_CAPACITY_EXCEEDED` / `CONFLICTING_LEASE` in `source_code`; `NONFINITE_VALUE` ← non-finite numeric proposal; `COMPONENT_RECOVERY_UNSUPPORTED` ← `CHECKPOINT_UNAVAILABLE` or unproven private D; `CONTRACT_VERSION_MISMATCH` ← unsupported major/operation variant. **Do not alias** distinct `TIME_PRECISION_LOSS`, `EVENT_ID_CONFLICT`, `INVALID_EVENT_ORDER`, `EVENT_CYCLE`, `EVENT_PRECONDITION_FAILED`, `STATE_CONFLICT`, `STATE_INVARIANT_FAILED`, `CUSTODY_CONFLICT`, `SERVICE_FACT_INVALID`, `COMPONENT_EXCEPTION`, `OUTPUT_FAILURE`; their causes and remediation differ.
 
 | Failure window | Default disposition | State and control effect | Client/observer rule |
 |---|---|---|---|
 | Invalid external command **before** boundary admission | REJECT_REQUEST | no boundary staged; committed B/C/D unchanged | diagnostic only, no revision |
 | Unsupported protocol / D rollback capability during assembly | REJECT_ASSEMBLY | no READY/rev0 | fail closed |
 | Scheduler / Dynamics malformed proposal or model exception **after** boundary starts | ROLLBACK_BOUNDARY | discard entire B/C/D/queue/RNG/sequence stage; committed revision/time/index unchanged; default Run FAILED | no fake successful empty proposal |
-| Event handler with explicit frozen \`record_and_skip\` on recoverable domain precondition | SKIP_EVENT | discard only this event's local effects; append rejected disposition and dequeue event as part of **one successful** boundary commit; failure to complete remainder rolls everything back | no ghost event effects |
+| Event handler with explicit frozen `record_and_skip` on recoverable domain precondition | SKIP_EVENT | discard only this event's local effects; append rejected disposition and dequeue event as part of **one successful** boundary commit; failure to complete remainder rolls everything back | no ghost event effects |
 | Event malformed schema, order violation, cycle, fatal policy | ROLLBACK_BOUNDARY (or REJECT_REQUEST before admission) | fully rewind staged cursor and effects | reason and event ID recorded |
 | Postcommit MetricProvider / artifact export error | POSTCOMMIT_PARTIAL | committed B/C/D retained; **never re-run physics**; metric/evidence marked PARTIAL/INCOMPLETE | CommittedFrame remains visible |
 | Legacy opaque partial write then exception | TAINT_LEGACY | no honest rollback guarantee | TAINTED/FAILED, isolated worker destroy/reset only |
 
-These errors are **logical contract outcomes**; the current repository contains no implementation of the proposed failure envelope. \`POSTCOMMIT_PARTIAL\` says *world committed*, **not** that durable artifacts were atomically written. Durable audit failures/required evidence stop policy require CONTRACT-04 agreement.
+These errors are **logical contract outcomes**; the current repository contains no implementation of the proposed failure envelope. `POSTCOMMIT_PARTIAL` says *world committed*, **not** that durable artifacts were atomically written. Durable audit failures/required evidence stop policy require CONTRACT-04 agreement.
 
 ### 8.5 Concurrency, source-lifetime and co-sign gate
 
-Two accepted ChangeSets based on distinct provisional \`view_token\` stages may share the same \`base_revision\` inside one boundary but may **not** write inconsistent fields; cross-proposal conflict checked against current stage. Only the last minted, authorized token for that slot is accepted. \`producer_seq\` for EventEnvelope is **not** \`stage_seq\`; one is run-scoped deterministic event-admission order, the other private intra-boundary view identity.
+Two accepted ChangeSets based on distinct provisional `view_token` stages may share the same `base_revision` inside one boundary but may **not** write inconsistent fields; cross-proposal conflict checked against current stage. Only the last minted, authorized token for that slot is accepted. `producer_seq` for EventEnvelope is **not** `stage_seq`; one is run-scoped deterministic event-admission order, the other private intra-boundary view identity.
 
-**Sign-off requested, not yet obtained**: ARCH-02 owner transaction+failure envelope; ARCH-01 co-sign typed domain reducers/custody/service fact; ARCH-03 / AI-B co-sign normalization and component output aliases; AI-C co-sign RNG rollback and sequence allocation; CONTRACT-04 co-sign commit evidence/CommittedFrame; ARCH-04 legacy exclusion; coordinator ADR-002. No contributor review can retroactively substitute for these explicit signatures, and this doc must remain \`PROPOSED\` until recorded.
+**Sign-off requested, not yet obtained**: ARCH-02 owner transaction+failure envelope; ARCH-01 co-sign typed domain reducers/custody/service fact; ARCH-03 / AI-B co-sign normalization and component output aliases; AI-C co-sign RNG rollback and sequence allocation; CONTRACT-04 co-sign commit evidence/CommittedFrame; ARCH-04 legacy exclusion; coordinator ADR-002. No contributor review can retroactively substitute for these explicit signatures, and this doc must remain `PROPOSED` until recorded.
+
+
+---
+
+## 9. PR #61 cross-team directed normative candidate (P0-01/P0-02; 2026-10-16)
+
+> **Coordinator directive applied for reconciliation, not ACCEPTED ADR.** Source #61 `6e7b69dc70c56a8e13f5cf7de750ad3c59068dcc`, [ARCH_06_INTERFACE_REGISTRY_CANDIDATES.md](https://github.com/159357yangjun/SwarmBalance/blob/6e7b69dc70c56a8e13f5cf7de750ad3c59068dcc/docs/platform/architecture/decisions/ARCH_06_INTERFACE_REGISTRY_CANDIDATES.md) and ARCH_06_FREEZE_RULING; AI-B #55 `fd7ae6a5668f2cd97174628120435281e31e1a30` (TRANSACTION_EVENT_PROPOSAL_CONVERGENCE). This §9 is the authoritative **candidate within #58** if older §§3 or 8 use different public header/alias names. Neither #55 nor original ARCH-01–04 is edited by this PR. Version IDs: `proposal-header.v1-candidate`, `normalized-changeset.v1-candidate`, `boundary-commit.v1-candidate`.
+
+### 9.1 One public ProposalHeaderV1, single internal normalization target
+
+```python
+# Logical, non-executable proposal schema (not a released ABI).
+class ProposalHeaderV1:
+    schema_version: str      # proposal-header.v1-candidate; major 1, frozen by future sign-off
+    proposal_id: str         # stable identity, digest-based idempotency within run generation
+    run_id: str              # current RunScope
+    generation: int          # uint64
+    boundary_id: str         # PUBLIC, Harness-issued, run-local; not opaque boundary_ref
+    base_revision: int       # uint64, committed revision on entry (not stage_seq)
+    read_view_token: str     # opaque stage-scoped capability, Harness-issued
+    producer_id: str         # manifest-bound component identity
+    capability_ref: str      # versioned authorized capability
+    provenance_ref: str      # immutable source/model/assembly manifest digest reference
+
+class ActionProposalV1:
+    header: ProposalHeaderV1
+    actions: tuple            # typed AssignTaskChain, not direct world operations
+    emitted_event_intents: tuple  # default empty, only if capability allows
+
+class StateDeltaProposalV1:
+    header: ProposalHeaderV1
+    model_interval_ref: str   # opaque *Dynamics* integration capability, NOT event window
+    changes: tuple           # typed MotionEnergyChange
+    service_facts: tuple     # typed DomainFactCandidate, NOT queued EventEnvelope
+    emitted_event_intents: tuple  # future timed work; authorized only
+
+class NormalizedChangeSetV1:
+    header: ProposalHeaderV1
+    phase: str               # PhaseV1 assigned by Harness from invocation slot
+    operations: tuple        # typed, ARCH-01-registered domain reducer operations
+    emitted_event_intents: tuple
+
+# NormalizedChangeSetV1 is Harness-INTERNAL ONLY.
+# No public ChangeSetV1 or change-set.v1 as a competing executable ABI.
+```
+
+**Header is one object**, not ten ad hoc duplicate public top-level fields: producer outputs `ActionProposalV1.header` or `StateDeltaProposalV1.header`; the Harness internal `NormalizedChangeSetV1.header` mirrors the validated header exactly. Legacy `boundary_ref`, `observed_revision`/`base_committed_revision`, `observed_view_token`/`based_on_view_token`, `source_component_id` may be accepted **only** in a separately versioned ingress adapter with an explicit one-to-one mapping into the common header; strict `proposal-header.v1-candidate` rejects mixed/duplicate or contradictory aliases. `boundary_id` is a Harness-issued *public explicit* identifier, while `read_view_token` remains opaque and stage-specific; they are **different concepts**. A mutable or stale token is rejected even when boundary_id/base_revision match.
+
+| Input | Canonical mapping to internal NormalizedChangeSetV1 | Authority and hard failure |
+|---|---|---|
+| Scheduler `propose(ObservationV1, ProposalContext)` -> ActionProposalV1 | exact `header`; `actions` -> typed `task.assign_chain.v1` atomic operations; phase=APPLY_COMMAND | ARCH-03 ABI, ARCH-01 reducer, ARCH-02 converter; DOMAIN_OPERATION_UNMAPPED / STALE_OBSERVATION |
+| Dynamics `propose(StateSliceView,Conditions,ModelIntervalRef,ProposalContext)` -> StateDeltaProposalV1 | exact `header`; `changes` -> typed `dynamics.motion_energy.v1`, `service_facts` -> POST_MODEL DomainFactV1 candidate; phase=ADVANCE_MODEL for motion only | ARCH-03 ABI; model_interval_ref must be current, INTERVAL_MISMATCH; negative/NaN energy rejected |
+| Event handler from admitted EventEnvelopeV1 | Harness creates its own scoped validated header and `domain.event_effect.v1` operations for the admitted event; optional future EventIntent separately scheduled | ARCH-01 reducers, ARCH-02 queue and writer; UNAUTHORIZED_EVENT_OPERATION / INVALID_EVENT_ORDER |
+| Any proposal containing `change-set.v1` as public ABI, untyped arbitrary field write, or unsupported operation kind | **no conversion**; do not interpret it as another public entrypoint | CONTRACT_VERSION_MISMATCH / DOMAIN_OPERATION_UNMAPPED |
+| Any proposal with `boundary_ref` instead of required `header.boundary_id` in strict public profile | **no implicit conversion**; only explicit versioned compatibility converter allowed | BOUNDARY_ID_CONFLICT / CONTRACT_VERSION_MISMATCH |
+
+**Deterministic validation**: header-major/version → RunScope identity/generation → exact Harness-issued boundary_id, committed base_revision, phase-issued view token → producer identity + capability → input/proposal semantic digest and idempotency → typed reducers/refs/units/finite values/state versions → queue time/phase seal → non-conflicting overlay and D checkpoint → one atomic commit. The converter itself is pure (no queue writes/RNG draws/clock advancement), reports its schema/converter version and output digest, and is the **only** route to a normalized stage batch. Proposal ID + identical digest returns prior decision; ID + different digest rejects PROPOSAL_ID_CONFLICT.
+
+### 9.2 Boundary authority, failure and version supersession
+
+- **ADR-002 strict V1 direction supersedes ARCH-01 WORLD_STATE §3's externally visible micro-commits**. This is a new authoritative *candidate direction*, not a retroactive edit to #46: stage_seq/view_token progresses privately, while B(domain), C(clock/queue/event order/RNG) and D(recoverable component state) publish coherently once per successful boundary as `revision=r+1, step_index=s+1`. No partial public phase revision; no `ChangeSet` component directly calling StateCommitter.
+- At most one committed revision for an execution boundary; **precommit** fatal validation/exception discards B/C/D, queue/RNG/producer seq and preserves r/time/s; **postcommit** evidence/metrics errors preserve r+1 and emit `ContractFailureV1.disposition=POSTCOMMIT_PARTIAL`; `record_and_skip` is legal only for an explicitly frozen recoverable event, never for a malformed Scheduler/Dynamics proposal.
+- Required `ContractFailureV1` has `schema_version,code,source_code?,disposition,severity,retryable,run_id,generation,boundary_id?,committed_revision,attempted_revision?,proposal_id?,event_id?,component_id?,field_path?,policy_ref?,diagnostic_ref?,world_commit_occurred,evidence_status`. Dispositions: REJECT_ASSEMBLY, REJECT_REQUEST, SKIP_EVENT, ROLLBACK_BOUNDARY, POSTCOMMIT_PARTIAL, TAINT_LEGACY. Source codes preserved, no silent aliases. `NO_BOUNDARY` without control transition is not a success commit.
+- The PR #61 **COORDINATOR_DIRECTIVE** is binding for this draft's reconciliation choices but not formal `ACCEPTED` / `FROZEN`. This candidate requires real ARCH-01/02/03 and AI-B signatures, independent #59 rereview, and final coordinator gate. All proposed test cases remain NOT_RUN.
