@@ -5,6 +5,113 @@
 >
 > **Immutable input ledger (2026-10-16)**：master `2ab60c69a806a22d7ba20353dee0571752a0e8e5`；#54 `99bd0eb6b910d691d6d7776da0a5fd3f973f2997`；#58/CONTRACT-01 `fa894cde5b22a78f5dcac4b2fbe17b3f17fa3377`；#55/CONTRACT-02 **prior to convergence** `b00cd337de2797b9819089b234a113e36513e003`；#56/CONTRACT-03 `0b038f29e7f1957bf93e4afd1e3a171d54e5b620`；#57/CONTRACT-04 `1f3798ad0b4e378d6ec0d13cc6945b3a1133d118`；#59 independent review `28daf1e336a1447b098b4d6fa044095b7caa1f4f`；#60 implementation gates `56ad6fe7b0f3a1b0b2b613d68a6e5bd5240dc955`. Ancestors: #46 `b5f05a70a3306f1799fcae2c3f342f3ed9ee0048`, #47 `68382c649393057ffbf5a14508ab1ff72d575b09`, #49 `d155621aca66e3a80c388718093a452d17d71e10`, #50 `c4c0c67111ead435062650c1ed776547c477e3e3`, #51 `f2df96bc609ee1e430ea6eff2456c4577347c300`.
 
+## 0. Coordinator-directed strict V1 schema convergence (candidate-2, this amendment takes precedence)
+
+**Source of direction:** coordinator [ARCH-06 PR #61](https://github.com/159357yangjun/SwarmBalance/pull/61) at `6e7b69dc70c56a8e13f5cf7de750ad3c59068dcc`; AI-A [CONTRACT-01 PR #58](https://github.com/159357yangjun/SwarmBalance/pull/58) at `bd5e47266d79d1e087ca8cfc6fe68ea28a03496b` (`STATE_COMMIT_CONTRACT §8`, `TIME_AND_EVENT_CONTRACT §7`). This revision **replaces the ambiguous public ChangeSet and boundary_ref examples later in this document** with **exactly one component public header and one internal Harness normalized type**. `state-event-proposal.v1-candidate-2` is an aligning **proposal**, not a frozen/approved V1. #58 currently contains old `window_ref:ModelIntervalRef` and public `boundary_ref` in addenda; **those are documented differences for AI-A to correct**, not a second accepted ABI.
+
+### 0.1 Single public header and two public proposal outputs
+
+```python
+# PSEUDO-PROTOCOL / ONE public header, ARCH-06 names; NOT implemented.
+class ProposalHeaderV1:
+    schema_version: Literal["proposal-header.v1-candidate"]
+    run_id: str
+    generation: uint64
+    boundary_id: str                 # explicit Harness-minted Run-local public ID
+    base_revision: uint64            # last published revision (not stage_seq)
+    read_view_token: OpaqueViewToken  # Harness-minted (run,generation,boundary,stage_seq,slot)
+    proposal_id: str                 # idempotent with canonical payload digest
+    producer_id: str                 # frozen ComponentDescriptor identity
+    capability_ref: str
+    provenance_ref: str
+
+class ActionProposalV1:
+    schema_version: Literal["action-proposal.v1"]
+    header: ProposalHeaderV1
+    actions: tuple[AssignTaskChain, ...]
+    emitted_event_intents: tuple[EventIntentV1, ...]   # only registered capability; else ()
+
+class StateDeltaProposalV1:
+    schema_version: Literal["state-delta-proposal.v1"]
+    header: ProposalHeaderV1
+    model_interval_ref: ModelIntervalRef   # Dynamics integration ONLY
+    changes: tuple[MotionEnergyChange, ...]
+    service_facts: tuple[ServiceFactCandidate, ...]
+    emitted_event_intents: tuple[EventIntentV1, ...]
+
+# NOT a component Protocol: a type owned and emitted solely by Harness.
+class NormalizedChangeSetV1:
+    schema_version: Literal["normalized-changeset.v1"]
+    proposal_id: str
+    producer_id: str
+    run_id: str
+    generation: uint64
+    boundary_id: str
+    base_revision: uint64
+    read_view_token: OpaqueViewToken
+    phase: PhaseV1                    # Harness assigns invocation phase
+    operations: tuple[OperationV1, ...]  # ARCH-01 allowlisted typed reducers
+    capability_ref: str
+    source_digest: str               # canonical source proposal bytes + versioned converter
+    model_interval_ref: ModelIntervalRef | None
+    emitted_event_intents: tuple[EventIntentV1, ...]
+
+class EventIntentBatchV1:
+    schema_version: Literal["event-intent-batch.v1"]
+    run_id: str
+    generation: uint64
+    boundary_id: str
+    read_view_token: OpaqueViewToken
+    producer_id: str
+    window_ref: EventWindowRefV1    # EVENT polling ONLY; NEVER ModelIntervalRef
+    intents: tuple[EventIntentV1, ...]
+    source_manifest_digest: str
+```
+
+**No `ChangeSetV1` public component return**; `NormalizedChangeSetV1` is an internal conversion result and cannot be submitted by a component. The `ProposalHeaderV1` is embedded in Action/StateDelta public outputs; EventIntentBatch shares the exact identity fence but is **a batch of event intents, not a Scheduler/Dynamics Proposal or ChangeSet**. All public `boundary_id` and `read_view_token` are explicit, not derivable from one another. `ProposalContext` carries both directly. Its optional internal `BoundaryRef` is separate and never a public alternate identity. A legacy source `boundary_ref` ingress may be accepted **only** by a named versioned converter that resolves the minted public ID via a one-to-one Harness lookup; unknown/stale reference → `BOUNDARY_REF_INVALID`. No structural duck-typing to swap `EventWindowRefV1`, `ModelIntervalRef`, `ClockRef`, or `BoundaryRef`: wrong class/scope/generation → `WINDOW_REF_TYPE_MISMATCH` or `INTERVAL_MISMATCH`.
+
+### 0.2 Exact normalization, operation and failure correspondence to AI-A
+
+| Component ingress | Required transformation by Harness | Internal output | Rejection |
+|---|---|---|---|
+| ActionProposalV1 header + actions | verify public header and stage token, resolve kind `task.assign_chain.v1`, preserve ordered task IDs and atomic assignment group | `NormalizedChangeSetV1(phase=APPLY_COMMAND, model_interval_ref=None)` | `STALE_OBSERVATION`, `INVALID_ACTION`, `DOMAIN_OPERATION_UNMAPPED` |
+| StateDeltaProposalV1 + interval | verify post-assignment view token, interval issued to **Dynamics**; one `dynamics.motion_energy.v1` operation per vehicle; convert valid `ServiceFactCandidate` to `domain.service_fact.v1` for separate POST_MODEL stage | `NormalizedChangeSetV1(phase=ADVANCE_MODEL, model_interval_ref=validated_ref)` + post-model fact staging, no event reenqueue | `INTERVAL_MISMATCH`, `NONFINITE_VALUE`, `SERVICE_FACT_INVALID` |
+| EventIntentBatchV1 | resolve `EventWindowRefV1` from **EventProvider polling window**; validate batch as a whole; normalize each accepted intent through Harness event admission, not directly through Scheduler public propose | `EventEnvelopeV1[]` (queue C); event handlers later produce internal `NormalizedChangeSetV1` in authorized phase | `WINDOW_REF_TYPE_MISMATCH`, `INVALID_EVENT_ORDER`, `EVENT_ID_CONFLICT` |
+| Scenario EventSpecV1 | pin scenario source ordinal, convert exact decimal seconds→ns, map registered kind→phase, preserve failure policy and ID | only Harness `EventEnvelopeV1` | `TIME_PRECISION_LOSS`, `UNKNOWN_PHASE_MAPPING` |
+| Any previous `ChangeSetV1` / `change-set.v1` submitted by component | **no converter as a public runtime interface**; only explicitly versioned import of historical *source proposal* accepted at offline migration boundary | none | `CONTRACT_VERSION_MISMATCH` |
+
+**Public header ingress v0→v1 mapping (only named/versioned adapters, never silent):**
+`boundary_ref→boundary_id` by Harness ledger; `observed_revision/base_committed_revision→base_revision`; `observed_view_token/based_on_view_token→read_view_token`; `source_component_id→producer_id`; `capability_ref/provenance_ref` checked against immutable registry. Header schema and message schema are **distinct**. `ProposalContext` must not introduce a second public header version. For each `NormalizedChangeSetV1`, validate `proposal_id + source_digest` idempotency and all `OperationV1` reducers before staging; identical ID/digest is one decision, conflicting digest rejects `PROPOSAL_ID_CONFLICT`.
+
+Typed operation variants exactly track #58 §8.3: `task.assign_chain.v1`, `dynamics.motion_energy.v1`, `domain.service_fact.v1`, `domain.event_effect.v1`. Service facts carry `fact_time_ns=model_interval.end_ns`, evidence, deterministic ordinal/ID, and validated custody/service reducer. Position+single battery debit atomic; an `EventEnvelopeV1` is *future queue work*, never the completion fact. Unknown kind/reducer `DOMAIN_OPERATION_UNMAPPED`, not generic JSON field assignment.
+
+**Failure disposition is stage-sensitive, not component-chosen** and maps #58 `ContractFailureV1`: `REJECT_ASSEMBLY` unsupported checkpoint/ABI; `REJECT_REQUEST` invalid pre-admission external command/batch; `ROLLBACK_BOUNDARY` fatal Scheduler/Dynamics/committed-boundary-stage error and full B/C/D/queue/RNG/producer-seq restoration; `SKIP_EVENT` only for predeclared `record_and_skip`, recorded only when full boundary commits; `POSTCOMMIT_PARTIAL` does not rewind physical state; `TAINT_LEGACY` destroys trust in partial legacy worker. `source_code` retains original error alias. Same Run generation only one externally visible revision per accepted boundary. Strict V1 supersedes old ARCH-01 public phase micro-commit **only upon accepted ADR-002**; until then old proposal is not silently edited.
+
+### 0.3 Event-window and timestamp edge-policy proposal for AI-A/ARCH-02/03 co-sign
+
+```python
+class EventWindowRefV1:  # opaque, minted by Harness; not interchangeable
+    run_id: str
+    generation: uint64
+    boundary_id: str
+    window_token: str
+    start_ns: uint64
+    end_ns: uint64
+    include_start: bool
+    include_end: bool
+    # start/end and inclusion are validated by Harness, not chosen by provider.
+```
+
+**Candidate polling convention**: after the initial t=0 queue is loaded from Scenario, ordinary EventProvider incremental windows use `(start_ns,end_ns]` (exclude start, include end); repeated window identity resolves idempotently and may not resample a logical event. Predeclaration of event source/window must prevent events at exact zero being lost or sampled twice. EventIntentBatch may be empty `intents=()` without failure and without producer_seq increment; invalid batch is all-or-reject, never prefix-enqueued. Harness validates event type/ref/run/gen, exact ns, producer_seq, full digest and phase seal before admission.
+
+**Initial t=0**: `initialize` atomically publishes revision 0 at time 0 and pins initial deterministic Scenario events; the **first opened boundary starting at 0** executes all due PRE_INPUT(0) then PRE_DECISION(0) under a single private stage before its Scheduler view. Initial t=0 EventProvider samples must be loaded once via explicit initial-window/source contract (not via an ordinary window excluding t=0). No external micro-revision; consumed IDs committed once with the boundary. Duplicate t0 ID with different digest → `EVENT_ID_CONFLICT`.
+
+**Horizon policy candidate = INCLUDE_ONCE**: process legal, pre-registered events with `time_ns==horizon_ns` exactly once before final termination evaluation, never any event beyond horizon and no dynamics interval beyond horizon. If horizon event remains due after last positive-duration integration, a **bounded, real event-work zero-duration terminal boundary** is allowed; a zero-duration step solely for metrics with no pending eligible event is forbidden. Scheduler cannot dispatch any motion requiring positive-duration integration after horizon. Termination is evaluated on the committed final state; this explicit policy must be pinned in FrozenRunSpec or assembly rejects horizon ambiguity. An explicitly different EXCLUDE policy requires an **independent versioned protocol profile**, not a runtime guess.
+
+**Late same-time policy candidate = REJECT_AFTER_PHASE_SEAL**: a new event at current time targeting a phase already sealed within the boundary is rejected `INVALID_EVENT_ORDER`, with no silent deferral and no past phase reopening; external command may explicitly resubmit as a **new** future-timestamped intent. A same-time allowed *not-yet-sealed* phase may admit only if its producer sequence, event budget and order can be deterministically checked. After boundary commit at that time, any new event with the same timestamp cannot retroactively modify it. `record_and_skip` is for a predeclared event's domain precondition, **not** an excuse to swallow invalid time/order/schema.
+
+**Versioned kind→phase registry**, examples require ARCH-01/02/03 owner approval and a manifest digest before use: `environment.wind.update→PRE_INPUT`, `vehicle.fail→PRE_INPUT`, `vehicle.recover→PRE_INPUT`, `facility.close/open→PRE_INPUT`, `airspace.activate/expire→PRE_INPUT`, `demand.inject/withdraw→PRE_DECISION`. Domain completion `service_fact` is **POST_MODEL committed fact**, never a scenario or queued provider event kind. Unknown kind, missing manifest mapping or provider phase inconsistent with registry → `UNKNOWN_PHASE_MAPPING/PHASE_CAPABILITY_MISMATCH`; never implicit default. Canonical event sort remains #58 `(time_ns,phase_rank,priority,producer_id UTF8 bytes,producer_seq,event_id UTF8 bytes)`. This is **our explicit candidate for AI-A adoption**; not a fabricated sign-off or alteration of #58.
+
 ## 1. Normative candidate: one logical boundary, three categories of records
 
 - **World committed truth B**: `WorldState` & domain fact ledger; **control C**: `Clock / queue / event admission / RNG cursor`; **component-private causal D**: checkpointable provider state; each strict boundary atomically publishes one coherent B/C/D pointer + **one** `revision` and `step_index` increment. All precommit phases use **immutable ProvisionalView** with `stage_seq`; no public micro-commit. Source = #58 `STATE_COMMIT_CONTRACT §§2–5`. #46 still permits visible micro-commit, so not frozen until ARCH-01+ARCH-02+ARCH-03 & coordinator agree.
@@ -43,7 +150,7 @@ class StateDeltaProposalV1:
     service_facts: tuple["DomainFactCandidate", ...]
     emitted_event_intents: tuple["EventIntentV1", ...]  # future queue work ONLY
 
-class ChangeSetV1:
+class NormalizedChangeSetV1:
     header: ProposalHeaderV1
     phase: "PhaseV1"                 # ARCH-02/AI-A assigned and capability-validated
     operations: tuple["TypedDomainOperation", ...]
@@ -76,13 +183,13 @@ class ChangeSetV1:
    -> validate(header, view_token, registered capability)
    -> each AssignTaskChain -> typed AssignTaskChainOperation (single atomic chain)
    -> prevalidate domain refs, versions, task lifecycle, unique ownership, leases, payload & battery
-   -> ChangeSetV1{phase=APPLY_COMMAND, operations=[...], event_intents=[allowed future events]}
+   -> NormalizedChangeSetV1{phase=APPLY_COMMAND, operations=[...], event_intents=[allowed future events]}
    -> stage to overlay (NO commit)
    -> signed new ProvisionalView (same committed revision, incremented stage_seq)
    -> DynamicsModel.propose -> StateDeltaProposalV1
    -> motion/energy -> typed MoveAndConsumeOperation (atomic vehicle delta, finite Wh >= 0)
    -> service_facts -> typed ServiceOrCustodyFactOperation (ARCH-01 evidence and transition validation)
-   -> ChangeSetV1{phase=ADVANCE_MODEL and validated post-model fact stage}
+   -> NormalizedChangeSetV1{phase=ADVANCE_MODEL and validated post-model fact stage}
    -> validate all B/C/D + queue/RNG, then ONE boundary publish -> CommittedFrame -> MetricSample
 ```
 
@@ -94,21 +201,21 @@ class ChangeSetV1:
 
 ## 4. Event record conversion and same-time admission (AI-A / CONTRACT-01 owner)
 
-This section *references* #58 `TIME_AND_EVENT_CONTRACT §§2–6` at exact head `fa894cde5b22a78f5dcac4b2fbe17b3f17fa3377`; it does **not** re-freeze EventEnvelope, clock or phase rank here.
+This section *references* #58 `TIME_AND_EVENT_CONTRACT §§2–7` at exact head `bd5e47266d79d1e087ca8cfc6fe68ea28a03496b`; it does **not** re-freeze EventEnvelope, clock or phase rank here.
 
 | Stage | Input → normalized output | Mandatory fields | Explicit converter validation | Failure |
 |---|---|---|---|---|
 | 0 Scenario | ARCH-01 `EventSpecV1` (immutable) | event_id, time_s, priority, kind, target_ref, payload, preconditions, on_failure, provenance; source manifest + deterministic ordinal | schema/kind map, exact decimal seconds→ns, signed priority int32, declared failure policy; phase via **versioned kind→PhaseV1 mapping** | SCHEMA_MISMATCH, TIME_PRECISION_LOSS, UNKNOWN_EVENT_TYPE, INVALID_PHASE |
 | 1 Provider | ARCH-03 `EventIntentV1` (untrusted proposal) | schema_version,event_id,at_seconds,phase,priority,producer_id,producer_seq,kind,target_ref,payload,preconditions,failure_policy,causal_parent_id?,provenance | no unpinned priority_class or stable_order_key interpreted as order; class→int mapping must be pinned; producer seq claim validated by Harness | INVALID_PRIORITY_CLASS, INVALID_PRODUCER_SEQUENCE, PROVENANCE_MISSING |
 | 2 Admission | ARCH-02 `EventEnvelopeV1` (only executable queue record) | schema_version,event_id,run_id,generation,time_ns,phase,priority,producer_id,producer_seq,kind,target_ref,payload,preconditions,failure_policy,causal_parent_id?,provenance,payload_digest,attempt | Harness assigns run/generation; fixes exact time_ns, reserves deterministic seq & event identity transactionally; validates monotonic/seal/ID digest | STALE_GENERATION, EVENT_ID_CONFLICT, INVALID_EVENT_ORDER, TIME_REGRESSION |
-| 3 Execution | EventEnvelope → EventHandler `ChangeSetV1` | header, phase, typed domain operations, optional future intents | validate preconditions on latest provisional view; rejection consumes queue item only with successful committed disposition (record_and_skip), not on discarded attempt | EVENT_PRECONDITION_FAILED, STATE_INVARIANT_FAILED |
+| 3 Execution | EventEnvelope → EventHandler `NormalizedChangeSetV1` | header, phase, typed domain operations, optional future intents | validate preconditions on latest provisional view; rejection consumes queue item only with successful committed disposition (record_and_skip), not on discarded attempt | EVENT_PRECONDITION_FAILED, STATE_INVARIANT_FAILED |
 | 4 Fact | `DomainFactCandidate` → committed domain fact | domain ref, evidence, generating boundary + **fact effective time owned by AI-A** | fact staged POST_MODEL; **not** reinsert as due PRE_INPUT event at same timestamp | INVALID_EVENT_ORDER |
 | 5 Future event | permitted emitted EventIntent → newly admitted Envelope | typed future effective time + producer seq | may not insert work into sealed/lower phase at same time; late events require explicit future scheduled boundary or rejection per frozen rule | INVALID_EVENT_ORDER |
 
 **Authoritative proposed queue ordering is copied from #58, not independently invented**:
 `(time_ns, phase_rank, priority, producer_id UTF-8 bytes, producer_seq, event_id UTF-8 bytes)`, ascending. PhaseV1 names/ranks proposed by #58: PRE_INPUT(0), PRE_DECISION(1), APPLY_COMMAND(2), ADVANCE_MODEL(3), POST_MODEL(4), OBSERVE(5). `OBSERVE` is postcommit only, not a world-mutating queue phase. Exact-input seconds use decimal×10^9 and must be exact uint64 integral nanoseconds; `3.5` seconds → 3_500_000_000 ns, `3.0000000001` seconds rejected `TIME_PRECISION_LOSS`. No float sort keys, no rounding, no implicit fallback from missing phase/priority.
 
-**Open, not independently decided here**: event kind→phase registry, EventProvider polling window inclusion, initial t=0 event admission, horizon endpoint inclusion, late same-time policy; committed fact effective-time semantics/field names; `EventIntent` when emitted by Scheduler/Dynamics must be explicitly capability-allowed and assigned producer seq without unordered iteration. These need AI-A/ARCH-01/02/03 + coordinator approval, not silent defaulting.
+**Concrete coordinator-directed candidate in §0.3, not yet co-signed**: event kind→phase registry, EventWindowRefV1 polling window inclusion, initial t=0 admission, horizon endpoint inclusivity, late same-time REJECT_AFTER_PHASE_SEAL; committed fact effective-time semantics/field names; `EventIntent` when emitted by Scheduler/Dynamics must be explicitly capability-allowed and assigned producer seq without unordered iteration. These need AI-A/ARCH-01/02/03 + coordinator approval, not silent defaulting.
 
 ## 5. Unified failure semantics (recommended error taxonomy + transactional effect)
 
