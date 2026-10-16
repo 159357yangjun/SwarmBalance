@@ -1,0 +1,114 @@
+# CONTRACT-01 — STATE_COMMIT_CONTRACT
+
+> Task: CONTRACT-01 / ARCH-05-R2 B01 (and the state side of B03). Status: PROPOSED / Draft design only; not an accepted ADR, executable API, or verified transaction implementation.
+>
+> Proposed owner: ARCH-02 (Harness transaction); domain-schema co-signer: ARCH-01; component-protocol co-signer: ARCH-03; legacy disclosure: ARCH-04; final freeze: coordinator via ADR-002.
+>
+> Baseline verified 2026-10-16: master **2ab60c69a806a22d7ba20353dee0571752a0e8e5**, PR #54 **99bd0eb6b910d691d6d7776da0a5fd3f973f2997**, PR #46 **b5f05a70a3306f1799fcae2c3f342f3ed9ee0048**, PR #49 **d155621aca66e3a80c388718093a452d17d71e10**, PR #47 **68382c649393057ffbf5a14508ab1ff72d575b09**, PR #51 **f2df96bc609ee1e430ea6eff2456c4577347c300**. All five were open Draft PRs; PR #54's reviewed heads for #46/#49/#47 still match. Governance registry and ADR-002 remain **PROPOSED/OPEN**.
+
+## 1. Evidence and conflict decision
+
+- ARCH-01 [WORLD_STATE §1–§6](https://github.com/159357yangjun/SwarmBalance/blob/b5f05a70a3306f1799fcae2c3f342f3ed9ee0048/docs/platform/architecture/world/WORLD_STATE.md): one WorldState writer, immutable ReadView, proposals and domain invariants; §3 explicitly permits multiple visible same-time phase micro-commits with independent revisions.
+- ARCH-02 [STATE_OWNERSHIP §1–§5](https://github.com/159357yangjun/SwarmBalance/blob/d155621aca66e3a80c388718093a452d17d71e10/docs/platform/architecture/harness/STATE_OWNERSHIP.md) and [RUNTIME_SEQUENCE §2](https://github.com/159357yangjun/SwarmBalance/blob/d155621aca66e3a80c388718093a452d17d71e10/docs/platform/architecture/harness/RUNTIME_SEQUENCE.md): one atomic *externally visible* execution-boundary commit, internal provisional views, transactional clock/queue/RNG rollback.
+- ARCH-03 [COMPONENT_CONTRACTS §1–§4](https://github.com/159357yangjun/SwarmBalance/blob/68382c649393057ffbf5a14508ab1ff72d575b09/docs/platform/architecture/components/COMPONENT_CONTRACTS.md): versioned Observation/ActionProposal/StateDeltaProposal/CommittedFrame and no direct writes; interfaces not yet jointly frozen.
+- Independent [ARCH-05-R2 B01/B03](https://github.com/159357yangjun/SwarmBalance/blob/99bd0eb6b910d691d6d7776da0a5fd3f973f2997/docs/platform/architecture/review/ARCH_05_R2_CROSS_REVIEW.md) grades both P0 HOLD.
+
+**CONTRACT-01 resolution proposal:** V1 STRICT_ATOMIC_BOUNDARY mode has **zero externally published micro-commits**. The ARCH-01 phase micro-commit concept is replaced **inside this mode** by a validated, privately versioned provisional overlay. Each successful execution boundary publishes exactly one committed revision and coherent state/control checkpoint. If later required, phase-visible micro-commit is a separate **future protocol/mode and breaking visibility contract**, not an undocumented flag. This file does not silently amend PR #46 or #49; ARCH-01/02/03 must co-sign.
+
+## 2. State authority and mutation matrix
+
+- **A / immutable inputs**: Project/WorldDefinition/Scenario, component lock, datasets and model manifests; pinned by Run assembly; no in-run edits.
+- **B / domain truth**: per-(run_id,generation) WorldState: entities, tasks/assignments/cargo custody, resource leases and queues, dynamic fields, applied-event ledger and event cursor. **Only Harness StateCommitter** publishes validated B. ARCH-01 owns B schema, referential and domain invariants, not the mutation capability.
+- **C / deterministic control**: Harness clock, event priority queue, admission counters, RNG stream positions, boundary counter, run generation and protocol metadata. Commit with B as a single *logical transaction*; only Harness mutates.
+- **D / component-private causal state**: owned by individual provider; allowed only when precommit operations are pure or support reliable snapshot/stage/rollback. Declared checkpoint capability mandatory for strict mutable D; otherwise reject assembly for strict mode. Not a second authority for B.
+- **E / read-only projections**: UI, metrics, trace and exports. Observe committed B/C only; never feed world truth via a hidden mutable alias. Non-world diagnostics are an append-only evidence sidecar and cannot be mistaken for a WorldState revision.
+
+**Mutation matrix**
+
+| Actor | Read | May mutate/publish | Forbidden |
+|---|---|---|---|
+| Harness RunController/StateCommitter (ARCH-02) | A–D via scoped APIs | Validate/stage/publish B; coordinate C; checkpoint D | Invent domain physics/rules |
+| ARCH-01 validators | Frozen definitions and proposed state | Pure validation result | Publish B/C or mutate input |
+| Data/Spatial/EventProvider (ARCH-03) | Pinned resources and scoped views | Initialization/event/patch proposals; own declared D | Direct B/C mutations |
+| Scheduler/Dynamics (ARCH-03) | Immutable provisional observation | Action/StateDelta proposals; own rollback-safe D | Call mutable StateStore; issue phantom commits |
+| MetricProvider/UI/Experiment | CommittedFrame/trace | Their derived E; external command **request** into Harness admission API | Mutate world via observations |
+| LegacyEnvironmentAdapter (ARCH-04) | Controlled legacy env | In-place opaque legacy step **only in LEGACY_OPAQUE_STEP** | Advertise V1 atomicity or exact rollback without separate proof |
+
+## 3. Core interfaces: fields, types, responsibility, failure
+
+**Canonical types:** string identifiers are stable, case-sensitive and scoped; uint64 is 0…2^64−1; integer nanoseconds uint64 in this proposal with maximum/overflow policy frozen in RunSpec; digest is SHA-256 of canonicalized bytes. All collections exposed to components are deeply immutable/value-copied.
+
+| Interface / field | Type and semantics | Producer / owner | Invalid input or failure |
+|---|---|---|---|
+| WorldState.schema_version | string, literal worldstate.v1 for this proposal | ARCH-01 defines; Harness checks | SCHEMA_MISMATCH; no publish |
+| WorldState.run_id, generation | string, uint64; authoritative per-run identity | Harness | STALE_GENERATION / RUN_MISMATCH |
+| WorldState.world_ref, scenario_ref | frozen {id:string,revision:uint64,digest:string} | ARCH-01 definition; Harness pin | UNKNOWN_REFERENCE / DIGEST_MISMATCH |
+| WorldState.revision | uint64; increments **once** per successful boundary; starts at 0 after initialization | Harness | REVISION_CONFLICT; no mutation |
+| WorldState.sim_time_ns, step_index | uint64, uint64; committed logical time and number of successful boundaries; start at 0 | Harness Clock | TIME_REGRESSION / STEP_CONFLICT |
+| WorldState.entities, tasks, resource_ledger, dynamic_fields | typed maps, ARCH-01 domain invariants; stable EntityId, no arbitrary mutable objects | ARCH-01 schema; Harness writes | STATE_INVARIANT_FAILED / CUSTODY_CONFLICT / RESOURCE_CAPACITY_EXCEEDED |
+| WorldState.applied_event_ids, event_cursor | canonical event ID→payload digest/status and last executed queue key; run-scoped | Harness | EVENT_ID_CONFLICT / EVENT_ORDER_INVALID |
+| ReadWorldView.run_id, generation, revision, sim_time_ns | immutable scalars from **last published** state | Harness | stale view rejected at admission |
+| ProvisionalView.base_revision, boundary_id, stage_seq, view_token | uint64, string, uint64, opaque string; private *stage identity*, not committed revision | Harness | STALE_PROVISIONAL_VIEW; never externally exposed as committed |
+| ProvisionalView.readonly_state | deep-immutable composed B overlay through stage_seq; does **not** expose C mutable references | Harness | MUTABLE_REFERENCE_LEAK = contract failure |
+| ChangeSet.run_id, generation, boundary_id, base_revision | string,uint64,string,uint64: optimistic concurrency fence | ARCH-03 produces; Harness validates | STALE_COMMAND / STATE_CONFLICT |
+| ChangeSet.producer_id, proposal_id, phase | stable string, stable string, PhaseV1 enum; unique idempotent proposal within run generation | Component; Harness verifies | PROPOSAL_ID_CONFLICT / INVALID_PHASE |
+| ChangeSet.read_view_token | opaque string matching the provisional view on which computed; **required in strict mode** | Harness issues; component echoes | STALE_PROVISIONAL_VIEW |
+| ChangeSet.operations | ordered array of {operation_id:string, target_ref:typed ref, kind: namespaced string, expected_version:uint64?, value: typed, unit?:string, provenance:ref}; semantically atomic | Component proposes; ARCH-01 validates; Harness applies | INPUT_SCHEMA_INVALID, UNKNOWN_REFERENCE, UNIT_MISMATCH, STATE_CONFLICT |
+| ChangeSet.emitted_event_intents | EventIntentV1[]: proposed, never direct queue writes | Component; Harness converts per time/event contract | INVALID_EVENT_ORDER; staged event rejected |
+| BoundaryFence | {run_id, generation, boundary_id, base_revision, start_ns, selected_end_ns, queue_checkpoint, rng_checkpoint, private_state_tokens, admission_counter_checkpoint}; all internal immutable/checkpoint tokens | Harness ARCH-02; ARCH-03 supplies D restore | CHECKPOINT_UNAVAILABLE; refuse strict invocation |
+| BoundaryCommit | {boundary_id, from_revision, to_revision, committed_step_index, sim_time_ns, applied_operation_ids[], accepted_event_ids[], rejected_event_ids[], state_digest, control_digest}; only generated upon success | Harness | no BoundaryCommit on rejected boundary |
+| CommittedFrame | {run_id,generation,revision,step_index,at_ns,at_seconds,readonly_state,accepted_events,rejected_proposals,boundary_id,commit_digest}; visible only after commit | Harness; ARCH-03 consumes | UNSAFE_FRAME / EVIDENCE_INCOMPLETE if publication fails |
+
+**Proposal idempotency**: identical proposal_id + canonical content digest in one generation yields the recorded decision, never duplicate application; same ID with different content is a hard integrity rejection. Stage-sequence may advance internally without a WorldState revision change. Consumers compare **both** generation and revision; generation reset invalidates old views even if revision reverts to zero.
+
+**Semantics test pairing**: positive ST-01/ST-02/ST-04/ST-06/ST-11 and negative ST-03/ST-05/ST-07/ST-08/ST-12 in STATE_EVENT_TEST_CASES.md; every table row is covered either directly or by one of these family tests.
+
+## 4. Exact V1 boundary algorithm
+
+1. **Admission barrier**: serialize requests; select boundary_id and clock policy. Freeze base committed (B,C,D) fence, time [start_ns,selected_end_ns], event admission order, and input/component digests. Reject stale/unrepresentable commands **before** any stage publication.
+2. **Pre-input / pre-decision**: deterministically dequeue due external facts and accepted EventIntent; stage validations against copy-on-write B overlay. Each substage creates an immutable ProvisionalView(stage_seq+1), still **base_revision=r**. Scheduler reads this provisional state, so same-timestamp faults and arrivals accepted before decision affect dispatch.
+3. **Commands / model**: apply validated Scheduler operations to the overlay; run Dynamics against the *latest* staged view with an explicit interval and time context. Stage atomic position/energy/status, service/custody/lease consequences and event results. Reject unregistered reducers or hidden second writers. Post-model domain facts are proposals/commit facts, not automatically externally scheduled EventEnvelope (see TIME_AND_EVENT_CONTRACT.md §5).
+4. **Prepare**: validate whole candidate B/C/D plus reference/custody/capacity, numeric/CRS/unit, base and view-token fences, event ordering and dedup, event-cycle bound, component private-state rewind capability, RNG/queue cursors. Deterministically resolve only versioned permitted reducers; otherwise STATE_CONFLICT.
+5. **Atomic publish**: with a per-run serialized writer, swap coherent committed B/C/D checkpoint pointer **as one logical boundary**, assign revision=r+1 and step_index=s+1, freeze queue/RNG/sequence counters, record BoundaryCommit digest. Readers see wholly r or wholly r+1. Domain effects, time and control never publish separately. Snapshot/CommittedFrame and postcommit observers only run after publish.
+6. **No-op**: if no domain/control transition, no elapsed time and no accepted/rejected-event disposition, return NO_BOUNDARY without revision/step_index increment. A legitimately consumed skipped event changes control/ledger and therefore commits one boundary.
+7. **Failure precommit**: discard full stage overlay and restore *all* queue/RNG/sequence/D snapshots; last committed B/C and revision/step_index/time remain unchanged. Record a diagnostic outside B. Default fatal component failure marks Run FAILED without fabricating a new world revision. Valid declared per-event record_and_skip policy can discard that event's **entire local proposal** and stage a recorded rejection/queue consumption, then still commit the boundary; never partially apply that event.
+8. **Failure postcommit**: do not rewind the committed pointer; preserve r+1 and snapshot visibility; MetricProvider/export/logger failures mark output PARTIAL or EVIDENCE_INCOMPLETE, with a separate FailureRecord. If mandatory audit evidence fails, Run may become FAILED at the committed revision. No automated re-execution of already committed physics.
+
+**Logical atomicity vs durable storage:** the proposal requires in-memory coherent visibility. It does **not** assert that the current code persists B/C/D and evidence on disk in a single durable database transaction. Snapshot/artifact durability and crash-consistency require separate implementation design and CONTRACT-04 co-sign.
+
+## 5. Boundary, clock and snapshot visibility
+
+- Initialization atomically publishes (generation g, revision 0, step_index 0, sim_time_ns 0) after validation. No incomplete initial WorldState is visible.
+- Every committed boundary advances **revision and step_index by one** in strict V1, but these are separate concepts: revision fences state identity; step_index counts accepted execution boundaries, **not seconds**. Clock may advance by 0 in a bounded event boundary; no revision changes within a boundary. A reset creates a new generation and rev=0, not a backwards transition within one generation.
+- A public snapshot request during a boundary returns latest **previous committed frame** (r), or waits until the barrier depending on a declared consistency API; it never returns provisional slices. Snapshot identity is (run_id,generation,revision) plus digest and pinned definition refs.
+- Pausing/stopping is acknowledged only after commit or rollback barrier. No component-private pending output enters a committed snapshot unless its deterministic state is included in the transaction fence.
+- An external event exactly at current time must be admitted before that timestamp's input-phase seal; after seal, reject late same-time injection (or ask caller to explicitly schedule a later valid timestamp). Do not reopen a past phase after publication or create ad-hoc visible micro-commits.
+- Per-time queue events may cascade **within** the open boundary only while phase is monotonic and the predeclared same-time budget has not been exceeded. A cyclic same-time cascade aborts the entire boundary.
+- A terminal/post-model service-completion **fact** belongs to the boundary's committed B and trace; only an explicitly scheduled **future** event is an EventEnvelope. Confusing a completed fact with a pending queue event creates a time-order ambiguity and is forbidden in strict mode.
+
+## 6. Failure outcomes and trust
+
+| Window | Example | Committed state | Queue/RNG/D | Result / snapshot |
+|---|---|---|---|---|
+| Assembly / init | Bad manifest | no rev=0 | discard staged init | INIT_FAILED; no world snapshot |
+| Pre-admission | Stale UI command | unchanged r | unchanged | REJECT_COMMAND; r still visible |
+| Precommit hard | NaN, conflicting assignment, fault in Dynamics | unchanged r | restore fence | FAILED by default; r still visible |
+| Precommit expected soft event rejection | Missing optional target with frozen record_and_skip | no partial event changes; other stage accepted on declared policy | rejected event consumed **on** successful boundary commit | committed r+1 incl rejection ledger |
+| Atomic publish success | Valid boundary | r+1 only | checkpointed with B | one CommittedFrame |
+| Postcommit | metric/export failure | r+1 stays | no rewind | PARTIAL/EVIDENCE_INCOMPLETE; r+1 visible |
+| Legacy opaque | env.step mutates then throws | unknown partial state | not proven rewindable | TAINTED/FAILED; not strict snapshot |
+
+Required errors identify run_id, generation, boundary_id, base_revision, component, event/proposal ID, code, phase, whether a revision committed, and severity. A failed command is not a successful empty action. A trace written precommit is explicitly **attempt/diagnostic**, not committed domain truth.
+
+## 7. Cross-group signature requests and questions for coordinator
+
+| Decision | Proposed owner / required sign-offs | Remains blocked until |
+|---|---|---|
+| Single published boundary revision vs ARCH-01 micro-commit | **ARCH-02 owner, ARCH-01 and ARCH-03 sign** | ADR-002 ACCEPTED and PR #46/#49 reconciliation |
+| ProvisionalView token and B/C/D fence | **ARCH-02 owner; ARCH-03**, ARCH-01 invariant validator | component retry/private checkpoint protocol agreed (B06 with CONTRACT-02) |
+| WorldState entity/task/custody/lease schema | **ARCH-01 owner; ARCH-02/03** | semantic operations and versions co-signed |
+| CommittedFrame/Metric postcommit behavior | **ARCH-03 and ARCH-02**, CONTRACT-04 | observation and evidence statuses co-signed |
+| Snapshot compatibility, crash durability, legacy opacity | **ARCH-02**, ARCH-04 and CONTRACT-04 | capability gates and durable-evidence scope defined |
+| Time/phase/event schema | **ARCH-02**, ARCH-01/03 and CONTRACT-03 for RNG | TIME_AND_EVENT_CONTRACT.md co-signed |
+
+**Coordinator arbitration required** if: any group insists on externally visible phase micro-commits; a strict component cannot checkpoint D; shared-time input admission/rejection or post-model fact-to-event boundary is rejected; or versioned domain reducer conflicts need precedence. Until sign-off this is a proposed resolution, not an unconditional V1 freeze. No Python/runtime, CI, replay, or empirical validation is claimed.
