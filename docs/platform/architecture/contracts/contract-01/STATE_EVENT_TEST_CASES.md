@@ -72,3 +72,54 @@ Each component signature is a **logical draft schema**, not working Python:
 ## 6. Source freshness and boundaries
 
 The five PR HEADs above were inspected via GitHub at the start of this task; #54 locks identical #46/#49/#47. Should any head move after this, reviewers must re-fetch affected source blobs and mark impacted fixtures STALE, not blindly accept old review. This PR adds only the three Markdown docs in contract-01; does not edit any original ARCH-01–04 PR, code, main/master, tests, configuration, existing evidence, or governance files. No merge is authorized.
+
+
+---
+
+## 7. Cross-contract normalization + failure tests (addendum; FUTURE / NOT RUN)
+
+Source-lock for this addendum: CONTRACT-02 PR #55 HEAD \`b00cd337de2797b9819089b234a113e36513e003\`, CONTRACT-03 #56 \`0b038f29e7f1957bf93e4afd1e3a171d54e5b620\`, CONTRACT-04 #57 \`1f3798ad0b4e378d6ec0d13cc6945b3a1133d118\`, CONTRACT-05 #60 \`56ad6fe7b0f3a1b0b2b613d68a6e5bd5240dc955\`, independent review #59 \`28daf1e336a1447b098b4d6fa044095b7caa1f4f\`. Crosswalk contract candidate is \`state-event-proposal.v1-candidate-1\` in STATE_COMMIT_CONTRACT §8 and TIME_AND_EVENT_CONTRACT §7. **No runnable fixture exists in this PR, and every status below is NOT_RUN.** Numbered names ST-21+ extend, rather than relabel, the original ST-01…20.
+
+| ID | Positive/negative and input | Precisely required *future* assertion | Failure disposition and signer | Executed? |
+|---|---|---|---|---|
+| ST-21 | POS: valid ActionProposalV1 with \`observed_revision=4\`, \`observed_view_token=view:A\`, \`boundary_ref=boundary:X\` and AssignTaskChain | Harness normalizes into \`NormalizedChangeSetV1\` \`base_revision=4\`, \`read_view_token=view:A\`, \`phase=APPLY_COMMAND\`; stage assignment but **not** cargo pickup; commit once to rev 5 after valid other phases | AI-B, ARCH-01/02/03 | NOT_RUN |
+| ST-22 | POS: Dynamics StateDeltaProposalV1 after scheduler stage view:B, with 10 finite Wh | \`based_on_view_token=view:B\` maps to same canonical view-token field; single atomic position+mode+10 Wh debit; no model-side battery update; no second receipt in metrics | AI-B, ARCH-01/02 | NOT_RUN |
+| ST-23 | NEG: Dynamics proposal with prior view:A although base committed revision still 4 | \`STALE_OBSERVATION\`, \`ROLLBACK_BOUNDARY\`, **not accepted because revision matches**; B/C/D/RNG/queue/seq unchanged | AI-B, ARCH-02 | NOT_RUN |
+| ST-24 | NEG: caller copies string of \`clock_ref\` into \`boundary_ref\`, or uses prior-generation \`model_interval_ref\` | \`BOUNDARY_REF_INVALID\` / \`INTERVAL_MISMATCH\`, no stage; tokens are typed opaque capabilities, not interchangeable | AI-A/B, ARCH-02 | NOT_RUN |
+| ST-25 | NEG: ActionProposal unsupported variant, float NaN weight or \`actor_vehicle_id=0\` legacy index | \`INVALID_ACTION\`/\`CONTRACT_VERSION_MISMATCH\`, \`NONFINITE_VALUE\` or \`ENTITY_REFERENCE_INVALID\`; no implicit free-form patch or index fallback | ARCH-01/03 | NOT_RUN |
+| ST-26 | POS: Dynamics service-fact candidate with evidence, subject, service ref at interval end_ns=4e9 | \`DomainFactV1\` deterministic fact_id from run/generation/boundary/proposal/ordinal; validated custody+delivery transition in POST_MODEL of producing boundary; **no queued EventEnvelope** for same fact | ARCH-01/02, AI-B | NOT_RUN |
+| ST-27 | NEG: service completion based solely on proximity or absent evidence, and provider tries direct cargo mutation | \`SERVICE_FACT_INVALID\`; no delivery, custody transfer, MetricSample success, or bypass StateCommitter; precommit boundary rollback | ARCH-01/03, AI-D | NOT_RUN |
+| ST-28 | POS: Scenario EventSpec \`time_s="3.5"\`, no explicit phase, registered kind phase-map | preserved ID, int32 priority, scenario producer/source ordinal; normalized EventEnvelope time_ns=3500000000; one queue admission; predecision view observes due event before Scheduler | ARCH-01/02/03 | NOT_RUN |
+| ST-29 | POS: EventIntentBatch with \`intents=[]\` and valid Context + window | explicit empty batch accepted as no requests, distinct from malformed/exceptional provider return; no fabricated event or sequence increment | AI-B, ARCH-02 | NOT_RUN |
+| ST-30 | NEG: EventProvider submits \`priority_class="urgent"\` without digest-pinned map; \`stable_order_key\` but no producer_seq reservation | \`INVALID_PRIORITY_CLASS\` / \`INVALID_PRODUCER_SEQUENCE\`, \`REJECT_REQUEST\` preadmission, all batch intents rejected, unchanged queue/sequence | AI-A/B, ARCH-02/03 | NOT_RUN |
+| ST-31 | NEG: same event_id with distinct payload hash, or two distinct events collide on (producer_id, producer_seq) | \`EVENT_ID_CONFLICT\` / \`INVALID_PRODUCER_SEQUENCE\` including \`source_code\`, no second domain effect; stage-time hard error rolls back whole open boundary | ARCH-02, AI-C | NOT_RUN |
+| ST-32 | POS: event precondition fails with frozen \`record_and_skip\`; Scheduler valid proposal also staged | only failed event's local operations discarded; single completed boundary consumes event and commits rejection ledger, Scheduler change; \`SKIP_EVENT\` diagnostic states \`world_commit_occurred=true\` **only after** commit | ARCH-01/02 | NOT_RUN |
+| ST-33 | NEG: invalid Scheduler proposal treated as \`record_and_skip\` or converted to empty success | invalid non-event proposal cannot opt into EventSpec failure policy; \`ROLLBACK_BOUNDARY\`, no revision increase, typed \`ContractFailureV1\` | ARCH-02/03 | NOT_RUN |
+| ST-34 | POS+NEG: postcommit MetricProvider exception or output failure with existing CommittedFrame | \`POSTCOMMIT_PARTIAL\`, \`world_commit_occurred=true\`, new committed revision retained; evidence PARTIAL/INCOMPLETE, **no** replay of physics and no fabricated MetricSample=0 | ARCH-02/03, AI-D | NOT_RUN |
+| ST-35 | NEG: TRANSACTIONAL scheduler lacks reliable \`prepare_commit\`/no-throw \`publish_prepared\` or RNG restore; declares strict | \`COMPONENT_RECOVERY_UNSUPPORTED\`, \`REJECT_ASSEMBLY\`; no partial READY WorldState; PURE explicitly stateless may use empty D checkpoint | AI-B/C, ARCH-02/03 | NOT_RUN |
+| ST-36 | POS+NEG: event at horizon under frozen \`INCLUDE_ONCE\` vs \`EXCLUDE\` policy, plus t=0 event and late PRE_INPUT after seal | exact declared horizon/t0 decision, never an implicit extra tick; late earlier-phase work → \`INVALID_EVENT_ORDER\`; no hidden fallback | ARCH-01/02/03, coordinator | NOT_RUN |
+
+### 7.1 Machine-readable acceptance evidence required later
+
+A future implementation test result for each ST-xx must record: \`case_id\`, \`contract_pack_version\`, \`frozen_PR_HEADs\`, \`implementation_HEAD\`, \`command\`, \`environment_digest\`, \`input_fixture_digest\`, \`expected_state_digest\`, \`observed_state_digest\`, \`expected_committed_revision\`, \`observed_committed_revision\`, \`expected_error/disposition\`, \`observed_error/disposition\`, \`queue_rng_private_checkpoint_before_after\`, \`trace_uri\`, \`actual_status(PASS|FAIL|NOT_RUN)\`. A predicted outcome without observed test log remains \`NOT_RUN\`. Unit tests here would prove **software Verification only**, not Legacy parity, measured flight physics, Validation or experiment integrity.
+
+### 7.2 Formal review and co-sign packet
+
+| Reviewer role (not an assumed GitHub identity) | Review scope / acceptance fields | Required evidence | Status |
+|---|---|---|---|
+| ARCH-02 / Harness state owner | \`NormalizedChangeSetV1\`, BoundaryRef/ClockRef/ViewToken/ModelIntervalRef, commit/abort, ContractFailureV1 | GitHub comment/review citing **exact latest PR #58 HEAD and pack version**, ACCEPT/CHANGES_REQUESTED with objections | PENDING |
+| ARCH-01 / World domain owner | typed operations, invariant/reducer, ServiceFactCandidate→DomainFact, EventSpec kind mapping | same, plus reference to changed domain rule | PENDING |
+| ARCH-03 + AI-B / CONTRACT-02 | \`ObservationV1\` / \`ActionProposalV1\` / \`StateDeltaProposalV1\` ↔ ChangeSet, EventIntentBatch compatibility | same, explicit component-side schema acceptance | PENDING |
+| AI-C / CONTRACT-03 | RNG cursor and transaction producer_seq, retry/checkpoint | same, stream/version notes | PENDING |
+| AI-D / CONTRACT-04 | CommittedFrame and partial evidence state | same, no duplicate RunRecord or metric on failure | PENDING |
+| ARCH-04 | LEGACY_OPAQUE_STEP not strict transactional | same, adapter difference declaration | PENDING |
+| Independent AI-R / ARCH-05-R3 | review all five **latest** contract HEADs, B01/B02/B03/B06 delta gate | independent file-level verdict (not self-approval) | PENDING |
+| Coordinator / ARCH-06 | ADR-002/003, phase/horizon/late-event decisions, final gate | explicit ACCEPTED decision + signers + date + frozen HEAD | PENDING |
+
+No sign-off obtained by writing these tables or creating a PR. GitHub reviews from the **PR author alone** are not independent sign-offs; do not fake user identities or infer AI agent approvals from shared repository account. For every change in #58 HEAD after a review, reviewers must reaffirm the new HEAD or explicitly scope an incremental re-review. #59's prior fixed-HEAD judgment does **not** automatically endorse this amendment.
+
+### 7.3 Scope and current verdict
+
+- Artifact status: three **design** Markdown documents amended in existing CONTRACT-01 branch only; no ARCH-01–04 files, old PR branches, Python, config, legacy results or master changed.
+- Actual GitHub metadata/blob checks are valid evidence of authored design and path scope only. **Implementation/run test PASS = 0; no executable test run, no CI, no physical validation.**
+- **B01/B02/B03/B06: schema convergence proposed; independent design/owner signatures pending. HOLD / NO-FREEZE.** B04/B05/B07 remain under their respective independent owners, not accepted by this amendment.
