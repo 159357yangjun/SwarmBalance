@@ -4,6 +4,13 @@
 >
 > 上游证据锁：#56 `0b038f29e7f1957bf93e4afd1e3a171d54e5b620`（AI-C 原 RNG 草案）；#57 修订前 `027fd78589229db3d2308ced5365b7a780703805`；#59 独立复审 `e76eb483d5760d99673774d48dc699f6a833ad7f`；#60 实施门 `abc93227b9e3160da1023d6c582e7a93ff9094b5`。均为未合并 Draft，当前所有下述规则均为待批准版本，不代替 AI-C 对 LP4/HKDF 的明确 ACCEPT。
 
+## C03 ↔ C04 最新增量会签登记（设计级、非生产冻结）
+
+- AI-C PR #56 最新明确审阅 HEAD：`cb0efcb73638791e027588a1bd12e26e2dd08986`；其 `EXPERIMENT_SEED_CONTRACT.md §9.1–9.6` **ACCEPT** `C03C04-IDENTITY-v1`、LP4/HKDF 字节序、单 Plan 唯一 spec binding、attempt≠replicate，以及 **`SB-FROZEN-RUN-SPEC-v1 / SB-CJSON-1`** 作为共同的**PROPOSED** 全量规格序列化。AI-C 明确撤回竞争的 `SB-FRS-JCS-v1`；两个哈希协议**不得**混用。
+- AI-C 在最新 #56 独立用 Python `hashlib/json` 重算 AI-D 完整合成 Spec 测试：SPEC-01=2471 bytes/`d2c07f032498322da6130f153d72199052e249559707574559c8791e2959ddf8`、SPEC-02=`99353448ec6277f9bac835e82f573bf9f8051832d45db0c5307f38ac5f68e5dd`，**2/2 合成数学匹配**；先前 G01–G13 为 **13/13** 数学向量匹配。
+- **此处“接受”仅是 AI-C 对合同文本/数学实例的会签**，并非 EXP-01/ARCH-02/03 或 ARCH-06 冻结；对真实配置快照递归覆盖、Unicode 边界互操作、sampler 完整分布、durable journal/fencing/崩溃恢复和实际 CRN/R3/实验运行，仍为 NOT_RUN / UNVERIFIED。
+- AI-D 的当前**单一**建议规范是本文件 §2 的 `SB-FROZEN-RUN-SPEC-v1 + SB-CJSON-1`。本次曾出现的 JCS 草案方向已撤回；旧数学 SHA 作为历史取证可见，但不是当前契约数据格式。任何未来更换序列化必须版本升级并由两方共同签字，不接受隐式迁移。
+
 ## 1. 唯一身份与 Plan 内的单值约束（C03C04-IDENTITY-v1）
 
 ```text
@@ -100,7 +107,7 @@ assert hashlib.sha256(b).hexdigest() == "d2c07f032498322da6130f153d72199052e2495
 
 ## 3. RNG/采样器/数值环境：最低有效合同
 
-- KDF 字节规则仍为候选 `C03-HKDF-HMAC-SHA256-v1`：`LP4` 的 uint32 大端长度前缀、NFC/UTF-8，HKDF-Extract 的 IKM=BE64(seed)，盐=`SwarmBalance/C03-HKDF-HMAC-SHA256-v1`，HKDF-Expand info=`LP4("SB-RNG-v1",domain,ordered_fields...)`，L=32，首次 HMAC 末尾 `0x01`。**AI-C 需对 #57 全部原始 G01–G13、SPEC-01/02 和异常输入明确 ACCEPT/CHANGES_REQUESTED**，仅知道 13/13 哈希复算一致不等于 AI-C 已签字。
+- KDF 字节规则仍为候选 `C03-HKDF-HMAC-SHA256-v1`：`LP4` 的 uint32 大端长度前缀、NFC/UTF-8，HKDF-Extract 的 IKM=BE64(seed)，盐=`SwarmBalance/C03-HKDF-HMAC-SHA256-v1`，HKDF-Expand info=`LP4("SB-RNG-v1",domain,ordered_fields...)`，L=32，首次 HMAC 末尾 `0x01`。**AI-C 在 #56 @ `cb0efcb73638791e027588a1bd12e26e2dd08986` 已对 LP4/HKDF、SPEC-01/02 给出设计级 ACCEPT，数学为 G01–G13 13/13、SPEC 2/2；但对异常输入、通用非 ASCII serializer/采样器/运行态持久化及多方冻结仍须独立验收**。
 - 最低随机引擎 `HMAC-INDEXED-U64-v1`：每个 draw 由 `HMAC-SHA256(stream_key,LP4("SB-DRAW-v1",source_id,slot_id,ordinal_id))` 输出，首 8 字节 BE64；不共享 mutable PRNG；地址重复映射不同机会必须拒绝。`UNIFORM53-v1`：`u53=draw_u64>>11`，`U=u53/2^53`（IEEE-754 binary64, ties-to-even）。原 G13 检查一个地址和输出。**仅 U64/UNIFORM53 基元**在此版本具有可核对的字节向量。
 - `C03C04-SAMPLER-MIN-v1` 允许严格版本化的 `U64`、`UNIFORM53`；进一步随机律如 `BERNOULLI-RATIONAL-v1` 可以定义为规范 `a/b`、`0<=a<=b` 的整数阈值抽样（拒绝采样剔除取模偏差），`CATEGORICAL-INTEGER-v1` 可按稳定实体排序及整数权重定义。但 **在两路径产生各自完整 golden vectors 和误差/边界规范之前，这两者仍不可被标为已支持的 portable sampler**。Poisson demand、Gaussian wind、指数间隔/其他真实物理采样器一律 `SAMPLER_VERSION_UNPINNED`，除非冻结明确分布/变换/抽样消费规则、数值版本与独立 golden vectors；或者先物化带 digest 的 immutable external event tape，不依赖运行时重新抽样。
 - `SB-NUMERIC-IEEE754-BINARY64-v1` 是候选数值 profile：binary64、roundTiesToEven、禁非有限值/隐式 FMA 收缩/不稳定并行归约；固定计算次序和比较容差、浮点库/编译器/CPU/操作系统/依赖包版本到 `runtime_profile_ref`。不满足这些约束时不能声称跨平台 R3 bit-identical。仅固定 KDF vector 不等于固定统计分布或运行环境。
@@ -139,4 +146,4 @@ assert hashlib.sha256(b).hexdigest() == "d2c07f032498322da6130f153d72199052e2495
 
 实测范围：只做了 GitHub HEAD/文档/白名单静态核验及合成 JSON canonical SHA-256 的 Python、Node.js 两个独立计算路径；无 GitHub Actions、完整 RunSpec freeze 实现、持久 journal crash 注入、Harness/Experiment 运行、PRNG 分布采样器全向量、物理 Validation/UQ 的成功证据。**不允许将 SPEC-01/02 或 G01–G13 数学通过写成 M2/R3/研究 PASS**。
 
-签字工作：AI-C 对 `LP4/HKDF`、PRNG/draw addressing/stream 与 SPEC-01/02 的相容性明确 `ACCEPT/CHANGES_REQUESTED`；EXP-01 确定 ExperimentPlan 分配表与 retry policy；ARCH-02 审核 RunRecord durable writer/fencing；ARCH-03 审核 stream manifest 与 MetricDefinition 锁；AI-R 完整负例/崩溃独立评审；主控冻结 ADR。未会签前保持 **HOLD / NO-FREEZE**。
+签字工作：AI-C 已对 `LP4/HKDF` 与 SPEC-01/02 **设计数学**给出 ACCEPT；仍须对 PRNG/distribution 全 profile、非 ASCII 规范解码、异常输入及应用实现给出单独的可复核决定；EXP-01 确定 ExperimentPlan 分配表与 retry policy；ARCH-02 审核 RunRecord durable writer/fencing；ARCH-03 审核 stream manifest 与 MetricDefinition 锁；AI-R 完整负例/崩溃独立评审；主控冻结 ADR。未会签前保持 **HOLD / NO-FREEZE**。
