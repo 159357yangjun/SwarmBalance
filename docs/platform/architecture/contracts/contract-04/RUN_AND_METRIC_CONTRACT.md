@@ -42,15 +42,15 @@
 
 ## 2. FrozenRunSpec v1 的完整规范字节与摘要（P0-03 修订）
 
-**唯一规范源：** [FROZEN_RUN_SPEC_CANONICAL_AND_ATTEMPT_JOURNAL.md](FROZEN_RUN_SPEC_CANONICAL_AND_ATTEMPT_JOURNAL.md) §2 的 `SB-FRS-JCS-v1`（RFC 8785 JCS）。必须具备完整、精确且无多余键的 spec schema，包含 World/Scenario、ResolvedConfig、ComponentAssembly、Dataset/Model、Code、Runtime/Converter、Clock、SeedAllocation/RNG、MetricDefinition、Failure、Completeness 和 ExecutionBudget/Termination 的已冻结内容寻址引用。顶层 spec 中不存在 `plan_digest/run_id/attempt_id/cell_key` 等 attempt/plan-binding 字段，也不存在自引用 `spec_digest`。Spec 先冻结、Plan 再引用 spec digest，避免循环摘要。
+**唯一规范源：** [FROZEN_RUN_SPEC_CANONICAL_AND_ATTEMPT_JOURNAL.md](FROZEN_RUN_SPEC_CANONICAL_AND_ATTEMPT_JOURNAL.md) §2 的 `SB-FROZEN-RUN-SPEC-v1` 和 `SB-CJSON-1`。必须具备完整、精确且无多余键的 spec schema，包含 World/Scenario、ResolvedConfig、ComponentAssembly、Dataset/Model、Code、Runtime/Converter、Clock、SeedAllocation/RNG、MetricDefinition、Failure、Completeness 和 ExecutionBudget/Termination 的已冻结内容寻址引用。顶层 spec 中不存在 `plan_digest/run_id/attempt_id/cell_key` 等 attempt/plan-binding 字段，也不存在自引用 `spec_digest`。Spec 先冻结、Plan 再引用 spec digest，避免循环摘要。
 
-**序列化：** NFC UTF-8、RFC 8785 JSON Canonicalization（object keys 按 UTF-16 代码单元排序）、严格无 JSON number（所有数字需是已验证的规范十进制字符串）、布尔型/集合语义数组排序与重复拒绝，`sha256(canonical_bytes)`。禁止使用浮动路径/branch 或在无法重建的配置上计算虚假的“完整摘要”。详见附属合同的完整字段表、转义、排序、正反向校验和独立复算。
+**序列化：** NFC UTF-8、object key 字节排序、严格无 JSON number（所有数字需是已验证的规范十进制字符串）、布尔型/集合语义数组排序与重复拒绝，`sha256(canonical_bytes)`。禁止使用浮动路径/branch 或在无法重建的配置上计算虚假的“完整摘要”。详见附属合同的完整字段表、转义、排序、正反向校验和独立复算。
 
-**新增计算证据：** 在与 AI-C #56 相同的 12-root-key `SB-FRS-JCS-v1` schema 下，合成 **JCS-FULL-01** = 2217 字节，`sha256:bec73edca85a81be16a2664e4c189c19be3df79dce4aecea2d4d94e7ad687d38`；仅换指标摘要的 **JCS-FULL-02** = `sha256:c241a98aeef32b30d31fb1141f8849646200393c168f1bb7ee5539360f3e52e1`。Python/Node.js 对此 **ASCII 合成向量**独立数学计算相同，**未验证通用 RFC 8785 实现、未运行仓库/实验**。旧 SB-CJSON-1 自定义草案摘要已废止，不得用于正式 FrozenRunSpec 身份。
+**新增计算证据：** Synthetic SPEC-01 = 2471 字节，`sha256:d2c07f032498322da6130f153d72199052e249559707574559c8791e2959ddf8`；仅修改锁定指标版本的 SPEC-02 = `sha256:99353448ec6277f9bac835e82f573bf9f8051832d45db0c5307f38ac5f68e5dd`；Python/Node.js 纯规范摘要计算相同，**没有运行仓库实现/实验**。
 
 **Plan 唯一性：** 已冻结 ExperimentPlan 中 `(treatment_id,replicate_key)` 只能绑定唯一 `frozen_run_spec_digest`；相同三元组 `(plan_digest,treatment_id,replicate_key)` 绑定不同摘要时必须 `PLAN_CELL_SPEC_CONFLICT`，不得当作另一个独立 cell/replication；先创建新 ExperimentPlan 再评估。只用规范的四元组计算 cell key。运行实例/重试仅通过持久化 attempt 索引关联该 cell。
 
-**分布与抽样：** `C03C04-SAMPLER-MIN-v1` 只将 U64/UNIFORM53 字节基元列为候选已规定的行为；Gaussian/Poisson 等复杂分布未锁定采样器与跨语言 golden vector 时要拒绝严格 R3，或在执行前物化并固定外生 tape。数字环境/平台 profile 及 HKDF version 均要随 spec 锁定。AI-C #56 已就身份四元组及 LP4/HKDF 合成数学规则给出设计级接受，但对完整 JCS-FULL-01/02 附加流字段、持久化写入和分布版本仍需逐项会签，保持 PROPOSED。
+**分布与抽样：** `C03C04-SAMPLER-MIN-v1` 只将 U64/UNIFORM53 字节基元列为候选已规定的行为；Gaussian/Poisson 等复杂分布未锁定采样器与跨语言 golden vector 时要拒绝严格 R3，或在执行前物化并固定外生 tape。数字环境/平台 profile 及 HKDF version 均要随 spec 锁定。AI-C 在 #56 明确会签前仍为 PROPOSED。
 
 ## 3. RunRecord v1 与尝试/失败规则
 
