@@ -23,85 +23,89 @@ freeze resolved seed allocations and complete FrozenRunSpecs first
 - `run_id`：唯一执行尝试/RunRecord 身份；`attempt_id`：不可变计划单元 + 严格正整数序号的幂等键；`replicate_key`：预注册的**独立统计单位**。一次恢复 checkpoint 不造新 replicate；同一 attempt 请求重复送达必须返回原记录、不重新执行；真正的 retry 使用下一 ordinal，并保留旧 attempt 的历史故障。
 - 人工单 Run 无 `ExperimentPlan`，`cell_key=null`，用独立请求幂等键分配 RunRecord；不能通过虚构 Plan 来满足字段。
 
-## 2. FrozenRunSpec 的完整可序列化资源（SB-FROZEN-RUN-SPEC-v1）
+## 2. FrozenRunSpec 的统一规范序列化：`SB-FRS-JCS-v1`
 
-以下是 **V1 最低完整规格的必填 schema**，不是随意把某些字段放入随缘 JSON 后计算哈希。顶层字段列表固定，全部必须出现；任意缺键/多键拒绝。子对象字段也按此表精确校验。每个 `..._digest` 引用的是**已固定、内容可解析、逐字节验证**的完整资源（不是 URI 或未跟踪 mutable config），该资源的自身规范化格式由其生产者提供并注明版本；不知道来源即不能进入 strict Run。
+> **Cross-reconciliation with AI-C #56 @ `4b0af61718af8f25f9a44c33cef63f0cba1f1c57`:** AI-C §9.3 提议 `SB-FRS-JCS-v1` (RFC 8785) 作为全量 RunSpec 序列化。AI-D **ACCEPTS the same profile ID and RFC 8785 byte serializer as the target**;此前 AI-D `SB-FRS-JCS-v1/SB-FRS-JCS-v1` 自定义格式现正式撤回为历史计算草案，**不得**与 JCS 共同作为正式 spec digest。此处在 AI-C 12 个顶层键形状内补齐精确流描述符/完整 fixture，供 AI-C 再次会签；没有声称已获得 EXP-01/ARCH-02 的正式 ADR。
 
-| 必填字段（精确名称） | 类型与必须锁定的执行事实 |
+### 2.1 唯一根对象 Schema
+
+恰好存在 AI-C 指定的 12 个 root keys：`schema_version,world,scenario,code,inputs,assembly,config,execution,seed,metrics,failure_policy,evidence_policy`；`schema_version="SB-FRS-JCS-v1"`。**禁止无声明键、缺键、变动执行隐式默认值**。V1 子结构规定：
+
+| Root | 精确最低字段和冻结事实 |
 |---|---|
-| `schema_version` | 字符串，精确 `SB-FROZEN-RUN-SPEC-v1` |
-| `world_ref, scenario_ref` | 各为 `{id,revision,digest}`：冻结实体/场景配方、时域和静态资源 |
-| `resolved_config_ref` | `{digest}`：包含全部已解析默认值、参数、单位、路径内容指纹/任何明确的 fallback |
-| `assembly_ref` | `{digest}`：涵盖解析后的组件 DAG、id/contract+implementation version、参数与代码身份 |
-| `dataset_manifest_refs, model_manifest_refs` | `[{id,revision,digest}]`：所有地图、任务、天气/风、物理/调度模型、溯源及其输入 snapshot |
-| `code_ref` | `{commit_sha,dirty,source_tree_digest,execution_mode}`：40 位小写完整 Git commit；若 dirty=true，tree digest 必须固定所有修改字节且不可声称 clean replay |
-| `runtime_profile_ref` | `{digest}`：OS/CPU架构/解释器与依赖锁、算术/数值 profile、确定性能力等 |
-| `converter_profile_refs` | `[{id,version,digest}]`：单位、CRS、time 坐标与精度显式转换；无转换为 `[]` |
-| `clock_policy` | `{mode,step_ns,horizon_ns,end_boundary_policy}`，`*_ns` 用规范 uint64 十进制**字符串**；规则与 B03 待会签 |
-| `seed_allocation` | `{seed_source,effective_master_seed_uint64,seed_allocation_digest}`；实验源来自已锁定 Plan 分配表，禁止运行中更改 |
-| `rng_contract` | `{kdf_id,prng_id,sampler_profile_id,numeric_profile_id,stream_contract_digest,external_exposure_digest}`，版本及输入/采样完整指纹 |
-| `metric_definition_refs` | `[{id,version,digest}]`，冻结分母/时间窗/聚合/缺失语义，变更必须重摘要 |
-| `failure_policy_ref` | `{digest}`：超时/取消/事务失败/允许重试及污染策略 |
-| `completeness_policy` | `{audit_required,required_artifacts}`，布尔和已排序唯一的 artifact kind 列表 |
-| `execution_profile` | `{resource_budget_digest,termination_policy_digest}`，所有影响停止/观测的策略 |
+| `world` | `{ref,digest}`：不可变 World/revision 和完整内容 digest |
+| `scenario` | `{ref,digest,seed_default_uint64}`：固定场景/外生事件配方，原默认种子也保留 |
+| `code` | `{digest}`：内容寻址的 code manifest，必须递归锁 engine 40-char commit、dirty-tree snapshot、runtime code/worker/adapter 版本；不能仅存可变 branch |
+| `inputs` | `[{id,digest}]`：全部不可变数据快照/OSM/外生输入，按 `id` 的有效 Unicode UTF-16 代码单元序稳定排序，重复 id 拒绝 |
+| `assembly` | `{digest}`：全部组件有序 DAG、model/algorithm manifest、实现版本、参数、依赖、capabilities |
+| `config` | `{digest}`：所有 effective config 参数/展开默认/单位和转换/路径内容 hashes，不能指向运行时可变设置 |
+| `execution` | `{clock_policy_digest,horizon_seconds,numeric_profile_digest}`：精确秒数字符串，数字/时钟相位含在引用；ARCH-02 的 B03 签字仍需完成 |
+| `seed` | `{source,master_seed_uint64,seed_allocation_digest,streams}`；**seed_allocation_digest 是 AI-D 提出的附加必需子键**，明确绑定 Plan 前种子分配内容；须 AI-C/EXP 会签或版本化更改 |
+| `metrics` | `{definition_digests}`：所有指标完整含分母/窗口语义的摘要，按 digest 字符串字节排序，不能隐式运行后重解释 |
+| `failure_policy` | `{digest}`：事务失败/退化/取消/超时/重试能力的固定策略 |
+| `evidence_policy` | `{digest}`：输出/工件完整性/资源预算/终止与可审计要求均由引用指向的已冻结资源完全覆盖 |
 
-凡执行语义值都必须被上述字段自身或被引用的内容寻址资源**完全覆盖**。动态网络数据若没有物化为固定 snapshot、未声明副作用、未明确 RNG 分布变换或组件私有状态复现策略，返回 `SPEC_UNFREEZABLE`。Schema 不得静默加入 `extensions`；扩展需新 `schema_version`、明确迁移及 golden vector。顶层 spec **不得**有 `spec_digest` 字段：摘要作为外层 immutable ref `{schema_version,digest,byte_length}` 保存。
+`seed.streams` 为按 `name` 唯一且稳定排序的对象数组，**每个对象精确包含**：
+`name,namespace,owner_id,source_digest,exposure_ref,stream_schema_version,kdf_id,bit_generator_id,bit_generator_impl_digest,distribution_id,distribution_parameters_digest,sampler_algorithm_version,transform_version,draw_address_schema,numeric_profile_digest,checkpoint_policy`。当 stream 属私有域，`exposure_ref=null`（显式 null），不允许空字符串伪装外生引用。参数、采样支持域、随机变量单位、原始外部 tape、抽样公式在对应 `*_digest` 内容里；无法解析并验真实内容则严格 Run 必须拒绝。`seed_allocation_digest` 在 **Spec freeze 前** 从 ExperimentDefinition/seed root 和预注册分配计算，绝不包含最终 plan_digest，杜绝循环。
 
-### SB-CJSON-1 规范字节协议
+完整 Spec 指的是以上强制引用的**传递性完整冻结**：只 hash 根对象而引用内容缺失、悬挂、路径随时间变、未被采样器版本解释，均 `SPEC_UNFREEZABLE`。新增任何执行语义字段须升级 schema 版本和向量，不能把它藏在未纳入哈希的 Run envelope。
 
-1. 输入为已验证的精确 schema 对象；只允许 object、array、NFC Unicode string、JSON `true/false/null`（仅字段 schema 明确许可 null）。**禁止所有 JSON number**（整数与浮点均不得作为 JSON 数字）；所有整数、时间、种子和精确十进制在已定义字段内表示为字符串，以免 JS 53-bit 精度损失。
-2. 数字字符串的类型验证：uint64 属于 `0..18446744073709551615`；格式只允许 `0` 或 `[1-9][0-9]*`；正整数 ordinal 不得为 0；有符号十进制须严格最简形式，禁止科学记数法、前置零、末尾无意义小数 0、`-0`、`+1`。本 schema 仅包含明确列出的 uint64 string。
-3. Object keys 精确 schema ASCII 名称，按其 **UTF-8 字节升序**排列；没有空格、缩进或换行；结构标点精确 `{}[]:, `（格式中无空格）。字符用 UTF-8 NFC，无 BOM；双引号/反斜杠转义，控制字符按 JSON 常见短转义 `\\b,\\t,\\n,\\f,\\r`，其余 U+0000–U+001F 用小写 `\\u00xx`；斜线不转义；非控制 Unicode 字符按原 UTF-8 输出（包含 U+2028/2029），禁孤立 surrogate。
-4. `dataset_manifest_refs, model_manifest_refs, converter_profile_refs, metric_definition_refs` 是**集合语义数组**：每个元素先单独按 SB-CJSON-1 编码，依其 UTF-8 字节升序排序，重复元素或重复 `id/version` 且不同摘要硬拒绝。`required_artifacts` 按 NFC 字符串的 UTF-8 升序并去重（重复即拒绝）。其他数组若引入必须由新版 schema 指定是顺序还是集合，禁止让进程迭代顺序隐含排序。
-5. `canonical_bytes=SB-CJSON-1(spec)`；`frozen_run_spec_digest="sha256:"+lowerhex(SHA256(canonical_bytes))`。内容身份包括字段名和值，**不包括**输出包装 `digest`、RunRecord、ExperimentPlan、`run_id` 或 `attempt_id`。相同规范内容相同 SHA；相同 `id+revision` 不得代表不同内容 digest。
-6. Python 的 `json.dumps(obj,sort_keys=True,ensure_ascii=False,separators=(',',':'),allow_nan=False)` 仅在前述输入校验/规范数组已完成时，是本 schema 的一种候选实现；裸调用 json.dumps **不能替代校验**。JavaScript 禁止将 uint64 string 转为 Number 再编码，且不能直接 `JSON.stringify` 未排序对象做 hash。
+### 2.2 精确 RFC 8785 (JCS) 字节规则
 
-### Synthetic SPEC-01 向量（Python/Node 独立计算）
+1. 验证全部 schema 字段、引用可解和 SHA256 与真实字节一致后，将整个根对象序列化为 RFC 8785 JCS；UTF-8，无 BOM、无额外换行/空白。Object 键按 **UTF-16 代码单元顺序**排序（不是 UTF-8 字节序）；转义、Unicode 和键排序以完整 RFC 8785 为准，不能用 `sort_keys=True` 对所有 Unicode 输入宣称完整实现。
+2. 所有键和值为有效 Unicode scalar、NFC 规范化；重复 JSON object keys 在**解析前拒绝**，不得最后值覆盖；含 lone surrogate、非规范化别名均拒绝。数组顺序有语义：`inputs` 按唯一 `id` 排序、`seed.streams` 按唯一 `name` 排序、`metrics.definition_digests` 词典序排序并去重；不允许未申报的 set/map 迭代顺序参与哈希。
+3. 为避免跨语言整数精度丢失，**禁止整个 RunSpec 中的原始 JSON number**；数值必须是带明确 schema 单位/类型的**规范十进制字符串**。无符号整数以 `0|[1-9][0-9]*` 且 uint64 范围校验，decimal 只允许无指数/无多余尾零/无前导+号的最短合法形式；拒绝 `-0`、NaN、Inf、`01`、JS Number 四舍五入。bool 用 JSON boolean；null 仅对明确许可字段。
+4. `canonical_bytes=UTF8(JCS(validated_spec))`；`frozen_run_spec_digest="sha256:"+lowerhex(SHA256(canonical_bytes))`；摘要外层引用，不可作为 spec 自身字段。**plan_digest/cell_key/run_id/attempt_id/attempt_ordinal/generation/retry_of/worker/log/timestamp/status** 不进入规格的语义内容。Schema 编码、外部引用解析、RNG 分布清单、时钟及数值环境每项变化应产生独立的新 digest，不能沿用先前哈希。
 
-生成所有引用 digest 的原始测试文本规则：`H(label) = "sha256:" + SHA256(UTF8("fixture:" + label + ":v1")).hexdigest()`，label 依次为 `world,scenario,config,assembly,dataset,model,code,runtime,seed-allocation,streams,exposure,metric,failure,budgets,termination`。构造以下**已冻结 schema 形状**的合成输入（字段无省略）。该例仅用于比较 canonical bytes，未宣称对应资源是可运行模型：
+### 2.3 JCS-FULL-01/02 合成 full-schema golden vector
+
+- 参考材料 label 规则与 AI-C 保持同一命名空间：`H(label)="sha256:"+lowerhex(SHA256(UTF8("fixture:frs:"+label)))`。
+- 精确 12 root keys 的**全字段合成向量生成代码**（仅 ASCII 字符，因此 Python `json.dumps(sort_keys=True)` 在这个特定向量与 RFC 8785 JCS 产生相同字节；对完整 Unicode 必须使用真正 JCS 实现并运行 RFC 测试集）：
 
 ```python
-import hashlib, json
-H = lambda name: "sha256:" + hashlib.sha256(("fixture:"+name+":v1").encode()).hexdigest()
-s = {
-  "schema_version":"SB-FROZEN-RUN-SPEC-v1",
-  "world_ref":{"id":"world:fixture","revision":"1","digest":H("world")},
-  "scenario_ref":{"id":"scenario:fixture","revision":"1","digest":H("scenario")},
-  "resolved_config_ref":{"digest":H("config")},
-  "assembly_ref":{"digest":H("assembly")},
-  "dataset_manifest_refs":[{"id":"dataset:fixture","revision":"1","digest":H("dataset")}],
-  "model_manifest_refs":[{"id":"model:fixture","revision":"1","digest":H("model")}],
-  "code_ref":{"commit_sha":"0123456789abcdef0123456789abcdef01234567","dirty":False,
-              "source_tree_digest":H("code"),"execution_mode":"NATIVE_HARNESS"},
-  "runtime_profile_ref":{"digest":H("runtime")},
-  "converter_profile_refs":[],
-  "clock_policy":{"mode":"FIXED_STEP","step_ns":"1000000000","horizon_ns":"3600000000000",
-                  "end_boundary_policy":"INCLUSIVE_LAST"},
-  "seed_allocation":{"seed_source":"EXPERIMENT_PLAN","effective_master_seed_uint64":"5928125456373989572",
-                     "seed_allocation_digest":H("seed-allocation")},
-  "rng_contract":{"kdf_id":"C03-HKDF-HMAC-SHA256-v1","prng_id":"HMAC-INDEXED-U64-v1",
-                  "sampler_profile_id":"C03C04-SAMPLER-MIN-v1",
-                  "numeric_profile_id":"SB-NUMERIC-IEEE754-BINARY64-v1",
-                  "stream_contract_digest":H("streams"),"external_exposure_digest":H("exposure")},
-  "metric_definition_refs":[{"id":"metric:timeout_rate","version":"1.0.0","digest":H("metric")}],
-  "failure_policy_ref":{"digest":H("failure")},
-  "completeness_policy":{"audit_required":True,"required_artifacts":["diagnostics","metrics","run_manifest"]},
-  "execution_profile":{"resource_budget_digest":H("budgets"),"termination_policy_digest":H("termination")}
+import json, hashlib
+H=lambda n:"sha256:"+hashlib.sha256(("fixture:frs:"+n).encode()).hexdigest()
+s={
+ "schema_version":"SB-FRS-JCS-v1",
+ "world":{"ref":"world:fixture@1","digest":H("world")},
+ "scenario":{"ref":"scenario:fixture@1","digest":H("scenario"),"seed_default_uint64":"101"},
+ "code":{"digest":H("code")},
+ "inputs":[{"id":"dataset:fixture","digest":H("dataset")}],
+ "assembly":{"digest":H("assembly")},
+ "config":{"digest":H("config")},
+ "execution":{"clock_policy_digest":H("clock"),"horizon_seconds":"600","numeric_profile_digest":H("numeric")},
+ "seed":{"source":"experiment_plan","master_seed_uint64":"5928125456373989572",
+         "seed_allocation_digest":H("allocation"),
+         "streams":[{"name":"exogenous.demand.arrival","namespace":"exo","owner_id":"scenario:demand",
+           "source_digest":H("exo"),"exposure_ref":"exposure:p02@1","stream_schema_version":"v1",
+           "kdf_id":"C03-HKDF-HMAC-SHA256-v1","bit_generator_id":"HMAC-INDEXED-U64-v1",
+           "bit_generator_impl_digest":H("bitgen"),"distribution_id":"UNIFORM53-v1",
+           "distribution_parameters_digest":H("distribution"),"sampler_algorithm_version":"v1",
+           "transform_version":"v1","draw_address_schema":"SB-DRAW-v1",
+           "numeric_profile_digest":H("numeric"),"checkpoint_policy":"BY_ADDRESS"}]},
+ "metrics":{"definition_digests":[H("metric")]},
+ "failure_policy":{"digest":H("failure")},
+ "evidence_policy":{"digest":H("evidence")}
 }
-b = json.dumps(s,sort_keys=True,ensure_ascii=False,separators=(",",":"),allow_nan=False).encode("utf-8")
-assert len(b) == 2471
-assert hashlib.sha256(b).hexdigest() == "d2c07f032498322da6130f153d72199052e249559707574559c8791e2959ddf8"
+b=json.dumps(s,sort_keys=True,ensure_ascii=False,separators=(",",":"),allow_nan=False).encode("utf-8")
+assert len(b)==2217
+assert hashlib.sha256(b).hexdigest()=="bec73edca85a81be16a2664e4c189c19be3df79dce4aecea2d4d94e7ad687d38"
+s["metrics"]["definition_digests"]=[H("metric-v2")]
+changed=json.dumps(s,sort_keys=True,ensure_ascii=False,separators=(",",":"),allow_nan=False).encode()
+assert hashlib.sha256(changed).hexdigest()=="c241a98aeef32b30d31fb1141f8849646200393c168f1bb7ee5539360f3e52e1"
 ```
 
-- SPEC-01 原始内容字节长度：**2471**；`frozen_run_spec_digest=sha256:d2c07f032498322da6130f153d72199052e249559707574559c8791e2959ddf8`。
-- SPEC-02 仅把 `metric_definition_refs[0].version` 从 `1.0.0` 改为 `1.0.1`，其余保持原样：预期 `sha256:99353448ec6277f9bac835e82f573bf9f8051832d45db0c5307f38ac5f68e5dd`。这是**负例**：不允许沿用原 spec digest。
-- 以上 SPEC-01/02 各经 Python `hashlib/json` 与 Node.js `crypto/自写键排序 JSON` 分别复算，SHA 一致。**数学/序列化验证 ≠ Harness 已实现 ≠ PRNG/分布可重放 ≠ 现实模型 Validation**。
-- LP4/HKDF 原 **G01–G13** golden vectors 继续由 [LOGICAL_RUN_IDENTITY_AND_RNG_CONVERGENCE.md](LOGICAL_RUN_IDENTITY_AND_RNG_CONVERGENCE.md) 定义；其合成 Plan/Spec label 摘要是 **身份层的固定测试输入**，并非 SPEC-01 完整 spec digest，不能暗中混用两个 fixture 集。
+- **JCS-FULL-01：2217 UTF-8 bytes，`sha256:bec73edca85a81be16a2664e4c189c19be3df79dce4aecea2d4d94e7ad687d38`。**
+- **JCS-FULL-02：仅 `metric` digest 变 `fixture:frs:metric-v2`，`sha256:c241a98aeef32b30d31fb1141f8849646200393c168f1bb7ee5539360f3e52e1`。**
+- Python `hashlib/json` 与独立 Node.js `crypto` + 显式键排序编码路径分别计算，**此 ASCII 测试向量 2/2 一致**。这不等于完整 RFC 8785 Unicode 边界测试通过，也不代表资源 manifest 真验签或真实 Run 可复算。
+- AI-C 原 #56 §9.3 的 `1538 bytes/sha256:9521ff3ae9fc51263863bafda8567b2b184dad055234609a3c4238dfd8a26d34` 是**较小的结构性 JCS 草案 fixture**；二者根形状相容但 seed.streams 完整字段覆盖不同，不可误认为是**同一序列化对象**或跨版本替代关系。补全子键需 AI-C 明确核准；没有将 #56 的原历史内容当作新正式 SPEC-01 实现证据。
+- 原 AI-D 自定义 `SB-FRS-JCS-v1` 的 `2471 bytes/sha256:d2c07f032498322da6130f153d72199052e249559707574559c8791e2959ddf8` 和改指标版本摘要 `sha256:99353448ec6277f9bac835e82f573bf9f8051832d45db0c5307f38ac5f68e5dd` **仅为被取代的历史数学 fixture，非当前采用的 FrozenRunSpec digest**；严禁在 Plan 中与 JCS-FULL 混用。
+- LP4/HKDF 原 G01–G13 使用各自合成字符串 SHA256 作为 spec 输入，与 JCS-FULL-01 哈希不相同；**身份编码数学向量与真实 Spec 序列化是两套独立测试层**。
 
 ## 3. RNG/采样器/数值环境：最低有效合同
 
-- KDF 字节规则仍为候选 `C03-HKDF-HMAC-SHA256-v1`：`LP4` 的 uint32 大端长度前缀、NFC/UTF-8，HKDF-Extract 的 IKM=BE64(seed)，盐=`SwarmBalance/C03-HKDF-HMAC-SHA256-v1`，HKDF-Expand info=`LP4("SB-RNG-v1",domain,ordered_fields...)`，L=32，首次 HMAC 末尾 `0x01`。**AI-C 需对 #57 全部原始 G01–G13、SPEC-01/02 和异常输入明确 ACCEPT/CHANGES_REQUESTED**，仅知道 13/13 哈希复算一致不等于 AI-C 已签字。
-- 最低随机引擎 `HMAC-INDEXED-U64-v1`：每个 draw 由 `HMAC-SHA256(stream_key,LP4("SB-DRAW-v1",source_id,slot_id,ordinal_id))` 输出，首 8 字节 BE64；不共享 mutable PRNG；地址重复映射不同机会必须拒绝。`UNIFORM53-v1`：`u53=draw_u64>>11`，`U=u53/2^53`（IEEE-754 binary64, ties-to-even）。原 G13 检查一个地址和输出。**仅 U64/UNIFORM53 基元**在此版本具有可核对的字节向量。
+- KDF 字节规则仍为候选 `C03-HKDF-HMAC-SHA256-v1`：`LP4` 的 uint32 大端长度前缀、NFC/UTF-8，HKDF-Extract 的 IKM=BE64(seed)，盐=`SwarmBalance/C03-HKDF-HMAC-SHA256-v1`，HKDF-Expand info=`LP4("SB-RNG-v1",domain,ordered_fields...)`，L=32，首次 HMAC 末尾 `0x01`。**AI-C 需对 #57 全部原始 G01–G13、JCS-FULL-01/02 和异常输入明确 ACCEPT/CHANGES_REQUESTED**，仅知道 13/13 哈希复算一致不等于 AI-C 已签字。
+- 最低随机引擎 `HMAC-INDEXED-U64-v1`：每个 draw 由 `HMAC-SHA256(stream_key,LP4("SB-DRAW-v1",source_id,slot_id,ordinal_id))` 输出，首 8 字节 BE64；不共享 mutable PRNG；地址重复映射不同机会必须拒绝。`UNIFORM53-v1`：`u53=draw_u64>>11`，`U=u53/2^53`（IEEE-754 binary64, ties-to-even）。原 G13 检查一个地址和输出。**仅 indexed U64/UNIFORM53 基元**在此版本具有可核对的字节向量。
 - `C03C04-SAMPLER-MIN-v1` 允许严格版本化的 `U64`、`UNIFORM53`；进一步随机律如 `BERNOULLI-RATIONAL-v1` 可以定义为规范 `a/b`、`0<=a<=b` 的整数阈值抽样（拒绝采样剔除取模偏差），`CATEGORICAL-INTEGER-v1` 可按稳定实体排序及整数权重定义。但 **在两路径产生各自完整 golden vectors 和误差/边界规范之前，这两者仍不可被标为已支持的 portable sampler**。Poisson demand、Gaussian wind、指数间隔/其他真实物理采样器一律 `SAMPLER_VERSION_UNPINNED`，除非冻结明确分布/变换/抽样消费规则、数值版本与独立 golden vectors；或者先物化带 digest 的 immutable external event tape，不依赖运行时重新抽样。
 - `SB-NUMERIC-IEEE754-BINARY64-v1` 是候选数值 profile：binary64、roundTiesToEven、禁非有限值/隐式 FMA 收缩/不稳定并行归约；固定计算次序和比较容差、浮点库/编译器/CPU/操作系统/依赖包版本到 `runtime_profile_ref`。不满足这些约束时不能声称跨平台 R3 bit-identical。仅固定 KDF vector 不等于固定统计分布或运行环境。
 - Exogenous CRN key **不包括** treatment、full FrozenRunSpec digest、attempt/run ID 或 worker；private key **包括** frozen spec/component manifest 但排除 attempt/worker；**相同 plan cell 重试复用相同根+key/固定外生 tape，且 RNG cursor 从干净状态或合法 checkpoint 恢复**。同 seed 但 tape 不同须拒配对；指标锁变更导致 spec digest 改变并可能重键 private stream，若只想更新旧数据分析应创建新的 AnalysisRecord，不重跑；“不改 RNG 的 metric-only instrumentation”需要新版本的执行子摘要和跨组裁决。
@@ -124,7 +128,7 @@ assert hashlib.sha256(b).hexdigest() == "d2c07f032498322da6130f153d72199052e2495
 
 | Case | Expected future outcome | This PR status |
 |---|---|---|
-| SPEC-01/02 | full-spec 规范字节/摘要跨 Python+Node 一致；指标变更生成不同摘要 | **仅合成数学计算完成，已取得两语言匹配结果** |
+| JCS-FULL-01/02 | full-spec 规范字节/摘要跨 Python+Node 一致；指标变更生成不同摘要 | **仅合成数学计算完成，已取得两语言匹配结果** |
 | ID G01–G13 | LP4/HKDF 身份与 RNG 根向量一致 | 已存在 13 个合成 golden vectors；独立复审记载 13/13 数学一致；**未运行系统 RNG** |
 | P03-01 | 同 Plan 相同 treatment+replicate 绑定不同 digest | REJECT `PLAN_CELL_SPEC_CONFLICT`；NOT RUN |
 | P03-02 | 相同 cell+ordinal 并发发起两次 | 返回同一 attempt/RunRecord；NOT RUN |
@@ -137,6 +141,6 @@ assert hashlib.sha256(b).hexdigest() == "d2c07f032498322da6130f153d72199052e2495
 | P03-09 | 동일 seed A/B 但外生 tape hash 不同 | REJECT `CRN_EXPOSURE_MISMATCH`；NOT RUN |
 | P03-10 | CI 软件门绿但缺 Validation 现实参照 | Reality Validation=NOT_ASSESSED；NOT RUN |
 
-实测范围：只做了 GitHub HEAD/文档/白名单静态核验及合成 JSON canonical SHA-256 的 Python、Node.js 两个独立计算路径；无 GitHub Actions、完整 RunSpec freeze 实现、持久 journal crash 注入、Harness/Experiment 运行、PRNG 分布采样器全向量、物理 Validation/UQ 的成功证据。**不允许将 SPEC-01/02 或 G01–G13 数学通过写成 M2/R3/研究 PASS**。
+实测范围：只做了 GitHub HEAD/文档/白名单静态核验及合成 JSON canonical SHA-256 的 Python、Node.js 两个独立计算路径；无 GitHub Actions、完整 RunSpec freeze 实现、持久 journal crash 注入、Harness/Experiment 运行、PRNG 分布采样器全向量、物理 Validation/UQ 的成功证据。**不允许将 JCS-FULL-01/02 或 G01–G13 数学通过写成 M2/R3/研究 PASS**。
 
 签字工作：AI-C 对 `LP4/HKDF`、PRNG/draw addressing/stream 与 SPEC-01/02 的相容性明确 `ACCEPT/CHANGES_REQUESTED`；EXP-01 确定 ExperimentPlan 分配表与 retry policy；ARCH-02 审核 RunRecord durable writer/fencing；ARCH-03 审核 stream manifest 与 MetricDefinition 锁；AI-R 完整负例/崩溃独立评审；主控冻结 ADR。未会签前保持 **HOLD / NO-FREEZE**。
