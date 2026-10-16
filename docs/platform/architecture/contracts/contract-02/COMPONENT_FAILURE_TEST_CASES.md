@@ -129,6 +129,29 @@ def test_legacy_partial_mutation_taints_worker(isolated_legacy_worker):
 
 ## 8. CONTRACT-01 × CONTRACT-02 横向收敛测试追加（全部 NOT_RUN）
 
-已在 [TRANSACTION_EVENT_PROPOSAL_CONVERGENCE.md](TRANSACTION_EVENT_PROPOSAL_CONVERGENCE.md) §7 追加 **XW-01..XW-14（14 项设计用例）**，覆盖 `ProposalHeaderV1` 身份映射、`Action/StateDelta→ChangeSet` typed reducer、`EventSpec/Intent→Envelope` exact-ns conversion、同刻服务事实不倒灌、whole-boundary D/RNG rollback、合法 `record_and_skip` 仅在 commit 后消费、postcommit partial 及 Legacy TAINTED。加上原 46 项，现有 CONTRACT-02 **共 60 项设计测试描述，实际运行 0 项**。原测试表里的 `STALE_OBSERVATION` / `COMPONENT_RECOVERY_UNSUPPORTED` 为原有局部诊断名称，最新 `FailureRecord` 归一规则见收敛文件 §5；不可把诊断别名混作额外成功结果。
+已在 [TRANSACTION_EVENT_PROPOSAL_CONVERGENCE.md](TRANSACTION_EVENT_PROPOSAL_CONVERGENCE.md) §7 追加 **XW-01..XW-14（14 项设计用例）**，覆盖 `ProposalHeaderV1` 身份映射、`Action/StateDelta→ChangeSet` typed reducer、`EventSpec/Intent→Envelope` exact-ns conversion、同刻服务事实不倒灌、whole-boundary D/RNG rollback、合法 `record_and_skip` 仅在 commit 后消费、postcommit partial 及 Legacy TAINTED。加上原 46 项，既有 CONTRACT-02 原有 **60 项设计测试描述、实际运行 0 项**；第 9 节新增 12 项后现为 **72 项、实际运行 0 项**。原测试表里的 `STALE_OBSERVATION` / `COMPONENT_RECOVERY_UNSUPPORTED` 为原有局部诊断名称，最新 `FailureRecord` 归一规则见收敛文件 §5；不可把诊断别名混作额外成功结果。
 
 Cross-PR input: #58 `fa894cde5b22a78f5dcac4b2fbe17b3f17fa3377`、#56 `0b038f29e7f1957bf93e4afd1e3a171d54e5b620`、#57 `1f3798ad0b4e378d6ec0d13cc6945b3a1133d118`、#59 `28daf1e336a1447b098b4d6fa044095b7caa1f4f`、#60 `56ad6fe7b0f3a1b0b2b613d68a6e5bd5240dc955`。任何后续源 HEAD 改变须独立增量复审，不允许在此 PR 标为测试通过。
+
+## 9. P0-01/P0-02 final joint schema agreement fixtures — coordinator direction (all NOT_RUN)
+
+**Source lock**: AI-A #58 `bd5e47266d79d1e087ca8cfc6fe68ea28a03496b`, coordinator #61 `6e7b69dc70c56a8e13f5cf7de750ad3c59068dcc`. Strict v1 common candidate is `ProposalHeaderV1` (public) + `NormalizedChangeSetV1` (Harness internal). EventProvider uses `EventWindowRefV1`, Dynamics uses `ModelIntervalRef`. Reject old public `change-set.v1`. Old C02/C06/LEG/XW fixtures still stand; **the extra P0AB-01…12 cases below are 12 new design cases; total design cases 46+14+12 = 72, actually executed = 0**.
+
+| ID | Kind | Given and when | Required observed behavior when implemented | Current |
+|---|---|---|---|---|
+| P0AB-01 | POS | Same public `ProposalHeaderV1` embedded in Action & StateDelta; Stage A then Harness Stage B | Exact nine semantic header fields; Scheduler→`NormalizedChangeSetV1(APPLY_COMMAND)`, Dynamics→`NormalizedChangeSetV1(ADVANCE_MODEL)`; Stage B token differs A; only one committed revision at boundary end | NOT_RUN |
+| P0AB-02 | NEG | Provider directly submits `change-set.v1` or fabricated `NormalizedChangeSetV1` | `CONTRACT_VERSION_MISMATCH` / capability reject; no hidden third public protocol | NOT_RUN |
+| P0AB-03 | NEG | Sender uses `boundary_ref` as public ID without versioned mapping or stale `read_view_token` with current `base_revision` | `BOUNDARY_REF_INVALID` / `STALE_OBSERVATION`; no stage/commit | NOT_RUN |
+| P0AB-04 | POS | Valid EventProvider `EventIntentBatchV1(window_ref=EventWindowRefV1)` including two events | All-or-nothing event-intent conversion; deterministic admission; no direct B writes, no partial queue prefix | NOT_RUN |
+| P0AB-05 | NEG | Same EventProvider passes `ModelIntervalRef` as `window_ref` (even same numeric endpoints or string token) | `WINDOW_REF_TYPE_MISMATCH`; batch rejected before mutation, no producer_seq reservation | NOT_RUN |
+| P0AB-06 | NEG | Dynamics passes `EventWindowRefV1` as `model_interval_ref` | `INTERVAL_MISMATCH`; no model integration, no proposed domain effect accepted | NOT_RUN |
+| P0AB-07 | POS | t=0 Scenario fault PRE_INPUT + demand PRE_DECISION, initialized state rev0 | First opened boundary sees fault/demand in Scheduler read view; no public micro-commit; event IDs exactly once | NOT_RUN |
+| P0AB-08 | POS+NEG | Exact t=horizon event (INCLUDE_ONCE) and t>horizon event | Only equal-horizon event admitted once; no model interval beyond horizon; terminal zero-duration event-work boundary only if real due work; after-horizon rejects; no empty metric tick | NOT_RUN |
+| P0AB-09 | NEG | Same-time PRE_INPUT injected after phase sealed, including after boundary commit at same timestamp | `INVALID_EVENT_ORDER`, no silent next-boundary deferral, original committed snapshot remains coherent | NOT_RUN |
+| P0AB-10 | POS+NEG | Registered `environment.wind.update` maps PRE_INPUT, `demand.inject` maps PRE_DECISION; unknown `custom.foo` | Registered mapping gives signed registry digest and deterministic sort; unknown → `UNKNOWN_PHASE_MAPPING`; provider-specified incompatible phase rejects | NOT_RUN |
+| P0AB-11 | NEG | Model throws after RNG/D private staging, Scheduler proposed assignment and EventProvider reserved seq | `ROLLBACK_BOUNDARY`, B/C/D/RNG/queue/producer_seq and committed revision/clock/index unchanged; no partial physical or service facts | NOT_RUN |
+| P0AB-12 | POS+NEG | Legitimate `record_and_skip` failed Event precondition, then MetricProvider crashes postcommit | Successful boundary consumes skipped event once, publishes one rev, postcommit error `POSTCOMMIT_PARTIAL`; no reversal; scheduler bad proposal cannot claim event skip policy | NOT_RUN |
+
+**Test execution ledger**: none of P0AB-01..12, XW-01..14, C02-01..15, C06-01..19, LEG-01..12 have been executed. Documentation diff/HEAD consistency does **not** count as software Verification. Future implementation evidence needs exact accepted schema-pack digest, exact #55/#58 Heads, test command/code SHA, observed artifact/checkpoint/queue/RNG hashes and field-specific failure codes.
+
+**Independent review condition**: AI-A/ARCH-02/ARCH-01/03 first sign the shared header, internal normalized type, event window and t0/horizon/phase policies; AI-R then reviews *both latest immutable heads* and actual field equality. Coordinator replaces old public World micro-commit by accepted strict V1 ADR-002. Until then proposed design closure only; hold/no-freeze.
