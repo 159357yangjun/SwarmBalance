@@ -4,6 +4,12 @@
 >
 > 上游证据锁：#56 `0b038f29e7f1957bf93e4afd1e3a171d54e5b620`（AI-C 原 RNG 草案）；#57 修订前 `027fd78589229db3d2308ced5365b7a780703805`；#59 独立复审 `e76eb483d5760d99673774d48dc699f6a833ad7f`；#60 实施门 `abc93227b9e3160da1023d6c582e7a93ff9094b5`。均为未合并 Draft，当前所有下述规则均为待批准版本，不代替 AI-C 对 LP4/HKDF 的明确 ACCEPT。
 
+## AI-C 联合设计收敛登记（锁定同一候选，非正式冻结）
+
+- AI-C PR #56 @ `6bdbe78f0da9294bdb1ac1c2590f5f2688d5bf01` 在 `EXPERIMENT_SEED_CONTRACT.md §9.3` **明确 ACCEPT** AI-D 提议的 **`SB-FRS-JCS-v1`（RFC 8785）12 根字段方案、固定的 seed/stream 子键、`seed_allocation_digest` 和完整 JCS-FULL 向量作为唯一共同 PROPOSED 格式**；其先前 `SB-CJSON-1` 数学计算仅作为历史记录，不可与 JCS 混用。AI-C 同时确认 `C03C04-IDENTITY-v1` 的逻辑单元四元组、三元组→spec 唯一约束及 LP4/HKDF 角色分流。
+- 该同意是 **AI-C/AI-D 之间的设计级会签**，不是 EXP-01/ARCH-02/03、独立复审或主控 ADR 的批准。JCS-FULL-01/02 仅 ASCII 合成摘要在 Python/Node 路径得到同样数学结果；RFC 8785 Unicode/转义/异常、真实资源 manifest 验真、全 RNG 采样器、工件 durability 和 crash/retry 尚未经过系统测试。
+- 以双方合同的 `SB-FRS-JCS-v1` **唯一候选**为此轮闭合对象。若任何后续拟改为 `SB-CJSON-1` 或另一格式，须显式新版本、精确 HEAD、重新生成完整 golden vectors 与 AI-C/AI-D/主控重新会签；严禁隐式替换。
+
 ## 1. 唯一身份与 Plan 内的单值约束（C03C04-IDENTITY-v1）
 
 ```text
