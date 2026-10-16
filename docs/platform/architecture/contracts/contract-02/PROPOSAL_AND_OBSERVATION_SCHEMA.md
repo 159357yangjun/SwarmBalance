@@ -3,6 +3,8 @@
 > **PROPOSED / 仅设计，非冻结 JSON Schema 或可执行 ABI。** AI-B 负责交换视图与组件提案字段；AI-A/ARCH-01/02 保有 clock、event、WorldState patch、统一提交/修订的最终字段所有权；AI-C 保有 RNG seed/stream derivation。
 > Baseline: `master@2ab60c69a806a22d7ba20353dee0571752a0e8e5`。输入 HEAD：#54 `99bd0eb6b910d691d6d7776da0a5fd3f973f2997`；#47 `68382c649393057ffbf5a14508ab1ff72d575b09`；#49 `d155621aca66e3a80c388718093a452d17d71e10`；#50 `c4c0c67111ead435062650c1ed776547c477e3e3`；#46 `b5f05a70a3306f1799fcae2c3f342f3ed9ee0048`；#51 `f2df96bc609ee1e430ea6eff2456c4577347c300`。
 
+> **2026-10-16 横向收敛补充**：本文件既有 `boundary_ref`、`observed_view_token`、`based_on_view_token`、`source_component_id` 等是先前 CONTRACT-02 局部提案名称；组件与 Harness 的统一 canonical candidate 必须参照 [TRANSACTION_EVENT_PROPOSAL_CONVERGENCE.md](TRANSACTION_EVENT_PROPOSAL_CONVERGENCE.md) §§2–5 的 `ProposalHeaderV1` / typed `ChangeSetV1` 及强制别名校验。**不允许**把本文件旧字段与 #58 的 `ChangeSet` 当成两个并行、均可提交的公共协议。对外 schema major 与 Clock/Event 字段必须等 AI-A/ARCH-02/03 签字后才能冻结。此补充不声称现有 Python 类型已实现。
+
 ## 1. 编码、身份和可见性
 
 **版本**：`ObservationV1`、`ActionProposalV1`、`StateDeltaProposalV1` 是建议的 **major=1** 类型标签；字段增删遵守语义版本管理，必须经能力协商，在不支持的 major 上明确 `CONTRACT_VERSION_MISMATCH`。当前所有示例均为 `draft-1.0.0` 概念表示，**不得拿示例直接当已批准 ABI**。所有字典和 tuple 仅包含确定性可序列化的基本类型（UTF-8 字符串、有限 number、boolean、null、固定 schema 数组/对象），无 Python 对象指针/callable/模块引用；序列集合必须确定顺序并能按稳定 ID 复检；禁止在 dict/set 迭代自然顺序上决定动作。
@@ -201,3 +203,11 @@ Parity worker 则执行 **原方向**（legacy obs→legacy action→env.step �
 - AI-C：RNG port identity、transactional cursor restore。
 - ARCH-04：legacy index/table 生成、调用路由、parity/strict 能力隔离。
 - 主控 ARCH-06：签署 schema major/字段、兼容转换和批准状态。**本设计不解除 #54 HOLD。**
+
+## 8. 与 CONTRACT-01 的唯一入站契约（增量对齐）
+
+1. **统一 identity**：组件提交的 `ActionProposalV1/StateDeltaProposalV1` 通过版本化适配生成共同 `ProposalHeaderV1{schema_version,proposal_id,run_id,generation,boundary_id,base_revision,read_view_token,producer_id,capability_ref,provenance_ref}`。旧 `boundary_ref` 只可由 Harness 内部表解析到 `boundary_id`，旧 `observed_revision/base_committed_revision` 映射 `base_revision`，旧 `source_component_id` 映射 `producer_id`；无法验证一一对应则拒绝。所有提案不得用仅相等的 revision 跳过 stage token 比对。
+2. **统一 operation & phase**：Scheduler 的 chain 转为 `ChangeSetV1(phase=APPLY_COMMAND)` 的 typed atomic operation，Dynamics 的 motion+energy 转为 `ADVANCE_MODEL` typed operation；服务事实在 POST_MODEL 被领域 validator 核验，不直接作为同刻队列事件。每个操作具有 `operation_id,target_ref,kind,expected_version,value,unit?,provenance`，由 ARCH-01/02 的 versioned reducer 定义语义。未知 reducer/未授权事件/缺 operation version 一律 `DOMAIN_OPERATION_UNMAPPED/INPUT_SCHEMA_INVALID`，禁止自由 dict patch。
+3. **统一事件入口**：EventProvider/允许发事件的组件只能输出 `EventIntentV1`；Harness 按 AI-A 的 `EventSpec/Intent→EventEnvelopeV1` 转换与队列顺序验收。当前提案引用 PR #58 精确 HEAD `fa894cde5b22a78f5dcac4b2fbe17b3f17fa3377`，但未在 CONTRACT-02 自行冻结 Phase、time_ns、priority 或 sequence 策略。
+4. **统一失败出口**：stale token `STALE_PROVISIONAL_VIEW`（源别名 STALE_OBSERVATION）、非法实体/数值与冲突作为 precommit fatal（如果 FrozenRunSpec 没有合法、已会签的例外 policy），必须恢复整个 boundary B/C/D/queue/RNG；外部 admission 的非法指令可 `REJECT_COMMAND`；postcommit metrics 是 PARTIAL evidence，不回滚 B/C。完整映射见新增收敛文件 §5。
+5. 本文中的早期伪类型片段作为 payload 接口草案而保留，若与收敛文件字段映射不一致，以 **待会签问题** 标记而非自动声称两者等价。AI-R 需要在新的 HEAD 复审时核对此处和 #58/#56/#57 的差异。所有 XW 用例 NOT_RUN。
