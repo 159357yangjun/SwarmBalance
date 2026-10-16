@@ -17,6 +17,8 @@
 
 所有源仍为 Draft。#51 的 ADR-002/003/006 为 OPEN、INTERFACE_REGISTRY 尚无正式冻结接口；若上述任一上游 HEAD 更新，必须在本稿复审中列出变更差异，不能默认沿用。本设计只处理 B02/B06；B01、B03、B04、B05、B07 仍由相应负责人或主控裁决。
 
+> **跨组增量约束**：统一的 `ProposalHeaderV1`、`Action/StateDelta→ChangeSetV1`、`EventSpec/Intent→EnvelopeV1`、Error/rollback map 见 [TRANSACTION_EVENT_PROPOSAL_CONVERGENCE.md](TRANSACTION_EVENT_PROPOSAL_CONVERGENCE.md)，其中所有 clock/event 字段严格取自 **AI-A PR #58 提案**，不是 AI-B 单方冻结。新增文档同时列明 #56/#57/#59/#60 精确 HEAD 与签字矩阵，原有字段名只是待签字的 ingress aliases。
+
 ## 1. B02 统一裁决提案：对外只允许 `propose`
 
 **唯一规范候选 API**：
@@ -188,3 +190,9 @@ rng_capability:
 ## 8. 验收门（设计 ≠ 实测）
 
 G-DOC：本目录三文件，正文明确 Protocol/schema + 正负 fixture；仅 docs-only 白名单；锁六 PR 完整 HEAD；标出所有会签接口。G-CONTRACT（**待未来实现**）：签名/能力协商、stale view/revision、原子 rejection、RNG 恢复、nonthrow publish、reset 隔代、checkpoint incompatibility、legacy parity + TAINTED 全部成为可执行测试，且保留错误和日志。G-ARCH：由主控在接受跨组签字、独立复审和 ADR 后判定；本文提交不解除 #54 HOLD。参见 `COMPONENT_FAILURE_TEST_CASES.md` 的每条测试期待和实际执行状态。
+## 9. 增量对齐：事务入口、事件输出与失败语义
+
+- **One header, one commit authority**：`ActionProposal`、`StateDeltaProposal` 与可发事件的 provider 使用统一 `ProposalHeaderV1`，通过版本化、可拒绝的 converter 归一为 #58 的 `ChangeSetV1`。Harness 是唯一 phase/operation 编排和状态提交者，组件不能通过原 `decide/advance` 绕过 converter；`ProposalContext.boundary_ref` 与 `ChangeSet.boundary_id` 必须由 Harness 证明是同一 boundary，`stage_seq` 与 token 绑定，绝不靠名称相似判断。
+- **Queue vs committed fact**：`EventIntentV1` 仅为未接纳的未来事件请求；AI-A `EventEnvelopeV1` 才能进入权威 queue；`ServiceFactCandidate` 转成 domain operation/CommittedDomainFact，而非 retroactive same-time queue entry。AI-A 的时间单位/事件顺序、t=0、horizon、phase map 依然 PENDING 主控会签。
+- **Failure normalization**：本合同 `STALE_OBSERVATION` 到 #58 `STALE_PROVISIONAL_VIEW`；`COMPONENT_RECOVERY_UNSUPPORTED` 到拒绝装配的 recovery/checkpoint 能力诊断；`NONFINITE_VALUE` 在已开始 boundary 时落入 `INVALID_STATE_CHANGE` 家族；事件 precondition skip 必须有版本化政策并在成功发布后才正式消费，其他 precommit fatal 恢复 B/C/D/queue/RNG，postcommit observer failure 仅污染证据，Legacy 失败标 `TAINTED`。同一错误不要同时标 REJECT_COMMAND + FAIL_RUN，按发生窗口与 FrozenRunSpec policy 给一个决策。详见新增文件 §5。
+- **No premature guarantees**：`prepare_commit` 成功、`publish_prepared` non-throwing、组件 D/RNG checkpoint/restore 均是拟定 **准入条件**，非经实测的 guarantee；任何实现证据不足则 strict-mode assemble REJECT。涉及 #58 的单 boundary 规范必须由 ARCH-01/02/03 会签及 ADR-002 批准，不能由 CONTRACT-02 单独裁决原 #46 micro-commit 口径。
