@@ -79,6 +79,25 @@ result:
 
 **本 Draft 中真正执行的验证：只核验 GitHub PR 固定 HEAD、阅读相关设计/legacy 文档与写入范围；没有运行上述 RCT-01～22、CI、统计对照或现实模型 Validation。** ARCH-06 必须再次检查实际 HEAD/差异和会签，不能将测试计划当测试通过。
 
+## 5. 单一逻辑单元与 RNG identity 扩展验收（C03/C04 对齐）
+
+**唯一规范**：`logical_cell_tuple=(plan_digest,treatment_id,replicate_key,frozen_run_spec_digest)`；旧 `replication_id` 仅作为受控导入别名。精确 canonical LP4 / attempt identity / HKDF / 独立可复算 G01–G13 golden vectors 和 ID-N01–N16 的预期拒绝，见 [LOGICAL_RUN_IDENTITY_AND_RNG_CONVERGENCE.md](LOGICAL_RUN_IDENTITY_AND_RNG_CONVERGENCE.md)。本节扩展原 RCT-06、RCT-11、RCT-19、RCT-22；**还不是实现测试运行结果**。
+
+| Extension | Input/fixture | Expected oracle (not executed) |
+|---|---|---|
+| RCT-ID-01 | 重试 attempt-1/attempt-2，输入 cell 相同 | cell_key/spec_digest/exogenous key/private key 一致；ordinal/attempt_id/run_id 不同；两条原记录保留 |
+| RCT-ID-02 | 模拟成功结果落盘但 ack 丢失，按相同 ordinal 重发 | 返回同一 attempt_id/run_id，禁止启动新 Run，Batch 计数不增加 |
+| RCT-ID-03 | 改 frozen model/metric/code/seed digests 还请求原 cell retry | `SPEC_CHANGED_NOT_RETRY`，不得以旧 plan 掩盖新的运行定义 |
+| RCT-ID-04 | 同 plan paired A/B 用不同 Scheduler、同 p02/r02 外生源 | G09 外生键相同；G11/G12 private 键不同；保留 event tape/因果应用差异；若同样 seed 但实际 tape 不同则 `CRN_EXPOSURE_MISMATCH` |
+| RCT-ID-05 | 改 replicate r02→r03，或更换外生数据、时间/分布定义 | G09/G10 不同；已存在配对身份被重新评估，不自动升级为 CRN |
+| RCT-ID-06 | 伪造非 NFC 文本、重叠导入 alias、错误长度前缀、错误 UINT64 浮点化 | `IDENTITY_ENCODING_INVALID` 或 `REPLICATE_ALIAS_CONFLICT`；不能悄悄转换出另一个键 |
+| RCT-ID-07 | `run_id` 被放入 FrozenRunSpec hash，或者相互包含 plan_digest/spec_digest | `ATTEMPT_FIELDS_IN_SPEC` / `CYCLIC_SPEC_PLAN_DIGEST`；冻结前拒绝 |
+| RCT-ID-08 | 未决 attempt-1 与 attempt-2 均被算为独立成功 replicate | `ATTEMPT_OUTCOME_UNRESOLVED` / strict `INSUFFICIENT_EVIDENCE`；`ranking=null` |
+| RCT-ID-09 | CRN exo key 混入 algorithm id/attempt/worker 或共享可变 Scheduler RNG | `CRN_NAMESPACE_CONTAMINATION` / `PRIVATE_STREAM_OWNER_CONFLICT`，拒 paired claim |
+| RCT-ID-10 | 向审查报告提交 G01–G13 KDF 数学一致性而没有 Run/CI log 或分布 sampler 版本 | 仅能报告 vector math check；**不得标注 simulator replay PASS 或 model Validation PASS** |
+
+执行门：实施方至少在两个独立语言/代码路径重算并记录完整 G01–G13 的实际输出；测试 `ID-N01..N16` 逐项使用结构化拒绝码，且任何 NOT_COMPARABLE / INSUFFICIENT_EVIDENCE 必须 `ranking=null`。**本轮只进行了局部纯数学向量计算（Python/Node.js 代表性核对），没有执行上述 RCT-ID 测试或仓库 CI。**
+
 ## 5. 待决问题 / 责任接口
 
 - ARCH-02：失败前创建 RunRecord 以及错误/导出状态如何写盘，Run Artifact 的原子元数据索引。
