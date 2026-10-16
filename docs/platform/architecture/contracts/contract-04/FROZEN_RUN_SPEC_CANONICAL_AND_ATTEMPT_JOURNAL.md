@@ -25,7 +25,7 @@ freeze resolved seed allocations and complete FrozenRunSpecs first
 
 ## 2. FrozenRunSpec 的统一规范序列化：`SB-FRS-JCS-v1`
 
-> **Cross-reconciliation with AI-C #56 @ `4b0af61718af8f25f9a44c33cef63f0cba1f1c57`:** AI-C §9.3 提议 `SB-FRS-JCS-v1` (RFC 8785) 作为全量 RunSpec 序列化。AI-D **ACCEPTS the same profile ID and RFC 8785 byte serializer as the target**;此前 AI-D `SB-FRS-JCS-v1/SB-FRS-JCS-v1` 自定义格式现正式撤回为历史计算草案，**不得**与 JCS 共同作为正式 spec digest。此处在 AI-C 12 个顶层键形状内补齐精确流描述符/完整 fixture，供 AI-C 再次会签；没有声称已获得 EXP-01/ARCH-02 的正式 ADR。
+> **Cross-reconciliation with AI-C #56 @ `4b0af61718af8f25f9a44c33cef63f0cba1f1c57`:** AI-C §9.3 提议 `SB-FRS-JCS-v1` (RFC 8785) 作为全量 RunSpec 序列化。AI-D **ACCEPTS the same profile ID and RFC 8785 byte serializer as the target**;此前 AI-D `SB-FROZEN-RUN-SPEC-v1/SB-CJSON-1` 自定义格式现正式撤回为历史计算草案，**不得**与 JCS 共同作为正式 spec digest。此处在 AI-C 12 个顶层键形状内补齐精确流描述符/完整 fixture，供 AI-C 再次会签；没有声称已获得 EXP-01/ARCH-02 的正式 ADR。
 
 ### 2.1 唯一根对象 Schema
 
@@ -99,7 +99,7 @@ assert hashlib.sha256(changed).hexdigest()=="c241a98aeef32b30d31fb1141f884964620
 - **JCS-FULL-02：仅 `metric` digest 变 `fixture:frs:metric-v2`，`sha256:c241a98aeef32b30d31fb1141f8849646200393c168f1bb7ee5539360f3e52e1`。**
 - Python `hashlib/json` 与独立 Node.js `crypto` + 显式键排序编码路径分别计算，**此 ASCII 测试向量 2/2 一致**。这不等于完整 RFC 8785 Unicode 边界测试通过，也不代表资源 manifest 真验签或真实 Run 可复算。
 - AI-C 原 #56 §9.3 的 `1538 bytes/sha256:9521ff3ae9fc51263863bafda8567b2b184dad055234609a3c4238dfd8a26d34` 是**较小的结构性 JCS 草案 fixture**；二者根形状相容但 seed.streams 完整字段覆盖不同，不可误认为是**同一序列化对象**或跨版本替代关系。补全子键需 AI-C 明确核准；没有将 #56 的原历史内容当作新正式 SPEC-01 实现证据。
-- 原 AI-D 自定义 `SB-FRS-JCS-v1` 的 `2471 bytes/sha256:d2c07f032498322da6130f153d72199052e249559707574559c8791e2959ddf8` 和改指标版本摘要 `sha256:99353448ec6277f9bac835e82f573bf9f8051832d45db0c5307f38ac5f68e5dd` **仅为被取代的历史数学 fixture，非当前采用的 FrozenRunSpec digest**；严禁在 Plan 中与 JCS-FULL 混用。
+- 原 AI-D 自定义 `SB-CJSON-1` 的 `2471 bytes/sha256:d2c07f032498322da6130f153d72199052e249559707574559c8791e2959ddf8` 和改指标版本摘要 `sha256:99353448ec6277f9bac835e82f573bf9f8051832d45db0c5307f38ac5f68e5dd` **仅为被取代的历史数学 fixture，非当前采用的 FrozenRunSpec digest**；严禁在 Plan 中与 JCS-FULL 混用。
 - LP4/HKDF 原 G01–G13 使用各自合成字符串 SHA256 作为 spec 输入，与 JCS-FULL-01 哈希不相同；**身份编码数学向量与真实 Spec 序列化是两套独立测试层**。
 
 ## 3. RNG/采样器/数值环境：最低有效合同
@@ -143,4 +143,4 @@ assert hashlib.sha256(changed).hexdigest()=="c241a98aeef32b30d31fb1141f884964620
 
 实测范围：只做了 GitHub HEAD/文档/白名单静态核验及合成 JSON canonical SHA-256 的 Python、Node.js 两个独立计算路径；无 GitHub Actions、完整 RunSpec freeze 实现、持久 journal crash 注入、Harness/Experiment 运行、PRNG 分布采样器全向量、物理 Validation/UQ 的成功证据。**不允许将 JCS-FULL-01/02 或 G01–G13 数学通过写成 M2/R3/研究 PASS**。
 
-签字工作：AI-C 对 `LP4/HKDF`、PRNG/draw addressing/stream 与 SPEC-01/02 的相容性明确 `ACCEPT/CHANGES_REQUESTED`；EXP-01 确定 ExperimentPlan 分配表与 retry policy；ARCH-02 审核 RunRecord durable writer/fencing；ARCH-03 审核 stream manifest 与 MetricDefinition 锁；AI-R 完整负例/崩溃独立评审；主控冻结 ADR。未会签前保持 **HOLD / NO-FREEZE**。
+签字工作：AI-C 对 `LP4/HKDF`、PRNG/draw addressing/stream 与 JCS-FULL-01/02 的相容性明确 `ACCEPT/CHANGES_REQUESTED`；EXP-01 确定 ExperimentPlan 分配表与 retry policy；ARCH-02 审核 RunRecord durable writer/fencing；ARCH-03 审核 stream manifest 与 MetricDefinition 锁；AI-R 完整负例/崩溃独立评审；主控冻结 ADR。未会签前保持 **HOLD / NO-FREEZE**。
