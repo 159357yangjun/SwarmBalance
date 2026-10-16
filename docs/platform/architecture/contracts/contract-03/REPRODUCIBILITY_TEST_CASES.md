@@ -112,13 +112,13 @@ This task **resolves B04 at proposed documentation level only**, pending co-sign
 
 ## 3. Formal C03 × C04 PR #57 review regression cases (AI-C addendum)
 
-Review source: CONTRACT-04 PR #57 `027fd78589229db3d2308ced5365b7a780703805` and its `LOGICAL_RUN_IDENTITY_AND_RNG_CONVERGENCE.md`; CONTRACT-03 original PR #56 `0b038f29e7f1957bf93e4afd1e3a171d54e5b620`. This section is *design fixtures*, except explicitly noted independent arithmetic checks. PR #57 HEAD advanced by four commits after the first review; AI-C has now reviewed that delta and the new `FROZEN_RUN_SPEC_CANONICAL_AND_ATTEMPT_JOURNAL.md`. Its `SB-FROZEN-RUN-SPEC-v1` + `SB-CJSON-1` is the single proposed full-spec format; earlier AI-C JCS candidate was withdrawn. Exact LP4/HKDF derivation and complete FrozenRunSpec serialization candidate are in `EXPERIMENT_SEED_CONTRACT.md §9`.
+Review source: CONTRACT-04 PR #57 `027fd78589229db3d2308ced5365b7a780703805` and its `LOGICAL_RUN_IDENTITY_AND_RNG_CONVERGENCE.md`; CONTRACT-03 original PR #56 `0b038f29e7f1957bf93e4afd1e3a171d54e5b620`. This section is *design fixtures*, except explicitly noted independent arithmetic checks. PR #57 advanced through two reviews: an interim four-commit delta to `05d406b4ca305752f28392ee382cdc2868a4a5e5` proposed a separate CJSON format, then a further five-commit delta to **latest reviewed HEAD `4121921d013e4524e38e1ed56ff3860812da2069`** explicitly reverted to AI-C's **single `SB-FRS-JCS-v1` / RFC 8785 JCS** and completed the seed stream fields. Intermediate AI-D CJSON is withdrawn; never mix two digest profiles. Exact LP4/HKDF derivation and complete FrozenRunSpec serialization candidate are in `EXPERIMENT_SEED_CONTRACT.md §9`.
 
 ### 3.1 Actually computed vs never executed
 
 **Actually executed by AI-C:** separate Python stdlib `hashlib/hmac/struct` implementation of LP4, HKDF Extract/Expand and indexed draw recomputed all PR #57 synthetic fixture inputs and G01–G13 (13/13 exact matches). This includes G01 cell A `sha256:41957ee33f111aa9fc24d694fa09c2261e0621ff8be41be653e5be32665164fb`; G03/G04 distinct attempt hashes; G07 master uint64 `5928125456373989572`; G08 `7174855733580601445`; G09 exo key `71431f83f3cd9855fc1351335a3197d78cba1bce8adedb2fdcaf1f2e5a779f99`; G10 alternative exposure `c6409fab9be559fac3c034bbec2e5ca7a26d054903976f40779590d41a865d11`; G11 private A `a914a88477f24edb367427e591562680c62fb05a40483e0a29e67e021868648e`; G12 private B `5b27c63dd4abceac6893f1a766f180efc742f5591cad633a965d67190ec06f65`; G13 indexed draw first 8 bytes `2276e70cab9bca45`, `draw_u64=2483426286146144837`, `draw_u53=1212610491282297`.
 
-**NOT executed:** repo-sourced LP4/HKDF implementation, integration tests, Python/Node comparison for all Unicode cases, SB-CJSON-1 RFC8785 full-spec implementations, distribution samplers, time/event engine, multiworker or crash replay, CI, actual RunRecord queries and complete simulator R1/R2/R3 replay. Do not mark these PASS.
+**NOT executed:** repo-sourced LP4/HKDF implementation, integration tests, Python/Node comparison for all Unicode cases, RFC 8785 JCS RFC8785 full-spec implementations, distribution samplers, time/event engine, multiworker or crash replay, CI, actual RunRecord queries and complete simulator R1/R2/R3 replay. Do not mark these PASS.
 
 ### 3.2 Required future conformance and negative oracle
 
@@ -127,7 +127,7 @@ Review source: CONTRACT-04 PR #57 `027fd78589229db3d2308ced5365b7a780703805` and
 | C03-ID-01 | Exact Plan triple (plan_digest,A,r02) is bound to spec SA; resubmit same digest | idempotent same cell_key, no second replication |
 | C03-ID-02 | Same frozen Plan triple requests different SB digest | `PLAN_CELL_SPEC_CONFLICT`; no new sample under that plan; new plan revision required |
 | C03-ID-03 | RunSpec contains plan_digest, run_id, attempt_id, ordinal, generation, time or spec_digest itself | `CYCLIC_SPEC_PLAN_DIGEST` or `ATTEMPT_FIELDS_IN_SPEC`; fail before hashing |
-| C03-ID-04 | Full FrozenRunSpec SB-CJSON-1 serialize/parse in two conformant implementations; permute JSON key order | identical canonical bytes + spec digest; strict field validation; no path/clock from host |
+| C03-ID-04 | Full FrozenRunSpec RFC 8785 JCS serialize/parse in two conformant implementations; permute JSON key order | identical canonical bytes + spec digest; strict field validation; no path/clock from host |
 | C03-ID-05 | Non-NFC strings, duplicate normalized IDs/keys, invalid surrogate, float 9007199254740993, uint64 numeric JSON, NaN, negative zero, leading zero ordinal | `IDENTITY_ENCODING_INVALID` or `FROZEN_SPEC_CONTENT_MISMATCH`; reject rather than silently normalize/reseed |
 | C03-ID-06 | G01–G13 full identity/KDF/draw fixtures via two independent implementations | exact published bytes including BE64, 13/13 or fail and first mismatch |
 | C03-ID-07 | Two treatments A/B share p02,r02 and same frozen exo source; different Scheduler manifests | same exo G09; distinct private G11/G12; separate mutable handles |
@@ -143,21 +143,21 @@ Review source: CONTRACT-04 PR #57 `027fd78589229db3d2308ced5365b7a780703805` and
 
 **Strict acceptance:** independent vector computations do **not** satisfy C03-ID-04..16. For any contract claim, require running implementation commit, fixture input hashes, actual/expected outputs, first mismatch and original logs, plus independent reviewer sign-off. A failing durable attempt-reconciliation test blocks Batch analysis and ranking, even if all mathematical vectors agree.
 
-### 3.3 Newer PR #57 full-spec SPEC-01/02 synthetic checks (actual math only)
+### 3.3 Full-schema JCS-FULL-01/02 mathematical checks against latest PR #57
 
-The complete mandatory 17-key schema and its byte serialization are now `SB-FROZEN-RUN-SPEC-v1` / `SB-CJSON-1` in PR #57 `FROZEN_RUN_SPEC_CANONICAL_AND_ATTEMPT_JOURNAL.md` at HEAD `05d406b4ca305752f28392ee382cdc2868a4a5e5`. AI-C independently executed the Python `hashlib/json` synthetic fixture assembly and digest calculation specified there and checked:
+The **single** proposed full-spec format is `SB-FRS-JCS-v1` / RFC 8785 JCS, with the exact twelve top-level keys, `seed.seed_allocation_digest` and full per-stream descriptors defined in PR #57 `FROZEN_RUN_SPEC_CANONICAL_AND_ATTEMPT_JOURNAL.md` @ `4121921d013e4524e38e1ed56ff3860812da2069`. AI-C independently evaluated the synthetic fixture exactly as specified there using Python `hashlib/json`:
 
-| Vector | Actual independently calculated AI-C result | Math verdict |
-|---|---|---|
-| SPEC-01 full 17-key synthetic object | UTF-8 byte length `2471`; SHA-256 `d2c07f032498322da6130f153d72199052e249559707574559c8791e2959ddf8` | MATCH |
-| SPEC-02 metric-version-only change `1.0.0` → `1.0.1` | UTF-8 byte length `2471`; SHA-256 `99353448ec6277f9bac835e82f573bf9f8051832d45db0c5307f38ac5f68e5dd` | MATCH |
+| Actual result from AI-C independent calculation | Verified math status |
+|---|---|
+| `JCS-FULL-01`: 2217 UTF-8 bytes; `sha256:bec73edca85a81be16a2664e4c189c19be3df79dce4aecea2d4d94e7ad687d38` | MATCH |
+| `JCS-FULL-02`: after replacing only `metric` reference with `fixture:frs:metric-v2`, `sha256:c241a98aeef32b30d31fb1141f8849646200393c168f1bb7ee5539360f3e52e1` | MATCH |
 
-These 2/2 values are **not** PR #57's G01–G13 input spec digests; the original vectors use independent fixture-label SHA256 inputs. They cannot be spliced together while expecting G01/G02 identity hashes unchanged. Cross-language complete SB-CJSON-1 conformance including NFC/UTF-8 ordering, control escapes, duplicate keys, uint64 strict rejection and semantic nested digest verification is **NOT EXECUTED** here. The superseded 109-byte AI-C partial JCS fixture is **not** an active contract standard.
+These **2/2 synthetic byte/math checks** are separate from **13/13 independently recomputed G01–G13 LP4/HKDF identity and indexed draw math**. G01–G13 take synthetic label-derived spec digest inputs, NOT the JCS-FULL object. Previous AI-C 1538-byte skeleton and interim AI-D 2471-byte `SB-CJSON-1` SPEC-01/02 hashes are historical math fixtures and **NOT ACTIVE CANONICAL PLAN INPUTS**. No actual full-config/dataset digest resolution, JCS Unicode special-case verification, schema reject suite, RNG implementation or Run replay was tested.
 
-Add future negative conformance oracles: attempt Spec hash with `run_id` included -> `ATTEMPT_FIELDS_IN_SPEC`; mutate locked metric version without new spec hash -> `FROZEN_SPEC_CONTENT_MISMATCH`; same immutable Plan triple with new Spec -> `PLAN_CELL_SPEC_CONFLICT`; JSON numeric seed or ambiguous Unicode normalization -> `IDENTITY_ENCODING_INVALID`; unknown Poisson/Gaussian sampler under `C03C04-SAMPLER-MIN-v1` -> `SAMPLER_VERSION_UNPINNED`; missing persisted artifact/late leased worker after crash -> `ATTEMPT_OUTCOME_UNRESOLVED`. All are **NOT RUN**, and must not be marked PASS until implementation tests and logs exist.
+New required NEGATIVE fixtures (NOT RUN): a non-NFC or lone-surrogate string; duplicate raw JSON key; UTF-8-vs-UTF-16 ordering discrepancy for non-ASCII key; missing/extra stream field; missing `seed_allocation_digest`; a JSON number token for uint64 or horizon; duplicate stream owner/name; non-canonical decimal; changed metric digest under unchanged spec digest; hash cycle with plan_digest; different spec under same frozen Plan triple; unknown Poisson/Gaussian sampler; late worker after fenced lease and lost-ACK crash. Required decisions: `SPEC_UNFREEZABLE`, `SPEC_CANONICALIZATION_INVALID`, `FROZEN_SPEC_CONTENT_MISMATCH`, `PLAN_CELL_SPEC_CONFLICT`, `SAMPLER_VERSION_UNPINNED` or `ATTEMPT_OUTCOME_UNRESOLVED` as applicable. Evidence must include the exact offending input bytes/field and actual logs, not just expected rule descriptions.
 
 ### 3.4 Gate
 
-- **Limited math fixture verification:** PASS (AI-C 13/13 exact synthetic G01–G13 plus 2/2 complete-top-level synthetic SPEC-01/02 math hashes). It establishes only arithmetic on supplied inputs, not full manifest hashing or RNG runtime portability.
-- **Specification alignment:** PROPOSED; AI-C accepts PR #57 LP4/HKDF rules and C03C04-IDENTITY-v1 at review level, adds SB-FROZEN-RUN-SPEC-v1 as proposed complete-spec byte serializer. No claim of formal cross-team ADR approval.
+- **Limited math fixture verification:** PASS (AI-C independently computed G01–G13 13/13 and latest JCS-FULL-01/02 2/2 synthetic byte/hash math). It establishes only arithmetic on supplied inputs, not full manifest hashing or RNG runtime portability.
+- **Specification alignment:** PROPOSED; AI-C accepts PR #57 LP4/HKDF rules and C03C04-IDENTITY-v1 at review level, adds SB-FRS-JCS-v1 as proposed complete-spec byte serializer. No claim of formal cross-team ADR approval.
 - **Integration, replay, crash durability, sampler versioned tests:** NOT RUN / HOLD.
