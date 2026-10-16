@@ -36,6 +36,8 @@ exposure_binding:
 
 **Normative identity projection**: `logical_cell_tuple=(plan_digest,treatment_id,replicate_key,frozen_run_spec_digest)`. Only this exact tuple is idempotency/unique-cell identity. `replication_id` from old C04 is allowed **only on legacy ingestion** as a source alias for `replicate_key`; when both supplied and unequal => `REPLICATE_ALIAS_CONFLICT`. Canonical objects/output and RNG info contain only `replicate_key`. Changing spec digest (including seed/model/code/failure/metric lock) creates a **different cell**, never a retry even if the other 3 fields remain equal. A new plan digest creates a new cell. `pairing_group_id` links two different cells with the *same intended external realization*; it is not a cell or replication identity.
 
+**Additional P0-03 Plan invariant:** inside a *single* immutable ExperimentPlan, the pair `(treatment_id,replicate_key)` MUST bind **one and only one** `frozen_run_spec_digest`; different spec digest at the same `plan_digest+treatment_id+replicate_key` is `PLAN_CELL_SPEC_CONFLICT`, **not** a new cell in that plan. Freeze a new ExperimentPlan with a new digest before changing the spec; preserve old failed/cancelled attempts and compare gates. The earlier phrase "changed spec = new cell" applies ONLY after a new Plan revision. `replicate_key` remains independent replication design identity, `attempt_ordinal/attempt_id/run_id` are only execution-attempt identities.
+
 The plan may bind spec digests but **the hashed FrozenRunSpec must NOT include plan_digest/cell_key/run_id/attempt_id/ordinal/generation/retry_of/status/worker/timestamps/logs**, otherwise the Plan ↔ Spec digest graph cycles and retry breaks idempotency. A FrozenRunSpec is frozen execution semantics (world, scenario, exact model/component/data/code/config, clock, seed allocation, RNG descriptors, metric definitions and failure policy); its canonical content hash excludes `spec_digest` itself and all **attempt binding/envelope** fields. `plan_digest` lives in the ExperimentPlan and RunRecord binding, not within the spec content. Pre-freeze failures may have no spec digest and must remain failed RunRecord audit entries without pretending the cell key was validly finalized.
 
 **Durable attempt rule:** `(cell_key, attempt_ordinal)` is a unique immutable allocation. Retry after *known* failed/cancelled/tainted attempt gets ordinal+1 and a fresh RunRecord/run_id; may reuse only the **same FrozenRunSpec/external tape/master_seed** and a clean scope or verified valid checkpoint. A command resent after crash/ack loss with the *same* ordinal must return the pre-existing attempt/run_id (idempotent lookup), **not start a second execution**. If prior outcome is UNKNOWN, reconcile append-only durable ledger/artifact hash first; never blind-replay and double-count. `run_id = SHA256(LP4("SB-RUN-v1",attempt_id))` is a candidate stable internal ID, not an authorization secret. A user-supplied/manual Run without ExperimentPlan has `cell_key=null`, a request-scoped idempotency key and unique RunRecord; it must not invent fake treatment/replicate entries.
@@ -54,7 +56,7 @@ attempt_id = "sha256:" + HEX(SHA256(LP4("SB-ATTEMPT-v1", cell_key, decimal(attem
 run_id     = "sha256:" + HEX(SHA256(LP4("SB-RUN-v1", attempt_id)))
 ```
 
-`plan_digest` and `frozen_run_spec_digest` require their own versioned canonical *full object* serialization and consistent content addressing before implementation. **This document freezes only the candidate identity/KDF LP4 encoding and vectors, not JSON/YAML canonicalization of arbitrary specs**; therefore the golden vectors below inject real sha256 digests of synthetic fixture labels rather than alleging complete end-to-end manifest freezing.
+`frozen_run_spec_digest` must use the precise full object serialization `SB-FROZEN-RUN-SPEC-v1 + SB-CJSON-1` now proposed in [FROZEN_RUN_SPEC_CANONICAL_AND_ATTEMPT_JOURNAL.md](FROZEN_RUN_SPEC_CANONICAL_AND_ATTEMPT_JOURNAL.md) §2, including synthetic **SPEC-01/02** vectors; ExperimentPlan must separately define its complete canonicalization and pass one-plan uniqueness checks before claiming final plan_digest. The **G01–G13** historical identity fixtures deliberately use synthetic SHA-256 label digests (not complete SPEC-01 hash), so the independent test layers must not conflate them. Both contracts remain PROPOSED pending AI-C/EXP-01 co-signature.
 
 ## 3. RNG 派生版本（`C03-HKDF-HMAC-SHA256-v1` 候选）
 
@@ -146,7 +148,7 @@ This reference assumes inputs already validated as NFC and canonical strings. An
 
 | ID | Mutation / attempted behavior | Expected and retained evidence |
 |---|---|---|
-| ID-N01 | A logical cell request has same plan+treatment+replicate but a **different** spec digest; caller calls it a retry | **REJECT `SPEC_CHANGED_NOT_RETRY`**; allocate new cell/planned binding only by approved plan revision; preserve original RunRecord |
+| ID-N01 | A logical cell request has same plan+treatment+replicate but a **different** spec digest; caller calls it a retry | **REJECT `PLAN_CELL_SPEC_CONFLICT`**; never allocate a second cell under this Plan; a **new** approved Plan revision is required; preserve original RunRecord |
 | ID-N02 | Repost same `(cell_key,ordinal=1)` after result persisted and ack lost; worker tries to launch again | **`RUN_ATTEMPT_DUPLICATE` / idempotent return existing** without executing; no second sample |
 | ID-N03 | Retry ordinal=2 but changed master_seed or external tape; claims same cell | **`RETRY_INPUT_DRIFT`**; no silent reseed, preserve failed attempt |
 | ID-N04 | `replication_id=r01` and `replicate_key=r02` on ingestion | **`REPLICATE_ALIAS_CONFLICT`**; no ambiguous cell |
@@ -164,6 +166,10 @@ This reference assumes inputs already validated as NFC and canonical strings. An
 | ID-N16 | Retry after postcommit metric export failure re-executes simulation boundary | **`POSTCOMMIT_RESIMULATION_FORBIDDEN`**; re-export from immutable committed frame; retain evidence gap |
 
 Every rejection records `case_id, plan/cell/attempt/ref, expected/observed values, rejection code, state/metrics/evidence effect, artifact digest, evaluator`. Comparison on unresolved/unknown identity or CRN -> `INSUFFICIENT_EVIDENCE` or `NOT_COMPARABLE`, `ranking_allowed=false, ranking=null`; never silently drop failed RunRecords. For a gold-vector mismatch, report the first mismatching field/root/info bytes and **never** publish a false PASS.
+
+### 5.1 Crash-safe attempt ledger (P0-03)
+
+The full `PlanCellIndex → AttemptIndex → RunRecord → staged artifact → finalized result → AnalysisRecord selection` query order and durable CAS/fencing recovery semantics are defined in [FROZEN_RUN_SPEC_CANONICAL_AND_ATTEMPT_JOURNAL.md](FROZEN_RUN_SPEC_CANONICAL_AND_ATTEMPT_JOURNAL.md) §4. Never blindly allocate a second ordinal after a lost ACK; query existing attempt and result digest first. All three crash windows (allocation-before-dispatch, artifact-staged-before-finalize, finalized-before-ACK) need actual fault-injection evidence before M2 approval. **This PR adds design and synthetic hash calculations only.**
 
 ## 6. Required implementation tests and cross-sign
 
