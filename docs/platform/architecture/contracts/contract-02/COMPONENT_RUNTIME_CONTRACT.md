@@ -52,9 +52,11 @@ class ProposalContext(Protocol):
     @property
     def generation(self) -> int: ...
     @property
-    def boundary_ref(self) -> "BoundaryRef": ...  # opaque, AI-A/02 owned
+    def boundary_id(self) -> str: ...  # explicit public Run-local ID, minted by Harness
     @property
-    def view_token(self) -> str: ...
+    def base_revision(self) -> int: ...  # committed revision
+    @property
+    def read_view_token(self) -> "OpaqueViewToken": ...  # stage_seq binding
     @property
     def scoped_rng(self) -> "TransactionalRNGPort": ...
     @property
@@ -83,11 +85,11 @@ class TransactionalComponent(Lifecycle, Protocol):
     def restore(self, cp: "VersionedPrivateCheckpoint") -> None: ...
 
 class Scheduler(Lifecycle, Protocol):
-    def propose(self, observation: "ObservationV1", ctx: ProposalContext) -> "ActionProposal": ...
+    def propose(self, observation: "ObservationV1", ctx: ProposalContext) -> "ActionProposalV1": ...
 
 class DynamicsModel(Lifecycle, Protocol):
     def propose(self, state: "StateSliceView", conditions: "DynamicsConditions",
-                interval: "ModelIntervalRef", ctx: ProposalContext) -> "StateDeltaProposal": ...
+                interval: "ModelIntervalRef", ctx: ProposalContext) -> "StateDeltaProposalV1": ...
 
 class DataProvider(Lifecycle, Protocol):
     def inspect(self, dataset_ref: "DatasetRef") -> "DatasetInspection": ...
@@ -99,8 +101,8 @@ class SpatialProvider(Lifecycle, Protocol):
     def query(self, snapshot_id: str, query: "SpatialQuery") -> "SpatialQueryResult": ...
 
 class EventProvider(Lifecycle, Protocol):
-    def events_in_window(self, window: "ModelIntervalRef", state: ReadOnlyView,
-                         ctx: ProposalContext) -> "EventIntentBatch": ...
+    def events_in_window(self, window: "EventWindowRefV1", state: ReadOnlyView,
+                         ctx: ProposalContext) -> "EventIntentBatchV1": ...
 
 class MetricProvider(Lifecycle, Protocol):
     def observe(self, frame: "CommittedFrame") -> "Sequence[MetricSample]": ...
@@ -192,7 +194,15 @@ rng_capability:
 G-DOC：本目录三文件，正文明确 Protocol/schema + 正负 fixture；仅 docs-only 白名单；锁六 PR 完整 HEAD；标出所有会签接口。G-CONTRACT（**待未来实现**）：签名/能力协商、stale view/revision、原子 rejection、RNG 恢复、nonthrow publish、reset 隔代、checkpoint incompatibility、legacy parity + TAINTED 全部成为可执行测试，且保留错误和日志。G-ARCH：由主控在接受跨组签字、独立复审和 ADR 后判定；本文提交不解除 #54 HOLD。参见 `COMPONENT_FAILURE_TEST_CASES.md` 的每条测试期待和实际执行状态。
 ## 9. 增量对齐：事务入口、事件输出与失败语义
 
-- **One header, one commit authority**：`ActionProposal`、`StateDeltaProposal` 与可发事件的 provider 使用统一 `ProposalHeaderV1`，通过版本化、可拒绝的 converter 归一为 #58 的 `ChangeSetV1`。Harness 是唯一 phase/operation 编排和状态提交者，组件不能通过原 `decide/advance` 绕过 converter；`ProposalContext.boundary_ref` 与 `ChangeSet.boundary_id` 必须由 Harness 证明是同一 boundary，`stage_seq` 与 token 绑定，绝不靠名称相似判断。
+- **One header, one commit authority**：`ActionProposal`、`StateDeltaProposal` 与可发事件的 provider 使用统一 `ProposalHeaderV1`，通过版本化、可拒绝的 converter 归一为 #58 的**仅 Harness 内部** `NormalizedChangeSetV1`。Harness 是唯一 phase/operation 编排和状态提交者，组件不能通过原 `decide/advance` 绕过 converter；公共 `ProposalContext.boundary_id` 与 `ProposalHeaderV1.boundary_id` 必须一致，旧 `boundary_ref` 仅允许通过版本化 Harness 导入映射，`stage_seq` 与 token 绑定，绝不靠名称相似判断。
 - **Queue vs committed fact**：`EventIntentV1` 仅为未接纳的未来事件请求；AI-A `EventEnvelopeV1` 才能进入权威 queue；`ServiceFactCandidate` 转成 domain operation/CommittedDomainFact，而非 retroactive same-time queue entry。AI-A 的时间单位/事件顺序、t=0、horizon、phase map 依然 PENDING 主控会签。
 - **Failure normalization**：本合同 `STALE_OBSERVATION` 到 #58 `STALE_PROVISIONAL_VIEW`；`COMPONENT_RECOVERY_UNSUPPORTED` 到拒绝装配的 recovery/checkpoint 能力诊断；`NONFINITE_VALUE` 在已开始 boundary 时落入 `INVALID_STATE_CHANGE` 家族；事件 precondition skip 必须有版本化政策并在成功发布后才正式消费，其他 precommit fatal 恢复 B/C/D/queue/RNG，postcommit observer failure 仅污染证据，Legacy 失败标 `TAINTED`。同一错误不要同时标 REJECT_COMMAND + FAIL_RUN，按发生窗口与 FrozenRunSpec policy 给一个决策。详见新增文件 §5。
 - **No premature guarantees**：`prepare_commit` 成功、`publish_prepared` non-throwing、组件 D/RNG checkpoint/restore 均是拟定 **准入条件**，非经实测的 guarantee；任何实现证据不足则 strict-mode assemble REJECT。涉及 #58 的单 boundary 规范必须由 ARCH-01/02/03 会签及 ADR-002 批准，不能由 CONTRACT-02 单独裁决原 #46 micro-commit 口径。
+
+## 10. Strict V1 public ABI 与 CONTRACT-01 精确同步（主控方向，待签字）
+
+- **Public**：Scheduler 提交 `ActionProposalV1{schema_version,header:ProposalHeaderV1,actions,emitted_event_intents}`；Dynamics 提交 `StateDeltaProposalV1{schema_version,header:ProposalHeaderV1,model_interval_ref:ModelIntervalRef,changes,service_facts,emitted_event_intents}`。两者的公共 Header **九个语义字段完全相同**：`run_id,generation,boundary_id,base_revision,read_view_token,proposal_id,producer_id,capability_ref,provenance_ref`（加独立 header schema version）。Harness **唯一**创建 `NormalizedChangeSetV1`，旧 `change-set.v1` 无公共提交权限。本文旧节中提到的 `ChangeSet` 均按 [TRANSACTION_EVENT_PROPOSAL_CONVERGENCE.md §0–3](TRANSACTION_EVENT_PROPOSAL_CONVERGENCE.md) 的内部转换语义理解。
+- **EventProducer**：`EventIntentBatchV1.window_ref:EventWindowRefV1`；模型 `ModelIntervalRef` 只用于 Dynamics 积分。错传引用类型拒绝 `WINDOW_REF_TYPE_MISMATCH`；不允许无条件结构转换。调用方必须使用由 Harness 签发并验证的窗口，不能凭相同起止时间认定同一令牌。
+- **Strict commit**：一个 boundary 最多发布一次 revision（成功恰好 +1；无 work 的 NO_BOUNDARY 不递增）；pre-input / scheduler / dynamics / post-model 全部只见内部不可变 provisional overlay。原 ARCH-01 文档公开 micro-commit 的许可，在 strict V1 的正式 ADR-002 ACCEPTED 后被取代；本合同不冒充已经批准了 ADR。
+- **精确事件边界候选**：t=0 初始入队、首次 boundary 同刻输入先于调度可见；horizon INCLUDE_ONCE、禁止越界积分，真实末刻事件可形成有界零时长事件 boundary，但不允许纯 metrics 空 tick；同刻迟到 targeting sealed phase 一律 `INVALID_EVENT_ORDER`，不自动延迟；类型到 phase 必须有被冻结的 registry，缺映射拒绝。详细 candidate/mapping 见收敛文件 §0.3，必须 AI-A/ARCH-01/02/03 明确会签。
+- **Runtime gate**：失败阶段区分 preadmission REJECT_REQUEST、装配 REJECT_ASSEMBLY、提交前 ROLLBACK_BOUNDARY、合法记录失败 SKIP_EVENT、提交后 POSTCOMMIT_PARTIAL、Legacy TAINT_LEGACY；strict 缺完整 B/C/D/RNG/queue/seq rollback 能力即装配拒绝。全部为待实现要求，未运行合同测试。参照 #58 `bd5e47266d79d1e087ca8cfc6fe68ea28a03496b` 和 #61 `6e7b69dc70c56a8e13f5cf7de750ad3c59068dcc`。
