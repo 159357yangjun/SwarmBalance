@@ -214,7 +214,7 @@ Two accepted ChangeSets based on distinct provisional `view_token` stages may sh
 
 ## 9. PR #61 cross-team directed normative candidate (P0-01/P0-02; 2026-10-16)
 
-> **Coordinator directive applied for reconciliation, not ACCEPTED ADR.** Source #61 `6e7b69dc70c56a8e13f5cf7de750ad3c59068dcc`, [ARCH_06_INTERFACE_REGISTRY_CANDIDATES.md](https://github.com/159357yangjun/SwarmBalance/blob/6e7b69dc70c56a8e13f5cf7de750ad3c59068dcc/docs/platform/architecture/decisions/ARCH_06_INTERFACE_REGISTRY_CANDIDATES.md) and ARCH_06_FREEZE_RULING; AI-B #55 `fd7ae6a5668f2cd97174628120435281e31e1a30` (TRANSACTION_EVENT_PROPOSAL_CONVERGENCE). This §9 is the authoritative **candidate within #58** if older §§3 or 8 use different public header/alias names. Neither #55 nor original ARCH-01–04 is edited by this PR. Version IDs: `proposal-header.v1-candidate`, `normalized-changeset.v1-candidate`, `boundary-commit.v1-candidate`.
+> **Coordinator directive applied for reconciliation, not ACCEPTED ADR.** Source #61 `6e7b69dc70c56a8e13f5cf7de750ad3c59068dcc`, [ARCH_06_INTERFACE_REGISTRY_CANDIDATES.md](https://github.com/159357yangjun/SwarmBalance/blob/6e7b69dc70c56a8e13f5cf7de750ad3c59068dcc/docs/platform/architecture/decisions/ARCH_06_INTERFACE_REGISTRY_CANDIDATES.md) and ARCH_06_FREEZE_RULING; AI-B #55 `eca750b9b1c3fb25e6f6fd29732c4316d694e6f5` (TRANSACTION_EVENT_PROPOSAL_CONVERGENCE). This §9 is the authoritative **candidate within #58** if older §§3 or 8 use different public header/alias names. Neither #55 nor original ARCH-01–04 is edited by this PR. Version IDs: public header `proposal-header.v1-candidate`, public messages `action-proposal.v1` / `state-delta-proposal.v1`, Harness internal wire tag `normalized-changeset.v1` (registry candidate `normalized-changeset.v1-candidate`), boundary protocol `boundary-commit.v1-candidate`; no second public ChangeSet.
 
 ### 9.1 One public ProposalHeaderV1, single internal normalization target
 
@@ -233,11 +233,13 @@ class ProposalHeaderV1:
     provenance_ref: str      # immutable source/model/assembly manifest digest reference
 
 class ActionProposalV1:
+    schema_version: str       # action-proposal.v1 (message schema, distinct from header)
     header: ProposalHeaderV1
     actions: tuple            # typed AssignTaskChain, not direct world operations
     emitted_event_intents: tuple  # default empty, only if capability allows
 
 class StateDeltaProposalV1:
+    schema_version: str       # state-delta-proposal.v1
     header: ProposalHeaderV1
     model_interval_ref: str   # opaque *Dynamics* integration capability, NOT event window
     changes: tuple           # typed MotionEnergyChange
@@ -245,21 +247,31 @@ class StateDeltaProposalV1:
     emitted_event_intents: tuple  # future timed work; authorized only
 
 class NormalizedChangeSetV1:
-    header: ProposalHeaderV1
+    schema_version: str      # normalized-changeset.v1; Harness internal only
+    proposal_id: str         # validated ProposalHeaderV1 projection
+    producer_id: str
+    run_id: str
+    generation: int          # uint64
+    boundary_id: str
+    base_revision: int       # uint64
+    read_view_token: str     # minted stage token
     phase: str               # PhaseV1 assigned by Harness from invocation slot
-    operations: tuple        # typed, ARCH-01-registered domain reducer operations
+    operations: tuple        # typed ARCH-01-registered OperationV1 reducers
+    capability_ref: str
+    source_digest: str       # source proposal bytes + converter version
+    model_interval_ref: str | None  # only Dynamics, otherwise None
     emitted_event_intents: tuple
 
 # NormalizedChangeSetV1 is Harness-INTERNAL ONLY.
 # No public ChangeSetV1 or change-set.v1 as a competing executable ABI.
 ```
 
-**Header is one object**, not ten ad hoc duplicate public top-level fields: producer outputs `ActionProposalV1.header` or `StateDeltaProposalV1.header`; the Harness internal `NormalizedChangeSetV1.header` mirrors the validated header exactly. Legacy `boundary_ref`, `observed_revision`/`base_committed_revision`, `observed_view_token`/`based_on_view_token`, `source_component_id` may be accepted **only** in a separately versioned ingress adapter with an explicit one-to-one mapping into the common header; strict `proposal-header.v1-candidate` rejects mixed/duplicate or contradictory aliases. `boundary_id` is a Harness-issued *public explicit* identifier, while `read_view_token` remains opaque and stage-specific; they are **different concepts**. A mutable or stale token is rejected even when boundary_id/base_revision match.
+**Header is one object**, not ten ad hoc duplicate public top-level fields: producer outputs `ActionProposalV1.header` or `StateDeltaProposalV1.header`; the Harness internal `NormalizedChangeSetV1` **projects the validated header into explicit scalar fields**, with source_digest, phase, operations and optional model_interval_ref; it does not expose an alternate public header or a nested competing wire format. Legacy `boundary_ref`, `observed_revision`/`base_committed_revision`, `observed_view_token`/`based_on_view_token`, `source_component_id` may be accepted **only** in a separately versioned ingress adapter with an explicit one-to-one mapping into the common header; strict `proposal-header.v1-candidate` rejects mixed/duplicate or contradictory aliases. `boundary_id` is a Harness-issued *public explicit* identifier, while `read_view_token` remains opaque and stage-specific; they are **different concepts**. A mutable or stale token is rejected even when boundary_id/base_revision match.
 
 | Input | Canonical mapping to internal NormalizedChangeSetV1 | Authority and hard failure |
 |---|---|---|
-| Scheduler `propose(ObservationV1, ProposalContext)` -> ActionProposalV1 | exact `header`; `actions` -> typed `task.assign_chain.v1` atomic operations; phase=APPLY_COMMAND | ARCH-03 ABI, ARCH-01 reducer, ARCH-02 converter; DOMAIN_OPERATION_UNMAPPED / STALE_OBSERVATION |
-| Dynamics `propose(StateSliceView,Conditions,ModelIntervalRef,ProposalContext)` -> StateDeltaProposalV1 | exact `header`; `changes` -> typed `dynamics.motion_energy.v1`, `service_facts` -> POST_MODEL DomainFactV1 candidate; phase=ADVANCE_MODEL for motion only | ARCH-03 ABI; model_interval_ref must be current, INTERVAL_MISMATCH; negative/NaN energy rejected |
+| Scheduler `propose(ObservationV1, ProposalContext)` -> ActionProposalV1 | exact header field-by-field internal projection; `actions` -> typed `task.assign_chain.v1` atomic operations; phase=APPLY_COMMAND | ARCH-03 ABI, ARCH-01 reducer, ARCH-02 converter; DOMAIN_OPERATION_UNMAPPED / STALE_OBSERVATION |
+| Dynamics `propose(StateSliceView,Conditions,ModelIntervalRef,ProposalContext)` -> StateDeltaProposalV1 | exact header field-by-field internal projection; `changes` -> typed `dynamics.motion_energy.v1`, `service_facts` -> POST_MODEL DomainFactV1 candidate; phase=ADVANCE_MODEL for motion only | ARCH-03 ABI; model_interval_ref must be current, INTERVAL_MISMATCH; negative/NaN energy rejected |
 | Event handler from admitted EventEnvelopeV1 | Harness creates its own scoped validated header and `domain.event_effect.v1` operations for the admitted event; optional future EventIntent separately scheduled | ARCH-01 reducers, ARCH-02 queue and writer; UNAUTHORIZED_EVENT_OPERATION / INVALID_EVENT_ORDER |
 | Any proposal containing `change-set.v1` as public ABI, untyped arbitrary field write, or unsupported operation kind | **no conversion**; do not interpret it as another public entrypoint | CONTRACT_VERSION_MISMATCH / DOMAIN_OPERATION_UNMAPPED |
 | Any proposal with `boundary_ref` instead of required `header.boundary_id` in strict public profile | **no implicit conversion**; only explicit versioned compatibility converter allowed | BOUNDARY_ID_CONFLICT / CONTRACT_VERSION_MISMATCH |
