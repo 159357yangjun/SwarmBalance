@@ -168,7 +168,7 @@ Only Harness creates the run_id/generation and canonical queue entry. Scenario e
 | `BoundaryIdV1` | Harness-issued public `boundary_id:string`, run/generation scoped | explicit ProposalHeaderV1 boundary identity; no second public opaque boundary_ref | BOUNDARY_ID_CONFLICT across boundaries/generation |
 | `ViewTokenV1` | Harness-issued opaque `view_token:string` scoped to component+phase+stage_seq and committed_revision | matches `ObservationV1.view_token` and normalized `ChangeSet.read_view_token` | STALE_OBSERVATION even when committed revision same |
 | `ModelIntervalRefV1` | Harness-issued opaque `model_interval_ref:string` mapping internally to `start_ns:uint64,end_ns:uint64,dt_ns:uint64` | verified `duration_seconds:float64` projection; Dynamics never picks interval | INTERVAL_MISMATCH / INVALID_DURATION |
-| `EventWindowRefV1` | Harness-issued type-tagged opaque `window_ref:string` resolving to run/generation, `start_ns:uint64,end_ns:uint64,inclusion_policy:enum,window_seq:uint64` | **only** EventProvider `EventIntentBatchV1.window_ref`; never Dynamics interval | WINDOW_REF_TYPE_MISMATCH / OUT_OF_EVENT_WINDOW; no silent delayed ingestion |
+| `EventWindowRefV1` | Harness-issued type-tagged opaque `window_ref:string` resolving to (run_id,generation,boundary_id,window_token,start_ns,end_ns,include_start,include_end) and internal window_seq | **only** EventProvider `EventIntentBatchV1.window_ref`; never Dynamics interval | WINDOW_REF_TYPE_MISMATCH / OUT_OF_EVENT_WINDOW; no silent delayed ingestion |
 
 **Disallow semantic aliasing**: `boundary_id` (public string) ≠ `read_view_token` (opaque stage capability) ≠ `clock_ref` (opaque clock read) ≠ `model_interval_ref` (Dynamics-only) ≠ `window_ref` (EventWindowRefV1) conceptually. Their byte strings are opaque, and type roles are not interchangeable even if accidental text equality. A reset generates new tokens. To prevent a stale predecision token reaching Dynamics, Harness must mint a new stage-specific token after action staging without incrementing committed revision. Error codes and scope fence from STATE_COMMIT_CONTRACT.md §8 apply.
 
@@ -217,24 +217,29 @@ Acceptance requires an explicit GitHub **review/comment naming the precise #58 H
 
 ## 8. PR #61 binding correction — EventWindowRef and complete edge-of-time profile
 
-> **Directed candidate, NOT formal Accepted ADR.** Sources: #61 `6e7b69dc70c56a8e13f5cf7de750ad3c59068dcc`, #55 `fd7ae6a5668f2cd97174628120435281e31e1a30`, #58 earlier `bd5e47266d79d1e087ca8cfc6fe68ea28a03496b`. This §8 fixes field names and ambiguities in preceding draft sections; those sections are historical design rationale. Candidate schema versions: `event-window-ref.v1-candidate`, `event-intent-batch.v1-candidate`, `event-envelope.v1-candidate`, `sim-clock.v1`. ARCH-02/03/01 must sign the actual mapping before FROZEN.
+> **Directed candidate, NOT formal Accepted ADR.** Sources: #61 `6e7b69dc70c56a8e13f5cf7de750ad3c59068dcc`, #55 `eca750b9b1c3fb25e6f6fd29732c4316d694e6f5`, #58 earlier `bd5e47266d79d1e087ca8cfc6fe68ea28a03496b`. This §8 fixes field names and ambiguities in preceding draft sections; those sections are historical design rationale. Candidate schema versions: `event-window-ref.v1-candidate`, `event-intent-batch.v1` (public message schema), `event-envelope.v1` (Harness record schema; registry candidate event-envelope.v1-candidate), `sim-clock.v1`. ARCH-02/03/01 must sign the actual mapping before FROZEN.
 
 ### 8.1 Definitive typed window vs interval: no aliasing
 
 ```python
 # Non-executable logical types; each is a distinct typed, scoped Harness capability.
 class EventWindowRefV1:
-    opaque_id: str          # type-tagged; owner ARCH-02, no public decoding
-    # Harness-owned lookup: run_id:str, generation:uint64,
-    # start_ns:uint64, end_ns:uint64, inclusion_policy:enum, window_seq:uint64
+    run_id: str              # minted by Harness, validated against context
+    generation: int          # uint64
+    boundary_id: str         # Harness-minted run-local identity
+    window_token: str        # OPAQUE, type-tagged and non-forgeable
+    start_ns: int            # uint64, immutable
+    end_ns: int              # uint64, immutable
+    include_start: bool
+    include_end: bool
+    # Additional internal registry window_seq exists; no provider writes.
 
 class ModelIntervalRefV1:
-    opaque_id: str          # DIFFERENT type tag and scope
-    # Harness lookup: run_id:str, generation:uint64, boundary_id:str,
-    # start_ns:uint64, end_ns:uint64, dt_ns:uint64
+    opaque_id: str          # DIFFERENT type tag and scope, Dynamics only
+    # Harness validates run_id/generation/boundary_id/start_ns/end_ns/dt_ns.
 
 class EventIntentBatchV1:
-    schema_version: str     # event-intent-batch.v1-candidate
+    schema_version: str     # event-intent-batch.v1
     run_id: str
     generation: int         # uint64
     boundary_id: str        # public ProposalHeaderV1/Harness boundary_id
