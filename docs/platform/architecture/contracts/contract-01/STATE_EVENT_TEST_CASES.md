@@ -129,7 +129,7 @@ No sign-off obtained by writing these tables or creating a PR. GitHub reviews fr
 
 ## 8. Directed P0-01/P0-02 closure fixtures for PR #61 (all NOT_RUN)
 
-> Source: ARCH-06 coordinator directive #61 at `6e7b69dc70c56a8e13f5cf7de750ad3c59068dcc`, AI-B #55 at `fd7ae6a5668f2cd97174628120435281e31e1a30`, CONTRACT-01 STATE_COMMIT §9 and TIME_AND_EVENT §8. These cases supersede earlier ambiguous public `boundary_ref` or `EventIntentBatch.window_ref:ModelIntervalRef` fixtures, which must not be implemented as alternate valid ABI. No test actually ran; **every row NOT_RUN**.
+> Source: ARCH-06 coordinator directive #61 at `6e7b69dc70c56a8e13f5cf7de750ad3c59068dcc`, AI-B #55 at `fd7ae6a5668f2cd97174628120435281e31e1a30`, CONTRACT-01 STATE_COMMIT §9 and TIME_AND_EVENT §8 (joint `state-event-proposal.v1-candidate-2`, matching #55 at `eca750b9b1c3fb25e6f6fd29732c4316d694e6f5`). These cases supersede earlier ambiguous public `boundary_ref` or `EventIntentBatch.window_ref:ModelIntervalRef` fixtures, which must not be implemented as alternate valid ABI. No test actually ran; **every row NOT_RUN**.
 
 | ID | Input (positive / negative) | Single expected result and exact failure mapping | Owner / signature | Actual |
 |---|---|---|---|---|
