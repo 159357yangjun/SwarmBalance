@@ -98,6 +98,25 @@ result:
 
 执行门：实施方至少在两个独立语言/代码路径重算并记录完整 G01–G13 的实际输出；测试 `ID-N01..N16` 逐项使用结构化拒绝码，且任何 NOT_COMPARABLE / INSUFFICIENT_EVIDENCE 必须 `ranking=null`。**本轮只进行了局部纯数学向量计算（Python/Node.js 代表性核对），没有执行上述 RCT-ID 测试或仓库 CI。**
 
+### P0-03 必须执行的规范摘要与 crash 恢复测试
+
+权威输入：[完整 FrozenRunSpec/Attempt Journal](FROZEN_RUN_SPEC_CANONICAL_AND_ATTEMPT_JOURNAL.md)。注意本文件是**未来系统验收用例**，唯有 SPEC-01/02 的合成摘要经两条独立数学计算路径获得匹配值；以下持久化/工作器案例均未运行。
+
+| ID | 给定输入 | 必须观察的实际 oracle（未运行） |
+|---|---|---|
+| P03-01 | 相同 ExperimentPlan 内同一 `treatment_id,replicate_key` 试图绑定两个 spec digests | `PLAN_CELL_SPEC_CONFLICT`，拒写第二个逻辑单元，拒新增 statistical replicate |
+| P03-02 | 完全相同规范 Spec 的 JSON 原始 object key 顺序扰动，已验证语义保持 | SB-CJSON-1 摘要不变；SPEC-01 预期 `sha256:d2c07f032498322da6130f153d72199052e249559707574559c8791e2959ddf8` |
+| P03-03 | SPEC-01 中只修改 metric Definition version `1.0.0`→`1.0.1` | SPEC-02 预期 `sha256:99353448ec6277f9bac835e82f573bf9f8051832d45db0c5307f38ac5f68e5dd`，不可继续用旧 cell |
+| P03-04 | 分别在 attempt allocation 持久化后、工件 staging 后、终态提交 ACK 前杀 worker | 恢复时先 lookup 已记录 attempt；有完整工件 finalize；已 finalized 返回原 result；不能无条件重跑 |
+| P03-05 | 两个 worker 并发请求 `(cell_key,ordinal=1)` | CAS 保证一个 allocation + 一个 RunRecord；并发另一路取原记录或明确被拒 |
+| P03-06 | 已失效 fenced worker 向相同 attempt 提交与现有 result digest 不同的结果 | `STALE_ATTEMPT_LEASE` / `RUN_RESULT_CONFLICT`，原 RunRecord 及工件不可修改 |
+| P03-07 | attempt-1 失败、attempt-2 成功；还有 outcome UNKNOWN 的分支 | 每次独立 RunRecord，失败不能删除；UNKNOWN 未核清时按预注册规则拒比较；每个 cell 在 AnalysisRecord 中最多一个 selected attempt |
+| P03-08 | JSON `uint64` 被 JS Number 舍入、NaN、Unicode NFD、重复键、数组未按集合排序 | `SPEC_CANONICALIZATION_INVALID`，不是产生另一个貌似有效的 SHA |
+| P03-09 | 非冻结 Poisson/Gaussian sampling + 试图声称 R3 full replay | `SAMPLER_VERSION_UNPINNED`；固定独立版本的 sampler golden vectors 或预物化外生 tape 后才有资格再审 |
+| P03-10 | A/B same replicate/pair group but differ in frozen external tape digest | `CRN_EXPOSURE_MISMATCH`；no paired ranking, `ranking=null` |
+
+结论不可越界：13/13 LP4/HKDF 数学复算和 SPEC-01/02 canonical hash 一致 **不能**证明 C03-T01/T03、RCT-06、M2、独立现实 Validation 或重试耐久性通过。负责系统实施者需输出可复核的输入、软件 HEAD、注入点、命令、真实结果/artifact SHA、第一次偏差和审查签字。上游 #56 独立 AI-C 会签与主控冻结仍是硬门。
+
 ## 5. 待决问题 / 责任接口
 
 - ARCH-02：失败前创建 RunRecord 以及错误/导出状态如何写盘，Run Artifact 的原子元数据索引。
