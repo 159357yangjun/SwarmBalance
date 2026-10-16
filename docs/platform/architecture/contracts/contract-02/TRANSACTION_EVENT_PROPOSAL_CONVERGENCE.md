@@ -68,7 +68,7 @@ class EventIntentBatchV1:
     source_manifest_digest: str
 ```
 
-**No `ChangeSetV1` public component return**; `NormalizedChangeSetV1` is an internal conversion result and cannot be submitted by a component. The `ProposalHeaderV1` is embedded in Action/StateDelta public outputs; EventIntentBatch shares the exact identity fence but is **a batch of event intents, not a Scheduler/Dynamics Proposal or ChangeSet**. All public `boundary_id` and `read_view_token` are explicit, not derivable from one another. `ProposalContext` carries both directly. Its optional internal `BoundaryRef` is separate and never a public alternate identity. A legacy source `boundary_ref` ingress may be accepted **only** by a named versioned converter that resolves the minted public ID via a one-to-one Harness lookup; unknown/stale reference → `BOUNDARY_REF_INVALID`. No structural duck-typing to swap `EventWindowRefV1`, `ModelIntervalRef`, `ClockRef`, or `BoundaryRef`: wrong class/scope/generation → `WINDOW_REF_TYPE_MISMATCH` or `INTERVAL_MISMATCH`.
+**No `NormalizedChangeSetV1` public component return**; `NormalizedChangeSetV1` is an internal conversion result and cannot be submitted by a component. The `ProposalHeaderV1` is embedded in Action/StateDelta public outputs; EventIntentBatch shares the exact identity fence but is **a batch of event intents, not a Scheduler/Dynamics Proposal or ChangeSet**. All public `boundary_id` and `read_view_token` are explicit, not derivable from one another. `ProposalContext` carries both directly. Its optional internal `BoundaryRef` is separate and never a public alternate identity. A legacy source `boundary_ref` ingress may be accepted **only** by a named versioned converter that resolves the minted public ID via a one-to-one Harness lookup; unknown/stale reference → `BOUNDARY_REF_INVALID`. No structural duck-typing to swap `EventWindowRefV1`, `ModelIntervalRef`, `ClockRef`, or `BoundaryRef`: wrong class/scope/generation → `WINDOW_REF_TYPE_MISMATCH` or `INTERVAL_MISMATCH`.
 
 ### 0.2 Exact normalization, operation and failure correspondence to AI-A
 
@@ -78,7 +78,7 @@ class EventIntentBatchV1:
 | StateDeltaProposalV1 + interval | verify post-assignment view token, interval issued to **Dynamics**; one `dynamics.motion_energy.v1` operation per vehicle; convert valid `ServiceFactCandidate` to `domain.service_fact.v1` for separate POST_MODEL stage | `NormalizedChangeSetV1(phase=ADVANCE_MODEL, model_interval_ref=validated_ref)` + post-model fact staging, no event reenqueue | `INTERVAL_MISMATCH`, `NONFINITE_VALUE`, `SERVICE_FACT_INVALID` |
 | EventIntentBatchV1 | resolve `EventWindowRefV1` from **EventProvider polling window**; validate batch as a whole; normalize each accepted intent through Harness event admission, not directly through Scheduler public propose | `EventEnvelopeV1[]` (queue C); event handlers later produce internal `NormalizedChangeSetV1` in authorized phase | `WINDOW_REF_TYPE_MISMATCH`, `INVALID_EVENT_ORDER`, `EVENT_ID_CONFLICT` |
 | Scenario EventSpecV1 | pin scenario source ordinal, convert exact decimal seconds→ns, map registered kind→phase, preserve failure policy and ID | only Harness `EventEnvelopeV1` | `TIME_PRECISION_LOSS`, `UNKNOWN_PHASE_MAPPING` |
-| Any previous `ChangeSetV1` / `change-set.v1` submitted by component | **no converter as a public runtime interface**; only explicitly versioned import of historical *source proposal* accepted at offline migration boundary | none | `CONTRACT_VERSION_MISMATCH` |
+| Any previous `NormalizedChangeSetV1` / `change-set.v1` submitted by component | **no converter as a public runtime interface**; only explicitly versioned import of historical *source proposal* accepted at offline migration boundary | none | `CONTRACT_VERSION_MISMATCH` |
 
 **Public header ingress v0→v1 mapping (only named/versioned adapters, never silent):**
 `boundary_ref→boundary_id` by Harness ledger; `observed_revision/base_committed_revision→base_revision`; `observed_view_token/based_on_view_token→read_view_token`; `source_component_id→producer_id`; `capability_ref/provenance_ref` checked against immutable registry. Header schema and message schema are **distinct**. `ProposalContext` must not introduce a second public header version. For each `NormalizedChangeSetV1`, validate `proposal_id + source_digest` idempotency and all `OperationV1` reducers before staging; identical ID/digest is one decision, conflicting digest rejects `PROPOSAL_ID_CONFLICT`.
@@ -115,64 +115,25 @@ class EventWindowRefV1:  # opaque, minted by Harness; not interchangeable
 ## 1. Normative candidate: one logical boundary, three categories of records
 
 - **World committed truth B**: `WorldState` & domain fact ledger; **control C**: `Clock / queue / event admission / RNG cursor`; **component-private causal D**: checkpointable provider state; each strict boundary atomically publishes one coherent B/C/D pointer + **one** `revision` and `step_index` increment. All precommit phases use **immutable ProvisionalView** with `stage_seq`; no public micro-commit. Source = #58 `STATE_COMMIT_CONTRACT §§2–5`. #46 still permits visible micro-commit, so not frozen until ARCH-01+ARCH-02+ARCH-03 & coordinator agree.
-- **Proposed operations**: Scheduler emits `ActionProposal`; Dynamics emits `StateDeltaProposal`; Event handler/other providers emit typed `ChangeSet` candidates; **only Harness** converts and validates these into an ordered `ChangeSetV1` staging batch. `ChangeSet` is not an alternative public Scheduler/Dynamics method; `decide/advance` are internal Harness phase names, not provider methods.
+- **Proposed operations**: Scheduler emits `ActionProposal`; Dynamics emits `StateDeltaProposal`; Event handler/other providers emit typed `ChangeSet` candidates; **only Harness** converts and validates these into an ordered `NormalizedChangeSetV1` staging batch. `ChangeSet` is not an alternative public Scheduler/Dynamics method; `decide/advance` are internal Harness phase names, not provider methods.
 - **Queued pending work**: `EventSpecV1` (immutable Scenario source) and `EventIntentV1` (untrusted provider output) **must** be normalized by Harness admission to `EventEnvelopeV1` (single queue schema). A completed service/physical event is a **CommittedDomainFactV1 candidate** in the current ChangeSet, **not** an EventEnvelope accidentally re-entering the past queue. Future time-triggered work is separately emitted as EventIntent and validated.
 - **Status and evidence**: committed `BoundaryCommit/CommittedFrame` exist only after atomic publication; precommit attempt diagnostics live outside domain truth; postcommit MetricSamples/RunRecord evidence completeness are separate (CONTRACT-04).
 
-## 2. Canonical ProposalHeaderV1 candidate (shared for all component proposals)
+## 2. Public-to-internal field crosswalk (no duplicate type declaration)
 
-The original #55 proposals have `boundary_ref` and `observed_view_token` / `based_on_view_token`; #58 ChangeSet demands `boundary_id, phase, read_view_token, operations, emitted_event_intents`. The following **common header** replaces ad-hoc name translation at the Harness intake boundary; it is **not yet a frozen wire ABI**.
+**Authoritative candidate type declarations are §0.1** and the same shared field vocabulary as AI-A's #58 `STATE_COMMIT_CONTRACT §8`. Earlier #55 pseudo-types with per-class flat `boundary_ref` are legacy design candidates **superseded for strict public wire use**. The canonical nine identity fields are `run_id, generation, boundary_id, base_revision, read_view_token, proposal_id, producer_id, capability_ref, provenance_ref`; the version tag is `proposal-header.v1-candidate`. `NormalizedChangeSetV1` is *not* a public Proposal subtype.
 
-```python
-# PSEUDOTYPES; own schema_version tokens await ARCH-03/02 sign-off.
-class ProposalHeaderV1:
-    schema_version: str               # action-proposal.v1 | state-delta-proposal.v1 | change-set.v1
-    proposal_id: str                  # deterministic within run/generation; idempotency digest pair
-    run_id: str
-    generation: int                   # uint64; Harness-issued
-    boundary_id: str                  # Harness-issued, one logical boundary
-    base_revision: int                # uint64, last externally committed revision
-    read_view_token: str              # opaque Harness-issued token tied to stage_seq
-    producer_id: str                  # registered ComponentDescriptor.id
-    capability_ref: str               # frozen versioned capability & allowed operation kinds
-    provenance_ref: str               # pinned source/implementation/model/assembly digest
-    # body_digest is computed by converter over canonical semantic content; not supplied as trust authority.
+| Source form | Strict public schema | Harness-only normalized schema | Error |
+|---|---|---|---|
+| `boundary_ref` (old) | `header.boundary_id` (explicit string) | `boundary_id` validated via original minted RunScope mapping | `BOUNDARY_REF_INVALID` |
+| `observed_revision` / `base_committed_revision` | `header.base_revision` | `base_revision` | `REVISION_CONFLICT` |
+| `observed_view_token` / `based_on_view_token` | `header.read_view_token` | `read_view_token` | `STALE_OBSERVATION` |
+| `source_component_id` | `header.producer_id` | `producer_id` | `CAPABILITY_MISMATCH` |
+| `actions` | `ActionProposalV1.actions` | registered `task.assign_chain.v1` typed operation | `DOMAIN_OPERATION_UNMAPPED` |
+| `changes + service_facts` | `StateDeltaProposalV1.changes/service_facts` | registered `dynamics.motion_energy.v1` and `domain.service_fact.v1` operations | `SERVICE_FACT_INVALID` |
+| public proposal version | message `action-proposal.v1` or `state-delta-proposal.v1` + header version | `normalized-changeset.v1` | `CONTRACT_VERSION_MISMATCH` |
 
-class ActionProposalV1:
-    header: ProposalHeaderV1
-    actions: tuple["AssignTaskChain", ...]         # existing #55 kind and stable EntityId based
-    emitted_event_intents: tuple["EventIntentV1", ...]  # default empty, only if capability allowed
-
-class StateDeltaProposalV1:
-    header: ProposalHeaderV1
-    model_interval_ref: str
-    changes: tuple["MotionEnergyChange", ...]
-    service_facts: tuple["DomainFactCandidate", ...]
-    emitted_event_intents: tuple["EventIntentV1", ...]  # future queue work ONLY
-
-class NormalizedChangeSetV1:
-    header: ProposalHeaderV1
-    phase: "PhaseV1"                 # ARCH-02/AI-A assigned and capability-validated
-    operations: tuple["TypedDomainOperation", ...]
-    emitted_event_intents: tuple["EventIntentV1", ...]
-```
-
-**Field name authority & explicit aliases**:
-
-| Concept | #55 prior shape | #58 target | Candidate rule | Reject |
-|---|---|---|---|---|
-| Run/generation | `run_id,generation` | same | exact equality with RunScope | RUN_MISMATCH / STALE_GENERATION |
-| Boundary | `boundary_ref` opaque | `boundary_id` string | Harness resolves/ref→ID via one-to-one RunScope registry; never parse token or choose ID client-side | BOUNDARY_ID_CONFLICT |
-| Base state | `observed_revision` or `base_committed_revision` | `base_revision` | exact committed revision; neither stage counter nor step number | REVISION_CONFLICT |
-| Stage | `observed_view_token` / `based_on_view_token` | `read_view_token` | token must belong to expected *stage_seq* and same run/gen/boundary; same revision does not imply same stage | STALE_PROVISIONAL_VIEW (public alias STALE_OBSERVATION) |
-| Producer | `source_component_id` | `producer_id` | equality with trusted descriptor identity | CAPABILITY_MISMATCH |
-| Phase | inferred Scheduler/Dynamics call context | required `PhaseV1` | **Harness assigns** from registered category+phase capability; Scheduler APPLY_COMMAND; Dynamics ADVANCE_MODEL **proposal context only**, service fact POST_MODEL as separate validated domain stage; no component-enforced event order | INVALID_PHASE |
-| Operations | `actions` / `changes` / `service_facts` | `operations` | typed, versioned and deterministic conversion; see §3 | INPUT_SCHEMA_INVALID |
-| Emissions | service_facts ambiguous in #55 | `emitted_event_intents` | service fact becomes domain fact operation, not queue item; future scheduled events are separate intents | EVENT_ORDER_INVALID |
-| Source digests | `capability_ref,provenance_ref,model_manifest_digest` | `provenance` on operation | require pinned manifest/reference + conversion version; no ad hoc missing value | PROVENANCE_MISSING |
-| Identity digest | `proposal_id` only | idempotency ledger + canonical content digest | same ID & semantic digest returns recorded decision, same ID/different digest hard reject; no double effects | PROPOSAL_ID_CONFLICT |
-
-**Token rules**: `ProvisionalView` carries base revision, boundary_id, stage_seq and read_view_token; `ObservationV1` echoes these through `ProposalContext` and never manufactures tokens. Scheduler view comes after PRE_INPUT/PRE_DECISION staging; Dynamics view after accepted APPLY_COMMAND staging; metrics see only `CommittedFrame`. Any token from prior generation/phase, even with same base revision, fails closed.
+The conversion must be explicit, registered, source-and-output-digest-audited, and total-or-reject. `stage_seq` is not published committed revision; token binds the current authorized phase and cannot be copied from prior generation. `EventIntentBatchV1` has its own batch message with **`window_ref:EventWindowRefV1`**, not Dynamics' `ModelIntervalRef`. No `change-set.v1` public bypass.
 
 ## 3. Deterministic, total-or-reject conversions to ChangeSet
 
@@ -197,7 +158,7 @@ class NormalizedChangeSetV1:
 
 **Converter obligations**: reject unknown operation variant, unauthorized field, dangling/foreign refs, wrong state versions, missing unit/CRS, nonfinite number, negative energy consumed, repeated task assignments, conflicting leases, stale stages and unpinned model. Converter cannot mutate source proposal, consume RNG, enqueue events, advance clock or replace optimizer/physics. Its version & source/output canonical digests are recorded in RunSpec/trace. If domain operation lacks an agreed ARCH-01 typed reducer, return `DOMAIN_OPERATION_UNMAPPED` (no untyped JSON field patch fallback). Repeated identical proposal uses stored decision; two operations with colliding operation_id/different digests are rejected as `PROPOSAL_ID_CONFLICT`.
 
-**Required proposed fields on #55 existing types**: `boundary_id`, `read_view_token`, `base_revision`, `producer_id`, `emitted_event_intents`, with original names only as **versioned ingress aliases**. Existing #55 `actions` and `changes` remain domain payloads, **not** alternative authority to commit. Exact final fields need ARCH-03 and ARCH-02 signatures; until then no implicit coercion is allowed.
+**Superseded v0 ingress aliases; strict public fields in §0 are mandatory**: `boundary_id`, `read_view_token`, `base_revision`, `producer_id`, `emitted_event_intents`, with original names only as **versioned ingress aliases**. Existing #55 `actions` and `changes` remain domain payloads, **not** alternative authority to commit. Exact final fields need ARCH-03 and ARCH-02 signatures; until then no implicit coercion is allowed.
 
 ## 4. Event record conversion and same-time admission (AI-A / CONTRACT-01 owner)
 
