@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>SwarmBalance · 仿真工作台</title>
+  <link rel="stylesheet" href="/workbench/assets/workbench.css">
+  <script defer src="/workbench/assets/workbench-core.js"></script>
+  <script defer src="/workbench/assets/workbench.js"></script>
+</head>
+<body>
+  <aside class="sidebar">
+    <a class="brand" href="/workbench"><span class="brand-mark" aria-hidden="true">S<span>↗</span></span><span>SwarmBalance<small>群智优衡 / 仿真工作台</small></span></a>
+    <div class="edition">MVP—01 <span>WORKBENCH</span></div>
+    <nav aria-label="四个工作区">
+      <button data-page="projects" data-testid="nav-projects" class="active"><span>01</span>项目<span class="nav-arrow">↗</span></button>
+      <button data-page="config" data-testid="nav-config"><span>02</span>配置<span class="nav-arrow">↗</span></button>
+      <button data-page="run" data-testid="nav-run"><span>03</span>运行<span class="nav-arrow">↗</span></button>
+      <button data-page="results" data-testid="nav-results"><span>04</span>结果<span class="nav-arrow">↗</span></button>
+    </nav>
+    <div class="sidebar-foot"><span class="connection" id="connection">正在连接本地服务</span><p>已有杨浦地图 · Python 仿真引擎</p><a href="/" target="_blank" rel="noopener">打开原控制台 ↗</a></div>
+  </aside>
+  <main>
+    <header class="topbar"><span>研究工作空间 <span class="slash">/</span> <strong id="context-name">尚未选择项目</strong></span><span id="save-state" class="tag">未保存</span></header>
+    <div class="content">
+      <div id="notice" role="status" aria-live="polite" hidden></div>
+      <div id="error" role="alert" hidden></div>
+      <section id="page-projects" class="workspace">
+        <div class="heading"><div><p class="eyebrow">01 / PROJECTS</p><h1>从一个项目开始。</h1><p>保存场景与组件配置，让每次仿真都有可追溯的起点。</p></div><span class="technical">LOCAL<br>PERSISTENT</span></div>
+        <form id="project-form" class="project-create">
+          <div><label for="project-name">项目名称</label><input id="project-name" data-testid="project-name" name="name" placeholder="例如：杨浦配送 · 第一轮" maxlength="120" required><p class="hint">新项目：3 架同质无人机 / 5 个任务 / 600 步。可在配置区修改。</p></div>
+          <div class="actions"><button type="button" class="secondary" id="new-project" data-testid="new-project">新建空白项目</button><button class="primary" id="save-project" data-testid="save-project" type="submit">保存项目 <span>↗</span></button></div>
+        </form>
+        <div class="section-line"><h2>已保存项目 <span id="project-count" class="count">—</span></h2><button id="refresh-projects" class="text-button" data-testid="refresh-projects">刷新列表 ↻</button></div>
+        <div id="project-list" class="project-list" data-testid="project-list"><p class="empty">正在读取项目…</p></div>
+      </section>
+      <section id="page-config" class="workspace" hidden>
+        <div class="heading"><div><p class="eyebrow">02 / CONFIGURATION</p><h1>定义这一次仿真。</h1><p>可见字段修改将与完整原始配置一起保存，其他参数保持原值。</p></div><button class="primary" id="save-config" data-testid="save-config">保存配置 ↗</button></div>
+        <form id="config-form">
+          <div class="config-section"><div class="section-label"><span>SCENE</span><h2>场景与任务</h2><p>已有地图、真实机巢与任务生成。</p></div><div class="fields">
+            <label class="wide">地图<input value="杨浦 OSM 地图 · 固定已有地图" readonly aria-label="地图"><small>当前版本只支持此地图；机巢坐标单位为投影米。</small></label>
+            <label>任务生成方式<select data-field="simulation.task_generation.mode" data-testid="task-mode"><option value="realistic">有限任务集（realistic）</option><option value="constant">持续任务流（constant）</option></select></label>
+            <label>运行步数（每步 1 秒）<input type="number" min="1" max="100000" step="1" data-field="simulation.environment.episode_max_steps" data-testid="episode-steps" required></label>
+            <label>任务总量（有限任务集）<input type="number" min="0" step="1" data-field="simulation.task_generation.realistic.total_tasks" data-testid="total-tasks" required></label>
+            <label>初始任务（有限任务集）<input type="number" min="0" step="1" data-field="simulation.task_generation.realistic.initial_task_count" data-testid="initial-tasks" required></label>
+            <label>初始任务（持续任务流）<input type="number" min="0" step="1" data-field="simulation.task_generation.constant.initial_task_count" required></label>
+            <label>待分配任务上限（持续任务流）<input type="number" min="0" step="1" data-field="simulation.task_generation.constant.max_unassigned_tasks" required></label>
+          </div></div>
+          <div class="config-section"><div class="section-label"><span>FLEET</span><h2>机队与模型</h2><p>既有通用无人机模型。异构项目保留原机型配比。</p></div><div class="fields">
+            <label>无人机数量<input type="number" min="1" max="200" step="1" data-field="simulation.environment.num_drones" data-testid="num-drones" required></label>
+            <label class="checkbox-label"><input type="checkbox" data-field="simulation.heterogeneous.enabled" data-testid="heterogeneous">启用已有异构机队<small id="fleet-mix"></small></label>
+            <label>速度（m/s）<input type="number" min="0.001" step="any" data-field="simulation.drone.speed" data-testid="drone-speed" required></label>
+            <label>载重上限（kg）<input type="number" min="0.001" step="any" data-field="simulation.drone.carrying_capacity" required></label>
+            <label>电池容量（模型单位）<input type="number" min="0.001" step="any" data-field="simulation.drone.battery_capacity" required></label>
+            <label>基础能耗（模型单位/m）<input type="number" min="0.001" step="any" data-field="simulation.drone.battery_consumption_base" required></label>
+            <p class="hint wide">异构关闭时使用以上通用模型参数；开启时使用原配置的各机型参数，数量必须与原配比之和一致。</p>
+          </div></div>
+          <div class="config-section"><div class="section-label"><span>NESTS</span><h2>机巢</h2><p>编辑已有机巢坐标。泊位数对所有机巢统一生效。</p></div><div>
+            <label class="short-field">每个机巢的泊位数<input type="number" min="1" step="1" data-field="simulation.nest.berths" data-testid="nest-berths" required></label>
+            <div class="table-scroll"><table><thead><tr><th>机巢 ID</th><th>X（米）</th><th>Y（米）</th><th>换电时长（秒）</th></tr></thead><tbody id="nest-fields"></tbody></table></div>
+          </div></div>
+          <div class="config-section"><div class="section-label"><span>SCHEDULER</span><h2>算法与参数</h2><p>第一版接通现有 greedy 调度器。</p></div><div class="fields">
+            <label>调度算法<select data-field="algorithm" data-testid="algorithm"><option value="greedy">Greedy / 贪心调度（当前唯一支持）</option></select></label>
+            <label>随机种子<input type="number" min="0" max="4294967295" step="1" data-field="seed" data-testid="seed" required></label>
+            <label>任务接受概率<input type="number" min="0" max="1" step="any" data-field="algorithm_parameters.accept_probability" data-testid="accept-probability" required></label>
+            <p class="hint">0 禁止分配任务，1 允许正常分配。保存后启动时传给真实执行器。</p>
+          </div></div>
+        </form>
+      </section>
+      <section id="page-run" class="workspace" hidden>
+        <div class="heading"><div><p class="eyebrow">03 / EXECUTION</p><h1>让配置开始运行。</h1><p>独立 Python 进程执行真实仿真。初始化地图时，进度可能暂时为零。</p></div></div>
+        <div class="run-controls"><div><h2 id="run-project-name">尚未选择项目</h2><p id="run-config-summary" class="hint">请先创建并保存项目。</p></div><div class="actions"><button class="secondary" id="stop-run" data-testid="stop-run" disabled>停止运行</button><button class="primary" id="start-run" data-testid="start-run" disabled>开始真实仿真 ↗</button></div></div>
+        <p id="unsaved-warning" class="inline-warning" hidden>配置尚未保存。请先在项目或配置区保存，再运行。</p>
+        <div class="run-stage"><div class="section-line"><span class="eyebrow">RUN STATUS</span><strong id="run-status" data-testid="run-status">尚未运行</strong></div><div id="run-progress-number" class="progress-number">—<span>%</span></div><progress id="run-progress" max="1" value="0" aria-label="真实仿真进度"></progress><div class="section-line mono"><span id="run-steps">— / — 步</span><span id="run-id" data-testid="run-id">无运行记录</span></div><p id="run-error" class="run-error" role="status"></p></div>
+        <div class="section-line"><h2>运行记录</h2><button class="text-button" id="refresh-runs">刷新记录 ↻</button></div><div id="run-list" data-testid="run-list"></div>
+      </section>
+      <section id="page-results" class="workspace" hidden>
+        <div class="heading"><div><p class="eyebrow">04 / RESULTS</p><h1>用结果回答问题。</h1><p>指标与任务情况读取所选运行的持久记录。</p></div><button class="secondary" id="download-result" data-testid="download-result" disabled>下载结果 JSON ↓</button></div>
+        <label class="result-select">历史运行<select id="result-run" data-testid="result-run"><option value="">请先选择项目</option></select></label>
+        <p id="result-state" data-testid="result-state" class="empty">尚未选择已完成的运行。</p>
+        <div id="result-content" hidden><div class="metrics" id="metrics" data-testid="metrics"></div><div class="result-details"><div><h2>启动时的配置</h2><dl id="result-config"></dl></div><div><h2>运行证据</h2><dl id="result-evidence"></dl></div></div><div class="section-line"><h2>任务情况</h2><span class="hint">引擎目录保留待分配、执行中与最近 24 个完成任务</span></div><div class="table-scroll"><table><thead><tr><th>任务 ID</th><th>状态</th><th>优先级</th><th>分配无人机</th></tr></thead><tbody id="result-tasks"></tbody></table></div><details><summary>完整输入与结果（JSON）</summary><pre id="result-json"></pre></details></div>
+      </section>
+      <footer class="footer"><span>SWARMBALANCE <span class="footer-dot">●</span> 可复现的每一次运行</span><span>MVP—01</span></footer>
+    </div>
+  </main>
+</body></html>
