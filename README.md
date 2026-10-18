@@ -2,6 +2,8 @@
 
 # SwarmBalance · 群智优衡
 
+[仓库结构与可运行入口](docs/PROJECT_STRUCTURE.md) · [研究成果与证据边界](docs/research/README.md)
+
 **异构无人机集群三维协同调度仿真平台**
 
 [![Python](https://img.shields.io/badge/python-3.10-blue.svg)](https://www.python.org/)
