@@ -68,6 +68,30 @@ ALGORITHM_SOURCES = {
 }
 
 
+# Explicit opt-in feature flags that can change simulated custody, charging
+# or routing behavior. Do not copy arbitrary env vars (could contain secrets).
+# Defaults are recorded as "0" so omitted-vs-enabled is not ambiguous.
+EXPERIMENT_GATE_FLAGS = (
+    "SWARM_BALANCE_B5A_CARGO_CUSTODY_GATE",
+    "SWARM_BALANCE_B5B_EXTERNAL_HANDOFF",
+    "SWARM_BALANCE_B5C_MIXED_CHAIN_RELEASE",
+    "SWARM_BALANCE_B5F_QUEUE_RECONCILIATION",
+    "SWARM_BALANCE_B5G_SERIALIZED_RECONCILIATION",
+    "SWARM_BALANCE_INFLIGHT_WIND_REQUOTE",
+    "SWARM_BALANCE_HELD_ROUTE_REQUOTE",
+    "SWARM_BALANCE_AUTO_PLANNED_STATION",
+    "SWARM_BALANCE_CHARGE_TARGET_IDENTITY",
+    "SWARM_BALANCE_PLANNED_STATION_ROUTE",
+    "SWARM_BALANCE_STATION_ENERGY_GATE",
+)
+
+CUSTODY_AUDIT_SOURCES = (
+    "console/custody_journal.py",
+    "console/custody_transaction.py",
+    "console/custody_queue_bridge.py",
+)
+
+
 def _hash_sources(project_root: Path, rel_paths: Iterable[str]) -> Dict[str, str]:
     hashes: Dict[str, str] = {}
     for rel in rel_paths:
@@ -142,8 +166,25 @@ def write_manifest(
             "否则该算法的结果行在复现清单里是空的"
         )
     algorithm_source_files = {a: ALGORITHM_SOURCES[a] for a in algos}
+    # Only when custody-related features are enabled, capture the source of
+    # their actual audit and SQLite reconciliation path. Baseline manifests
+    # stay comparable in file coverage when every experimental gate is OFF.
+    gates = {name: os.environ.get(name, "0") for name in EXPERIMENT_GATE_FLAGS}
     listed = SHARED_SOURCES + sorted({f for a in algos for f in ALGORITHM_SOURCES[a]})
-    source_hashes = _hash_sources(project_root, listed)
+    if any(gates[name] == "1" for name in EXPERIMENT_GATE_FLAGS[:5]):
+        listed += list(CUSTODY_AUDIT_SOURCES)
+    source_hashes = _hash_sources(project_root, dict.fromkeys(listed))
+    # Real Drone.quote_flight_energy_wh() uses *onboard* only for the exact
+    # string "onboard"; empty, unset and any other value use assigned load.
+    # Record both the requested setting and effective calculation mode to
+    # prevent equal-seed results hiding a different Wh model.
+    requested_energy_mode = os.environ.get("SWARM_BALANCE_ENERGY_ACCOUNTING")
+    energy_policy = {
+        "requested": requested_energy_mode,
+        "effective": "onboard" if requested_energy_mode == "onboard" else "assigned",
+        "fallback_to_assigned": requested_energy_mode not in (None, "assigned", "onboard"),
+    }
+
 
     manifest: Dict[str, Any] = {
         "schema_version": 2,
@@ -170,8 +211,10 @@ def write_manifest(
             "algorithm_config": {"path": _display_path(algorithm_config, project_root), "sha256": sha256_file(algorithm_config)},
             "osm": {"path": _display_path(osm_path, project_root), "sha256": sha256_file(osm_path)},
         },
+        "energy_accounting_policy": energy_policy,
         "environment_flags": {
             "SWARM_BALANCE_SIM_CONFIG": os.environ.get("SWARM_BALANCE_SIM_CONFIG"),
+            **gates,
         },
         "notes": [
             "同一实验条件下不同算法使用相同 Seed。",

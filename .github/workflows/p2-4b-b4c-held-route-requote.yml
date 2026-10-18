@@ -1,0 +1,48 @@
+name: P2.4b-B4c held charging route re-quote RED
+on:
+  push:
+    branches: [p2-4b-b4c-held-route-requote-v1]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  b4c-held-requote:
+    name: Reopened nest and headwind explicit replan
+    runs-on: windows-2022
+    timeout-minutes: 40
+    env:
+      PYTHONIOENCODING: utf-8
+      PYTHONUTF8: "1"
+      PYTHONDONTWRITEBYTECODE: "1"
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+          cache: pip
+          cache-dependency-path: requirements.txt
+      - name: Install pinned dependencies
+        run: |
+          python -m venv .venv310
+          .\.venv310\Scripts\python.exe -m pip install "pip==23.3.2" numpy==1.26.4
+          .\.venv310\Scripts\python.exe -m pip install -r requirements.txt
+      - name: Real B4c held route RED/GREEN
+        run: |
+          .\.venv310\Scripts\python.exe -m unittest -v scripts.test_p2_4b_b4c_held_route_requote
+      - name: Inherited B4b B4 B3c B3b B3a B2 B1 P2.2 C4 and exact historical scope
+        run: |
+          .\.venv310\Scripts\python.exe -m unittest -v scripts.test_p2_4b_b4b_auto_target_closure scripts.test_p2_4b_b4_auto_planned_nest scripts.test_p2_4b_b3c_target_station scripts.test_p2_4b_b3b_planned_charge_route scripts.test_p2_4b_b3_planned_station_quote scripts.test_p2_4b_b2_station_energy_gate scripts.test_p2_4b_b1_energy_quote scripts.test_p2_2_flight_energy_gate console.test_c4_cargo_truth_scan_gate scripts.p2_4a_state_contract_test
+      - name: Frozen E0 bit-for-bit replay with all experiments OFF
+        env:
+          SWARM_BALANCE_HELD_ROUTE_REQUOTE: "0"
+          SWARM_BALANCE_AUTO_PLANNED_STATION: "0"
+          SWARM_BALANCE_CHARGE_TARGET_IDENTITY: "0"
+          SWARM_BALANCE_PLANNED_STATION_ROUTE: "0"
+          SWARM_BALANCE_STATION_ENERGY_GATE: "0"
+        run: |
+          .\.venv310\Scripts\python.exe -m unittest discover -s frontend -p test_wind_injection.py -v

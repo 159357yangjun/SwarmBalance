@@ -480,7 +480,8 @@ def main(argv=None) -> int:
         # 同一把尺子也伸到 paper/：清单过期即红。这边只核"清单还是不是代码现在算出来的
         # 那一份"，不核论文正文 —— 删哪几行是作者权决定，不是这道门能替做的。
         prc = paper_report(["--verify"])
-        wrc = rewrite_report(["--verify"])
+        wrc = rewrite_report(["--verify", "--portable"] if "--portable-rewrite" in argv
+                             else ["--verify"])
         crc = csv_census_report(["--verify"])
         return rc or prc or wrc or crc
     return 0

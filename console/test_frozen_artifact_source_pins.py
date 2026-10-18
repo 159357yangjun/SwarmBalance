@@ -287,17 +287,27 @@ class FrozenArtifactSourcePin(unittest.TestCase):
         ⚠ 本用例原先只在真 CHANGELOG 上测"存在的那几条都带名"，那是**只有阳性面**的判据：
           它证明不了"名字与标记词分在两行时不算声明"（第三十九笔入档时我自己把这条列为残余边界 (iii)）。
           本轮把它从"登记为盲区"改成"实测过"——加一条合成两行文本喂进 _declarations_from。
-        ⚠ `decls` 是**引用型产物集合上的**声明，不是全表：同一行里同时提到多个产物目录名时，
-          那一行会给每个被点名的产物都发一份声明。所以断言只能要求"该行含某个被引用的产物名"，
-          不能要求"该行含我正在循环的那个名字" —— 第四十二笔补覆盖面声明时就这样误红过一次
-          （一行里同时写了 235335 与 221039，被判"没写出 221039"）。
+        ⚠ `decls` 来自 CHANGELOG 所有带名声明，并不只包含当前有目录的产物：
+          历史声明留档不等于目前仍被引用。对当前引用是否可豁免，由 test_A
+          逐一按产物名查对应声明；本测试逐条核声明原文与其自身目录名同行，
+          再用两行/同行夹具证明漏了目录名时无法取得通行证。
         """
         decls = _declarations()
         refs = set(referenced_artifacts())
-        for name, (ln, txt) in list(decls.items()):
-            hit = [r for r in refs if r in txt]
-            self.assertTrue(hit,
-                            "[FP_BLIND] CHANGELOG:%d 的声明没写出任何被引用的目录名 ⇒ 不该算覆盖" % ln)
+        changelog_lines = CHANGELOG.read_text(encoding="utf-8").splitlines()
+        # CHANGELOG may retain a named declaration after its artifact leaves
+        # the checkout. An archived declaration never grants an unrelated live
+        # artifact a pass: require its OWN name and marker on the SAME line.
+        for name, (ln, _preview) in list(decls.items()):
+            full_line = changelog_lines[ln - 1]
+            self.assertIn(name, full_line,
+                          "[FP_BLIND] CHANGELOG:%d 的声明没包含其自身目录 %s" % (ln, name))
+            self.assertTrue(any(mark in full_line for mark in EXPIRY_MARKS),
+                            "[FP_BLIND] CHANGELOG:%d 的声明缺少过期标记" % ln)
+        self.assertTrue(refs & set(decls),
+                        "[FP_BLIND] 没有任何被引用的产物获得具名过期声明，声明门空转")
+        print("[FP_DECL_SCOPE] named=%d referenced=%d active=%d archival_only=%d" %
+              (len(decls), len(refs), len(refs & set(decls)), len(set(decls) - refs)))
         # 反向证人：光有标记词、不带任何目录名的行，不应产出任何声明
         bare = [l for l in CHANGELOG.read_text(encoding="utf-8").splitlines()
                 if any(m in l for m in EXPIRY_MARKS) and not DIR_RE.search(l)]

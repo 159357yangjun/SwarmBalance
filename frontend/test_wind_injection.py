@@ -93,18 +93,38 @@ class WindInjectionEquivalenceTests(unittest.TestCase):
         self.assertEqual(k0, k1, "seed/格次集合不一致，无法逐 run 对撞：%s" % (k0 ^ k1))
 
     def test_every_run_reproduces_e0_bit_for_bit(self):
-        """逐 run、逐指标比对。任何一格不同都算失败并点名是哪一格。"""
+        """Freeze E0 unchanged; only approved A mileage reclassification may drift.
+
+        Never claim that a pre-A empty-load ratio is comparable to post-A.
+        All non-mileage E0 metrics still require bit-for-bit equality.
+        """
         idx = {(r["取值"], r["重复"]): r for r in self.e1_zero}
         metrics = [c for c in list(self.e0[0].keys())[10:]]   # 跳过元数据列
         bad = []
+        mileage_scope_drift = []
         for r in self.e0:
             s = idx.get((r["取值"], r["重复"]))
             self.assertIsNotNone(s, "缺格 %s×rep%s" % (r["取值"], r["重复"]))
             self.assertEqual(s["Seed"], r["Seed"], "seed 漂移")
             for m in metrics:
                 if r[m] != s[m]:
-                    bad.append("%s/rep%s/%s: E0=%s E1zero=%s" % (r["取值"], r["重复"], m, r[m], s[m]))
-        self.assertEqual(bad, [], "E1+静风未逐字复现 E0（%d 处）:\n  %s" % (len(bad), "\n  ".join(bad[:12])))
+                    evidence = "%s/rep%s/%s: frozen_E0=%s current_calm=%s" % (
+                        r["取值"], r["重复"], m, r[m], s[m])
+                    if m == "空载率":
+                        # A explicitly changes attribution using pre-movement
+                        # state. Archive the drift; NEVER rewrite frozen E0.
+                        mileage_scope_drift.append(evidence)
+                    else:
+                        bad.append(evidence)
+        self.assertEqual(bad, [], "[E0_UNAPPROVED_DRIFT] E0 vs calm changed outside approved mileage KPI:\n  "
+                         + "\n  ".join(bad[:12]))
+        self.assertEqual(len(mileage_scope_drift), len(self.e0),
+                         "[E0_MILEAGE_SCOPE_UNCALIBRATED] expected a named mileage re-attribution in every frozen row")
+        print("[E0_MILEAGE_SCOPE_INCOMPARABLE] frozen E0 is preserved; empty-load "
+              "ratio has a NEW definition, rows=%d. NOT bit-identical and NOT "
+              "historically comparable." % len(mileage_scope_drift))
+        for evidence in mileage_scope_drift:
+            print("[E0_MILEAGE_DRIFT] " + evidence)
 
     def test_shipped_config_has_no_wind_key(self):
         """默认配置里不该出现 wind 键 —— 出现了就等于把风塞进了正式参数。"""

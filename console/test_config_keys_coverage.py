@@ -42,6 +42,11 @@ CONFIG_FILES = [
 SRC_EXT = {".py", ".html", ".js", ".bat", ".ps1"}
 SKIP_DIRS = {".git", "__pycache__", "node_modules", ".venv310", ".idea",
              ".osm_cache", "data", "results", "deliverables", "paper", "docs"}
+# Static production config coverage must not be earned by audit-only source.
+# This P1 test reads nameplate full_load_range_km to check Wh/m -> Wh/km;
+# simulation still never consumes these entries. Keep the three explicit
+# ALLOWED_UNREAD explanations until production genuinely reads the key.
+AUDIT_ONLY_SOURCE_FILES = {"scripts/test_p1_load_energy_ledger_audit.py"}
 
 # 允许"代码里查不到字面量"的键：必须写 reason，且 reason 里要点明真正的读取位置。
 # 结构：{dotted_path_or_key: reason}
@@ -73,6 +78,8 @@ def _code_string_literals() -> set:
             # 本文件自身必须排除：否则"在门禁源码里写出键名"就等于"该键被读取"，
             # 门禁可以自证通过，检查就废了。
             if os.path.realpath(full) == here:
+                continue
+            if Path(full).relative_to(ROOT).as_posix() in AUDIT_ONLY_SOURCE_FILES:
                 continue
             try:
                 with io.open(full, encoding="utf-8", errors="replace") as fh:
@@ -136,6 +143,16 @@ class ConfigKeyCoverageTests(unittest.TestCase):
                       "探针字面量必须真实存在于本文件，否则这条变异测试是空转")
         # 用 assertFalse 而不是 assertNotIn：后者的默认消息是
         # "'x' unexpectedly found in {整个容器}"，会把上万个字面量全打出来（实测 158KB）。
+        self.assertTrue(
+            (ROOT / "scripts" / "test_p1_load_energy_ledger_audit.py").is_file(),
+            "[CFG_AUDIT_SCOPE] explicitly excluded P1 audit test is missing",
+        )
+        # If the excluded audit were counted as production, these three
+        # nameplate-only fields would falsely invalidate ALLOWED_UNREAD.
+        # A real production reader will still be found by the scanner.
+        self.assertNotIn("full_load_range_km", self.literals,
+                         "[CFG_AUDIT_SCOPE] nameplate key unexpectedly referenced by production;"
+                         " re-audit its ALLOWED_UNREAD entries")
         self.assertFalse(
             _SELF_EXCLUSION_PROBE in self.literals,
             "门禁自身源码的字面量进入了语料集 —— 说明语料集没有排除本文件。"

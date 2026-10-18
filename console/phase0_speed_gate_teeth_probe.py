@@ -53,6 +53,8 @@ FACES = {
 def _write_cfg(tasks, mix):
     base = json.loads((ROOT / "config" / "simulation.json").read_text(encoding="utf-8"))
     base["task_generation"]["realistic"].update({"interval_scale": 0.70, "total_tasks": tasks})
+    from console.g2_speed_fixture import isolate_g2_battery_depletion
+    isolate_g2_battery_depletion(base)  # temporary speed-test input only
     base["heterogeneous"]["fleet_mix"] = mix
     # num_drones 与 mix 合计对齐：见 test_speed_fallback_gate._load_config_for_gate() 的恒等式。
     base["environment"]["num_drones"] = sum(int(v) for v in mix.values())
@@ -95,6 +97,7 @@ def main(face):
 
         counts = {"n": 0}
         peak = {"p": 0}
+        blocked_drone_steps = 0
         from backend_si import pso_scheduler as P
         orig = P.PSOOptimizer.optimize
         orig_maybe = P.PSOScheduler._maybe_flush_buffer
@@ -117,6 +120,8 @@ def main(face):
             while not done:
                 action = sch.step(obs, current_time=env.current_time)
                 obs, _, done, _ = env.step(action)
+                blocked_drone_steps += sum(bool(getattr(d, "flight_energy_blocked", False))
+                                           for d in env.drones)
             reasons = _read_flush_reasons(sch)
         finally:
             P.PSOOptimizer.optimize = orig
@@ -125,11 +130,12 @@ def main(face):
         # "mix=[1," / "2," ..." 这种残片（本轮实测 ValueError）。
         print('TEETH face="%s" tasks=%d mix="%s" drones_in_env=%d speeds="%s" '
               'optimize_calls=%d flush_size=%d flush_emergency=%d flush_timeout=%d '
-              'buffer_peak=%d has_denominator=%s' % (
+              'buffer_peak=%d blocked_drone_steps=%d has_denominator=%s' % (
                   face, spec["tasks"], ",".join(str(v) for v in sorted(spec["mix"].values())),
                   n_in_env, ",".join("%.1f" % s for s in speeds),
                   counts["n"], reasons["flush_size"], reasons["flush_emergency"],
-                  reasons["flush_timeout"], peak["p"], counts["n"] > 0))
+                  reasons["flush_timeout"], peak["p"], blocked_drone_steps,
+                  counts["n"] > 0))
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
 
