@@ -62,3 +62,6 @@ results/experiments/paper_*/
 results/experiments/custom_*/
 results/experiments/web_status.json
 results/experiments/web_runner.log
+
+# Locally persisted projects and runs (not research evidence)
+results/mvp/

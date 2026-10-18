@@ -52,6 +52,9 @@ jobs:
         run: |
           .\.venv310\Scripts\python.exe -c "import sys, numpy, osmnx, shapely, geopandas, fiona, pyproj, networkx, pandas, yaml, ortools, fastapi; assert sys.version_info[:2] == (3, 10); assert numpy.__version__ == '1.26.4'; print('[CI_DEPS] Python', sys.version.split()[0], 'NumPy', numpy.__version__)"
 
+      - name: Verify isolated persistent project backend on integrated research engine
+        run: .\.venv310\Scripts\python.exe -m unittest discover -s tests/integration -p test_mvp_backend.py -v
+
       - name: Compile Python sources
         run: .\.venv310\Scripts\python.exe -m compileall -q backend_si console experiments frontend scripts
 

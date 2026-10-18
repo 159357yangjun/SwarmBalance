@@ -1001,3 +1001,18 @@ def compare():
         "comparability_refusal": compare_refusal,
         "compared_sources": selected_sources,
     }
+
+# MVP project's persistent run API stays after the legacy implementation so
+# frozen source-anchored research citations retain their original line numbers.
+from console.mvp_api import router as mvp_router, service as mvp_service
+app.include_router(mvp_router)
+
+
+@app.on_event("startup")
+def _recover_mvp_runs():
+    mvp_service.recover()
+
+
+@app.on_event("shutdown")
+def _stop_mvp_runs():
+    mvp_service.shutdown()
