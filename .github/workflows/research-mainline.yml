@@ -1,0 +1,31 @@
+name: Research provenance smoke
+on:
+  pull_request:
+    branches: [master]
+    paths:
+      - "experiments/reproducibility.py"
+      - "data/research_r2_sources.json"
+      - "docs/RESEARCH_R2_SOURCE_FEASIBILITY.md"
+      - "scripts/test_research_energy_policy_manifest.py"
+      - "scripts/test_research_r2_source_gate.py"
+      - ".github/workflows/research-mainline.yml"
+  push:
+    branches: [master]
+    paths:
+      - "experiments/reproducibility.py"
+      - "data/research_r2_sources.json"
+      - "docs/RESEARCH_R2_SOURCE_FEASIBILITY.md"
+      - "scripts/test_research_energy_policy_manifest.py"
+      - "scripts/test_research_r2_source_gate.py"
+      - ".github/workflows/research-mainline.yml"
+jobs:
+  provenance:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+      - name: Verify source metadata and energy policy without sim dependencies
+        run: python -m unittest -v scripts.test_research_energy_policy_manifest scripts.test_research_r2_source_gate
