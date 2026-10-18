@@ -1,0 +1,5 @@
+$ python TaskUI/tools/taskui_check.py TaskUI/examples/good.project.taskui.json --strict
+EXIT_CODE=0
+
+PASS: errors=0 warnings=0
+静态清单检查通过不等于 UI 已实现、好用或通过可用性测试
