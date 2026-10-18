@@ -209,15 +209,24 @@
   async function loadResult(id) {
     const token=resultGate.next(),projectId=state.project?.project_id;
     renderResult(null);$('result-state').textContent=id?'正在读取运行结果…':'尚未选择已完成的运行。';
+    if(id && !state.runs.some(run=>run.run_id===id && run.project_id===projectId)){
+      $('result-state').textContent='所选结果不属于当前项目，或运行记录已不存在。';return;
+    }
+    // Result browsing is independent of the run watched by the execution workspace.
+    if(projectId)storage.set('result-'+projectId,id);
     if(!id)return;
     try {
       const run=await api('/runs/'+id);
       if(!resultGate.current(token)||state.project?.project_id!==projectId)return;
+      if(run.project_id!==projectId)throw new Error('运行记录不属于当前项目。');
       if(run.status!=='completed'){
         $('result-state').textContent=`${statusText(run.status)}：${run.error || (active(run)?'运行尚未完成，可到运行区查看真实进度。':'此运行没有完整结果。')}`;return;
       }
       const result=await api('/runs/'+id+'/result');
-      if(resultGate.current(token)&&state.project?.project_id===projectId)renderResult(result);
+      if(resultGate.current(token)&&state.project?.project_id===projectId){
+        if(result.project_id!==projectId)throw new Error('结果记录不属于当前项目。');
+        renderResult(result);
+      }
     }catch(error){if(resultGate.current(token)){$('result-state').textContent=error.message;tell(error.message,true);}}
   }
   function showPage(name) {
@@ -252,7 +261,13 @@
       const id=storage.get('project');
       if(id && state.projects.some(project=>project.project_id===id))await openProject(id,true);
       showPage(storage.get('page')||'projects');
-      if(page==='results' && state.runs.length){const run=state.runs.find(item=>item.run_id===storage.get('run-'+id))||state.runs[0];$('result-run').value=run.run_id;await loadResult(run.run_id);}
+      if(page==='results' && state.runs.length){
+        const selected=storage.get('result-'+state.project.project_id);
+        const saved=state.runs.find(run=>run.run_id===selected && run.project_id===state.project.project_id);
+        const run=saved || state.runs.find(run=>run.status==='completed') || state.runs[0];
+        $('result-run').value=run.run_id;await loadResult(run.run_id);
+        if(selected && !saved)tell('上次选择的结果记录已不存在，已打开此项目最近的可用运行。');
+      }
     }catch(error){tell(error.message+' 修复服务后刷新页面重试。',true);}
   }
   init();

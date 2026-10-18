@@ -22,7 +22,7 @@ $env:SWARM_BALANCE_MVP_DATA = Join-Path (Get-Location) 'results/mvp-workbench'
 2. 配置区修改机队数量、通用无人机速度/容量/能耗、任务生成、机巢坐标、所有机巢统一泊位、种子和接受概率，再点击“保存配置”。地图固定已有杨浦 OSM。机巢坐标来自已保存配置，没有虚构地图。异构开启时保留原配置机型与配比，通用模型参数只在同质模式消费。
 3. 运行区点击“开始真实仿真”，记录实际 `run_id`。进度读取持久状态，每 650ms 轮询；首次加载地图可能暂时为 0。未保存修改时禁止运行。可停止运行；停止或中断保留状态但不提供完整结果。
 4. 结果区选择一条历史运行。指标来自所选 `result.snapshot.stats`，输入证据来自 `result.project` 和 `engine_input`；点击“下载结果 JSON”导出完整真实记录。任务表显示引擎 `task_catalog`，包括待分配、执行中与最近 24 个完成任务，完整累计任务数以统计字段为准。
-5. 刷新页面会通过本地保存的选择 ID 重新读取项目、运行状态及结果。重启同一服务与数据目录后，仍可在项目列表重新打开历史记录。
+5. 刷新页面会通过本地保存的选择 ID 重新读取项目、运行状态及结果。每个项目的结果选择与运行区观察的运行 ID 独立保存；查看较旧结果不会改变正在观察的运行，刷新结果页仍恢复所选历史结果。若已保存的结果 ID 不再存在，则明确提示并选择此项目最近的可用运行。重启同一服务与数据目录后，仍可在项目列表重新打开历史记录。
 
 API 离线、400/404/409/422 返回可读错误，失败不重置表单。切换项目或新建前提示放弃未保存输入；切换项目/运行使用独立请求代次，迟到响应不覆盖当前结果。页面名称和任务字段在 HTML 渲染前转义。
 
@@ -53,3 +53,29 @@ editor: immutable defaults, full config, numeric validation, stale requests, API
 ## 交付状态
 
 四区客户端和自动检查已交付；独立浏览器完整操作、重启恢复和平台总体裁决交主控与 AI-R。此文档没有宣称整体 MVP 已 PASS。当前仅支持已有地图、random 数据源和 greedy；没有新增地图编辑、异构配比编辑、批量实验或其他算法。接口契约详见 `docs/mvp01-api.md`。
+
+## AI-R 历史恢复问题修复
+
+AI-R 实际发现：在结果区选择较旧运行后，刷新会回到运行区最近观察的运行。根因是结果选择没有独立持久化，初始化借用了运行观察的存储键。
+
+现在用每项目独立的 `result-<project_id>` 保存结果选择，保留原 `run-<project_id>` 的运行恢复行为。下拉选择与完成列表打开统一通过 `loadResult` 保存；初始化先确认 ID 属于本项目且存在，再读取结果。状态与结果返回也检查项目归属，原请求代次继续屏蔽迟到响应。
+
+新增回归直接在 Node DOM 边界环境执行生产 `workbench.js`，不是仅检查新增辅助函数。先实际看到失败 `result dropdown must save its own selection`，修复后执行：
+
+```powershell
+$env:PYTHONUTF8='1'
+.venv310/Scripts/python.exe -m unittest console.test_mvp_workbench -v
+node --check console/static/workbench.js
+git diff --check
+```
+
+实际输出：
+
+```text
+Ran 3 tests in 2.977s
+OK
+editor: immutable defaults, full config, numeric validation, stale requests, API errors PASS
+history UI: dropdown/list persistence, reload, missing fallback, watched-run and stale-project isolation PASS
+```
+
+语法与差异检查退出码 0。独立真实浏览器复验仍由 AI-R 执行，此修复的自动结果不代替总体功能验收。

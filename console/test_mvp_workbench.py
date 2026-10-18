@@ -16,6 +16,87 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class WorkbenchTests(unittest.TestCase):
+    def test_result_history_selection_survives_reload_without_changing_watched_run(self):
+        node = shutil.which("node")
+        if not node:
+            self.skipTest("Node.js required for UI orchestration regression")
+        script = r'''
+const assert = require('node:assert/strict'), vm = require('node:vm'), fs = require('node:fs');
+const config = JSON.parse(fs.readFileSync('./config/simulation.json','utf8'));
+const project={project_id:'p1',name:'history',simulation:config,algorithm:'greedy',seed:101,algorithm_parameters:{}};
+const otherProject={...project,project_id:'p2',name:'other project'};
+const runs=[{run_id:'recent',project_id:'p1',status:'completed',step:600,total_steps:600,progress:1},
+            {run_id:'older',project_id:'p1',status:'completed',step:600,total_steps:600,progress:1}];
+const data=new Map([['swarm-mvp-project','p1'],['swarm-mvp-page','results'],['swarm-mvp-run-p1','recent']]);
+const otherRun={...runs[0],run_id:'other-run',project_id:'p2'};
+let delayOlder=false,releaseOlder;
+const result = id => ({run_id:id,project_id:id==='other-run'?'p2':'p1',project:id==='other-run'?otherProject:project,engine_input:{},snapshot:{stats:{completed:id==='older'?6:0,generated:6,completion_rate:id==='older'?1:0,timeout_rate:0,energy:id==='older'?1123:0},task_catalog:[]}});
+function boot() {
+  const nodes=new Map();
+  function element(id) {
+    if(!nodes.has(id)) {
+      const item={value:'',textContent:'',hidden:false,disabled:false,dataset:{},handlers:{},
+        classList:{add(){},remove(){},toggle(){}},addEventListener(type,handler){this.handlers[type]=handler;},setAttribute(){}};
+      Object.defineProperty(item,'innerHTML',{get(){return this.html||'';},set(value){this.html=value;if(id==='result-run')this.value='';}});
+      nodes.set(id,item);
+    }
+    return nodes.get(id);
+  }
+  const document={getElementById:element,querySelectorAll:()=>[],body:{classList:{add(){},remove(){}}}};
+  const context={document,window:{WorkbenchCore:require('./console/static/workbench-core.js'),addEventListener(){},confirm:()=>true},
+    localStorage:{getItem:key=>data.get(key)||null,setItem:(key,value)=>data.set(key,value)},
+    setTimeout,clearTimeout,AbortController,console,
+    fetch:async url=>{
+      const path=url.replace('/api/mvp','');let value;
+      if(path==='/defaults')value={simulation:config};
+      else if(path==='/projects')value={projects:[project,otherProject]};
+      else if(path==='/projects/p1')value=project;
+      else if(path==='/projects/p2')value=otherProject;
+      else if(path==='/projects/p1/runs')value={runs};
+      else if(path==='/projects/p2/runs')value={runs:[otherRun]};
+      else if(path.endsWith('/result'))value=result(path.split('/')[2]);
+      else if(path.startsWith('/runs/'))value=[...runs,otherRun].find(run=>run.run_id===path.split('/')[2]);
+      else throw new Error('Unexpected request '+path);
+      if(delayOlder && path==='/runs/older/result')await new Promise(resolve=>releaseOlder=resolve);
+      return {ok:true,json:async()=>structuredClone(value)};
+    }};
+  vm.runInNewContext(fs.readFileSync('./console/static/workbench.js','utf8'),context);
+  return element;
+}
+async function settle(){for(let i=0;i<25;i++)await new Promise(resolve=>setImmediate(resolve));}
+(async()=>{
+  let ui=boot();await settle();
+  ui('result-run').value='older';ui('result-run').handlers.change();await settle();
+  assert.equal(JSON.parse(ui('result-json').textContent).run_id,'older');
+  assert.equal(data.get('swarm-mvp-result-p1'),'older','result dropdown must save its own selection');
+  assert.equal(data.get('swarm-mvp-run-p1'),'recent','historical result must not replace watched run');
+  ui=boot();await settle();
+  assert.equal(ui('result-run').value,'older','refresh must restore selected historical run');
+  assert.equal(JSON.parse(ui('result-json').textContent).snapshot.stats.completed,6);
+  ui('result-run').value='recent';ui('result-run').handlers.change();await settle();
+  ui('run-list').handlers.click({target:{closest:()=>({dataset:{openRun:'older'}})}});await settle();
+  assert.equal(data.get('swarm-mvp-result-p1'),'older','completed list click must also persist result selection');
+  data.set('swarm-mvp-result-p1','missing');ui=boot();await settle();
+  assert.equal(ui('result-run').value,'recent','missing result must fall back to an existing project run');
+  assert.match(ui('notice').textContent,/不存在/);
+  assert.equal(data.get('swarm-mvp-run-p1'),'recent');
+  delayOlder=true;ui('result-run').value='older';ui('result-run').handlers.change();await settle();
+  assert.equal(typeof releaseOlder,'function');
+  ui('project-list').handlers.click({target:{closest:()=>({dataset:{openProject:'p2'}})}});await settle();
+  ui('result-run').value='other-run';ui('result-run').handlers.change();await settle();
+  releaseOlder();await settle();
+  assert.equal(JSON.parse(ui('result-json').textContent).project_id,'p2','late p1 result must not overwrite current p2');
+  assert.equal(data.get('swarm-mvp-result-p1'),'older');
+  assert.equal(data.get('swarm-mvp-result-p2'),'other-run');
+  assert.equal(data.get('swarm-mvp-run-p1'),'recent');
+  console.log('history UI: dropdown/list persistence, reload, missing fallback, watched-run and stale-project isolation PASS');
+})().catch(error=>{console.error(error);process.exitCode=1;});
+'''
+        result = subprocess.run([node, "-e", script], cwd=ROOT, text=True,
+                                encoding="utf-8", capture_output=True)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        print(result.stdout.strip())
+
     def test_editor_preserves_hidden_config_and_rejects_bad_fields(self):
         node = shutil.which("node")
         if not node:
