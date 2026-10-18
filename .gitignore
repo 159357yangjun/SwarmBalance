@@ -62,3 +62,6 @@ results/experiments/paper_*/
 results/experiments/custom_*/
 results/experiments/web_status.json
 results/experiments/web_runner.log
+
+# MVP 本地项目、配置快照、运行日志和结果（与历史实验隔离）
+results/mvp/

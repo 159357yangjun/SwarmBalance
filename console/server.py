@@ -36,6 +36,7 @@ from console import scenario_presets  # noqa: E402
 from console.scene_library import SceneLibrary  # noqa: E402
 from console.config_validation import assert_valid_simulation_config  # noqa: E402
 from console.capabilities import runtime_capabilities  # noqa: E402
+from console.mvp_api import router as mvp_router, service as mvp_service  # noqa: E402
 
 try:  # sim_session 已把 frontend/ 加入 sys.path；取规范要求的步长常量作为唯一来源
     from drone import STEP_SECONDS  # noqa: E402
@@ -43,6 +44,17 @@ except Exception:  # pragma: no cover - 缺依赖时仍要能让 /api/meta 起�
     STEP_SECONDS = 1.0
 
 app = FastAPI(title="无人机调度仿真控制台")
+app.include_router(mvp_router)
+
+
+@app.on_event("startup")
+def _recover_mvp_runs():
+    mvp_service.recover()
+
+
+@app.on_event("shutdown")
+def _stop_mvp_runs():
+    mvp_service.shutdown()
 
 _STATIC = Path(__file__).resolve().parent / "static" / "index.html"
 _SPEC = Path(__file__).resolve().parent / "static" / "spec.html"
