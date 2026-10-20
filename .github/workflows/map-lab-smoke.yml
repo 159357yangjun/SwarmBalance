@@ -6,6 +6,7 @@ on:
     paths:
       - '.github/workflows/map-lab-smoke.yml'
       - 'console/map_lab.py'
+      - 'console/run.py'
       - 'console/static/map_lab.html'
       - 'console/server.py'
       - 'data/map/fosi/**'
@@ -28,7 +29,7 @@ jobs:
       - name: Install minimal preview dependencies
         run: python -m pip install fastapi==0.141.1 httpx
       - name: Compile isolated GIS Python modules
-        run: python -m py_compile console/map_lab.py scripts/prepare_fosi_map.py
+        run: python -m py_compile console/map_lab.py console/run.py scripts/prepare_fosi_map.py
       - name: Verify map region dry-run needs no network
         run: python scripts/prepare_fosi_map.py --dry-run
       - name: Run preview security and missing-data unit tests

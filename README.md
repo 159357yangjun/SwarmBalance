@@ -45,7 +45,7 @@ experiments 4 文件 / 37 用例、frontend 2 文件 / 21 用例、仓库根窄�
 在线底图显示辽宁阜新佛寺镇参考中心附近约 5 × 5 km，**尚不是佛寺镇无人机仿真运行**。
 
 ```bash
-python -m console.run --portable
+python -m console.run --portable --map-lab  # 自动打开佛寺镇地图试验区
 # 可选：下载/裁剪辽宁 OSM 原始数据，叠加真实道路、建筑和水域 GeoJSON
 python -m pip install osmium shapely
 python scripts/prepare_fosi_map.py

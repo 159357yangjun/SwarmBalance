@@ -46,6 +46,7 @@ def main():
     parser.add_argument("--no-browser", action="store_true", help="启动后不自动打开浏览器")
     parser.add_argument("--skip-preflight", action="store_true", help="跳过环境预检（仅排障使用）")
     parser.add_argument("--portable", action="store_true", help="便携 Web 模式：允许内置 OSM 解析器，缺少桌面/OR-Tools 依赖时降级运行")
+    parser.add_argument("--map-lab", action="store_true", help="启动后直接打开佛寺镇地图试验区，不切换仿真地图")
     args = parser.parse_args()
 
     if not args.skip_preflight:
@@ -60,7 +61,7 @@ def main():
             raise SystemExit(2)
         print("[启动预检] 通过" + ("（便携 Web 模式）" if args.portable else ""))
 
-    url = f"http://{args.host}:{args.port}/"
+    url = f"http://{args.host}:{args.port}/" + ("map-lab" if args.map_lab else "")
     uvicorn = _import_uvicorn()
     print(f"控制台启动中：{url}")
     # 预热走后台线程、端口照常早开：实测若把预热挪到绑定端口之前，虽然首个

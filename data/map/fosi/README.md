@@ -1,6 +1,6 @@
 # 佛寺镇试验区 GIS 数据
 
-使用现有入口 `python -m console.run --portable`，然后浏览器访问 `http://127.0.0.1:8765/map-lab`。原控制台及杨浦仿真不变。
+运行 `python -m console.run --portable --map-lab` 可自动打开地图；或者使用原入口 `python -m console.run --portable`，然后浏览器访问 `http://127.0.0.1:8765/map-lab`。原控制台及杨浦仿真不变。
 
 - 区域：辽宁省阜新市阜新蒙古族自治县佛寺镇参考中心 (121.44231 E, 41.93736 N)，约 5 × 5 km，准确范围见 `region.json`。该区域不是从截图量测的精确边界。
 - 首次拉取后，**在线底图**和边界框会直接显示；公共 OSM 图块是按浏览视野正常请求，**不批量下载**。
