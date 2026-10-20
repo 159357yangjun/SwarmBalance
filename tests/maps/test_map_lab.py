@@ -36,7 +36,7 @@ class FosiMapLabTests(unittest.TestCase):
             f.write_text('{"type":"FeatureCollection","features":[]}',encoding="utf-8")
             with patch.object(map_lab,"DATA_DIR",Path(temp)):
                 response=map_lab.map_lab_layer("roads")
-                self.assertEqual(response.path,str(f))
+                self.assertEqual(Path(response.path), f)
                 self.assertEqual(response.media_type,"application/geo+json")
 
 if __name__=="__main__":
