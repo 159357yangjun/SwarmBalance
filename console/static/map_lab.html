@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>SwarmBalance · 佛寺镇地图试验区</title>
+<link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css">
+<style>
+:root{font-family:system-ui,"Microsoft Yahei",sans-serif;color:#213242;background:#eef3f5}*{box-sizing:border-box}body{margin:0}
+header{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 20px;background:#fff;border-bottom:1px solid #dce4eb;min-height:67px}
+b.brand{font-size:18px}.sub{font-size:12px;color:#667989}nav{display:flex;gap:14px;flex-wrap:wrap}a{color:#1d4ed8;text-decoration:none;font-size:13px}
+main{display:grid;grid-template-columns:295px minmax(0,1fr);height:calc(100vh - 67px);min-height:480px}
+aside{padding:20px;background:#fff;border-right:1px solid #e1e8ef;overflow:auto}
+h1{font-size:19px;margin:0 0 9px}h2{font-size:13px;margin:20px 0 10px}p{font-size:12px;color:#5b6c7b;line-height:1.65}
+#map{min-height:420px;position:relative;background:#edf3f5}
+.state{padding:11px;border-radius:8px;font-size:12px;line-height:1.6;background:#edf4fa;border:1px solid #dce8f5}
+.state.error{background:#fff1f2;border-color:#fecdd3;color:#9f1239}
+.state.good{background:#f0fdf4;border-color:#bbf7d0;color:#166534}
+label.layer{display:flex;align-items:center;gap:9px;padding:10px 0;border-bottom:1px solid #edf1f4;font-size:13px;cursor:pointer}
+label.layer input{accent-color:#2563eb}label.layer small{margin-left:auto;color:#64748b}
+.command{background:#f5f7f9;border-radius:8px;padding:12px;margin-top:18px}
+code{font-size:11px;line-height:1.8;overflow-wrap:anywhere}#messages{display:grid;gap:6px;margin-top:12px}
+.note{padding:7px 9px;border-left:3px solid #94a3b8;background:#f7f9fa;color:#536574;font-size:11px}.note.error{border-color:#ef4444;color:#991b1b}
+.box{position:absolute;top:14px;left:14px;z-index:1;padding:11px 13px;border-radius:8px;background:rgba(255,255,255,.95);border:1px solid #dee6ed;box-shadow:0 3px 12px #0001}
+.box b{font-size:12px}.box p{margin:6px 0;font-size:11px}button{padding:7px 12px;background:#1d4ed8;color:#fff;border:0;border-radius:5px;cursor:pointer}
+#tile-error{display:none;position:absolute;left:14px;bottom:28px;right:14px;padding:9px;background:#fff1f2;color:#9f1239;border:1px solid #fecdd3;z-index:2;font-size:12px;border-radius:6px}
+small.note-legal{display:block;margin-top:20px;color:#7c8792;font-size:11px;line-height:1.5}
+@media(max-width:720px){header{flex-wrap:wrap}main{display:flex;flex-direction:column;height:auto}#map{height:57vh;min-height:360px;order:0}aside{order:1}}
+</style></head><body>
+<header><div><b class="brand">SwarmBalance / 地图试验区</b><div class="sub">佛寺镇附近 · GIS 数据预览 · 尚未接入无人机仿真</div></div><nav><a href="/">原仿真控制台 ↗</a><a href="/workbench">项目工作台 ↗</a><a href="https://www.openstreetmap.org/copyright" rel="noopener" target="_blank">OSM 版权 ↗</a></nav></header>
+<main>
+<aside><h1>佛寺镇 · 约 5 × 5 km</h1><p>根据参考坐标定位的试验区，不是截图的精确四至。查看在线底图不代表已经获取建筑碰撞和禁飞约束数据。</p>
+<div id="state" class="state" role="status" aria-live="polite">检查地图数据…</div>
+<h2>本地真实地理图层</h2>
+<label class="layer"><input type="checkbox" data-layer="water" checked>水体 / 河流<small id="c-water">—</small></label>
+<label class="layer"><input type="checkbox" data-layer="landuse" checked>土地利用<small id="c-landuse">—</small></label>
+<label class="layer"><input type="checkbox" data-layer="roads" checked>道路<small id="c-roads">—</small></label>
+<label class="layer"><input type="checkbox" data-layer="railways" checked>铁路<small id="c-railways">—</small></label>
+<label class="layer"><input type="checkbox" data-layer="buildings" checked>建筑轮廓<small id="c-buildings">—</small></label>
+<div id="messages" aria-live="polite"></div>
+<div class="command"><h2 style="margin-top:0">下载并裁剪真实 OSM 数据</h2><p>地图底图可以立即浏览；本地建筑、道路需手动下载一次，然后刷新页面。</p><code>python -m pip install osmium shapely<br>python scripts/prepare_fosi_map.py</code><p>原始数据源：Geofabrik 辽宁，初次需要联网下载省级 PBF。</p></div>
+<small class="note-legal">© OpenStreetMap contributors · ODbL。没有建筑轮廓不代表没有建筑；本页面只读，不会更改杨浦仿真或历史实验。</small></aside>
+<section id="map" aria-label="佛寺镇地图">
+<div class="box"><b>试验区预览 · 蓝色虚线为边界</b><p id="center">121.44231°E / 41.93736°N</p><button id="back">回到试验区</button></div>
+<div id="tile-error" role="alert"></div>
+</section></main>
+<script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+<script>
+(function(){
+"use strict";
+const bbox=[121.41216481,41.91485205,121.47245519,41.95986786],center=[121.44231,41.93736];
+const state=document.getElementById("state"),notes=document.getElementById("messages"),err=document.getElementById("tile-error");
+function message(s,bad){const e=document.createElement("div");e.className="note"+(bad?" error":"");e.textContent=s;notes.appendChild(e)}
+function error(s){err.textContent=s;err.style.display="block"}
+if(!window.maplibregl){state.className="state error";state.textContent="MapLibre JS 加载失败：检查 CDN 网络，地图浏览不可用。";return}
+const styles={
+water:{type:"fill",paint:{"fill-color":"#59b2e4","fill-opacity":0.42}},
+landuse:{type:"fill",paint:{"fill-color":"#7cbd72","fill-opacity":0.24}},
+roads:{type:"line",paint:{"line-color":"#d55f26","line-width":2}},
+railways:{type:"line",paint:{"line-color":"#7e22ce","line-width":1.5,"line-dasharray":[3,2]}},
+buildings:{type:"fill",paint:{"fill-color":"#475569","fill-opacity":0.58}}
+};
+const map=new maplibregl.Map({
+container:"map",center,zoom:12.5,attributionControl:true,
+style:{version:8,sources:{osm:{type:"raster",tiles:["https://tile.openstreetmap.org/{z}/{x}/{y}.png"],tileSize:256,attribution:"© OpenStreetMap contributors"}},layers:[{id:"background",type:"background",paint:{"background-color":"#e9f0f0"}},{id:"basemap",type:"raster",source:"osm"}]}
+});
+map.addControl(new maplibregl.NavigationControl(),"top-right");
+map.on("error",e=>error("在线地图资源加载失败，无法保证底图可用："+String(e.error?.message||"网络异常")));
+map.on("move",()=>{const c=map.getCenter();document.getElementById("center").textContent=c.lng.toFixed(5)+"°E / "+c.lat.toFixed(5)+"°N";});
+const fit=()=>map.fitBounds([[bbox[0],bbox[1]],[bbox[2],bbox[3]]],{padding:50,duration:300});
+document.getElementById("back").addEventListener("click",fit);
+for(const name of Object.keys(styles)){
+const input=document.querySelector('[data-layer="'+name+'"]');
+input.addEventListener("change",()=>{if(map.getLayer("local-"+name))map.setLayoutProperty("local-"+name,"visibility",input.checked?"visible":"none")});
+}
+async function displayLayer(name){
+try{
+ const response=await fetch("/api/map-lab/layers/"+name,{cache:"no-store"});
+ if(!response.ok)throw Error("HTTP "+response.status);
+ const data=await response.json();
+ if(data.type!=="FeatureCollection"||!Array.isArray(data.features))throw Error("GeoJSON格式错误");
+ map.addSource("local-"+name,{type:"geojson",data});
+ map.addLayer({id:"local-"+name,source:"local-"+name,...styles[name]});
+ document.getElementById("c-"+name).textContent=data.features.length+" 个";
+ map.setLayoutProperty("local-"+name,"visibility",document.querySelector('[data-layer="'+name+'"]').checked?"visible":"none");
+ message(name+"：已叠加 "+data.features.length+" 个对象",false);
+}catch(e){message(name+"：无法加载本地数据（"+String(e)+"）",true)}
+}
+map.on("load",async()=>{
+map.addSource("extent",{type:"geojson",data:{type:"Feature",properties:{},geometry:{type:"Polygon",coordinates:[[[bbox[0],bbox[1]],[bbox[2],bbox[1]],[bbox[2],bbox[3]],[bbox[0],bbox[3]],[bbox[0],bbox[1]]] ]}}});
+map.addLayer({id:"extent-outline",type:"line",source:"extent",paint:{"line-color":"#1d4ed8","line-width":3,"line-dasharray":[2,2]}});
+fit();
+try{
+ const response=await fetch("/api/map-lab/status",{cache:"no-store"});if(!response.ok)throw Error("HTTP "+response.status);
+ const data=await response.json();
+ const ready=Object.values(data.layers).filter(x=>x.ready).length;
+ state.className="state"+(ready?" good":"");
+ state.textContent=ready?"已准备 "+ready+"/5 类本地 GIS 数据；仅用于展示。":"在线底图可浏览。本地建筑、道路等数据尚未下载；原仿真仍使用杨浦地图。";
+ for(const name of Object.keys(styles)){
+  if(data.layers[name]?.ready) await displayLayer(name);
+  else document.getElementById("c-"+name).textContent="待下载";
+ }
+}catch(e){state.className="state error";state.textContent="地理数据服务无法访问："+String(e)}
+});
+})();
+</script></body></html>

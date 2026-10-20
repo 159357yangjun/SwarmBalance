@@ -39,6 +39,21 @@ experiments 4 文件 / 37 用例、frontend 2 文件 / 21 用例、仓库根窄�
 
 ---
 
+## 🗺️ 佛寺镇地图试验区（GIS 预览，不改变旧仿真）
+
+从现有 Web 控制台顶部点击 **佛寺镇地图 ↗**，或访问 `http://127.0.0.1:8765/map-lab`。
+在线底图显示辽宁阜新佛寺镇参考中心附近约 5 × 5 km，**尚不是佛寺镇无人机仿真运行**。
+
+```bash
+python -m console.run --portable
+# 可选：下载/裁剪辽宁 OSM 原始数据，叠加真实道路、建筑和水域 GeoJSON
+python -m pip install osmium shapely
+python scripts/prepare_fosi_map.py
+# 刷新 /map-lab 检查本地图层
+```
+
+地图数据来源、许可、限制及运行步骤见 [佛寺镇地图说明](data/map/fosi/README.md)。原杨浦地图和实验结果未改变。
+
 ## ✨ 核心特性
 
 | 特性 | 说明 |

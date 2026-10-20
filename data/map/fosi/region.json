@@ -1,0 +1,19 @@
+{
+  "id": "fosi_town_5km_v0",
+  "name": "辽宁阜新佛寺镇附近（约 5 km × 5 km 试验区）",
+  "center_lon_lat": [
+    121.44231,
+    41.93736
+  ],
+  "bbox_wgs84_lonlat": [
+    121.41216481,
+    41.91485205,
+    121.47245519,
+    41.95986786
+  ],
+  "coordinate_system": "EPSG:4326",
+  "recommended_working_crs": "EPSG:32651",
+  "source_url": "https://download.geofabrik.de/asia/china/liaoning-latest.osm.pbf",
+  "attribution": "© OpenStreetMap contributors",
+  "warning": "参考位置的约5km区块，不是用户截图的精确四至。缺失的建筑数据不能当作没有建筑。"
+}

@@ -65,3 +65,7 @@ results/experiments/web_runner.log
 
 # Locally persisted projects and runs (not research evidence)
 results/mvp/
+
+# Fosi GIS raw third-party downloads and generated local output.
+/data/map/fosi/raw/
+/data/map/fosi/output/

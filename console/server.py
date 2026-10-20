@@ -34,6 +34,7 @@ from experiments.reporting import DIRECTION_AMBIGUOUS as AMBIGUOUS_DIRECTION_MET
 from console import experiment_service  # noqa: E402
 from console import scenario_presets  # noqa: E402
 from console.scene_library import SceneLibrary  # noqa: E402
+from console.map_lab import router as map_lab_router  # noqa: E402
 from console.config_validation import assert_valid_simulation_config  # noqa: E402
 from console.capabilities import runtime_capabilities  # noqa: E402
 
@@ -43,6 +44,7 @@ except Exception:  # pragma: no cover - 缺依赖时仍要能让 /api/meta 起�
     STEP_SECONDS = 1.0
 
 app = FastAPI(title="无人机调度仿真控制台")
+app.include_router(map_lab_router)
 
 _STATIC = Path(__file__).resolve().parent / "static" / "index.html"
 _SPEC = Path(__file__).resolve().parent / "static" / "spec.html"
