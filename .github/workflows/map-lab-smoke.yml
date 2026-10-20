@@ -1,0 +1,53 @@
+name: Fosi map-lab smoke
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - '.github/workflows/map-lab-smoke.yml'
+      - 'console/map_lab.py'
+      - 'console/static/map_lab.html'
+      - 'console/server.py'
+      - 'data/map/fosi/**'
+      - 'scripts/prepare_fosi_map.py'
+      - 'tests/maps/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  map-preview-contract:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+      - name: Install minimal preview dependencies
+        run: python -m pip install fastapi==0.141.1 httpx
+      - name: Compile isolated GIS Python modules
+        run: python -m py_compile console/map_lab.py scripts/prepare_fosi_map.py
+      - name: Verify map region dry-run needs no network
+        run: python scripts/prepare_fosi_map.py --dry-run
+      - name: Run preview security and missing-data unit tests
+        run: python -m unittest discover -s tests/maps -p 'test_*.py' -v
+      - name: Verify HTTP routes are reachable without simulation startup
+        shell: bash
+        run: |
+          python - <<'PY'
+          from fastapi import FastAPI
+          from fastapi.testclient import TestClient
+          from console.map_lab import router
+          app=FastAPI()
+          app.include_router(router)
+          with TestClient(app) as client:
+              page=client.get('/map-lab')
+              assert page.status_code == 200 and '佛寺镇地图试验区' in page.text
+              state=client.get('/api/map-lab/status')
+              assert state.status_code == 200
+              assert state.json()['simulation_connected'] is False
+              assert client.get('/api/map-lab/layers/unknown').status_code == 404
+              print('MAP-LAB endpoints: PASS (read-only, no-data case)')
+          PY
