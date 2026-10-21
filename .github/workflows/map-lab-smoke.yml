@@ -31,7 +31,9 @@ jobs:
       - name: Install minimal preview dependencies
         run: python -m pip install fastapi==0.141.1 httpx shapely==2.0.7 numpy==1.26.4
       - name: Compile isolated GIS Python modules
-        run: python -m py_compile console/map_lab.py console/gis_import.py console/run.py scripts/prepare_fosi_map.py\n      - name: Verify GIS JavaScript syntax\n        run: node --check console/static/map_lab.js
+        run: python -m py_compile console/map_lab.py console/gis_import.py console/run.py scripts/prepare_fosi_map.py
+      - name: Verify GIS JavaScript syntax
+        run: node --check console/static/map_lab.js
       - name: Verify map region dry-run needs no network
         run: python scripts/prepare_fosi_map.py --dry-run
       - name: Run preview security and missing-data unit tests
