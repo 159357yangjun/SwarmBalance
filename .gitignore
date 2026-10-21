@@ -69,3 +69,6 @@ results/mvp/
 # Fosi GIS raw third-party downloads and generated local output.
 /data/map/fosi/raw/
 /data/map/fosi/output/
+
+# On-demand GIS tile cache, generated map packages, import jobs (not source code).
+/data/map/gis/

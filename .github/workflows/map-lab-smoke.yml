@@ -6,8 +6,10 @@ on:
     paths:
       - '.github/workflows/map-lab-smoke.yml'
       - 'console/map_lab.py'
+      - 'console/gis_import.py'
       - 'console/run.py'
       - 'console/static/map_lab.html'
+      - 'console/static/map_lab.js'
       - 'console/server.py'
       - 'data/map/fosi/**'
       - 'scripts/prepare_fosi_map.py'
@@ -27,9 +29,9 @@ jobs:
         with:
           python-version: '3.10'
       - name: Install minimal preview dependencies
-        run: python -m pip install fastapi==0.141.1 httpx
+        run: python -m pip install fastapi==0.141.1 httpx shapely==2.0.7 numpy==1.26.4
       - name: Compile isolated GIS Python modules
-        run: python -m py_compile console/map_lab.py console/run.py scripts/prepare_fosi_map.py
+        run: python -m py_compile console/map_lab.py console/gis_import.py console/run.py scripts/prepare_fosi_map.py\n      - name: Verify GIS JavaScript syntax\n        run: node --check console/static/map_lab.js
       - name: Verify map region dry-run needs no network
         run: python scripts/prepare_fosi_map.py --dry-run
       - name: Run preview security and missing-data unit tests
@@ -45,7 +47,7 @@ jobs:
           app.include_router(router)
           with TestClient(app) as client:
               page=client.get('/map-lab')
-              assert page.status_code == 200 and '佛寺镇地图试验区' in page.text
+              assert page.status_code == 200 and '地图数据工作台' in page.text
               state=client.get('/api/map-lab/status')
               assert state.status_code == 200
               assert state.json()['simulation_connected'] is False

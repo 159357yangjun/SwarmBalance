@@ -39,20 +39,20 @@ experiments 4 文件 / 37 用例、frontend 2 文件 / 21 用例、仓库根窄�
 
 ---
 
-## 🗺️ 佛寺镇地图试验区（GIS 预览，不改变旧仿真）
+## 🗺️ 地图按需准备试验版（GIS 预览，不改变旧仿真）
 
-从现有 Web 控制台顶部点击 **佛寺镇地图 ↗**，或访问 `http://127.0.0.1:8765/map-lab`。
-在线底图显示辽宁阜新佛寺镇参考中心附近约 5 × 5 km，**尚不是佛寺镇无人机仿真运行**。
+打开 `http://127.0.0.1:8765/map-lab`，或者在原控制台点击地图入口；地图页已经支持**鼠标框选 / 输入 bbox / 选取视野 → 按选区分块获取 OSM 数据 → 本地缓存 → 生成带哈希的只读预览包**。不需要手动下载整个辽宁省，原有杨浦仿真保持不变。
 
 ```bash
-python -m console.run --portable --map-lab  # 自动打开佛寺镇地图试验区
-# 可选：下载/裁剪辽宁 OSM 原始数据，叠加真实道路、建筑和水域 GeoJSON
-python -m pip install osmium shapely
-python scripts/prepare_fosi_map.py
-# 刷新 /map-lab 检查本地图层
+python -m console.run --portable --map-lab
+# 若使用便携模式且未安装 Shapely，地图导入需要额外装：
+python -m pip install shapely
 ```
 
-地图数据来源、许可、限制及运行步骤见 [佛寺镇地图说明](data/map/fosi/README.md)。原杨浦地图和实验结果未改变。
+小范围地图使用 Overpass 公共查询（顺序请求、限速、缓存、429 重试）；首次运行必须联网且公共服务可能不可用。单个选区限制为约 30 km²，暂不支持巨量下载。生成的 `data/map/gis/` 缓存和地图包不提交 Git。地图包记录数据源、范围、OSM 时间戳、对象数量和质量限制；只还原 OSM ways、**没有组装全部 multipolygon relation，不构成可用于无人机安全避障的正式计算地图**。实验运行仍使用原杨浦地图。
+
+旧的辽宁省 PBF 手动裁剪脚本 `scripts/prepare_fosi_map.py` 留作可选数据研究工具，不是新用户工作流的一部分。
+详情：[佛寺镇 GIS 数据说明](data/map/fosi/README.md)。
 
 ## ✨ 核心特性
 
