@@ -2,7 +2,7 @@ name: Fosi map-lab smoke
 
 on:
   push:
-    branches: [master]
+    branches: [master, 'studio/**']
     paths:
       - '.github/workflows/map-lab-smoke.yml'
       - 'console/map_lab.py'

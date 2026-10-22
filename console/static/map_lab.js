@@ -14,6 +14,7 @@ const styles = {
 };
 let map, bbox=DEFAULT_BBOX.slice(), pendingPoint=null, drawing=false, pollTimer=null, activeJob=null;
 const mounted = [];
+const LABELS = {water:"水体与河流",landuse:"土地利用",roads:"道路",railways:"铁路",buildings:"建筑轮廓"};
 function message(txt,isError=false){
  const box=document.createElement("div");box.className="note"+(isError?" error":"");
  box.textContent=txt; $("messages").prepend(box);
@@ -48,7 +49,11 @@ function drawBox(b){
 function inputsFromBox(b){
  ["west","south","east","north"].forEach((key,i)=>$(key).value=b[i].toFixed(7));
 }
-function clearLayers(){
+function clearLayers(clearSaved=true){
+ if(clearSaved){
+  sessionStorage.removeItem("swarmbalance_preview_package");
+  sessionStorage.removeItem("swarmbalance_preview_bbox");
+ }
  if(!map)return;
  for(const entry of mounted.reverse()){
   if(map.getLayer(entry))map.removeLayer(entry);
@@ -61,14 +66,16 @@ function clearLayers(){
  $("quality").hidden=true;
 }
 function setBBox(next,fit=false){
+ const issue=check(next);
+ if(issue){$("selection").textContent=issue;$("selection").className="error";$("prepare").disabled=true;return false;}
  bbox=next.map(v=>Number(v.toFixed(7)));
  inputsFromBox(bbox);drawBox(bbox);
- const issue=check(bbox), a=area(bbox);
- $("selection").textContent=issue||("约 "+a.w.toFixed(2)+" × "+a.h.toFixed(2)+" km · "+a.km2.toFixed(2)+" km²");
- $("selection").className=issue?"error":"";
- $("prepare").disabled=Boolean(issue||activeJob);
+ const a=area(bbox);
+ $("selection").textContent="约 "+a.w.toFixed(2)+" × "+a.h.toFixed(2)+" km · "+a.km2.toFixed(2)+" km²";
+ $("selection").className="";
+ $("prepare").disabled=Boolean(activeJob);
  if(fit && map)map.fitBounds([[bbox[0],bbox[1]],[bbox[2],bbox[3]]],{padding:55,duration:400});
- return !issue;
+ return true;
 }
 function stopDrawing(){
  drawing=false;pendingPoint=null;
@@ -84,8 +91,9 @@ function selectClick(event){
  const b=[Math.min(p[0],pendingPoint[0]),Math.min(p[1],pendingPoint[1]),
           Math.max(p[0],pendingPoint[0]),Math.max(p[1],pendingPoint[1])];
  stopDrawing();
+ ignoreNextFeatureClick=true;
  if(!setBBox(b,true))message("请重新选择范围："+check(b),true);
- else {clearLayers();state("选区已更改。点击“准备选区数据”开始获取真实地理图层。");}
+ else {clearLayers();state("选区已更改。点击“准备选区数据”开始获取真实地理图层。");openDrawer("region");}
 }
 function paintFeatureLayer(kind,data){
  map.addSource("data-"+kind,{type:"geojson",data});
@@ -99,7 +107,11 @@ function paintFeatureLayer(kind,data){
 }
 async function showPackage(packageId){
  const manifest=await api("/api/gis/packages/"+encodeURIComponent(packageId));
- clearLayers();
+ const remoteBBox=manifest.bbox_wgs84_lonlat;
+ if(!Array.isArray(remoteBBox)||remoteBBox.length!==4||remoteBBox.some((v,i)=>Math.abs(v-bbox[i])>1e-6)){
+  throw Error("已准备地图包与当前选区不匹配，请重新选择对应区域。");
+ }
+ clearLayers(false);
  for(const kind of KINDS){
   try{
    const data=await api("/api/gis/packages/"+encodeURIComponent(packageId)+"/layers/"+kind);
@@ -113,7 +125,10 @@ async function showPackage(packageId){
    "未解析的 way "+(q.invalid_ways||0)+" · 未知建筑高度 "+(q.unknown_building_heights||0)+
    " · 未处理 multipolygon relations · 仿真可用性：否";
  state("已准备固定版本的 OSM 图层（仅供预览；不能直接当作无人机避障数据）",true);
+ sessionStorage.setItem("swarmbalance_preview_package",packageId);
+ sessionStorage.setItem("swarmbalance_preview_bbox",JSON.stringify(bbox));
  message("选区地图包："+packageId+"，已加载数据图层。");
+ if($("workspace-drawer").hidden||openPane!=="resources")openDrawer("resources");
 }
 function statusJob(job){
  $("progress").style.display="block";
@@ -138,8 +153,12 @@ async function poll(){
   if(["complete","failed","cancelled","interrupted"].includes(job.status)){
    clearPolling();
    if(job.status==="complete"&&job.package_id){
-    await showPackage(job.package_id);
-    message("本次使用缓存块："+(job.cache_hits||0)+"/"+job.total_tiles);
+    if(!Array.isArray(job.bbox)||job.bbox.length!==4||job.bbox.some((v,i)=>Math.abs(v-bbox[i])>1e-6)){
+     message("另一选区的数据准备已完成；未覆盖当前地图。请重新准备当前选区。",true);
+    }else{
+     await showPackage(job.package_id);
+     message("本次使用缓存块："+(job.cache_hits||0)+"/"+job.total_tiles);
+    }
    }else{
     state("任务状态："+job.status+"。"+job.message);
     message(job.message||"未完成地图准备",true);
@@ -210,6 +229,79 @@ function setup(){
  }
  map.on("click",selectClick);
 }
+
+/* Map-first desktop shell. Panels are overlays and NEVER reduce the map viewport. */
+let openPane=null;
+let ignoreNextFeatureClick=false;
+function setExpanded(id,value){const el=$(id);if(el)el.setAttribute("aria-expanded",String(value));}
+function openDrawer(pane){
+ const close=openPane===pane&&!$("workspace-drawer").hidden;
+ if(close){hideDrawer();return;}
+ openPane=pane;
+ $("workspace-drawer").hidden=false;
+ $("panel-resources").hidden=pane!=="resources";
+ $("panel-region").hidden=pane!=="region";
+ $("drawer-title").textContent=pane==="resources"?"地图图层与要素":"区域选择与数据准备";
+ ["resources-trigger","region-trigger"].forEach(id=>{
+  const active=id===(pane==="resources"?"resources-trigger":"region-trigger");
+  $(id).classList.toggle("active",active);setExpanded(id,active);
+ });
+}
+function hideDrawer(){
+ $("workspace-drawer").hidden=true;openPane=null;
+ for(const id of ["resources-trigger","region-trigger"]){$(id).classList.remove("active");setExpanded(id,false);}
+}
+function toggleActivity(force){
+ const el=$("activity-panel");
+ const show=typeof force==="boolean"?force:el.hidden;
+ el.hidden=!show;
+ setExpanded("activity-trigger",show);setExpanded("footer-activity",show);
+ $("activity-trigger").classList.toggle("active",show);
+}
+function hideInspector(){$("inspector").hidden=true;}
+function inspectFeature(event){
+ if(ignoreNextFeatureClick){ignoreNextFeatureClick=false;return;}
+ if(drawing)return;
+ const visible=mounted.filter(id=>map.getLayer(id)&&map.getLayoutProperty(id,"visibility")!=="none");
+ if(!visible.length){hideInspector();return;}
+ const features=map.queryRenderedFeatures(event.point,{layers:visible});
+ if(!features.length){hideInspector();return;}
+ const f=features[0],properties=f.properties||{};
+ const kind=(f.layer?.id||"").replace(/^lyr-/,"").replace(/-\d+$/,"");
+ $("feature-layer").textContent=LABELS[kind]||kind;
+ $("feature-id").textContent=properties.osm_id||"未知";
+ $("feature-height").textContent=properties.height||"未知（不能推断为 0）";
+ $("feature-levels").textContent=properties.building_levels||"未知";
+ $("inspector").hidden=false;
+}
+function setupShell(){
+ $("resources-trigger").addEventListener("click",()=>openDrawer("resources"));
+ $("region-trigger").addEventListener("click",()=>openDrawer("region"));
+ $("open-region").addEventListener("click",()=>openDrawer("region"));
+ $("close-drawer").addEventListener("click",hideDrawer);
+ $("close-inspector").addEventListener("click",hideInspector);
+ $("activity-trigger").addEventListener("click",()=>toggleActivity());
+ $("footer-activity").addEventListener("click",()=>toggleActivity());
+ $("close-activity").addEventListener("click",()=>toggleActivity(false));
+ $("header-prepare").addEventListener("click",()=>openDrawer("region"));
+ const popup=$("app-dropdown"), button=$("app-menu");
+ button.addEventListener("click",()=>{
+  popup.hidden=!popup.hidden;setExpanded("app-menu",!popup.hidden);
+ });
+ document.addEventListener("click",e=>{
+  if(!popup.hidden&&!popup.contains(e.target)&&!button.contains(e.target)){
+   popup.hidden=true;setExpanded("app-menu",false);
+  }
+ });
+ document.addEventListener("keydown",e=>{
+  if(e.key==="Escape"){
+   hideDrawer();hideInspector();toggleActivity(false);
+   popup.hidden=true;setExpanded("app-menu",false);
+  }
+ });
+ map.on("click",inspectFeature);
+}
+
 if(!window.maplibregl){
  state("无法加载 MapLibre，请检查浏览器联网情况。");
  showMapError("地图脚本未加载，请检查 CDN；原仿真不受影响。");
@@ -228,11 +320,20 @@ map.on("load",async()=>{
  map.addSource("selected-bbox",{type:"geojson",data:selectionPolygon(bbox)});
  map.addLayer({id:"selection",type:"line",source:"selected-bbox",paint:{"line-color":"#2563eb","line-width":3,"line-dasharray":[2,2]}});
  setup();
+ setupShell();
  try{
   const result=await api("/api/map-lab/status");
   if(result.region?.bbox_wgs84_lonlat)setBBox(result.region.bbox_wgs84_lonlat,true);
   state("在线底图可用；可框选区域并按需准备真实 GIS 图层。");
  }catch(e){setBBox(DEFAULT_BBOX,true);state("区域配置读取失败："+e.message)}
+ const lastPackage=sessionStorage.getItem("swarmbalance_preview_package");
+ const lastBBox=sessionStorage.getItem("swarmbalance_preview_bbox");
+ if(lastPackage&&/^[a-f0-9]{24}$/.test(lastPackage)&&lastBBox){
+  try{
+   const parsed=JSON.parse(lastBBox);
+   if(setBBox(parsed,true))await showPackage(lastPackage);
+  }catch(e){message("上次地图图层无法恢复："+e.message,true);clearLayers();}
+ }
  const saved=sessionStorage.getItem("swarmbalance_gis_job");
  if(saved&&/^[0-9a-f]{32}$/.test(saved)){
   activeJob=saved;$("prepare").disabled=true;
