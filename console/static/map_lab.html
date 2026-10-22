@@ -1,100 +1,171 @@
 <!doctype html>
 <html lang="zh-CN">
 <head>
-<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>SwarmBalance · 地图数据工作台</title>
 <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css">
 <style>
-:root{font-family:system-ui,"Microsoft Yahei",sans-serif;color:#203343;background:#eff3f6}
-*{box-sizing:border-box}body{margin:0}button,input{font:inherit}
-button{cursor:pointer}button:disabled{opacity:.5;cursor:not-allowed}a{color:#1d4ed8;text-decoration:none}
-header{display:flex;align-items:center;justify-content:space-between;padding:13px 20px;min-height:66px;background:#fff;border-bottom:1px solid #dce4eb;gap:15px}
-header .brand{font-weight:750;font-size:17px}header .brand small{display:block;font-weight:400;color:#6d7e8c;font-size:11px;margin-top:3px}
-nav{display:flex;gap:16px;flex-wrap:wrap;font-size:12px}
-main{display:grid;grid-template-columns:330px minmax(0,1fr);height:calc(100vh - 66px);min-height:550px}
-aside{background:#fff;overflow-y:auto;padding:21px 19px;border-right:1px solid #e0e8ee}
-#map{background:#e7eff3;position:relative;min-height:450px}
-h1{font-size:19px;margin:0 0 9px}h2{font-size:13px;margin:23px 0 10px}
-p{color:#60717f;font-size:12px;line-height:1.6;margin:6px 0 12px}
-.kicker{font-size:10px;letter-spacing:.15em;color:#64748b;font-weight:800;margin-bottom:10px}
-.status{padding:12px;background:#edf4fa;border:1px solid #dde9f2;border-radius:7px;font-size:12px;line-height:1.6;color:#52667a}
-.status.warn{background:#fff7ed;border-color:#fed7aa;color:#9a3412}.status.good{background:#effcf3;border-color:#bbf7d0;color:#166534}
-.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:9px}
-label.field{display:grid;gap:4px;font-size:11px;color:#536577}
-.field input{min-width:0;width:100%;padding:8px 9px;border:1px solid #d7e1e7;border-radius:5px;color:#243747;background:#fff}
-.field input:focus{outline:2px solid #93b8f2;outline-offset:1px}
-.actions{display:flex;gap:7px;margin:11px 0 9px;flex-wrap:wrap}
-button{border:1px solid #cdd8e1;background:#fff;border-radius:6px;padding:8px 10px;font-size:12px;color:#334155}
-button.primary{background:#1d4ed8;border-color:#1d4ed8;color:white;font-weight:650}
-button.selected{background:#dbeafe;border-color:#2563eb;color:#1e40af}
-#selection{font-size:11px;line-height:1.6;color:#53677d;padding:8px 10px;background:#f7f9fb;border-radius:6px;margin:8px 0}
-#selection.error{color:#9f1239;background:#fff1f2}
-.pillrow{display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:12px}
-.layer{display:flex;align-items:center;gap:8px;padding:10px 0;border-bottom:1px solid #edf1f4;font-size:12px;cursor:pointer}
-.layer input{accent-color:#2563eb}.layer small{margin-left:auto;color:#64748b}
-#progress{display:none;margin-top:13px;font-size:12px;color:#475569}progress{width:100%;height:8px;accent-color:#2563eb;margin:7px 0}
-#messages{font-size:11px;display:grid;gap:7px;margin-top:12px}
-.note{background:#f7f9fb;padding:8px 9px;border-left:3px solid #94a3b8;color:#546778}
-.note.error{color:#991b1b;border-color:#ef4444;background:#fff1f2}
-#quality{background:#f6f8fb;padding:11px;border:1px solid #e2e8f0;border-radius:7px;font-size:11px;line-height:1.6;margin-top:13px;overflow-wrap:anywhere}
-#quality[hidden]{display:none}.warning{color:#a16207;font-size:11px}
-.map-overlay{position:absolute;top:15px;left:15px;background:#fffc;padding:12px;border-radius:8px;border:1px solid #dce4eb;box-shadow:0 3px 16px #0001;z-index:2;max-width:350px}
-.map-overlay b{font-size:12px}.map-overlay p{font-size:11px;margin:6px 0}
-#map-error{display:none;position:absolute;z-index:3;bottom:33px;left:15px;right:15px;background:#fff1f2;color:#9f1239;border:1px solid #fecdd3;border-radius:6px;padding:9px;font-size:12px}
-.footnote{display:block;font-size:10px;line-height:1.55;color:#788996;margin-top:18px}
-@media(max-width:780px){header{flex-wrap:wrap}main{display:flex;flex-direction:column;height:auto}#map{height:54vh;order:0;min-height:350px}aside{order:1;max-height:none}}
+:root{color-scheme:light;font:14px/1.45 system-ui,-apple-system,"Segoe UI","Microsoft YaHei",sans-serif;color:#1b2c3c;background:#eaf0f4;--line:#dce4eb;--ink:#14283e;--muted:#5d7181;--blue:#2563eb;--bg:#fff}
+*{box-sizing:border-box}html,body{height:100%;margin:0}button,input{font:inherit}button{cursor:pointer}button:disabled{opacity:.45;cursor:not-allowed}a{color:#255cc7;text-decoration:none}
+button:focus-visible,a:focus-visible,input:focus-visible{outline:3px solid #8bb5ff;outline-offset:2px}
+[hidden]{display:none!important}.app{height:100dvh;min-height:440px;display:flex;flex-direction:column;overflow:hidden}
+.topbar{height:58px;flex:none;display:flex;align-items:center;gap:12px;padding:0 16px;background:#fff;border-bottom:1px solid var(--line);position:relative;z-index:30}
+.brand{font-size:16px;letter-spacing:-.03em;font-weight:800;white-space:nowrap}.brand b{color:#2563eb}
+.separator{height:22px;width:1px;background:var(--line);flex:none}
+.context{font-size:12px;color:#64748b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.spacer{flex:1}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:34px;padding:7px 12px;background:#fff;color:#233a52;border:1px solid var(--line);border-radius:7px;white-space:nowrap;font-size:12px;font-weight:550}
+.btn:hover{background:#f5f8fc}.btn.active,.btn.selected{color:#1d4ed8;background:#eaf1ff;border-color:#adc8ff}.btn.primary{background:#215ce1;color:white;border-color:#215ce1;font-weight:650}.btn.primary:hover{background:#164ecb}
+.iconbtn{width:35px;height:35px;padding:0;font-size:17px}.muted{color:var(--muted)}.top-meta{display:flex;align-items:center;gap:7px;font-size:11px;color:#708398;white-space:nowrap}
+.workspace{position:relative;flex:1;min-height:0;isolation:isolate}
+#map{position:absolute;inset:0;background:#e4eced}
+.floating{position:absolute;z-index:5;display:flex;gap:6px;background:#fffffff2;border:1px solid #dbe4ed;border-radius:9px;box-shadow:0 2px 10px #0f284017;padding:6px}
+.map-tools{left:16px;top:16px}.map-view{right:18px;top:16px}.map-legend{left:16px;bottom:18px;padding:8px 10px;font-size:11px;max-width:310px;display:block}
+.map-legend strong{display:block;margin-bottom:4px;color:#253d55}.map-legend p{margin:0;color:#516577}
+.pill{display:inline-block;border:1px solid #cbd9e8;border-radius:99px;padding:2px 7px;color:#426078;background:#f4f8fc;font-size:10px}
+.drawer{position:absolute;top:66px;left:16px;bottom:18px;width:min(332px,calc(100vw - 32px));max-height:calc(100% - 84px);background:#fffffff9;border:1px solid #d4e0ea;box-shadow:0 12px 30px #0f294029;z-index:14;border-radius:11px;display:flex;flex-direction:column;overflow:hidden}
+.drawer-head{padding:15px 15px 12px;border-bottom:1px solid #e4ebf1;display:flex;align-items:center;justify-content:space-between;gap:10px}
+.drawer-head strong{font-size:15px}.drawer-content{overflow:auto;padding:14px 15px 20px;flex:1}
+h2{font-size:12px;margin:20px 0 8px}h2:first-child{margin-top:0}p{font-size:12px;color:var(--muted);line-height:1.6;margin:6px 0 10px}
+.fieldgrid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.field{display:grid;gap:5px;font-size:11px;color:#596c7f}
+.field input{width:100%;min-width:0;padding:8px 7px;border-radius:6px;border:1px solid #d4dfe9;background:#fff;font-size:12px}
+.actions{display:flex;align-items:center;flex-wrap:wrap;gap:7px;margin:12px 0}
+.layer{display:flex;align-items:center;gap:9px;border-bottom:1px solid #e8eef3;padding:11px 0;font-size:12px;cursor:pointer}
+.layer small{margin-left:auto;color:#6e8290}.layer input{accent-color:#2563eb}
+#selection{font-size:12px;color:#415b73;background:#f1f6fb;border-radius:7px;padding:10px;margin:12px 0}
+#selection.error{background:#fff1f2;color:#a42641}
+#progress{display:none;font-size:11px;color:#516377;margin-top:12px}progress{width:100%;accent-color:#215ce1;height:9px}
+#quality{margin-top:12px;padding:10px;font-size:11px;line-height:1.6;background:#f6f8fa;border:1px solid #e1e7ed;border-radius:7px;overflow-wrap:anywhere}
+.hint{border-left:3px solid #a0bad2;background:#f4f8fc;padding:9px 11px;font-size:11px;line-height:1.6;color:#536b82;margin:14px 0}
+.warnings{border-left-color:#e7b04b;background:#fff8e8;color:#815c1d}
+.checkrow{display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:12px}
+.inspector{position:absolute;right:18px;top:66px;width:min(310px,calc(100vw - 36px));max-height:calc(100% - 120px);background:#fffffff9;box-shadow:0 10px 28px #14283b26;border:1px solid #d8e3ec;border-radius:10px;z-index:13;overflow:auto}
+.inspector-header{padding:12px 14px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--line)}
+.inspector-body{padding:14px;font-size:12px}
+dl{display:grid;grid-template-columns:85px minmax(0,1fr);gap:10px;margin:0}dt{color:#698093}dd{margin:0;overflow-wrap:anywhere}
+.activity{position:absolute;bottom:17px;left:16px;right:16px;max-height:36%;min-height:160px;background:#fffffff9;box-shadow:0 7px 25px #0e203025;border:1px solid #d5e2ee;border-radius:10px;z-index:18;display:flex;flex-direction:column}
+.activity-head{display:flex;justify-content:space-between;align-items:center;padding:10px 12px;border-bottom:1px solid #e7eef5;gap:8px}
+#messages{padding:9px 12px;overflow:auto;display:grid;gap:6px}
+.note{border-left:3px solid #a3b3c8;background:#f7f9fb;color:#476078;font-size:11px;padding:7px 10px}
+.note.error{border-color:#e16c70;background:#fff2f3;color:#9f1239}
+.statusbar{height:34px;flex:none;background:#fff;border-top:1px solid var(--line);display:flex;align-items:center;gap:12px;padding:0 16px;font-size:11px;color:#51697c;z-index:26}
+.statusbar .grow{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.statusbar button{border:0;background:transparent;color:#2760c5;font-size:11px;padding:4px 7px}
+.status{font-size:11px;color:#4e6983;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.status.good{color:#167448}
+#map-error{position:absolute;bottom:48px;left:20px;right:20px;padding:10px;background:#fff1f2;border:1px solid #fb7185;color:#9f1239;z-index:20;border-radius:6px;display:none;font-size:12px}
+.dropdown{position:absolute;top:50px;left:172px;min-width:235px;background:#fff;border:1px solid var(--line);border-radius:9px;box-shadow:0 12px 35px #16273833;padding:7px;z-index:50}
+.dropdown a{display:block;padding:10px;font-size:12px;border-radius:6px;color:#294159}
+.dropdown a:hover{background:#edf4ff}
+.doc-note{font-size:11px;color:#6c8091;line-height:1.65}
+@media(max-width:970px){.top-meta{display:none}.context{display:none}.map-view{top:auto;bottom:65px}.map-tools{right:12px;left:12px;overflow-x:auto}.map-legend{display:none}}
+@media(max-width:540px){.brand{font-size:13px}.topbar{padding:0 8px;gap:5px}.topbar .btn{padding:7px}.topbar .link-old{display:none}.drawer{top:64px;bottom:12px;max-height:calc(100% - 76px)}.inspector{top:64px;right:12px}.activity{max-height:55%}.map-tools{top:10px}}
 </style>
 </head>
 <body>
-<header>
- <div class="brand">SwarmBalance / 地图数据工作台<small>小区域 OSM 获取与缓存 · 数据仅供预览</small></div>
- <nav><a href="/">原仿真控制台 ↗</a><a href="/workbench">项目工作台 ↗</a><a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OSM 版权 ↗</a></nav>
+<div class="app">
+<header class="topbar">
+ <div class="brand"><b>◆</b> SwarmBalance</div>
+ <div class="separator"></div>
+ <button id="app-menu" class="btn" type="button" aria-controls="app-dropdown" aria-expanded="false">项目与文件 ▾</button>
+ <nav id="app-dropdown" class="dropdown" hidden aria-label="项目与文件菜单">
+   <a href="/workbench">项目管理（现有工作台） ↗</a>
+   <a href="/">旧版仿真控制台（杨浦） ↗</a>
+   <a href="/spec">软件规范与帮助 ↗</a>
+   <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">地图数据版权说明 ↗</a>
+ </nav>
+ <div class="context">地图预览 · 未绑定仿真项目</div>
+ <div class="spacer"></div>
+ <span class="top-meta"><span class="pill">GIS 预览</span> 非正式计算地图</span>
+ <button id="header-prepare" class="btn primary" type="button">准备地图数据</button>
+ <a class="btn link-old" href="/" title="启动现有杨浦仿真，不使用当前地图预览包">旧仿真 ↗</a>
 </header>
-<main>
-<aside>
- <div class="kicker">MAP IMPORT / SELECT → PREPARE → INSPECT</div>
- <h1>选择需要研究的区域</h1>
- <p>在线浏览地图，选区后仅获取所选范围的 OSM 地理要素，不必先下载整个辽宁省。</p>
- <div id="state" class="status" role="status" aria-live="polite">连接地图数据服务…</div>
- <h2>01 / 选择研究范围</h2>
- <div class="actions">
-  <button id="draw" type="button">在地图上选区</button>
-  <button id="viewport" type="button">使用当前视野</button>
-  <button id="back" type="button">恢复佛寺镇范围</button>
+<main class="workspace" aria-label="主地图工作空间">
+ <div id="map" aria-label="交互式地理地图"></div>
+ <div class="floating map-tools" role="toolbar" aria-label="地图主要操作">
+   <button id="resources-trigger" class="btn" type="button" aria-controls="workspace-drawer" aria-expanded="false">☷ 图层</button>
+   <button id="region-trigger" class="btn" type="button" aria-controls="workspace-drawer" aria-expanded="false">▧ 选区</button>
+   <button id="draw" class="btn" type="button">⌗ 在地图上选区</button>
+   <button id="activity-trigger" class="btn" type="button" aria-controls="activity-panel" aria-expanded="false">☰ 活动</button>
  </div>
- <p id="draw-hint">点击“在地图上选区”，依次点击矩形两个对角点；也可在下方直接输入坐标。按 Esc 退出选区。</p>
- <div class="form-grid">
-  <label class="field">西经度 / West<input id="west" type="number" step="any" aria-label="选区西边界经度"></label>
-  <label class="field">南纬度 / South<input id="south" type="number" step="any" aria-label="选区南边界纬度"></label>
-  <label class="field">东经度 / East<input id="east" type="number" step="any" aria-label="选区东边界经度"></label>
-  <label class="field">北纬度 / North<input id="north" type="number" step="any" aria-label="选区北边界纬度"></label>
+ <div class="floating map-view">
+   <span class="pill" title="此版本仅支持 GIS 2D 地理图层，3D 不是已实现的功能">2D 地图</span>
  </div>
- <div id="selection" role="status" aria-live="polite">等待读取试验区域…</div>
- <h2>02 / 准备真实地图数据</h2>
- <p>小范围按块顺序获取道路、建筑、水体和土地利用；成功数据保留缓存。当前接口限制为 25 km²。</p>
- <label class="pillrow"><span>强制重新向数据源查询</span><input id="force" type="checkbox"></label>
- <div class="actions">
-  <button id="prepare" class="primary" type="button" disabled>准备选区数据 ↗</button>
-  <button id="cancel" type="button" hidden>取消任务</button>
+ <div class="floating map-legend">
+   <strong>空间数据预览</strong>
+   <p>蓝色虚线：研究选区 · 点击已准备的地图要素查看属性</p>
  </div>
- <div id="progress" aria-live="polite"><progress id="progressbar" value="0" max="1"></progress><span id="progress-text">等待开始</span></div>
- <h2>03 / 查看已准备的图层</h2>
- <div id="layers">
-  <label class="layer"><input type="checkbox" data-layer="water" checked>水体 / 河流<small id="c-water">未准备</small></label>
-  <label class="layer"><input type="checkbox" data-layer="landuse" checked>土地利用<small id="c-landuse">未准备</small></label>
-  <label class="layer"><input type="checkbox" data-layer="roads" checked>道路<small id="c-roads">未准备</small></label>
-  <label class="layer"><input type="checkbox" data-layer="railways" checked>铁路<small id="c-railways">未准备</small></label>
-  <label class="layer"><input type="checkbox" data-layer="buildings" checked>建筑轮廓<small id="c-buildings">未准备</small></label>
- </div>
- <div id="messages" aria-live="polite"></div>
- <div id="quality" hidden></div>
- <small class="footnote">© OpenStreetMap contributors，ODbL。当前导入器只处理 OSM way，未还原完整 multipolygon relation；缺失建筑不等于没有建筑。仅供 GIS 预览，不能据此判定无人机航路安全。原杨浦仿真不受影响。</small>
-</aside>
-<section id="map" aria-label="交互式地理地图">
- <div class="map-overlay"><b>在线底图 / 研究选区</b><p id="center">中心正在加载…</p><p>蓝色虚线：当前选区；按需准备的 OSM 几何会叠加显示。</p></div>
+ <aside id="workspace-drawer" class="drawer" hidden aria-label="按需地图面板">
+  <div class="drawer-head"><strong id="drawer-title">地图图层</strong><button id="close-drawer" class="btn iconbtn" type="button" aria-label="关闭功能面板">×</button></div>
+  <div class="drawer-content">
+   <section id="panel-resources">
+    <h2>已准备的地图图层</h2>
+    <p>只有下载完成的 OSM 要素可以叠加显示，在线底图本身不是计算数据。</p>
+    <div id="layers">
+      <label class="layer"><input type="checkbox" data-layer="buildings" checked>建筑轮廓 <small id="c-buildings">未准备</small></label>
+      <label class="layer"><input type="checkbox" data-layer="roads" checked>道路 <small id="c-roads">未准备</small></label>
+      <label class="layer"><input type="checkbox" data-layer="water" checked>水体与河流 <small id="c-water">未准备</small></label>
+      <label class="layer"><input type="checkbox" data-layer="landuse" checked>土地利用 <small id="c-landuse">未准备</small></label>
+      <label class="layer"><input type="checkbox" data-layer="railways" checked>铁路 <small id="c-railways">未准备</small></label>
+    </div>
+    <div id="quality" hidden></div>
+    <div class="hint warnings">这些要素仅供 GIS 预览。未组装完整 OSM multipolygon，建筑高度可能缺失，不能直接用于真实飞行避障。</div>
+    <button id="open-region" class="btn" type="button">调整选区并获取图层 →</button>
+   </section>
+   <section id="panel-region" hidden>
+    <h2>研究选区</h2>
+    <p>选择两个地图对角点，或直接输入经纬度；区域变化后原有图层不再代表当前范围。</p>
+    <div class="actions">
+     <button id="viewport" class="btn" type="button">选取当前视野</button>
+     <button id="back" class="btn" type="button">恢复佛寺镇</button>
+    </div>
+    <p id="draw-hint">点击“在地图上选区”，依次点击矩形两个对角点；也可在下方直接输入坐标。按 Esc 退出选区。</p>
+    <div class="fieldgrid">
+     <label class="field">西边界 West<input id="west" type="number" step="any" aria-label="选区西边界经度"></label>
+     <label class="field">南边界 South<input id="south" type="number" step="any" aria-label="选区南边界纬度"></label>
+     <label class="field">东边界 East<input id="east" type="number" step="any" aria-label="选区东边界经度"></label>
+     <label class="field">北边界 North<input id="north" type="number" step="any" aria-label="选区北边界纬度"></label>
+    </div>
+    <div id="selection" role="status" aria-live="polite">等待读取选区…</div>
+    <h2>下载并缓存地理数据</h2>
+    <p>当前支持约 30 km² 以内的范围，按小块依次下载；重复区域优先使用本地缓存。</p>
+    <label class="checkrow"><span>忽略缓存，重新查询</span><input id="force" type="checkbox"></label>
+    <div class="actions">
+     <button id="prepare" class="btn primary" type="button" disabled>准备选区数据</button>
+     <button id="cancel" class="btn" type="button" hidden>取消任务</button>
+    </div>
+    <div id="progress" aria-live="polite"><progress id="progressbar" value="0" max="1"></progress><div id="progress-text">等待开始</div></div>
+    <div class="hint">下载过程发生在本地仿真服务端，不依赖整省预下载。当前地图包未连接 World/Scenario/Run。</div>
+   </section>
+  </div>
+ </aside>
+ <aside id="inspector" class="inspector" hidden aria-label="地图要素属性">
+  <div class="inspector-header"><strong>地图要素属性 · 只读</strong><button id="close-inspector" class="btn iconbtn" type="button" aria-label="关闭属性面板">×</button></div>
+  <div class="inspector-body">
+    <dl><dt>图层</dt><dd id="feature-layer">—</dd>
+        <dt>OSM 对象</dt><dd id="feature-id">—</dd>
+        <dt>建筑高度</dt><dd id="feature-height">—</dd>
+        <dt>建筑层数</dt><dd id="feature-levels">—</dd>
+        <dt>来源</dt><dd>OpenStreetMap</dd></dl>
+    <div class="hint">这是来自下载图层的原始属性，不会修改实体，也不是仿真中的无人机/机巢。</div>
+  </div>
+ </aside>
+ <section id="activity-panel" class="activity" hidden aria-label="导入进度和活动日志">
+  <div class="activity-head"><strong>地图操作与下载记录</strong><button id="close-activity" class="btn iconbtn" type="button" aria-label="关闭活动面板">×</button></div>
+  <div id="messages" aria-live="polite"></div>
+ </section>
  <div id="map-error" role="alert"></div>
-</section>
 </main>
+<footer class="statusbar">
+ <span id="state" class="status" role="status" aria-live="polite">正在连接地图数据服务…</span>
+ <span class="grow"></span>
+ <span id="center">等待地图中心坐标…</span>
+ <button id="footer-activity" type="button" aria-controls="activity-panel" aria-expanded="false">活动日志 ▴</button>
+</footer>
+</div>
 <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
 <script src="/map-lab/assets/map_lab.js"></script>
-</body></html>
+</body>
+</html>
