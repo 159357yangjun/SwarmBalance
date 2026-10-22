@@ -19,7 +19,7 @@ function refreshAssociationPanel(){
  const name=activeProjectName||"尚未选择项目";
  const attached=associatedPreviewId?"已关联 GIS 预览包 "+associatedPreviewId:"尚未关联 GIS 地图预览资源";
  const loaded=currentPreviewId?"当前打开 "+currentPreviewId:"当前未打开地图预览包";
- $("header-project-context").textContent=activeProjectId?name+" · GIS 资源独立于仿真":"地图预览 · 未选择项目";
+ $("header-project-context").textContent=activeProjectId?name+" · 未绑定仿真项目":"地图预览 · 未绑定仿真项目 · 未选择项目";
  $("preview-link-status").textContent=name+" · "+attached+"；"+loaded+"。";
  $("attach-preview").disabled=!(activeProjectId&&currentPreviewId)||currentPreviewId===associatedPreviewId;
  $("show-project-preview").hidden=!associatedPreviewId||associatedPreviewId===currentPreviewId;
