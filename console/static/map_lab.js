@@ -14,6 +14,89 @@ const styles = {
 };
 let map, bbox=DEFAULT_BBOX.slice(), pendingPoint=null, drawing=false, pollTimer=null, activeJob=null;
 const mounted = [];
+let currentPreviewId=null, activeProjectId=null, activeProjectName="", associatedPreviewId=null, projectToken=0;
+function refreshAssociationPanel(){
+ const name=activeProjectName||"尚未选择项目";
+ const attached=associatedPreviewId?"已关联 GIS 预览包 "+associatedPreviewId:"尚未关联 GIS 地图预览资源";
+ const loaded=currentPreviewId?"当前打开 "+currentPreviewId:"当前未打开地图预览包";
+ $("header-project-context").textContent=activeProjectId?name+" · GIS 资源独立于仿真":"地图预览 · 未选择项目";
+ $("preview-link-status").textContent=name+" · "+attached+"；"+loaded+"。";
+ $("attach-preview").disabled=!(activeProjectId&&currentPreviewId)||currentPreviewId===associatedPreviewId;
+ $("show-project-preview").hidden=!associatedPreviewId||associatedPreviewId===currentPreviewId;
+}
+async function refreshAssociatedPreview(token=projectToken){
+ const id=activeProjectId;
+ if(!id){associatedPreviewId=null;refreshAssociationPanel();return}
+ try{
+  const resource=await api("/api/gis/project-previews/"+id);
+  if(token!==projectToken||id!==activeProjectId)return;
+  associatedPreviewId=resource.map_preview?.package_id||null;
+  refreshAssociationPanel();
+ }catch(e){
+  if(token!==projectToken||id!==activeProjectId)return;
+  associatedPreviewId=null;refreshAssociationPanel();
+  message("无法读取项目地图资源："+e.message,true);
+ }
+}
+function chooseProject(project){
+ ++projectToken;
+ activeProjectId=project.project_id;
+ activeProjectName=project.name;
+ associatedPreviewId=null;
+ try{localStorage.setItem("swarm-mvp-project",activeProjectId)}catch(e){message("浏览器不能保存项目选择，请检查隐私模式",true)}
+ refreshAssociationPanel();
+ refreshAssociatedPreview(projectToken);
+ $("app-dropdown").hidden=true;setExpanded("app-menu",false);
+}
+async function reloadProjectList(){
+ const slot=$("project-menu-list");
+ slot.textContent="正在读取项目列表…";
+ try{
+  const result=await api("/api/mvp/projects");
+  const projects=Array.isArray(result.projects)?result.projects:[];
+  slot.replaceChildren();
+  if(!projects.length){slot.textContent="尚无项目。请先进入项目管理创建。";return}
+  let saved=null;try{saved=localStorage.getItem("swarm-mvp-project")}catch(e){}
+  for(const item of projects){
+   if(!/^[a-f0-9]{32}$/.test(item.project_id||""))continue;
+   const btn=document.createElement("button");
+   btn.className="project-choice";btn.type="button";
+   btn.textContent=item.name;
+   btn.setAttribute("aria-current",String(item.project_id===activeProjectId));
+   btn.addEventListener("click",()=>chooseProject(item));
+   slot.appendChild(btn);
+  }
+  if(!activeProjectId){
+   const selected=projects.find(p=>p.project_id===saved);
+   if(selected)chooseProject(selected);
+  }
+ }catch(e){slot.textContent="项目服务不可用："+e.message;}
+}
+async function attachCurrentPreview(){
+ if(!activeProjectId||!currentPreviewId)return;
+ const id=activeProjectId,packageId=currentPreviewId,token=projectToken;
+ const btn=$("attach-preview");btn.disabled=true;
+ try{
+  const resource=await api("/api/gis/project-previews/"+id,{
+   method:"PUT",body:JSON.stringify({package_id:packageId})});
+  if(token!==projectToken||id!==activeProjectId)return;
+  associatedPreviewId=resource.map_preview?.package_id||null;
+  message("地图预览包已作为项目资源保存，原杨浦仿真地图不变。");
+ }catch(e){message("关联项目资源失败："+e.message,true)}
+ finally{refreshAssociationPanel()}
+}
+async function showAssociatedPreview(){
+ if(!activeProjectId||!associatedPreviewId)return;
+ const token=projectToken, packageId=associatedPreviewId;
+ try{
+  const manifest=await api("/api/gis/packages/"+packageId);
+  if(token!==projectToken)return;
+  const region=manifest.bbox_wgs84_lonlat;
+  if(!setBBox(region,true))throw Error("关联的地图范围已经不符合当前导入限制");
+  clearLayers();
+  await showPackage(packageId);
+ }catch(e){message("无法查看项目关联的地图："+e.message,true);}
+}
 const LABELS = {water:"水体与河流",landuse:"土地利用",roads:"道路",railways:"铁路",buildings:"建筑轮廓"};
 function message(txt,isError=false){
  const box=document.createElement("div");box.className="note"+(isError?" error":"");
@@ -50,6 +133,8 @@ function inputsFromBox(b){
  ["west","south","east","north"].forEach((key,i)=>$(key).value=b[i].toFixed(7));
 }
 function clearLayers(clearSaved=true){
+ currentPreviewId=null;
+ if($("preview-link-status"))refreshAssociationPanel();
  if(clearSaved){
   sessionStorage.removeItem("swarmbalance_preview_package");
   sessionStorage.removeItem("swarmbalance_preview_bbox");
@@ -125,6 +210,7 @@ async function showPackage(packageId){
    "未解析的 way "+(q.invalid_ways||0)+" · 未知建筑高度 "+(q.unknown_building_heights||0)+
    " · 未处理 multipolygon relations · 仿真可用性：否";
  state("已准备固定版本的 OSM 图层（仅供预览；不能直接当作无人机避障数据）",true);
+ currentPreviewId=packageId;refreshAssociationPanel();
  sessionStorage.setItem("swarmbalance_preview_package",packageId);
  sessionStorage.setItem("swarmbalance_preview_bbox",JSON.stringify(bbox));
  message("选区地图包："+packageId+"，已加载数据图层。");
@@ -284,9 +370,12 @@ function setupShell(){
  $("footer-activity").addEventListener("click",()=>toggleActivity());
  $("close-activity").addEventListener("click",()=>toggleActivity(false));
  $("header-prepare").addEventListener("click",()=>openDrawer("region"));
+ $("attach-preview").addEventListener("click",attachCurrentPreview);
+ $("show-project-preview").addEventListener("click",showAssociatedPreview);
  const popup=$("app-dropdown"), button=$("app-menu");
  button.addEventListener("click",()=>{
   popup.hidden=!popup.hidden;setExpanded("app-menu",!popup.hidden);
+  if(!popup.hidden)reloadProjectList();
  });
  document.addEventListener("click",e=>{
   if(!popup.hidden&&!popup.contains(e.target)&&!button.contains(e.target)){
@@ -321,6 +410,8 @@ map.on("load",async()=>{
  map.addLayer({id:"selection",type:"line",source:"selected-bbox",paint:{"line-color":"#2563eb","line-width":3,"line-dasharray":[2,2]}});
  setup();
  setupShell();
+ refreshAssociationPanel();
+ reloadProjectList();
  try{
   const result=await api("/api/map-lab/status");
   if(result.region?.bbox_wgs84_lonlat)setBBox(result.region.bbox_wgs84_lonlat,true);

@@ -59,6 +59,13 @@ dl{display:grid;grid-template-columns:85px minmax(0,1fr);gap:10px;margin:0}dt{co
 .dropdown{position:absolute;top:50px;left:172px;min-width:235px;background:#fff;border:1px solid var(--line);border-radius:9px;box-shadow:0 12px 35px #16273833;padding:7px;z-index:50}
 .dropdown a{display:block;padding:10px;font-size:12px;border-radius:6px;color:#294159}
 .dropdown a:hover{background:#edf4ff}
+.menu-title{color:#668097;text-transform:uppercase;font-size:10px;font-weight:750;padding:8px 10px 5px}
+.project-list{border-bottom:1px solid #e2eaf2;max-height:220px;overflow:auto;padding-bottom:6px}
+.project-choice{width:100%;display:flex;align-items:center;justify-content:space-between;border:0;background:#fff;text-align:left;padding:9px 10px;border-radius:5px;color:#294159;font-size:12px;gap:10px}
+.project-choice:hover,.project-choice[aria-current=true]{background:#eaf1ff;color:#215bd8}
+.resource-link{background:#f6f9fc;border:1px solid var(--line);border-radius:8px;padding:12px;margin-top:16px}
+.resource-link .btn{margin:8px 0 2px;width:100%}
+.resource-link p{margin:6px 0 10px;overflow-wrap:anywhere}
 .doc-note{font-size:11px;color:#6c8091;line-height:1.65}
 @media(max-width:970px){.top-meta{display:none}.context{display:none}.map-view{top:auto;bottom:65px}.map-tools{right:12px;left:12px;overflow-x:auto}.map-legend{display:none}}
 @media(max-width:540px){.brand{font-size:13px}.topbar{padding:0 8px;gap:5px}.topbar .btn{padding:7px}.topbar .link-old{display:none}.drawer{top:64px;bottom:12px;max-height:calc(100% - 76px)}.inspector{top:64px;right:12px}.activity{max-height:55%}.map-tools{top:10px}}
@@ -71,12 +78,14 @@ dl{display:grid;grid-template-columns:85px minmax(0,1fr);gap:10px;margin:0}dt{co
  <div class="separator"></div>
  <button id="app-menu" class="btn" type="button" aria-controls="app-dropdown" aria-expanded="false">项目与文件 ▾</button>
  <nav id="app-dropdown" class="dropdown" hidden aria-label="项目与文件菜单">
-   <a href="/workbench">项目管理（现有工作台） ↗</a>
+   <div class="menu-title">选择现有项目</div>
+   <div id="project-menu-list" class="project-list" aria-live="polite">正在读取项目列表…</div>
+   <a href="/workbench">新建及管理项目（现有工作台） ↗</a>
    <a href="/">旧版仿真控制台（杨浦） ↗</a>
    <a href="/spec">软件规范与帮助 ↗</a>
    <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">地图数据版权说明 ↗</a>
  </nav>
- <div class="context">地图预览 · 未绑定仿真项目</div>
+ <div class="context" id="header-project-context">地图预览 · 未选择项目</div>
  <div class="spacer"></div>
  <span class="top-meta"><span class="pill">GIS 预览</span> 非正式计算地图</span>
  <button id="header-prepare" class="btn primary" type="button">准备地图数据</button>
@@ -111,6 +120,13 @@ dl{display:grid;grid-template-columns:85px minmax(0,1fr);gap:10px;margin:0}dt{co
       <label class="layer"><input type="checkbox" data-layer="railways" checked>铁路 <small id="c-railways">未准备</small></label>
     </div>
     <div id="quality" hidden></div>
+    <div class="resource-link" aria-label="项目 GIS 预览资源">
+      <strong>项目资源关联</strong>
+      <p id="preview-link-status">请先从顶部菜单选择一个现有项目。</p>
+      <button id="attach-preview" class="btn primary" type="button" disabled>将当前地图包关联到项目</button>
+      <button id="show-project-preview" class="btn" type="button" hidden>查看项目已关联的地图</button>
+      <p class="doc-note">此处只保存 GIS 预览资源引用，原有杨浦仿真仍使用旧地图。</p>
+    </div>
     <div class="hint warnings">这些要素仅供 GIS 预览。未组装完整 OSM multipolygon，建筑高度可能缺失，不能直接用于真实飞行避障。</div>
     <button id="open-region" class="btn" type="button">调整选区并获取图层 →</button>
    </section>
