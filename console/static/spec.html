@@ -374,8 +374,8 @@
       <table>
         <thead><tr><th>规范条款</th><th>现有实现</th><th style="width:110px">状态</th></tr></thead>
         <tbody>
-          <tr><td>WL-1.2 时间基准</td><td><code>drone.time_step=1.0</code>；deadline 用秒</td><td><span class="st s-warn">⚠ 隐含，需声明</span></td></tr>
-          <tr><td>WL-2.1 真实机型</td><td><code>config/simulation.json</code> heterogeneous</td><td><span class="st s-ok">✔ 已锚定</span></td></tr>
+          <tr><td>WL-1.2 时间基准</td><td><code>drone.time_step=1.0</code>；唯一来源 <code>frontend/drone.py:STEP_SECONDS</code>；<code>config_validation</code> 已钉 time_step≠1.0 判错</td><td><span class="st s-ok">✔ 单一来源 + 闸门</span></td></tr>
+          <tr><td>WL-2.1 真实机型</td><td>仅 heavy_cargo 有 DJI FlyCart 30 官方锚点；轻/中载为情景设定档（见正文「更正」与 <code>data/provenance/parameters.csv</code>）</td><td><span class="st s-warn">⚠ 部分锚定</span></td></tr>
           <tr><td>WL-4 需求模型</td><td><code>task.py</code> RealisticTaskGenerator</td><td><span class="st s-ok">✔ 已锚定</span></td></tr>
           <tr><td>SA-2 纯内核</td><td><code>sim_session</code> 以 <code>Environment(visualize=False)</code> 无头创建</td><td><span class="st s-ok">✔</span></td></tr>
           <tr><td>SA-3 世界状态/快照</td><td><code>sim_session.snapshot()</code> + <code>_history</code></td><td><span class="st s-ok">✔ 需收敛为 SceneManager</span></td></tr>

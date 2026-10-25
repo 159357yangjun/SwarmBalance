@@ -52,6 +52,15 @@ def validate_simulation_config(cfg: Dict[str, Any]) -> Tuple[List[str], List[str
     except (TypeError, ValueError):
         errors.append("nest.berths 必须是整数")
 
+    # 规范 WL-1.2：1 step = 1 秒是规范不变量，唯一参数化来源是 drone.time_step。
+    # 改这个值会同时移动时钟、位移与所有「秒」语义字段（SLA/换电/风速映射）的口径，
+    # 而 spec/WL-3 的条款全部按 1 步 1 秒书写 —— 与其让配置悄悄把规范改掉，不如拦在这里。
+    try:
+        if float((cfg.get("drone") or {}).get("time_step", 1.0)) != 1.0:
+            errors.append("drone.time_step 必须为 1.0（规范 WL-1.2：1 step = 1 秒）；改它需要同时修订 spec")
+    except (TypeError, ValueError):
+        errors.append("drone.time_step 必须是数字")
+
     task = cfg.get("task") or {}
     try:
         dmin = float(task.get("deadline_offset_min", 0))
