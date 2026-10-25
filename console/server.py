@@ -28,8 +28,9 @@ for _p in (str(_PROJECT_ROOT),):
         sys.path.insert(0, _p)
 
 from console.sim_session import ALGORITHMS, SimSession  # noqa: E402
-from experiments.reporting import DIRECTION_AMBIGUOUS as AMBIGUOUS_DIRECTION_METRICS  # noqa: E402
-from console import experiment_service  # noqa: E402
+# 「方向随容量配置同向变化、不得高亮最优」的指标名单。原维护点在 experiments/reporting.py，
+# 该包已随重构移除；若恢复实验框架，名单必须回到单一维护点并从这里改为引用，不得两处各写一份。
+AMBIGUOUS_DIRECTION_METRICS = {"泊位利用率", "机巢周转率"}
 from console import scenario_presets  # noqa: E402
 from console.scene_library import SceneLibrary  # noqa: E402
 from console.map_lab import router as map_lab_router  # noqa: E402
@@ -122,10 +123,6 @@ class ResetRequest(BaseModel):
 
 class ConfigPatch(BaseModel):
     patch: Dict[str, Any]
-
-
-class ExperimentStartRequest(BaseModel):
-    preset: str = "quick"
 
 
 class TaskInjectRequest(BaseModel):
@@ -822,33 +819,8 @@ def save_scheduler_config(req: ConfigPatch):
 
 
 # ---------------------------------------------------------------------------
-# 一键实验 API（独立子进程，不影响当前自由仿真会话）
+# 一键实验 API 已随 experiments/ 批量实验框架一并移除（项目重构）。
 # ---------------------------------------------------------------------------
-
-@app.get("/api/experiments/presets")
-def experiment_presets():
-    return {"presets": experiment_service.presets()}
-
-
-@app.get("/api/experiments/status")
-def experiment_status():
-    return experiment_service.status()
-
-
-@app.post("/api/experiments/start")
-def experiment_start(req: ExperimentStartRequest):
-    try:
-        return experiment_service.start(req.preset)
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc))
-    except RuntimeError as exc:
-        raise HTTPException(status_code=409, detail=str(exc))
-
-
-@app.get("/api/experiments/package")
-def experiment_package():
-    """结项证据包功能已随 build_conclusion_package.py 一并移除（项目重构）。"""
-    raise HTTPException(status_code=410, detail="结项证据包功能已移除")
 
 
 # ---------------------------------------------------------------------------
@@ -981,9 +953,7 @@ def compare():
         "basis": {"生成任务数": basis_tasks} if basis_tasks is not None else None,
         "inconsistent": inconsistent,
         # 方向随容量配置同向变化的指标：前端表格不得为它们高亮"最优算法"。
-        # 名单只在 experiments/reporting.py 里维护一份，这里原样下发 ——
-        # 前端另写一份必然漂移（实验报告已改成"不判"，而对比页当时仍在判，
-        # 就是两份名单各走各的实测后果）。
+        # 名单维护点在本文件顶部常量，前端只消费 /api/compare 下发值、不另抄一份。
         "direction_ambiguous": sorted(AMBIGUOUS_DIRECTION_METRICS),
         # 门禁判据：false 时前端不得画对比图、不得高亮"最优算法"，并原样显示 refusal。
         "comparable": compare_refusal is None,
