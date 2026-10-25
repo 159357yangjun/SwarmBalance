@@ -65,14 +65,8 @@ def status() -> Dict[str, Any]:
                 data["state"] = "failed"
                 data["error"] = f"实验子进程异常退出，exit={code}；详见 {LOG_FILE}"
                 STATUS_FILE.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
-    try:
-        from build_conclusion_package import latest_conclusion_experiment
-        latest = latest_conclusion_experiment()
-        data["conclusion_package_available"] = bool(latest)
-        data["conclusion_experiment"] = latest.name if latest else ""
-    except Exception:
-        data["conclusion_package_available"] = False
-        data["conclusion_experiment"] = ""
+    data["conclusion_package_available"] = False
+    data["conclusion_experiment"] = ""
     return data
 
 

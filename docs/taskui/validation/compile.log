@@ -1,3 +1,0 @@
-$ python -m compileall -q TaskUI/tools TaskUI/tests
-EXIT_CODE=0
-
