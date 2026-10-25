@@ -12,7 +12,6 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
 from console import gis_import as gis
-from console import studio_project_preview as project_previews
 
 router = APIRouter()
 ROOT = Path(__file__).resolve().parents[1]
@@ -115,29 +114,4 @@ def package_layer(package_id: str, layer: str):
     return send_layer(gis.DATA_ROOT / "packages" / package_id / (layer + ".geojson"))
 
 
-class ProjectPreviewRequest(BaseModel):
-    package_id: str = Field(min_length=24, max_length=24)
-
-
-def _get_mvp_project(project_id):
-    # Project registry is a separate existing service; do not mutate its simulation config.
-    from console.mvp_api import service
-    return service.get_project(project_id)
-
-
-@router.get("/api/gis/project-previews/{project_id}")
-def get_project_map_preview(project_id: str):
-    try:
-        return project_previews.get_preview(project_id, _get_mvp_project)
-    except (FileNotFoundError, ValueError, json.JSONDecodeError) as exc:
-        raise HTTPException(status_code=404, detail=f"无法读取项目地图预览引用：{exc}") from exc
-
-
-@router.put("/api/gis/project-previews/{project_id}")
-def attach_project_map_preview(project_id: str, body: ProjectPreviewRequest):
-    try:
-        return project_previews.attach_preview(project_id, body.package_id, _get_mvp_project)
-    except FileNotFoundError as exc:
-        raise HTTPException(status_code=404, detail="项目或地图包不存在") from exc
-    except (ValueError, json.JSONDecodeError) as exc:
-        raise HTTPException(status_code=422, detail=str(exc)) from exc
+# 项目地图预览绑定端点（/api/gis/project-previews/*）已随 MVP-01 工作台链路一并移除。

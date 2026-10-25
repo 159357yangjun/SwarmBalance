@@ -203,20 +203,6 @@ def spec():
     return HTMLResponse("<h1>spec.html 缺失</h1>")
 
 
-@app.get("/workbench", response_class=HTMLResponse)
-def workbench():
-    return HTMLResponse((_STATIC.parent / "workbench.html").read_text(encoding="utf-8"))
-
-
-@app.get("/workbench/assets/{name}")
-def workbench_asset(name: str):
-    media_type = {"workbench.css": "text/css", "workbench.js": "application/javascript",
-                  "workbench-core.js": "application/javascript"}.get(name)
-    if media_type is None:
-        raise HTTPException(status_code=404, detail="未知工作台资源")
-    return FileResponse(str(_STATIC.parent / name), media_type=media_type)
-
-
 @app.get("/vendor/{name}")
 def vendor(name: str):
     """本地前端依赖。
@@ -960,18 +946,3 @@ def compare():
         "comparability_refusal": compare_refusal,
         "compared_sources": selected_sources,
     }
-
-# MVP project's persistent run API stays after the legacy implementation so
-# frozen source-anchored research citations retain their original line numbers.
-from console.mvp_api import router as mvp_router, service as mvp_service
-app.include_router(mvp_router)
-
-
-@app.on_event("startup")
-def _recover_mvp_runs():
-    mvp_service.recover()
-
-
-@app.on_event("shutdown")
-def _stop_mvp_runs():
-    mvp_service.shutdown()
