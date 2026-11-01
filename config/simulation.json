@@ -173,12 +173,12 @@
   "data_source": {
     "type": "random",
     "csv": {
-      "drones_file": "../config/import/drones.csv",
-      "nests_file": "../config/import/nests.csv",
-      "tasks_file": "../config/import/tasks.csv"
+      "drones_file": "config/import_templates/drones.csv",
+      "nests_file": "config/import_templates/nests.csv",
+      "tasks_file": "config/import_templates/tasks.csv"
     },
     "geojson": {
-      "file": "../config/import/scene.geojson"
+      "file": "config/import_templates/scene.geojson"
     }
   },
   "metrics": {

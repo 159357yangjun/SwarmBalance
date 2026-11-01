@@ -1,74 +1,49 @@
-# ================= Python =================
+# Python caches and build artifacts
 __pycache__/
 *.py[cod]
 *.egg-info/
-*.pyo
 .ipynb_checkpoints/
 .pytest_cache/
 
-# ================= 编辑器 / IDE =================
-# .idea/ 是个人 IDE 配置（workspace.xml 含本机绝对路径），团队共用会互相覆盖
+# Local editors and environments
 .DS_Store
 .vscode/
 .idea/
-
-# ================= 虚拟环境 =================
 .venv*/
-.venv310/
 env/
 venv/
 
-# ================= 实验产物备份 =================
-# metrics_schema 检测到表头不兼容时会自动备份旧结果，属本机临时文件
-results/compare/*.bak-*
-
-# ================= PX4 ULog 取证通道（#54）=================
-# .ulg 是外部 Zenodo 记录的副本（单条最大 96 MB），入库等于把别人的数据集搬进版本库；
-# 可复现性由 docs/取证输出/px4_ulog_provenance.json 承担：它记 zip 成员名 + URL + CRC32 +
-# SHA256 + 与仓内 manifest.csv 的 md5 对账结果，任何人可用 console/zip_range_extract.py 重取。
-data/raw/px4_logs/ulg/
-
-# ================= 本地调试 / 临时文件 =================
+# Local scratch files
 tmp/
 frontend/test_multi_task.py
 
-# OSM 解析结果磁盘缓存（按源文件指纹失效，只影响启动速度，不影响仿真结果）
+# Generated map/cache/import output
 frontend/data/.osm_cache/
+/data/map/fosi/raw/
+/data/map/fosi/output/
+/data/map/gis/
+/data/maps/fosi/raw/
+/data/maps/fosi/output/
+/data/maps/gis/
+/data/cache/
 
-# Local Web scene library
+# Downloaded third-party ULogs; manifests and licenses remain tracked.
+# Extraction helper: tools/zip_range_extract.py
+data/raw/px4_logs/ulg/
+
+# User-created scenes and evaluation output
 config/scenes/scene_*.json
-
-# ================= 结项归档产物 =================
-deliverables/*.zip
-_review/
-
-# ================= PyMARL 训练产物 =================
-# 训练检查点（agent.th / opt.th）与 sacred 实验日志属运行时产物，不入库
-
-# 本地残留的 MARL 训练产物（模块已移除，整个目录永不入库，防止 git add -A 误扫 33MB .th）
-backend_wx/
-# CLI 探针/临时评测输出（evaluate_metrics 与 plot_compare_metrics 的默认改道目标），不入库
 results/adhoc/
+results/compare/*.bak-*
 
-# ================= 评审首次运行不得弄脏仓库 =================
-# 已入库的结项证据（results/experiments/conclusion_20260911-043701、results/compare/*.csv
-# 与 results/compare/plots/*）是**已跟踪文件**，.gitignore 对它们无效 —— 改动照样会显示，
-# 这正是我们要看见的。下面这些只是"照 README 跑一遍"新产生的运行产物与运行时状态，
-# 默认不入库，避免评审的工作区一跑就脏（也防止 git add -A 把新实验目录扫进提交）。
-# 确实要把某次新实验作为证据入库：git add -f results/experiments/<该目录>
+# Local data retained from removed frameworks; never sweep into git add -A.
+backend_wx/
+results/mvp/
 results/experiments/quick_*/
 results/experiments/conclusion_*/
 results/experiments/paper_*/
 results/experiments/custom_*/
 results/experiments/web_status.json
 results/experiments/web_runner.log
-
-# Locally persisted projects and runs (not research evidence)
-results/mvp/
-
-# Fosi GIS raw third-party downloads and generated local output.
-/data/map/fosi/raw/
-/data/map/fosi/output/
-
-# On-demand GIS tile cache, generated map packages, import jobs (not source code).
-/data/map/gis/
+deliverables/*.zip
+_review/

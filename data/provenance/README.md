@@ -1,6 +1,8 @@
 # 真实性数据集（data/provenance）
 
-版本 1.0.0｜取证日期 2026-10-03｜生成器 `docs/build_truth_dataset.py`（本目录所有 CSV/JSONL 由它生成，请勿手改）。
+版本 1.0.0｜历史取证日期 2026-10-03。
+
+本目录保留历史来源登记。原生成器 `docs/build_truth_dataset.py`、部分取证文档与实验输入已随基线清理移除；以下数量、路径和状态均为历史记录，不能当作当前版本复验结果。CSV/JSONL 原始内容保持不变。
 
 ## 为什么统计不放 MD
 
@@ -124,18 +126,9 @@
 | `avg_latency_s` | float | 平均时延 |
 | `evidence_grade` | enum | B = 本地 run 记录逐行复算，非外部真值 |
 
-## 复算
+## 历史生成流程
 
-```bash
-# 重新生成（会覆盖本目录）
-../.venv310/Scripts/python.exe -X utf8 docs/build_truth_dataset.py
-
-# 只校验：重算并与磁盘比对，任一字节漂移退出码 1
-../.venv310/Scripts/python.exe -X utf8 docs/build_truth_dataset.py --verify
-
-# 参数级算式核对
-python -c "print(1984.4*2, 3968.8/28, 28/16)"
-```
+原生成器 `docs/build_truth_dataset.py` 当前不在仓库，不能直接执行重新生成或 `--verify`。需要复验时先从 Git 历史恢复对应版本的生成器及其输入，并核对与当前代码/配置的差异。表内 `recompute_cmd` 和下文文档路径同属历史登记，不保证在当前工作树可执行。
 
 ## 边界
 

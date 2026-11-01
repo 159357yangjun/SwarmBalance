@@ -1,73 +1,13 @@
-"""Seed interface for reproducible episodes.
+"""Compatibility entrypoint; implementation lives in swarmbalance.simulation.seed."""
+import importlib as _importlib
+import sys as _sys
+from pathlib import Path as _Path
 
-This module centralizes RNG seeding and exposes a global seed value so other
-parts of the frontend (e.g. `environment.py`) can read it.
-
-Seed range: 0 <= seed <= 2**32 - 1. `None` disables deterministic seeding.
-
-Example: apply + read in another module
-
-    from frontend.seed_interface import apply_seed, get_current_seed
-
-    apply_seed(seed_from_backend)
-    current = get_current_seed()          # preferred accessor
-    current2 = CURRENT_SEED               # also works (global variable)
-
-Notes:
-    seeds from backend-wx usually 100 ~ 300
-"""
-
-import random
-from typing import Optional
-
-import numpy as np
-
-SEED_MIN = 0
-SEED_MAX = 2**32 - 1
-
-
-# Global seed value for the current episode.
-# Updated by `apply_seed()`; `None` means deterministic seeding is disabled.
-CURRENT_SEED: Optional[int] = None
-
-
-def normalize_seed(seed):
-    """Normalize the seed to the supported range.
-
-    Seed range: 0 <= seed <= 2**32 - 1. None disables deterministic seeding.
-    """
-    if seed is None:
-        return None
-    try:
-        value = int(seed)
-    except Exception:
-        return None
-
-    if value < SEED_MIN or value > SEED_MAX:
-        value = value % (SEED_MAX + 1)
-    return value
-
-
-def apply_seed(seed):
-    """Apply the seed to Python and NumPy RNGs.
-
-    Returns the normalized seed, or None if seeding is disabled.
-    """
-    global CURRENT_SEED
-
-    value = normalize_seed(seed)
-    CURRENT_SEED = value
-    if value is None:
-        return None
-
-    random.seed(value)
-    np.random.seed(value)
-    return value
-
-
-def get_current_seed() -> Optional[int]:
-    """Return the last normalized seed applied by `apply_seed()`.
-
-    This is equivalent to reading `CURRENT_SEED` directly.
-    """
-    return CURRENT_SEED
+_root = str(_Path(__file__).resolve().parents[1])
+if _root not in _sys.path:
+    _sys.path.insert(0, _root)
+_implementation = _importlib.import_module("swarmbalance.simulation.seed")
+if __name__ == "__main__":
+    _implementation.main()
+else:
+    _sys.modules[__name__] = _implementation

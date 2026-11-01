@@ -478,19 +478,19 @@
 
 ---
 
-## 实现状态对照（2026-10-25 重构基线）
+## 实现状态对照（2026-11-01 模块化布局）
 
 以上 20 个模块构成完整目标功能范围。当前基线的存量能力集中在：
 
 | 模块 | 存量代码位置 | 备注 |
 |---|---|---|
-| 三（部分） | `console/map_lab.py`、`gis_import.py`、`config/import/` | 框选→OSM 获取→缓存→只读预览包 |
-| 四（部分） | `console/scene_library.py`、`scenario_presets.py` | 场景保存/加载、四套答辩剧本 |
-| 五～七（部分） | `frontend/drone.py`、`charging_station.py`、`task.py`、`environment.py` | 异构机队、机巢泊位/换电、任务链 |
-| 八（部分） | `frontend/no_fly_zone.py`、`route_planner.py`、`route_cost.py` | 圆形+多边形禁飞区、A* 绕飞 |
+| 三（部分） | `swarmbalance/web/routes/gis.py`、`infrastructure/maps/gis_import.py`、`config/import_templates/` | 框选→OSM 获取→缓存→只读预览包 |
+| 四（部分） | `swarmbalance/application/scene_library.py`、`scenario_presets.py` | 场景保存/加载、四套答辩剧本 |
+| 五～七（部分） | `swarmbalance/simulation/entities/`、`simulation/environment.py` | 异构机队、机巢泊位/换电、任务链 |
+| 八（部分） | `swarmbalance/simulation/routing/` | 圆形+多边形禁飞区、A* 绕飞 |
 | 九（部分） | `data/raw/openmeto_yangpu_wind_*.csv` + 风扰能耗 | 时变风场有数据源，UI 配置面不全 |
-| 十～十一 | `config/simulation.json`、`frontend/greedy/`、`backend_si/` | Greedy/GA/PSO/OR-Tools；**MARL 数字永久作废，不得引用** |
-| 十三～十五 | `console/sim_session.py`、`server.py`、`static/index.html` | 播放控制、动态注入、2D/3D 指挥台 |
-| 十六（部分） | `frontend/metrics_schema.py`、`/api/compare` | 指标口径定义在；历史结果数据已删，需重新生成 |
+| 十～十一 | `config/simulation.json`、`swarmbalance/scheduling/` | Greedy/GA/PSO/OR-Tools；**MARL 数字永久作废，不得引用** |
+| 十三～十五 | `swarmbalance/application/session.py`、`web/routes/`、`web/static/index.html` | 播放控制、动态注入、2D/3D 指挥台 |
+| 十六（部分） | `swarmbalance/simulation/metrics.py`、`/api/compare` | 指标口径定义在；历史结果数据已删，需重新生成 |
 | 十七 | **已移除**（原 `experiments/` 框架于本次重构删除） | 重建时参考本清单 §17 全量条目 |
 | 一、二、十二、十四、十八～二十 | 基本未实现或仅有零散片段 | 重构主战场 |

@@ -1,0 +1,1774 @@
+{
+  "components": {
+    "schemas": {
+      "CheckpointRequest": {
+        "properties": {
+          "name": {
+            "default": "答辩节点",
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "title": "CheckpointRequest",
+        "type": "object"
+      },
+      "ConfigPatch": {
+        "properties": {
+          "patch": {
+            "additionalProperties": true,
+            "title": "Patch",
+            "type": "object"
+          }
+        },
+        "required": [
+          "patch"
+        ],
+        "title": "ConfigPatch",
+        "type": "object"
+      },
+      "CreateImport": {
+        "properties": {
+          "bbox": {
+            "items": {
+              "type": "number"
+            },
+            "maxItems": 4,
+            "minItems": 4,
+            "title": "Bbox",
+            "type": "array"
+          },
+          "force_refresh": {
+            "default": false,
+            "title": "Force Refresh",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "bbox"
+        ],
+        "title": "CreateImport",
+        "type": "object"
+      },
+      "DroneChargeRequest": {
+        "properties": {
+          "station_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Station Id"
+          }
+        },
+        "title": "DroneChargeRequest",
+        "type": "object"
+      },
+      "DroneIncidentRequest": {
+        "properties": {
+          "out_of_service": {
+            "default": true,
+            "title": "Out Of Service",
+            "type": "boolean"
+          },
+          "reason": {
+            "default": "人工故障注入",
+            "title": "Reason",
+            "type": "string"
+          }
+        },
+        "title": "DroneIncidentRequest",
+        "type": "object"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "title": "Detail",
+            "type": "array"
+          }
+        },
+        "title": "HTTPValidationError",
+        "type": "object"
+      },
+      "NestIncidentRequest": {
+        "properties": {
+          "closed": {
+            "default": true,
+            "title": "Closed",
+            "type": "boolean"
+          },
+          "reason": {
+            "default": "人工场景事件",
+            "title": "Reason",
+            "type": "string"
+          }
+        },
+        "title": "NestIncidentRequest",
+        "type": "object"
+      },
+      "ResetRequest": {
+        "properties": {
+          "algorithm": {
+            "default": "greedy",
+            "title": "Algorithm",
+            "type": "string"
+          },
+          "seed": {
+            "default": 100,
+            "title": "Seed",
+            "type": "integer"
+          }
+        },
+        "title": "ResetRequest",
+        "type": "object"
+      },
+      "ScenarioApplyRequest": {
+        "properties": {
+          "key": {
+            "default": "balanced",
+            "title": "Key",
+            "type": "string"
+          }
+        },
+        "title": "ScenarioApplyRequest",
+        "type": "object"
+      },
+      "SceneLayoutRequest": {
+        "properties": {
+          "charging_stations": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Charging Stations",
+            "type": "array"
+          },
+          "no_fly_zones": {
+            "additionalProperties": true,
+            "title": "No Fly Zones",
+            "type": "object"
+          }
+        },
+        "required": [
+          "charging_stations",
+          "no_fly_zones"
+        ],
+        "title": "SceneLayoutRequest",
+        "type": "object"
+      },
+      "SceneLibraryImportRequest": {
+        "properties": {
+          "document": {
+            "additionalProperties": true,
+            "title": "Document",
+            "type": "object"
+          }
+        },
+        "required": [
+          "document"
+        ],
+        "title": "SceneLibraryImportRequest",
+        "type": "object"
+      },
+      "SceneLibrarySaveRequest": {
+        "properties": {
+          "description": {
+            "default": "",
+            "title": "Description",
+            "type": "string"
+          },
+          "include_scheduler": {
+            "default": true,
+            "title": "Include Scheduler",
+            "type": "boolean"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "title": "SceneLibrarySaveRequest",
+        "type": "object"
+      },
+      "TaskInjectRequest": {
+        "properties": {
+          "category": {
+            "default": "normal",
+            "title": "Category",
+            "type": "string"
+          },
+          "deadline_offset": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Deadline Offset"
+          },
+          "destination": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "number"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Destination"
+          },
+          "priority": {
+            "default": 3,
+            "title": "Priority",
+            "type": "integer"
+          },
+          "source": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "number"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source"
+          },
+          "task_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Task Id"
+          },
+          "volume": {
+            "default": 0.0,
+            "title": "Volume",
+            "type": "number"
+          },
+          "weight": {
+            "default": 1.0,
+            "title": "Weight",
+            "type": "number"
+          }
+        },
+        "title": "TaskInjectRequest",
+        "type": "object"
+      },
+      "TaskStreamRequest": {
+        "properties": {
+          "paused": {
+            "default": true,
+            "title": "Paused",
+            "type": "boolean"
+          }
+        },
+        "title": "TaskStreamRequest",
+        "type": "object"
+      },
+      "TaskUpdateRequest": {
+        "properties": {
+          "category": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Category"
+          },
+          "deadline_offset": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Deadline Offset"
+          },
+          "priority": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Priority"
+          },
+          "weight": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Weight"
+          }
+        },
+        "title": "TaskUpdateRequest",
+        "type": "object"
+      },
+      "ValidationError": {
+        "properties": {
+          "ctx": {
+            "title": "Context",
+            "type": "object"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "title": "Location",
+            "type": "array"
+          },
+          "msg": {
+            "title": "Message",
+            "type": "string"
+          },
+          "type": {
+            "title": "Error Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError",
+        "type": "object"
+      }
+    }
+  },
+  "info": {
+    "title": "无人机调度仿真控制台",
+    "version": "0.1.0"
+  },
+  "openapi": "3.1.0",
+  "paths": {
+    "/": {
+      "get": {
+        "operationId": "index__get",
+        "responses": {
+          "200": {
+            "content": {
+              "text/html": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Index"
+      }
+    },
+    "/api/algorithms": {
+      "get": {
+        "operationId": "algorithms_api_algorithms_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Algorithms"
+      }
+    },
+    "/api/checkpoints": {
+      "get": {
+        "operationId": "checkpoints_api_checkpoints_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Checkpoints"
+      },
+      "post": {
+        "operationId": "save_checkpoint_api_checkpoints_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CheckpointRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Save Checkpoint"
+      }
+    },
+    "/api/checkpoints/{name}": {
+      "delete": {
+        "operationId": "delete_checkpoint_api_checkpoints__name__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "title": "Name",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Delete Checkpoint"
+      }
+    },
+    "/api/checkpoints/{name}/load": {
+      "post": {
+        "operationId": "load_checkpoint_api_checkpoints__name__load_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "title": "Name",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Load Checkpoint"
+      }
+    },
+    "/api/compare": {
+      "get": {
+        "description": "读 results/compare/*.csv，返回各算法最后一行指标（供前端 ECharts 对比）。",
+        "operationId": "compare_api_compare_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Compare"
+      }
+    },
+    "/api/config": {
+      "get": {
+        "operationId": "get_config_api_config_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Config"
+      },
+      "post": {
+        "description": "深合并写回 simulation.json（不丢失未提及字段），不自动重建。",
+        "operationId": "save_config_api_config_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConfigPatch"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Save Config"
+      }
+    },
+    "/api/drones/{drone_id}/charge": {
+      "post": {
+        "description": "人工调无人机前往指定/最近开放机巢补能。",
+        "operationId": "request_drone_charge_api_drones__drone_id__charge_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "drone_id",
+            "required": true,
+            "schema": {
+              "title": "Drone Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DroneChargeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Request Drone Charge"
+      }
+    },
+    "/api/drones/{drone_id}/incident": {
+      "post": {
+        "description": "运行中故障/恢复无人机；故障机未完成任务自动回收并等待重调度。",
+        "operationId": "drone_incident_api_drones__drone_id__incident_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "drone_id",
+            "required": true,
+            "schema": {
+              "title": "Drone Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DroneIncidentRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Drone Incident"
+      }
+    },
+    "/api/gis/import-jobs": {
+      "post": {
+        "operationId": "create_import_job_api_gis_import_jobs_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateImport"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Import Job"
+      }
+    },
+    "/api/gis/import-jobs/{job_id}": {
+      "get": {
+        "operationId": "get_import_job_api_gis_import_jobs__job_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "job_id",
+            "required": true,
+            "schema": {
+              "title": "Job Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Import Job"
+      }
+    },
+    "/api/gis/import-jobs/{job_id}/cancel": {
+      "post": {
+        "operationId": "cancel_import_job_api_gis_import_jobs__job_id__cancel_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "job_id",
+            "required": true,
+            "schema": {
+              "title": "Job Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Cancel Import Job"
+      }
+    },
+    "/api/gis/packages/{package_id}": {
+      "get": {
+        "operationId": "get_package_api_gis_packages__package_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "package_id",
+            "required": true,
+            "schema": {
+              "title": "Package Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Package"
+      }
+    },
+    "/api/gis/packages/{package_id}/layers/{layer}": {
+      "get": {
+        "operationId": "package_layer_api_gis_packages__package_id__layers__layer__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "package_id",
+            "required": true,
+            "schema": {
+              "title": "Package Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "layer",
+            "required": true,
+            "schema": {
+              "title": "Layer",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Package Layer"
+      }
+    },
+    "/api/map": {
+      "get": {
+        "description": "静态地图几何：边界 + 建筑轮廓(含高度)，供 3D 视图一次性加载。",
+        "operationId": "map_static_api_map_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Map Static"
+      }
+    },
+    "/api/map-lab/layers/{layer}": {
+      "get": {
+        "operationId": "map_lab_layer_api_map_lab_layers__layer__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "layer",
+            "required": true,
+            "schema": {
+              "title": "Layer",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Map Lab Layer"
+      }
+    },
+    "/api/map-lab/status": {
+      "get": {
+        "operationId": "map_lab_status_api_map_lab_status_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Map Lab Status"
+      }
+    },
+    "/api/meta": {
+      "get": {
+        "operationId": "meta_api_meta_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Meta"
+      }
+    },
+    "/api/nests/{station_id}/incident": {
+      "post": {
+        "description": "运行中临时关闭/重新开放机巢。",
+        "operationId": "nest_incident_api_nests__station_id__incident_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "station_id",
+            "required": true,
+            "schema": {
+              "title": "Station Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NestIncidentRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Nest Incident"
+      }
+    },
+    "/api/rebuild": {
+      "post": {
+        "description": "写回 simulation.json 后调用：热重载配置并重建 Environment。",
+        "operationId": "rebuild_api_rebuild_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Rebuild"
+      }
+    },
+    "/api/reset": {
+      "post": {
+        "operationId": "reset_api_reset_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResetRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Reset"
+      }
+    },
+    "/api/scenarios": {
+      "get": {
+        "operationId": "scenarios_api_scenarios_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Scenarios"
+      }
+    },
+    "/api/scenarios/apply": {
+      "post": {
+        "description": "加载答辩演示场景。首次加载时保存用户原 simulation.json，便于一键恢复。",
+        "operationId": "apply_scenario_api_scenarios_apply_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ScenarioApplyRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Apply Scenario"
+      }
+    },
+    "/api/scenarios/next": {
+      "post": {
+        "description": "执行当前演示剧本的下一幕。动作仍调用真实 step/inject/incident 接口。",
+        "operationId": "next_scenario_action_api_scenarios_next_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Next Scenario Action"
+      }
+    },
+    "/api/scenarios/restore": {
+      "post": {
+        "description": "恢复进入演示模式前的 simulation.json 与算法/Seed。",
+        "operationId": "restore_scenario_api_scenarios_restore_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Restore Scenario"
+      }
+    },
+    "/api/scene-layout": {
+      "post": {
+        "description": "保存机巢网络/禁飞区布局并热重建。\n\n仅 random 数据源使用 simulation.json 中的机巢布局；CSV/GeoJSON 场景应直接\n编辑其源文件，避免界面看似保存成功但运行时实际未生效。写入后若重建失败，\n会回滚原配置。",
+        "operationId": "save_scene_layout_api_scene_layout_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SceneLayoutRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Save Scene Layout"
+      }
+    },
+    "/api/scene-library": {
+      "get": {
+        "operationId": "scene_library_list_api_scene_library_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Scene Library List"
+      },
+      "post": {
+        "operationId": "scene_library_save_api_scene_library_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SceneLibrarySaveRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Scene Library Save"
+      }
+    },
+    "/api/scene-library/import": {
+      "post": {
+        "operationId": "scene_library_import_api_scene_library_import_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SceneLibraryImportRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Scene Library Import"
+      }
+    },
+    "/api/scene-library/{scene_id}": {
+      "delete": {
+        "operationId": "scene_library_delete_api_scene_library__scene_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "scene_id",
+            "required": true,
+            "schema": {
+              "title": "Scene Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Scene Library Delete"
+      },
+      "get": {
+        "operationId": "scene_library_export_api_scene_library__scene_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "scene_id",
+            "required": true,
+            "schema": {
+              "title": "Scene Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Scene Library Export"
+      }
+    },
+    "/api/scene-library/{scene_id}/apply": {
+      "post": {
+        "description": "事务式应用场景库配置，并按场景记录的算法/Seed 重建。\n\n场景库负责“可复现初始配置”；运行态 checkpoint 负责“精确动态节点”。\n为避免用户在答辩预设的临时配置上再次叠加持久场景，演示模式中禁止应用。",
+        "operationId": "scene_library_apply_api_scene_library__scene_id__apply_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "scene_id",
+            "required": true,
+            "schema": {
+              "title": "Scene Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Scene Library Apply"
+      }
+    },
+    "/api/scheduler-config": {
+      "get": {
+        "operationId": "get_scheduler_config_api_scheduler_config_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Scheduler Config"
+      },
+      "post": {
+        "description": "深合并写回 backend_si/config.yaml。调度器每 reset 重建时会读到新值。",
+        "operationId": "save_scheduler_config_api_scheduler_config_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConfigPatch"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Save Scheduler Config"
+      }
+    },
+    "/api/snapshot": {
+      "get": {
+        "operationId": "snapshot_api_snapshot_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Snapshot"
+      }
+    },
+    "/api/step": {
+      "post": {
+        "description": "推进 1~50 步。高倍速播放使用批量步进以降低 HTTP 请求压力。",
+        "operationId": "step_api_step_post",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "count",
+            "required": false,
+            "schema": {
+              "default": 1,
+              "title": "Count",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Step"
+      }
+    },
+    "/api/task-stream": {
+      "post": {
+        "description": "暂停/恢复自动任务生成，不影响当前待调度池与人工任务。",
+        "operationId": "task_stream_api_task_stream_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TaskStreamRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Task Stream"
+      }
+    },
+    "/api/tasks/inject": {
+      "post": {
+        "description": "运行中插入任务：不重置场景，下一步直接参与当前调度。",
+        "operationId": "inject_task_api_tasks_inject_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TaskInjectRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Inject Task"
+      }
+    },
+    "/api/tasks/{task_id}": {
+      "patch": {
+        "description": "修改待调度任务属性，供运行中优先级/SLA变更演示。",
+        "operationId": "update_task_api_tasks__task_id__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "task_id",
+            "required": true,
+            "schema": {
+              "title": "Task Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TaskUpdateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Update Task"
+      }
+    },
+    "/api/tasks/{task_id}/candidates": {
+      "get": {
+        "description": "返回某个活动任务的候选无人机解释性排名，不改变仿真状态。",
+        "operationId": "task_candidates_api_tasks__task_id__candidates_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "task_id",
+            "required": true,
+            "schema": {
+              "title": "Task Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 5,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Task Candidates"
+      }
+    },
+    "/map-lab": {
+      "get": {
+        "operationId": "map_lab_page_map_lab_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Map Lab Page"
+      }
+    },
+    "/map-lab/assets/map_lab.js": {
+      "get": {
+        "operationId": "map_lab_script_map_lab_assets_map_lab_js_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Map Lab Script"
+      }
+    },
+    "/spec": {
+      "get": {
+        "description": "设计规范页：把世界逻辑与软件设计规范作为软件内的主要展示对象。",
+        "operationId": "spec_spec_get",
+        "responses": {
+          "200": {
+            "content": {
+              "text/html": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Spec"
+      }
+    },
+    "/vendor/{name}": {
+      "get": {
+        "description": "本地前端依赖。\n\n页面原先只从 unpkg / jsdelivr 加载 Vue、ECharts、three.js，答辩现场断网或被内网\n策略拦截时整页不可用；这里提供本地副本作为首选，CDN 只作回退。",
+        "operationId": "vendor_vendor__name__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "title": "Name",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Vendor"
+      }
+    }
+  }
+}

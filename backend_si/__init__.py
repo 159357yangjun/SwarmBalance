@@ -1,20 +1,6 @@
-"""
-群体智能调度算法模块
-Swarm Intelligence Scheduling Module
-"""
-
-from .pso_scheduler import PSOScheduler, PSOOptimizer, Particle
-from .ga_scheduler import GAScheduler, GAOptimizer
-from .fitness_evaluator import FitnessEvaluator, MultiObjectiveEvaluator
-
-__all__ = [
-    'PSOScheduler',
-    'PSOOptimizer',
-    'Particle',
-    'GAScheduler',
-    'GAOptimizer',
-    'FitnessEvaluator',
-    'MultiObjectiveEvaluator'
-]
-
-__version__ = '1.0.0'
+"""Legacy imports for the canonical scheduling package."""
+from swarmbalance.scheduling.pso import PSOScheduler, PSOOptimizer, Particle
+from swarmbalance.scheduling.ga import GAScheduler, GAOptimizer
+from swarmbalance.scheduling.fitness import FitnessEvaluator, MultiObjectiveEvaluator
+__version__ = "1.0.0"
+__all__ = ["PSOScheduler", "PSOOptimizer", "Particle", "GAScheduler", "GAOptimizer", "FitnessEvaluator", "MultiObjectiveEvaluator"]
